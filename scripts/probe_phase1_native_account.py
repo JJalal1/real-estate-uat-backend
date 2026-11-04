@@ -31,17 +31,19 @@ AUTH_LABELS = {'مرحبًا بعودتك', 'رقم واتساب', 'رمز ال�
 AUTH_PHASES = frozenset({'account_open', 'login_open', 'phone_entry', 'code_request',
                          'otp_entry', 'confirm', 'postcondition'})
 ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
+ACCOUNT_SCROLL_MODE = 'physical_scroll'
 INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
 C1_CASES = ('C1-native-network', 'C1-api-empty-fixture', 'C1-auth', 'C1-photo-save',
             'C1-force-stop-restore', 'C1-cleanup')
 FOREGROUND_CATEGORIES = frozenset({'APP', 'PERMISSION_CONTROLLER', 'DOCUMENT_PICKER',
                                   'SYSTEM_UI', 'OTHER', 'UNOBSERVED'})
-# Literal account-operation stages from the unchanged Phase1Input.java helper.
+# Literal account-operation stages from the paired Phase1Input.java helper.
 INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_input_policy', 'account_click',
                               'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
                               'account_focus', 'account_focus_pointer', 'account_focus_request',
-                              'account_focus_observe', 'account_set_request', 'selected_path_format',
-                              'selected_path_resolve', 'selected_node_guard', 'selected_witness', 'complete'})
+                              'account_focus_observe', 'account_set_request',
+                              'selected_path_resolve', 'selected_node_guard', 'complete',
+                              'account_cache_clear', 'account_focus_cache_clear', 'initial_path_format', 'initial_witness_format', 'initial_cache_clear', 'initial_root_guard', 'initial_path_resolve', 'initial_node_guard', 'initial_witness_match', 'pointer_path_format', 'pointer_witness_format', 'pointer_cache_clear', 'pointer_root_guard', 'pointer_path_resolve', 'pointer_node_guard', 'pointer_witness_match', 'pointer_bounds_width', 'pointer_bounds_height', 'pointer_bounds_containment', 'pointer_swipe_height', 'initial_input_guard', 'pointer_input_guard', 'pointer_target_guard'})
 INPUT_FAILURE_REASONS = frozenset({'native_input_not_delivered', 'ambiguous_native_input_receipt',
                                   'device_command_timeout', 'device_command_failed',
                                   'native_instrumentation_unobserved'})
@@ -135,7 +137,7 @@ class NativeAccount:
                        'native_auth_executed': False, 'authentication_captures': False,
                        'native_auth_attempted': False,
                        'native_click_focus_policy': ACCOUNT_CLICK_FOCUS_MODE,
-                       'native_scroll_policy': 'unchanged_semantic_or_existing_pointer',
+                       'native_scroll_policy': ACCOUNT_SCROLL_MODE,
                        'native_text_policy': 'semantic_set_text',
                        'api_bootstrap_is_not_native_creation': True,
                        'submission_executed': False, 'financial_acceptance_executed': False,
@@ -207,11 +209,13 @@ class NativeAccount:
     def instrument(self, op, **extras):
         output, result = '', {}
         try:
-            # Select physical click/focus before dispatch; never retry a semantic failure.
+            # Select each fixed physical policy before dispatch; never retry a semantic failure.
             if 'input_mode' in extras:
                 raise Blocked('fixed_native_input_mode_required')
             if op in {'account-click', 'account-set'}:
                 extras = dict(extras, input_mode=ACCOUNT_CLICK_FOCUS_MODE)
+            elif op == 'account-scroll':
+                extras = dict(extras, input_mode=ACCOUNT_SCROLL_MODE)
             args = ['shell', 'am', 'instrument', '-w', '-e', 'op', op]
             for key, value in extras.items():
                 args.extend(['-e', key, str(value)])

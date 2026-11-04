@@ -31,6 +31,8 @@ public final class Phase1Input extends Instrumentation {
     private boolean pointerActive;
     private String stage="guard";
     private String foreground="UNOBSERVED";
+    private int selectionContext; // 0=ordinary field observation, 1=initial, 2=pointer recheck
+
 
     @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); args = arguments; start(); }
     @Override public void onStart() {
@@ -165,6 +167,7 @@ public final class Phase1Input extends Instrumentation {
     private AccessibilityNodeInfo readyRoot(String op) {
         long deadline=SystemClock.uptimeMillis()+5000;
         while(SystemClock.uptimeMillis()<deadline) {
+            if(op.startsWith("account-")) { stage="account_cache_clear"; require(automation.clearCache()); }
             AccessibilityNodeInfo root=automation.getRootInActiveWindow();
             CharSequence rootPackage=root==null ? null : root.getPackageName();
             foreground=foregroundCategory(rootPackage);
@@ -225,30 +228,70 @@ public final class Phase1Input extends Instrumentation {
         nodes.put(row);
         for(int i=0;i<node.getChildCount();i++) { AccessibilityNodeInfo child=node.getChild(i); if(child!=null) snapshot(child,path+"."+i,nodes,depth+1); }
     }
+    private static final class Selection {
+        final AccessibilityNodeInfo root,node;
+        Selection(AccessibilityNodeInfo root,AccessibilityNodeInfo node) { this.root=root; this.node=node; }
+    }
     private AccessibilityNodeInfo selected(AccessibilityNodeInfo root) throws Exception {
-        stage="selected_path_format";
-        String path=args.getString("node_path",""); require(path.matches("0(?:\\.[0-9]{1,4}){0,40}"));
-        stage="selected_path_resolve";
-        AccessibilityNodeInfo node=atPath(root,path);
-        stage="selected_witness";
-        String expected=args.getString("node_witness",""); require(expected.matches("[a-f0-9]{64}") && expected.equals(witness(node)));
-        return node;
+        return selectedExpected(false).node;
+    }
+    private Selection selectedExpected(boolean pointerRecheck) throws Exception {
+        if(pointerRecheck) stage="pointer_input_guard"; else stage="initial_input_guard";
+        require(events==0 && !pointerActive);
+        selectionContext=pointerRecheck ? 2 : 1;
+        try {
+            if(pointerRecheck) stage="pointer_path_format"; else stage="initial_path_format";
+            String path=args.getString("node_path",""); require(path.matches("0(?:\\.[0-9]{1,4}){0,40}"));
+            if(pointerRecheck) stage="pointer_witness_format"; else stage="initial_witness_format";
+            final String expected=args.getString("node_witness",""); require(expected.matches("[a-f0-9]{64}"));
+            final long end=SystemClock.uptimeMillis()+1000L;
+            int reads=0;
+            while(true) {
+                if(reads>0 && SystemClock.uptimeMillis()>=end) throw new IllegalStateException();
+                if(pointerRecheck) stage="pointer_cache_clear"; else stage="initial_cache_clear";
+                require(automation.clearCache());
+                AccessibilityNodeInfo fresh=automation.getRootInActiveWindow();
+                CharSequence pkg=fresh==null ? null : fresh.getPackageName(); foreground=foregroundCategory(pkg);
+                if(pointerRecheck) stage="pointer_root_guard"; else stage="initial_root_guard";
+                require(fresh!=null && pkg!=null && APP.contentEquals(pkg));
+                reads++;
+                AccessibilityNodeInfo node=null;
+                try { node=atPath(fresh,path); }
+                catch(IllegalStateException unavailable) {
+                    if(reads>=10 || SystemClock.uptimeMillis()>=end) throw unavailable;
+                }
+                if(node!=null) {
+                    if(pointerRecheck) stage="pointer_witness_match"; else stage="initial_witness_match";
+                    if(expected.equals(witness(node))) return new Selection(fresh,node);
+                }
+                if(reads>=10 || SystemClock.uptimeMillis()>=end) throw new IllegalStateException();
+                // Only another observation of the SAME path and expected witness.
+                // No input, new witness adoption, target search or retry occurs here.
+                SystemClock.sleep(100);
+            }
+        } finally { selectionContext=0; }
     }
     private AccessibilityNodeInfo atPath(AccessibilityNodeInfo root,String path) throws Exception {
         stage="selected_path_resolve";
+        if(selectionContext==1) stage="initial_path_resolve";
+        else if(selectionContext==2) stage="pointer_path_resolve";
         AccessibilityNodeInfo node=root;
         String[] parts=path.split("\\.");
         for(int i=1;i<parts.length;i++) { int n=Integer.parseInt(parts[i]); require(n<node.getChildCount()); node=node.getChild(n); require(node!=null); }
         stage="selected_node_guard";
+        if(selectionContext==1) stage="initial_node_guard";
+        else if(selectionContext==2) stage="pointer_node_guard";
         require(node.getPackageName()!=null && APP.contentEquals(node.getPackageName()) && node.isVisibleToUser() && node.isEnabled());
         return node;
     }
     private void accountOperation(AccessibilityNodeInfo root,String op,Bundle result) throws Exception {
         stage="account_input_policy";
         String inputMode=args.getString("input_mode","semantic");
-        require("semantic".equals(inputMode) || "physical_click_focus".equals(inputMode));
+        require("semantic".equals(inputMode) || "physical_click_focus".equals(inputMode) || "physical_scroll".equals(inputMode));
         boolean physicalClickFocus="physical_click_focus".equals(inputMode);
+        boolean physicalScroll="physical_scroll".equals(inputMode);
         require(!physicalClickFocus || "account-click".equals(op) || "account-set".equals(op));
+        require(!physicalScroll || "account-scroll".equals(op));
         if("account-snapshot".equals(op)) {
             JSONArray nodes=new JSONArray(); snapshot(root,"0",nodes,0);
             String encoded=Base64.encodeToString(nodes.toString().getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);
@@ -266,7 +309,7 @@ public final class Phase1Input extends Instrumentation {
         } else if("account-scroll".equals(op)) {
             stage="account_scroll"; int action="backward".equals(args.getString("direction","forward")) ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
             require(node.isScrollable());
-            if((node.getActions()&action)!=0) { require(node.performAction(action)); result.putBoolean("semantic_action_used",true); }
+            if(!physicalScroll && (node.getActions()&action)!=0) { require(node.performAction(action)); result.putBoolean("semantic_action_used",true); }
             else { stage="account_pointer_swipe"; pointerSwipe(node,"backward".equals(args.getString("direction","forward"))); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
         } else {
             require("account-set".equals(op) && node.isEditable()); stage="account_focus";
@@ -281,7 +324,8 @@ public final class Phase1Input extends Instrumentation {
             stage="account_focus_observe";
             AccessibilityNodeInfo field=null; long end=SystemClock.uptimeMillis()+15000;
             while(SystemClock.uptimeMillis()<end) {
-                SystemClock.sleep(100); AccessibilityNodeInfo fresh=automation.getRootInActiveWindow();
+                SystemClock.sleep(100); stage="account_focus_cache_clear"; require(automation.clearCache());
+                AccessibilityNodeInfo fresh=automation.getRootInActiveWindow();
                 CharSequence rootPackage=fresh==null ? null : fresh.getPackageName();
                 foreground=foregroundCategory(rootPackage);
                 if(fresh==null || !APP.contentEquals(rootPackage)) continue;
@@ -302,13 +346,17 @@ public final class Phase1Input extends Instrumentation {
         SystemClock.sleep(300); result.putBoolean("account_action_delivered",true);
     }
     private Rect pointerBounds(AccessibilityNodeInfo node) throws Exception {
-        AccessibilityNodeInfo active=automation.getRootInActiveWindow();
-        CharSequence rootPackage=active==null ? null : active.getPackageName();
-        foreground=foregroundCategory(rootPackage);
-        require(active!=null && rootPackage!=null && APP.contentEquals(rootPackage));
-        AccessibilityNodeInfo fresh=selected(active);
+        Selection selection=selectedExpected(true);
+        AccessibilityNodeInfo active=selection.root,fresh=selection.node;
+        stage="pointer_target_guard";
+        String op=args.getString("op","");
+        if("account-scroll".equals(op)) require(fresh.isScrollable());
+        else if("account-set".equals(op)) require(fresh.isEditable());
+        else { require("account-click".equals(op)); require(fresh.isClickable() || fresh.isEditable() || "android.widget.Button".contentEquals(fresh.getClassName())); }
         Rect screen=new Rect(), bounds=new Rect(); active.getBoundsInScreen(screen); fresh.getBoundsInScreen(bounds);
-        require(bounds.width()>8 && bounds.height()>8 && screen.contains(bounds)); return bounds;
+        stage="pointer_bounds_width"; require(bounds.width()>8);
+        stage="pointer_bounds_height"; require(bounds.height()>8);
+        stage="pointer_bounds_containment"; require(screen.contains(bounds)); return bounds;
     }
     private void pointerTap(AccessibilityNodeInfo node) throws Exception {
         String dispatchStage=stage;
@@ -320,7 +368,8 @@ public final class Phase1Input extends Instrumentation {
     private void pointerSwipe(AccessibilityNodeInfo node,boolean backward) throws Exception {
         String dispatchStage=stage;
         Rect b=pointerBounds(node); stage=dispatchStage;
-        require(b.height()>80); float margin=Math.min(60,b.height()/4f);
+        stage="pointer_swipe_height"; require(b.height()>80); stage=dispatchStage;
+        float margin=Math.min(60,b.height()/4f);
         float x=b.exactCenterX(),from=backward?b.top+margin:b.bottom-margin,to=backward?b.bottom-margin:b.top+margin;
         long down=SystemClock.uptimeMillis();send(down,MotionEvent.ACTION_DOWN,new float[]{x},new float[]{from});
         for(int i=1;i<=12;i++){SystemClock.sleep(25);send(down,MotionEvent.ACTION_MOVE,new float[]{x},new float[]{from+(to-from)*i/12f});}

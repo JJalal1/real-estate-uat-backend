@@ -14,7 +14,7 @@ import probe_phase1_native_account as native
 
 
 class NativeAccountSafetyTest(unittest.TestCase):
-    def test_mode_selected_before_click_and_set_dispatch_only(self):
+    def test_fixed_mode_selected_before_account_input_dispatch(self):
         for op in ('account-click', 'account-set', 'account-scroll', 'account-snapshot'):
             receipt = ['INSTRUMENTATION_RESULT: passed=true',
                        'INSTRUMENTATION_RESULT: op=' + op, 'INSTRUMENTATION_CODE: -1']
@@ -25,12 +25,16 @@ class NativeAccountSafetyTest(unittest.TestCase):
                 index = argv.index('input_mode')
                 self.assertEqual(argv[index + 1], 'physical_click_focus')
                 self.assertEqual(argv.count('input_mode'), 1)
+            elif op == 'account-scroll':
+                index = argv.index('input_mode')
+                self.assertEqual(argv[index + 1], 'physical_scroll')
+                self.assertEqual(argv.count('input_mode'), 1)
             else:
                 self.assertNotIn('input_mode', argv)
             self.probe.adb.assert_called_once()
 
     def test_caller_cannot_override_fixed_mode_before_any_dispatch(self):
-        for value in ('semantic', 'physical_click_focus', 'PRIVATE_SYNTHETIC_SENTINEL'):
+        for value in ('semantic', 'physical_click_focus', 'physical_scroll', 'PRIVATE_SYNTHETIC_SENTINEL'):
             self.probe.adb = Mock()
             with self.assertRaisesRegex(native.Blocked, '^fixed_native_input_mode_required$'):
                 self.probe.instrument('account-click', input_mode=value)
@@ -49,6 +53,37 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertEqual(self.probe.report['actions'], [])
         self.assertEqual(self.probe.report['frames'], [])
         self.assertEqual(self.probe.report['native_input_failures'][0]['java_stage'], 'account_pointer_tap')
+
+    def test_selection_diagnostic_stage_retains_no_path_witness_or_value(self):
+        self.probe.case_phase('C1-photo-save')
+        self.probe.authenticated = True
+        self.probe.adb = Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: passed=false', 'INSTRUMENTATION_RESULT: op=account-click',
+            'INSTRUMENTATION_RESULT: stage=pointer_bounds_containment',
+            'INSTRUMENTATION_RESULT: foreground_category=APP',
+            'INSTRUMENTATION_RESULT: node_witness=' + 'f' * 64,
+            'INSTRUMENTATION_CODE: 0']))
+        with self.assertRaises(native.Blocked):
+            self.probe.instrument('account-click', node_path='0.999', node_witness='f' * 64)
+        self.probe.adb.assert_called_once()
+        row = self.probe.report['native_input_failures'][0]
+        self.assertEqual(row['java_stage'], 'pointer_bounds_containment')
+        self.assertNotIn('0.999', json.dumps(row))
+        self.assertNotIn('f' * 64, json.dumps(row))
+        self.assertEqual(self.probe.report['actions'], [])
+
+    def test_failed_physical_scroll_is_never_replayed(self):
+        self.probe.case_phase('C1-cleanup')
+        self.probe.authenticated = True
+        self.probe.adb = Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: passed=false', 'INSTRUMENTATION_RESULT: op=account-scroll',
+            'INSTRUMENTATION_RESULT: stage=account_pointer_swipe',
+            'INSTRUMENTATION_RESULT: foreground_category=APP', 'INSTRUMENTATION_CODE: 0']))
+        with self.assertRaises(native.Blocked):
+            self.probe.instrument('account-scroll', node_path='0.1', node_witness='a' * 64)
+        self.probe.adb.assert_called_once()
+        self.assertEqual(self.probe.adb.call_args.args.count('physical_scroll'), 1)
+        self.assertEqual(self.probe.report['actions'], [])
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -207,7 +242,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
     def test_input_diagnostics_keep_only_first_failure_for_each_fixed_case_and_six_total(self):
         self.probe.adb = Mock(return_value='\n'.join([
             'INSTRUMENTATION_RESULT: op=account-click', 'INSTRUMENTATION_RESULT: passed=false',
-            'INSTRUMENTATION_RESULT: stage=selected_witness',
+            'INSTRUMENTATION_RESULT: stage=initial_witness_match',
             'INSTRUMENTATION_RESULT: foreground_category=APP', 'INSTRUMENTATION_CODE: 0']))
         for case in native.C1_CASES:
             self.probe.case_phase(case)
@@ -219,7 +254,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         failures = self.probe.report['native_input_failures']
         self.assertEqual(len(failures), 6)
         self.assertEqual([row['case'] for row in failures], list(native.C1_CASES))
-        self.assertTrue(all(row['auth_phase'] is None and row['java_stage'] == 'selected_witness'
+        self.assertTrue(all(row['auth_phase'] is None and row['java_stage'] == 'initial_witness_match'
                             and row['foreground_category'] == 'APP' for row in failures))
         for row in failures:
             self.assertEqual(set(row), {'case', 'auth_phase', 'op', 'java_stage', 'foreground_category',
