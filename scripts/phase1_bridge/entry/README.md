@@ -27,9 +27,9 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`fb4dc4885631912e09af00d375d3cc764e6f76c0ec22c7672544ac07497c318b`
+`6077fd1d16fe02764c3fcccb7c69c1839660fd0d4283c1a27b7a5436a52f0ced`
 and Java SHA
-`ef8341023e6a856bdcf5933c37cc6facc92cd1cca96cf73f78dd4eaa8bbe7510`.
+`56b9199ea3312f55746ea12176367c26b8ccabeb13981a93f2fd7a0bde2b2a5f`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
 source, the exact baseline diff allowlist, original unchanged mobile/backend
 trees, clean tracked paths and pinned public recipient certificate/expiry. No
@@ -168,7 +168,7 @@ mode. A complete source mapping is required before any copying.
 
 ## Focused field identity and OS photo cards
 
-A field may lose its in-field hint after focus only when Android source/window node equality proves it is the same original node. Its path, editable state, class, content description, focus and set-text capability remain checked. Changed nonempty hints and different nodes refuse; no focus action is repeated.
+Before the sole focus action, the pointer target is bound twice by exact path and witness. Within the same original15-second focus window, read-only observations follow only the currently focused original Android source/window node; tree-index reflow cannot select a different field. Editable state, class, content description, hint, focus and set-text capability remain checked. The same original node may lose an in-field hint on focus; changed nonempty hints or different nodes never receive text. No focus action is repeated. A failed C1 field may report only fixed hint-transition/identity categories and a bounded observation count, never field values, paths or node identifiers.
 
 A photo card handled by the DocumentsUI RecyclerView may be focusable without its own click listener. Such a card is admitted only within the actual document list and with the complete owned filename as the first metadata field. Preview controls, similar names, ambiguous cards and foreign packages remain excluded.
 

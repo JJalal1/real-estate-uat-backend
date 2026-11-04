@@ -229,6 +229,15 @@ class NativeAccount:
             'code_zero': bool(re.search(r'^INSTRUMENTATION_CODE: 0\s*$', output, re.M)),
             'reason': reason if reason in INPUT_FAILURE_REASONS else 'native_instrumentation_unobserved',
         })
+        if op == 'account-set' and self._active_case == 'C1-photo-save':
+            transition = result.get('focus_hint_transition')
+            same, focused = result.get('focus_source_node_same'), result.get('focus_observed_focused')
+            count = result.get('focus_observation_count', '')
+            if (transition in {'SAME','NONEMPTY_TO_EMPTY','EMPTY_TO_NONEMPTY','NONEMPTY_CHANGED'}
+                    and same in {'true','false'} and focused in {'true','false'}
+                    and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
+                failures[-1]['focus_identity_observation'] = {'hint_transition':transition,
+                    'same_original_android_node':same=='true','focused':focused=='true','observations':int(count)}
         self.save()
 
     def instrument(self, op, **extras):

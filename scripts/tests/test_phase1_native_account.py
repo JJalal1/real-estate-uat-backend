@@ -170,17 +170,54 @@ class NativeAccountSafetyTest(unittest.TestCase):
             result=subprocess.run(['java','-cp',folder,'FocusHintPolicy'],capture_output=True,text=True,timeout=10)
             self.assertEqual((result.returncode,result.stdout),(0,'FOCUS_HINT_POLICY_PASS'))
 
-    def test_focus_transition_retains_path_class_description_source_identity_and_single_dispatch(self):
+    def test_focus_transition_retains_original_pointer_binding_and_reads_only_exact_focused_source(self):
         source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
         observe=source.split('stage="account_focus_observe";',1)[1].split('require(field!=null);',1)[0]
-        for required in ('atPath(fresh,args.getString("node_path",""))','require(candidate.isEditable())',
+        for required in ('fresh.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)','require(candidate.isEditable())',
                          'plain(node.getClassName()).equals(plain(candidate.getClassName()))',
                          'plain(node.getContentDescription()).equals(plain(candidate.getContentDescription()))',
-                         'candidate.isFocused(),node.equals(candidate)',
+                         'boolean sameNode=node.equals(candidate)','if(!sameNode) continue',
+                         'focusHintMatches(originalHint,currentHint,candidate.isFocused(),sameNode)',
                          'candidate.getActions()&AccessibilityNodeInfo.ACTION_SET_TEXT'):
             self.assertIn(required,observe)
+        self.assertIn('if(!focusHintMatches(originalHint,currentHint,candidate.isFocused(),sameNode)) continue',observe)
+        before=source.split('private Selection selectedExpected(',1)[1].split('private AccessibilityNodeInfo atPath(',1)[0]
+        self.assertIn('node=atPath(fresh,path)',before)
+        self.assertIn('expected.equals(witness(node))',before)
+        self.assertIn('Selection selection=selectedExpected(true)',source)
         for forbidden in ('pointerTap(', 'checkedAction(', 'send(', 'findAccessibilityNodeInfos'):
             self.assertNotIn(forbidden,observe)
+
+    def test_focus_failure_exports_only_bounded_identity_categories_without_field_values(self):
+        self.probe.case_phase('C1-photo-save');self.probe.authenticated=True
+        self.probe.adb=Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: op=account-set','INSTRUMENTATION_RESULT: passed=false',
+            'INSTRUMENTATION_RESULT: stage=account_focus_pending',
+            'INSTRUMENTATION_RESULT: focus_hint_transition=NONEMPTY_CHANGED',
+            'INSTRUMENTATION_RESULT: focus_source_node_same=false',
+            'INSTRUMENTATION_RESULT: focus_observed_focused=true',
+            'INSTRUMENTATION_RESULT: focus_observation_count=150',
+            'INSTRUMENTATION_RESULT: hint=PRIVATE_FIELD_SENTINEL','INSTRUMENTATION_CODE: 0']))
+        with self.assertRaises(native.Blocked):self.probe.instrument('account-set',node_path='0.999',value_b64='PRIVATE_INPUT_SENTINEL')
+        self.assertEqual(self.probe.report['native_input_failures'][0]['focus_identity_observation'],{
+            'hint_transition':'NONEMPTY_CHANGED','same_original_android_node':False,'focused':True,'observations':150})
+        self.probe.adb.assert_called_once()
+        for value in ('PRIVATE_FIELD_SENTINEL','PRIVATE_INPUT_SENTINEL','0.999'):
+            self.assertNotIn(value,json.dumps(self.probe.report))
+
+    def test_invalid_focus_diagnostic_or_auth_case_does_not_export_focus_state(self):
+        for case,count,transition in [('C1-photo-save','151','SAME'),('C1-photo-save','1','PRIVATE_SENTINEL'),('C1-auth','1','SAME')]:
+            self.probe.case_phase(case);self.probe.report['native_input_failures']=[]
+            self.probe.adb=Mock(return_value='\n'.join([
+                'INSTRUMENTATION_RESULT: op=account-set','INSTRUMENTATION_RESULT: passed=false',
+                'INSTRUMENTATION_RESULT: focus_hint_transition='+transition,
+                'INSTRUMENTATION_RESULT: focus_source_node_same=true',
+                'INSTRUMENTATION_RESULT: focus_observed_focused=true',
+                'INSTRUMENTATION_RESULT: focus_observation_count='+count,'INSTRUMENTATION_CODE: 0']))
+            with self.subTest(case=case,count=count,transition=transition),self.assertRaises(native.Blocked):
+                self.probe.instrument('account-set')
+            self.assertNotIn('focus_identity_observation',self.probe.report['native_input_failures'][0])
+            self.assertNotIn('PRIVATE_SENTINEL',json.dumps(self.probe.report))
 
 
 

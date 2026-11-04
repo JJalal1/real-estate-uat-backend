@@ -352,19 +352,34 @@ public final class Phase1Input extends Instrumentation {
             }
             stage="account_focus_observe";
             AccessibilityNodeInfo field=null; long end=SystemClock.uptimeMillis()+15000;
+            int focusObservations=0;
             while(SystemClock.uptimeMillis()<end) {
                 SystemClock.sleep(100); stage="account_focus_cache_clear"; require(automation.clearCache());
                 AccessibilityNodeInfo fresh=automation.getRootInActiveWindow();
                 CharSequence rootPackage=fresh==null ? null : fresh.getPackageName();
                 foreground=foregroundCategory(rootPackage);
                 if(fresh==null || !APP.contentEquals(rootPackage)) continue;
-                AccessibilityNodeInfo candidate=atPath(fresh,args.getString("node_path",""));
+                // The pointer target was bound twice by exact path/witness.
+                // Keyboard/layout reflow may move that node's tree index.
+                // Follow only the currently focused original Android node;
+                // never choose another field by its label or repeat focus.
+                AccessibilityNodeInfo candidate=fresh.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+                stage="account_focus_pending";
+                if(candidate==null) continue;
+                boolean sameNode=node.equals(candidate);
+                String originalHint=plain(node.getHintText()),currentHint=plain(candidate.getHintText());
+                result.putString("focus_hint_transition",originalHint.equals(currentHint) ? "SAME" :
+                    currentHint.isEmpty() ? "NONEMPTY_TO_EMPTY" : originalHint.isEmpty() ? "EMPTY_TO_NONEMPTY" : "NONEMPTY_CHANGED");
+                result.putBoolean("focus_source_node_same",sameNode);
+                result.putBoolean("focus_observed_focused",candidate.isFocused());
+                result.putInt("focus_observation_count",++focusObservations);
+                if(!sameNode) continue;
+                require(APP.contentEquals(candidate.getPackageName()) && candidate.isVisibleToUser() && candidate.isEnabled());
                 stage="account_focus_editable_match"; require(candidate.isEditable());
                 stage="account_focus_class_match"; require(plain(node.getClassName()).equals(plain(candidate.getClassName())));
                 stage="account_focus_description_match"; require(plain(node.getContentDescription()).equals(plain(candidate.getContentDescription())));
                 stage="account_focus_hint_match";
-                require(focusHintMatches(plain(node.getHintText()),plain(candidate.getHintText()),
-                    candidate.isFocused(),node.equals(candidate)));
+                if(!focusHintMatches(originalHint,currentHint,candidate.isFocused(),sameNode)) continue;
                 stage="account_focus_pending";
                 if(candidate.isFocused()) {
                     stage="account_focus_text_action_pending";
