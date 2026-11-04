@@ -475,11 +475,65 @@ class NativeAccount:
             return (c - a) * (d - b)
         self.act('scroll', max(rows, key=area), direction=direction)
 
+    def c4_ai_field_scope(self, label):
+        state = self.report.get('local_c4_executor')
+        metrics = getattr(self, 'admission_metrics', {})
+        return (label in {'عنوان الإعلان', 'نص الإعلان'} and type(state) is dict
+                and state.get('inflight') in {'prepare_request', 'edit_reviewed_title'}
+                and state.get('uncertain') is False and self._active_case not in C1_CASES
+                and self.authenticated is True and self.recorder is None
+                and not getattr(self, '_host_stop_unconfirmed', False)
+                and (type(metrics) is not dict or metrics.get('state') != 'uncertain'))
+
+    def c4_ai_field_in_rows(self, rows, label):
+        visible = [r for r in rows if r.get('package') == APP and r.get('visible') is True
+                   and r.get('enabled') is True]
+        headers = [r for r in self.matching(visible, label) if r.get('editable') is not True]
+        if not headers:
+            return None
+        if len(headers) != 1:
+            raise Blocked('unique_native_field_label_missing')
+
+        def bounds(row):
+            value = row.get('bounds')
+            if (type(value) is not list or len(value) != 4 or any(type(v) is not int for v in value)
+                    or value[2] <= value[0] or value[3] <= value[1]):
+                raise Blocked('unique_labelled_native_field_missing')
+            return value
+
+        a, b, c, d = bounds(headers[0])
+        limit = None
+        if label == 'عنوان الإعلان':
+            # Product source places the next copy heading after the title
+            # editor. Keep that next section out of the title's candidates.
+            following = [r for r in self.matching(visible, 'نص الإعلان') if r.get('editable') is not True]
+            if len(following) > 1:
+                raise Blocked('unique_native_field_label_missing')
+            if following:
+                limit = bounds(following[0])[1]
+                if limit < d:
+                    raise Blocked('unique_labelled_native_field_missing')
+        candidates = []
+        for row in visible:
+            if row.get('editable') is not True:
+                continue
+            left, top, right, bottom = bounds(row)
+            if top >= d and min(c, right) > max(a, left) and (limit is None or bottom <= limit):
+                candidates.append(row)
+        if len(candidates) > 1:
+            raise Blocked('unique_labelled_native_field_missing')
+        return candidates[0] if candidates else None
+
     def seek(self, label, attempts=12):
         for direction in ('forward', 'backward'):
             for _ in range(attempts):
                 rows = self.nodes()
                 matched = self.matching(rows, label)
+                if self.c4_ai_field_scope(label):
+                    if self.c4_ai_field_in_rows(rows, label) is not None:
+                        return rows, matched
+                    self.scroll(direction)
+                    continue
                 # The one-photo heading can enter the viewport before its
                 # lower status. Reveal that exact completion status for callers.
                 if matched and (label != 'صور الإعلان (1/12)' or self.matching(rows, 'مكتمل')):
@@ -547,6 +601,14 @@ class NativeAccount:
 
     def field(self, label, seek=True):
         rows = self.nodes()
+        if self.c4_ai_field_scope(label):
+            candidate = self.c4_ai_field_in_rows(rows, label)
+            if candidate is None and seek:
+                rows, _ = self.seek(label)
+                candidate = self.c4_ai_field_in_rows(rows, label)
+            if candidate is None:
+                raise Blocked('unique_labelled_native_field_missing')
+            return candidate
         matched = self.matching(rows, label)
         if not matched and seek:
             rows, matched = self.seek(label)
@@ -568,7 +630,10 @@ class NativeAccount:
     def set(self, label, value):
         if label == 'صف العقار': self.c4_prepare_observation_stage('BRIEF_SET')
         self.act('set', self.field(label), value=value)
-        self.adb('shell', 'input', 'keyevent', '4')  # dismiss IME only after focused set
+        # This exact prepare footer remains above the IME and unfocuses in its
+        # own request handler; the frozen caller next taps that named control.
+        if not (label == 'صف العقار' and self.c4_prepare_observation_scope()):
+            self.adb('shell', 'input', 'keyevent', '4')  # dismiss IME only after focused set
 
     def require_value(self, label, expected):
         if expected not in labels(self.field(label)):

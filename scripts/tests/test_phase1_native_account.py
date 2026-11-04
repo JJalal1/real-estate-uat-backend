@@ -580,6 +580,90 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe._active_case=None;self.probe.authenticated=True;self.probe.recorder=None
         self.probe.report['local_c4_executor']={'inflight':'prepare_request','uncertain':False}
 
+    def c4_ai_candidate_rows(self):
+        return [self.node('عنوان الإعلان',path='0.1',bounds=[20,100,500,120]),
+            self.node('generated title',path='0.2',bounds=[20,128,500,210],editable=True),
+            self.node('نص الإعلان',path='0.3',bounds=[20,230,500,250]),
+            self.node('generated copy',path='0.4',bounds=[20,258,500,430],editable=True)]
+
+    def test_candidate_c4_ai_fields_bind_below_each_header_without_preceding_title_misbinding(self):
+        self.c4_prepare_scope();rows=self.c4_ai_candidate_rows()
+        self.probe.nodes=Mock(return_value=rows);self.probe.scroll=Mock()
+        for stage in ('prepare_request','edit_reviewed_title'):
+            self.probe.report['local_c4_executor']['inflight']=stage
+            self.assertEqual(self.probe.field('عنوان الإعلان'),rows[1])
+            self.assertEqual(self.probe.field('نص الإعلان'),rows[3])
+        self.assertLess(abs(rows[1]['bounds'][1]-rows[2]['bounds'][1]),150)
+        self.probe.scroll.assert_not_called()
+        for label in ('عنوان الإعلان','نص الإعلان'):
+            actual,matched=self.probe.seek(label)
+            self.assertEqual(actual,rows);self.assertEqual(matched,[rows[0 if label=='عنوان الإعلان'else 2]])
+        # A visible copy editor cannot substitute for a missing title editor.
+        self.probe.nodes=Mock(return_value=[rows[0],rows[2],rows[3]])
+        with self.assertRaisesRegex(native.Blocked,'^unique_labelled_native_field_missing$'):
+            self.probe.field('عنوان الإعلان',seek=False)
+        self.probe.scroll.assert_not_called()
+
+    def test_candidate_c4_ai_copy_reveals_offscreen_editor_before_returning_latest_bound_row(self):
+        self.c4_prepare_scope();rows=self.c4_ai_candidate_rows();self.stability_clock()
+        container=self.node('',path='0.8',scrollable=True,bounds=[0,80,540,830])
+        before=rows[:3]+[container]
+        fresh=dict(rows[3],witness='b'*64)
+        after=rows[:3]+[fresh,container]
+        self.probe.nodes=Mock(side_effect=[before,before,before,after])
+        self.probe.act,self.probe.safe_capture=Mock(),Mock()
+        self.assertEqual(self.probe.field('نص الإعلان'),fresh)
+        self.probe.act.assert_called_once_with('scroll',container,direction='forward')
+        self.assertEqual(self.probe.nodes.call_count,4)
+        self.probe.safe_capture.assert_not_called()
+
+    def test_candidate_c4_ai_header_without_editor_never_returns_preceding_title_and_preserves_scroll_bound(self):
+        self.c4_prepare_scope();rows=self.c4_ai_candidate_rows()[:3]
+        self.probe.nodes=Mock(return_value=rows);self.probe.scroll,self.probe.safe_capture=Mock(),Mock()
+        with self.assertRaisesRegex(native.Blocked,'^named_native_control_not_found$'):
+            self.probe.seek('نص الإعلان')
+        self.assertEqual(self.probe.scroll.call_args_list,
+            [unittest.mock.call('forward')]*12+[unittest.mock.call('backward')]*12)
+        self.assertEqual(self.probe.nodes.call_count,24)
+        self.probe.safe_capture.assert_not_called()
+
+    def test_candidate_c4_ai_ambiguous_header_or_multiple_below_editors_refuse_before_any_scroll(self):
+        self.c4_prepare_scope();rows=self.c4_ai_candidate_rows()
+        for candidates in (rows+[self.node('second copy',path='0.5',bounds=[20,440,500,520],editable=True)],
+                rows+[self.node('نص الإعلان',path='0.5',bounds=[20,440,500,460])],
+                rows[:2]+[dict(rows[2],bounds=[20,250,20,230]),rows[3]]):
+            self.probe.nodes=Mock(return_value=candidates);self.probe.scroll=Mock()
+            with self.assertRaises(native.Blocked):self.probe.field('نص الإعلان')
+            self.probe.nodes.assert_called_once();self.probe.scroll.assert_not_called()
+
+    def test_candidate_c4_ai_binding_ignores_hidden_disabled_foreign_or_unaligned_editors(self):
+        self.c4_prepare_scope();rows=self.c4_ai_candidate_rows()
+        for changed in (dict(rows[3],visible=False),dict(rows[3],enabled=False),
+                dict(rows[3],package='com.example.foreign'),dict(rows[3],bounds=[510,258,530,430])):
+            self.probe.nodes=Mock(return_value=rows[:3]+[changed]);self.probe.scroll=Mock()
+            with self.assertRaisesRegex(native.Blocked,'^unique_labelled_native_field_missing$'):
+                self.probe.field('نص الإعلان',seek=False)
+            self.probe.scroll.assert_not_called()
+
+    def test_candidate_c4_ai_specialization_leaves_other_scopes_and_labels_unchanged(self):
+        for change in ({'inflight':'other'},{'uncertain':True},{'authenticated':False},
+                {'recorder':'official-host-console'},{'case':'C1-photo-save'},{'admission':'uncertain'}):
+            self.c4_prepare_scope();rows=self.c4_ai_candidate_rows()[:3]
+            self.probe.report['local_c4_executor'].update({k:v for k,v in change.items()if k in {'inflight','uncertain'}})
+            self.probe.authenticated=change.get('authenticated',True);self.probe.recorder=change.get('recorder')
+            self.probe._active_case=change.get('case');self.probe.admission_metrics={'state':change.get('admission','open')}
+            self.probe.nodes=Mock(return_value=rows);self.probe.scroll=Mock()
+            with patch.object(self.probe,'c4_ai_field_in_rows')as specialized:
+                self.assertEqual(self.probe.seek('نص الإعلان'),(rows,[rows[2]]))
+                specialized.assert_not_called()
+            self.probe.scroll.assert_not_called()
+        self.c4_prepare_scope();self.probe.admission_metrics={'state':'open'}
+        ordinary=self.node('ordinary field',editable=True)
+        self.probe.nodes=Mock(return_value=[ordinary])
+        with patch.object(self.probe,'c4_ai_field_in_rows')as specialized:
+            self.assertEqual(self.probe.field('ordinary field'),ordinary)
+            specialized.assert_not_called()
+
     def test_c4_prepare_markers_observe_only_exact_brief_and_response_calls_without_extra_input(self):
         self.c4_prepare_scope();self.probe.has=Mock(return_value=True)
         self.probe.wait('صف العقار')
@@ -590,7 +674,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.act,self.probe.adb=Mock(),Mock()
         self.probe.set('صف العقار','PRIVATE_BRIEF_SENTINEL')
         self.probe.act.assert_called_once_with('set',row,value='PRIVATE_BRIEF_SENTINEL')
-        self.probe.adb.assert_called_once_with('shell','input','keyevent','4')
+        self.probe.adb.assert_not_called()
         self.probe.wait('استخدام البيانات والمتابعة')
         self.assertEqual(self.probe.report['c4_prepare_diagnostic'],{'stage':'WAIT_AI_RESPONSE'})
         self.probe.wait('PRIVATE_LABEL_SENTINEL')
@@ -614,6 +698,52 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.probe.c4_prepare_input_failure('account-set',{},'PRIVATE_OUTPUT_SENTINEL','PRIVATE_REASON_SENTINEL')
             self.assertNotIn('c4_prepare_diagnostic',self.probe.report)
             self.assertNotIn('PRIVATE_',json.dumps(self.probe.report))
+
+    def test_candidate_c4_brief_omits_only_extra_back_after_checked_physical_text_delivery(self):
+        self.c4_prepare_scope();self.stability_clock()
+        row=self.node('',editable=True,hint='صف العقار')
+        self.probe.field=Mock(return_value=row)
+        self.probe.adb=Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: op=account-set','INSTRUMENTATION_RESULT: passed=true',
+            'INSTRUMENTATION_RESULT: account_action_delivered=true','INSTRUMENTATION_RESULT: set_text_delivered=true',
+            'INSTRUMENTATION_RESULT: native_pointer_used=true','INSTRUMENTATION_RESULT: native_pointer_events=2',
+            'INSTRUMENTATION_CODE: -1']))
+        self.probe.set('صف العقار','synthetic brief')
+        self.probe.field.assert_called_once_with('صف العقار');self.probe.adb.assert_called_once()
+        args=self.probe.adb.call_args.args
+        self.assertEqual(args[args.index('op')+1],'account-set')
+        self.assertEqual(args[args.index('input_mode')+1],'physical_click_focus')
+        self.assertEqual(self.probe.report['actions'][0]['delivery'],'pointer_focus')
+        self.assertEqual(self.probe.report['c4_prepare_diagnostic'],{'stage':'BRIEF_SET'})
+
+    def test_candidate_c4_brief_other_fields_and_guard_failures_keep_original_dismissal_path(self):
+        cases=[{'label':'عنوان الإعلان'},{'authenticated':False},{'uncertain':True},
+            {'inflight':'edit_reviewed_title'},{'recorder':'official-host-console'},
+            {'case':'C1-photo-save'},{'stopped':True},{'admission':'uncertain'}]
+        for change in cases:
+            self.c4_prepare_scope();self.probe._host_stop_unconfirmed=change.get('stopped',False)
+            self.probe.admission_metrics={'state':change.get('admission','open')}
+            self.probe.report['local_c4_executor'].update({k:v for k,v in change.items()if k in {'inflight','uncertain'}})
+            self.probe.authenticated=change.get('authenticated',True);self.probe.recorder=change.get('recorder')
+            self.probe._active_case=change.get('case')
+            row=self.node('',editable=True)
+            self.probe.field=Mock(return_value=row);self.probe.act,self.probe.adb=Mock(),Mock()
+            label=change.get('label','صف العقار')
+            self.probe.set(label,'synthetic value')
+            self.probe.act.assert_called_once_with('set',row,value='synthetic value')
+            self.probe.adb.assert_called_once_with('shell','input','keyevent','4')
+
+    def test_candidate_c4_brief_never_retries_or_falls_back_after_failed_set_or_dismissal(self):
+        self.c4_prepare_scope();row=self.node('',editable=True)
+        self.probe.field=Mock(return_value=row)
+        self.probe.act=Mock(side_effect=native.Blocked('native_set_text_not_delivered'));self.probe.adb=Mock()
+        with self.assertRaisesRegex(native.Blocked,'^native_set_text_not_delivered$'):
+            self.probe.set('صف العقار','synthetic brief')
+        self.probe.act.assert_called_once();self.probe.adb.assert_not_called()
+        self.probe.act=Mock();self.probe.adb=Mock(side_effect=native.Blocked('native_input_not_delivered'))
+        with self.assertRaisesRegex(native.Blocked,'^native_input_not_delivered$'):
+            self.probe.set('عنوان الإعلان','synthetic title')
+        self.probe.act.assert_called_once();self.probe.adb.assert_called_once_with('shell','input','keyevent','4')
 
     def test_c4_prepare_native_failure_retains_fixed_java_and_ai_focus_facts_without_private_receipts_or_replay(self):
         self.c4_prepare_scope();self.probe.c4_prepare_observation_stage('BRIEF_SET')
