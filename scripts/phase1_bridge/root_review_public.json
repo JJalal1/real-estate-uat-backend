@@ -1,6 +1,6 @@
 {
   "algorithm": "Ed25519",
-  "root_public_b64": "JhpJ97jF4RGpskxSodJge5e1JK+usUcGdJGg9K8gInA=",
-  "root_key_id": "0aa9312dfaf25e6f5b5c231ef230aa859caed22a8f464e18b77eb67333250872",
-  "scope": "Root manual reviews for same-job synthetic UAT only; no actual review or acceptance granted"
+  "root_public_b64": "Mn+u1IrmMJcpvBnUM/N+Tk566NWkM1FUUSYk6d/J3hA=",
+  "root_key_id": "f05ee399314c96ad98a0bb2d07afc9d00951f9abea2f6c0351fcec40e256b442",
+  "scope": "Phase1 completion review; generated for this task, public verification only"
 }

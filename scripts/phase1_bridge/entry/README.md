@@ -346,3 +346,21 @@ untested in56. The corrected review requires only supplied message or independen
 verified same-draft facts, with exact public locality values recorded explicitly.
 It rejects the old ambiguous key, private/unknown fields and malformed context;
 actual visual copy/card review and all Apply/restore gates remain mandatory.
+
+
+## November 5 completion in a separate working branch
+
+The owner authorizes completing the remaining Phase 1 native evidence, retaining
+the accepted C1 save/recovery result. Run 58 has only fixture checkpoint zero and
+terminal checkpoint one; it did not reach a Root review checkpoint. Its private
+evidence is encrypted for the previous task, so its detailed cause is not asserted.
+The isolated work/phase1-completion-20261105 branch binds a new public recipient
+and reviewer key to this task; private keys remain outside the repository.
+
+The owner kernel now retains the fixed failing operation, exception class and
+source file/function/line only in the encrypted terminal checkpoint. It never
+exports exception messages, arguments or frame locals. This makes the next actual
+failure diagnosable while preserving all product, source, account and review gates.
+Initial C1 creates the fixture needed by the existing C4/C2 flow; its execution
+does not reopen the previously accepted C1 product criterion. No Phase 1 closure
+is claimed before the actual C4/C2 evidence and final cleanup are reviewed.

@@ -50,7 +50,7 @@ def validate_access(raw):
 def preflight(env):
     if not (env.get('GITHUB_ACTIONS') == 'true'
             and env.get('GITHUB_REPOSITORY') == 'JJalal1/real-estate-uat-backend'
-            and env.get('GITHUB_REF') == 'refs/heads/work/phase1-native-account-20261103'
+            and env.get('GITHUB_REF') == 'refs/heads/work/phase1-completion-20261105'
             and env.get('GITHUB_EVENT_NAME') == 'push'
             and re.fullmatch('[a-f0-9]{40}', env.get('GITHUB_SHA', ''))):
         raise ValueError('explicit_phase1_account_context_required')

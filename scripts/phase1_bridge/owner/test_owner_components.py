@@ -312,6 +312,26 @@ class OwnerKernelTests(unittest.TestCase):
         self.assertFalse(result.collected)
         self.assertNotIn('SYNTHETIC_PRIVATE_ERROR', repr(result))
 
+    def test_initial_failure_retains_stage_without_private_exception_values(self):
+        private_value = 'SYNTHETIC_PRIVATE_ERROR_DO_NOT_EXPORT'
+        def failing_initial():
+            raise RuntimeError(private_value)
+        self.controller.initial_c1 = failing_initial
+        result = self.session.run()
+        terminal = self.packager.records[-1]['stage']['postconditions']
+        diagnostic = terminal['failure_location']
+        self.assertEqual(diagnostic['operation'], 'initial_c1')
+        self.assertEqual(diagnostic['exception_type'], 'RuntimeError')
+        self.assertTrue(diagnostic['source_frames'])
+        self.assertTrue(all(set(frame) == {'file', 'line', 'function'} for frame in diagnostic['source_frames']))
+        self.assertNotIn(private_value, json.dumps(terminal))
+        self.assertFalse(result.collected)
+        self.assertEqual(self.controller.events.count('cleanup'), 1)
+
+    def test_success_keeps_failure_location_empty(self):
+        self.assertTrue(self.session.run().collected)
+        self.assertIsNone(self.packager.records[-1]['stage']['postconditions']['failure_location'])
+
     def test_repeated_stop_during_cleanup_never_revokes_cleanup_lease(self):
         def cleanup(*, deadline):
             authority = self.session.active_authority

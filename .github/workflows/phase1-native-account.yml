@@ -1,7 +1,7 @@
 name: Phase1 native account draft recovery
 on:
   push:
-    branches: [work/phase1-native-account-20261103]
+    branches: [work/phase1-completion-20261105]
     paths:
       - .github/workflows/phase1-native-account.yml
       - scripts/phase1_native_account_readiness.py
@@ -24,7 +24,7 @@ env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
 jobs:
   secure-channel:
-    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-native-account-20261103'
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-completion-20261105'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -45,7 +45,7 @@ jobs:
           retention-days: 3
           if-no-files-found: error
   collector-safety:
-    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-native-account-20261103'
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-completion-20261105'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -161,7 +161,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_ACTIONS" = true
           test "$GITHUB_REPOSITORY" = JJalal1/real-estate-uat-backend
-          test "$GITHUB_REF" = refs/heads/work/phase1-native-account-20261103
+          test "$GITHUB_REF" = refs/heads/work/phase1-completion-20261105
           test -f phase1-native-account-private/APK_VERIFICATION.json
           test -c /dev/kvm
           test "$GRADLE_USER_HOME" = "$RUNNER_TEMP/aqer-native-account-gradle"

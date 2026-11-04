@@ -14,7 +14,7 @@ import prepare_phase1_close as close
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = '694348c354f230f898dfca42fc8130dd461ce5ff'
-REF = 'refs/heads/work/phase1-native-account-20261103'
+REF = 'refs/heads/work/phase1-completion-20261105'
 MOBILE_TREE = 'ef562ae410023046b4abee283f09707051a0e7b6'
 BACKEND_TREE = 'b569691cd06df69a2181291f43b419a46400f244'
 VERSION_BASE = 1466

@@ -10,6 +10,7 @@ import copy
 import hashlib
 import os
 from pathlib import Path
+import re
 import sys
 import threading
 import time
@@ -28,6 +29,31 @@ class OwnerRefused(RuntimeError):
 def require(value, code):
     if not value:
         raise OwnerRefused(code)
+
+
+def failure_location(exc, operation):
+    """Retain source locations only; never exception values, locals or arguments."""
+    root = Path(__file__).resolve().parents[3]
+    known_types = {'OwnerRefused', 'Blocked', 'ControllerRefused', 'AdapterRefused',
+                   'Refused', 'EntryBlocked', 'RuntimeError', 'TimeoutError',
+                   'CalledProcessError', 'ValueError', 'OSError'}
+    kind = type(exc).__name__
+    frames = []
+    trace = exc.__traceback__
+    while trace is not None:
+        code = trace.tb_frame.f_code
+        try:
+            relative = Path(code.co_filename).resolve().relative_to(root).as_posix()
+        except (ValueError, OSError):
+            relative = ''
+        if (relative.startswith('scripts/') and '..' not in relative.split('/')
+                and re.fullmatch(r'[A-Za-z0-9_./-]{1,240}', relative)):
+            function = code.co_name
+            frames.append({'file': relative, 'line': trace.tb_lineno,
+                           'function': function if re.fullmatch(r'[A-Za-z0-9_]{1,100}', function) else 'anonymous'})
+        trace = trace.tb_next
+    return {'operation': operation, 'exception_type': kind if kind in known_types else 'OtherException',
+            'source_frames': frames[-8:]}
 
 
 @dataclass(frozen=True)
@@ -228,6 +254,7 @@ class OwnerSession:
 
     def run(self):
         reason, collected = 'OWNER_STAGE_FAILED', False
+        operation, failure = 'prepare_runtime', None
         cleanup_confirmed, runtime_ended = False, False
         runtime_receipt = {'vm_created': None, 'relay_created': None,
                            'vm_exit_code': None, 'relay_exit_code': None,
@@ -244,21 +271,26 @@ class OwnerSession:
                 start_monotonic=self.clock.monotonic(), work_deadline=self.work_deadline,
                 monotonic_clock=self.clock.monotonic)
             with self._using(initial_authority, self._context):
+                operation = 'prepare_initial_native'
                 require(self.controller.prepare_initial_native() is True,
                         'fresh_native_public_network_not_proven')
                 self._work_current()
                 initial_authority.require_current(self._context)
+                operation = 'bootstrap_fixture'
                 self.controller.bootstrap_fixture()
                 summary = self._fixture_summary()
                 self.controller.quiesce_for_checkpoint()
                 initial = self._seal(kind='fixture_checkpoint', phase='C1', cursor='PRE_NATIVE_EDIT_AFTER_TITLE_BOOTSTRAP',
                     stage={'report_scope': 'API title bootstrap already occurred; checkpoint precedes initial C1 native edits'},
                     evidence=[], summary=summary)
+                operation = 'fixture_checkpoint_upload'
                 self._upload(initial)
                 self._work_current()
                 initial_authority.require_current(self._context)
+                operation = 'initial_c1'
                 require(self.controller.initial_c1() is True, 'initial_c1_not_collected')
             while True:
+                operation = 'checkpoint_preparation'
                 self._work_current()
                 if self.controller.finished() is True:
                     reason, collected = 'COLLECTED_PENDING_ROOT_ACCEPTANCE', True
@@ -269,13 +301,16 @@ class OwnerSession:
                 require(type(snapshot) is dict and set(snapshot) == {'phase', 'cursor', 'stage', 'evidence'},
                         'fixed_stage_snapshot_required')
                 sealed = self._seal(kind='review_checkpoint', summary=summary, **snapshot)
+                operation = 'review_checkpoint_upload'
                 self._upload(sealed)
+                operation = 'review_and_advance'
                 op = self._one_command(sealed, snapshot)
                 if op in {'reject', 'finish'}:
                     reason = 'ROOT_REJECTED' if op == 'reject' else 'ROOT_FINISHED_EARLY'
                     break
-        except BaseException:
+        except BaseException as exc:
             # Never print a callback exception, traceback, command or auth value.
+            failure = failure_location(exc, operation)
             reason = 'OWNER_STOP_REQUESTED' if self._stop.is_set() else 'OWNER_STAGE_FAILED'
         finally:
             self.request_stop()
@@ -327,6 +362,7 @@ class OwnerSession:
                 terminal = self._seal(kind='terminal_checkpoint', phase='C5', cursor='OWNER_TERMINAL',
                     stage={'report_scope': reason, 'postconditions': {
                         'collected': collected, 'cleanup_confirmed': cleanup_confirmed,
+                        'failure_location': failure,
                         'runtime': runtime_receipt, 'phase1_accepted': False}}, evidence=[],
                     summary=terminal_summary)
                 self._upload(terminal, cleanup=True)
