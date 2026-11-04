@@ -662,6 +662,126 @@ class NativeAccountSafetyTest(unittest.TestCase):
             if count=='151':self.assertNotIn('focus_identity_observation',row)
             self.assertNotIn('PRIVATE_',json.dumps(self.probe.report))
 
+    def test_actual_java_ime_readiness_preserves_one_key_pair_deadlines_and_same_source(self):
+        source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        observation=source.split('    private static final class ImeObservation',1)[1].split('    private void cancelImeKey()',1)[0]
+        dismiss=source.split('    private void dismissIme(Bundle result)',1)[1].rsplit('\n}',1)[0]
+        harness=r'''import java.util.*;
+        public class ImeReadinessPolicy {
+          static final String APP="APP"; String stage="guard",foreground="UNOBSERVED";
+          String imePhase="UNOBSERVED",imeSubstage="UNOBSERVED";
+          int imeObservations,imeWindowCount=-1,imeAppMatches=-1; boolean imeKeyActive;long imeKeyDownTime;
+          long expires=999999; Automation automation=new Automation();
+          static class SystemClock {static long now;static long elapsedRealtime(){return now;}static long uptimeMillis(){return now;}
+            static void sleep(long ms){if(ms<0)throw new AssertionError("negative pause");now+=ms;}}
+          static class AccessibilityServiceInfo {static final int FLAG_RETRIEVE_INTERACTIVE_WINDOWS=1;int flags;}
+          static class AccessibilityNodeInfo {
+            static final int FOCUS_INPUT=1; int id;String pkg=APP;boolean visible=true,enabled=true,editable=true,focused=true;AccessibilityNodeInfo focus;
+            AccessibilityNodeInfo(int id){this.id=id;}
+            String getPackageName(){return pkg;}boolean isVisibleToUser(){return visible;}boolean isEnabled(){return enabled;}
+            boolean isEditable(){return editable;}boolean isFocused(){return focused;}AccessibilityNodeInfo findFocus(int kind){return focus;}
+            public boolean equals(Object other){return other instanceof AccessibilityNodeInfo&&id==((AccessibilityNodeInfo)other).id;}
+          }
+          static class AccessibilityWindowInfo {
+            static final int TYPE_APPLICATION=1,TYPE_INPUT_METHOD=2;int id,type;boolean focused=true;AccessibilityNodeInfo root;
+            AccessibilityWindowInfo(int id,int type,AccessibilityNodeInfo root){this.id=id;this.type=type;this.root=root;}
+            int getType(){return type;}boolean isFocused(){return focused;}AccessibilityNodeInfo getRoot(){return root;}int getId(){return id;}
+          }
+          static class KeyEvent {
+            static final int ACTION_DOWN=0,ACTION_UP=1,KEYCODE_BACK=4,FLAG_CANCELED=32;int action;
+            KeyEvent(long down,long now,int action,int code,int repeat,int meta,int device,int scan,int flags,int source){this.action=action;}
+          }
+          static class KeyCharacterMap {static final int VIRTUAL_KEYBOARD=-1;}
+          static class InputDevice {static final int SOURCE_KEYBOARD=257;}
+          static class Bundle {Map<String,Boolean> flags=new HashMap<>();void putBoolean(String key,boolean value){flags.put(key,value);}}
+          class Automation {
+            int flags,sets,preReads,postReads,missingFlagReads;long preCost,postCost;boolean failDown;
+            List<Integer> keys=new ArrayList<>();List<List<AccessibilityWindowInfo>> before=new ArrayList<>(),after=new ArrayList<>();
+            AccessibilityServiceInfo getServiceInfo(){AccessibilityServiceInfo info=new AccessibilityServiceInfo();
+              info.flags=sets>0&&missingFlagReads-->0?0:flags;return info;}
+            void setServiceInfo(AccessibilityServiceInfo info){sets++;flags=info.flags;}
+            List<AccessibilityWindowInfo> getWindows(){boolean post=keys.size()>=2;int index=post?postReads++:preReads++;
+              SystemClock.now+=post?postCost:preCost;List<List<AccessibilityWindowInfo>> values=post?after:before;
+              return values.get(Math.min(index,values.size()-1));}
+            boolean injectInputEvent(KeyEvent event,boolean sync){keys.add(event.action);return !(failDown&&event.action==0);}
+          }
+          static void require(boolean value){if(!value)throw new IllegalStateException();}
+          void requireLiveMutation(){if(SystemClock.now>=expires){stage="input_deadline_expired";throw new IllegalStateException();}}
+          static void check(boolean value){if(!value)throw new AssertionError("IME policy");}
+          static List<AccessibilityWindowInfo> windows(boolean ime,int window,int focus){
+            AccessibilityNodeInfo root=new AccessibilityNodeInfo(1);root.focus=new AccessibilityNodeInfo(focus);
+            List<AccessibilityWindowInfo> values=new ArrayList<>();values.add(new AccessibilityWindowInfo(window,1,root));
+            if(ime)values.add(new AccessibilityWindowInfo(8,2,null));return values;}
+          static ImeReadinessPolicy fresh(){SystemClock.now=0;ImeReadinessPolicy p=new ImeReadinessPolicy();
+            p.automation.before.add(windows(true,3,7));p.automation.after.add(windows(false,3,7));return p;}
+          static void fails(ImeReadinessPolicy p){try{p.dismissIme(new Bundle());throw new AssertionError("must refuse");}catch(IllegalStateException expected){}}
+          public static void main(String[] args){
+            ImeReadinessPolicy p=fresh();p.automation.missingFlagReads=2;
+            p.automation.before.add(0,Collections.emptyList());
+            p.automation.before.add(1,Arrays.asList(new AccessibilityWindowInfo(3,1,null)));
+            p.automation.after.add(0,Collections.emptyList());
+            AccessibilityNodeInfo hidden=new AccessibilityNodeInfo(1);hidden.visible=false;
+            p.automation.after.add(1,Arrays.asList(new AccessibilityWindowInfo(3,1,hidden)));
+            Bundle result=new Bundle();p.dismissIme(result);
+            check(p.automation.sets==1&&p.automation.keys.equals(Arrays.asList(0,1)));
+            check(result.flags.get("ime_was_visible")&&result.flags.get("ime_dismissed")&&p.imePhase.equals("AFTER_KEY"));
+            p=fresh();p.automation.before=Arrays.asList(Collections.emptyList());fails(p);
+            check(p.automation.keys.isEmpty()&&p.automation.sets==1&&SystemClock.now==5000&&p.imePhase.equals("BEFORE_KEY"));
+            p=fresh();p.automation.before=Arrays.asList(windows(false,3,7));result=new Bundle();p.dismissIme(result);
+            check(p.automation.keys.isEmpty()&&!result.flags.get("ime_was_visible")&&!result.flags.get("ime_dismissed"));
+            p=fresh();p.automation.preCost=5001;fails(p);check(p.automation.keys.isEmpty()&&SystemClock.now==5001);
+            p=fresh();p.automation.postCost=5001;fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&p.imePhase.equals("AFTER_KEY"));
+            p=fresh();p.automation.after=Arrays.asList(Collections.emptyList());fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&SystemClock.now==5000&&p.imeSubstage.equals("WINDOW_LIST"));
+            p=fresh();p.automation.after=Arrays.asList(windows(false,4,7),windows(false,3,7));fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1&&p.imeSubstage.equals("SAME_WINDOW_FOCUS"));
+            p=fresh();p.automation.after=Arrays.asList(windows(false,3,9),windows(false,3,7));fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1);
+            p=fresh();p.expires=250;p.automation.before=Arrays.asList(Collections.emptyList());fails(p);
+            check(p.automation.keys.isEmpty()&&p.stage.equals("input_deadline_expired")&&SystemClock.now<5000);
+            p=fresh();p.expires=250;p.automation.postCost=300;fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&p.stage.equals("input_deadline_expired"));
+            p=fresh();p.automation.failDown=true;fails(p);check(p.automation.keys.equals(Arrays.asList(0))&&p.automation.postReads==0);
+            // Permanent ambiguity, foreign APP roots, bad focus and absent flags never authorize Back.
+            List<List<AccessibilityWindowInfo>> bad=new ArrayList<>();
+            bad.add(Arrays.asList(windows(true,3,7).get(0),windows(true,4,7).get(0)));
+            List<AccessibilityWindowInfo> foreign=windows(true,3,7);foreign.get(0).root.pkg="FOREIGN";bad.add(foreign);
+            List<AccessibilityWindowInfo> focus=windows(true,3,7);focus.get(0).root.focus.editable=false;bad.add(focus);
+            for(List<AccessibilityWindowInfo> values:bad){p=fresh();p.automation.before=Arrays.asList(values);fails(p);check(p.automation.keys.isEmpty()&&SystemClock.now==5000);}
+            p=fresh();p.automation.missingFlagReads=100;fails(p);check(p.automation.keys.isEmpty()&&p.imeSubstage.equals("SERVICE_FLAGS"));
+            System.out.print("IME_READINESS_POLICY_PASS");
+          }
+        '''+'\n private static final class ImeObservation'+observation+'\n private void dismissIme(Bundle result)'+dismiss+'\n}'
+        with tempfile.TemporaryDirectory()as folder:
+            file=Path(folder)/'ImeReadinessPolicy.java';file.write_text(harness)
+            compiled=subprocess.run(['java','-m','jdk.compiler/com.sun.tools.javac.Main','-d',folder,str(file)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            result=subprocess.run(['java','-cp',folder,'ImeReadinessPolicy'],capture_output=True,text=True,timeout=10)
+            self.assertEqual((result.returncode,result.stdout),(0,'IME_READINESS_POLICY_PASS'),result.stderr)
+
+    def test_c4_prepare_ime_failure_diagnostic_retains_only_fixed_phases_substages_and_bounded_counts(self):
+        cases=[('BEFORE_KEY','WINDOW_LIST','2','0','0',True),('AFTER_KEY','APP_WINDOW_UNIQUE','150','33','2',True),
+            ('PRIVATE_PHASE_SENTINEL','WINDOW_LIST','2','0','0',False),
+            ('AFTER_KEY','PRIVATE_SUBSTAGE_SENTINEL','2','0','0',False),
+            ('AFTER_KEY','READY','151','0','0',False),('AFTER_KEY','READY','0','0','0',False)]
+        for phase,substage,count,windows,apps,wanted in cases:
+            self.c4_prepare_scope();self.probe.report.pop('c4_prepare_diagnostic',None)
+            result={'ime_observation_phase':phase,'ime_observation_substage':substage,'ime_observation_count':count,
+                'ime_window_count':windows,'ime_focused_app_matches':apps,'raw_window':'PRIVATE_WINDOW_SENTINEL'}
+            self.probe.c4_prepare_input_failure('account-dismiss-ime',result,'PRIVATE_OUTPUT_SENTINEL','native_input_not_delivered')
+            row=self.probe.report['c4_prepare_diagnostic']['native_input_failure']
+            self.assertEqual('ime_observation'in row,wanted)
+            if wanted:self.assertEqual(row['ime_observation'],{'phase':phase,'substage':substage,'observations':int(count),
+                'window_count':int(windows),'focused_app_matches':int(apps)})
+            self.assertNotIn('PRIVATE_',json.dumps(self.probe.report))
+        for windows,apps in [('34','3'),('-1','-1'),('PRIVATE_SENTINEL','PRIVATE_SENTINEL')]:
+            self.c4_prepare_scope();self.probe.report.pop('c4_prepare_diagnostic',None)
+            result={'ime_observation_phase':'AFTER_KEY','ime_observation_substage':'WINDOW_LIST','ime_observation_count':'2',
+                'ime_window_count':windows,'ime_focused_app_matches':apps}
+            self.probe.c4_prepare_input_failure('account-dismiss-ime',result,'','native_input_not_delivered')
+            observation=self.probe.report['c4_prepare_diagnostic']['native_input_failure']['ime_observation']
+            self.assertEqual(observation,{'phase':'AFTER_KEY','substage':'WINDOW_LIST','observations':2})
+
     def test_focus_failure_exports_only_bounded_identity_categories_without_field_values(self):
         self.probe.case_phase('C1-photo-save');self.probe.authenticated=True
         self.probe.adb=Mock(return_value='\n'.join([

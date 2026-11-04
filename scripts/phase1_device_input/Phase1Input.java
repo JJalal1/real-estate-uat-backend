@@ -39,6 +39,8 @@ public final class Phase1Input extends Instrumentation {
     private final DeadlineLease deadline=new DeadlineLease();
     private boolean imeKeyActive;
     private long imeKeyDownTime;
+    private String imePhase="UNOBSERVED",imeSubstage="UNOBSERVED";
+    private int imeObservations,imeWindowCount=-1,imeAppMatches=-1;
 
 
     @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); args = arguments; start(); }
@@ -175,6 +177,13 @@ public final class Phase1Input extends Instrumentation {
             result.putString("event_ms", numbers(eventTimes));
             result.putString("return_ms", numbers(returnTimes));
             result.putString("reason", "input_precondition_or_delivery_failed");
+            if("account-dismiss-ime".equals(op) && !"UNOBSERVED".equals(imePhase)) {
+                result.putString("ime_observation_phase",imePhase);
+                result.putString("ime_observation_substage",imeSubstage);
+                result.putInt("ime_observation_count",imeObservations);
+                if(imeWindowCount>=0) result.putInt("ime_window_count",imeWindowCount);
+                if(imeAppMatches>=0) result.putInt("ime_focused_app_matches",imeAppMatches);
+            }
             finish(0, result);
         }
     }
@@ -578,29 +587,51 @@ public final class Phase1Input extends Instrumentation {
     }
     private ImeObservation inspectIme() {
         stage="ime_windows";
+        imeObservations=Math.min(150,imeObservations+1); imeWindowCount=-1; imeAppMatches=-1;
+        imeSubstage="SERVICE_FLAGS";
         AccessibilityServiceInfo info=automation.getServiceInfo();
         require(info!=null && (info.flags & AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS)!=0);
+        imeSubstage="WINDOW_LIST";
         List<AccessibilityWindowInfo> windows=automation.getWindows();
+        if(windows!=null) imeWindowCount=Math.min(33,windows.size());
         require(windows!=null && !windows.isEmpty() && windows.size()<=32);
         AccessibilityNodeInfo appRoot=null; int appWindow=-1,appMatches=0; boolean ime=false;
         for(AccessibilityWindowInfo window:windows) {
+            imeSubstage="WINDOW_ENTRY";
             require(window!=null);
             if(window.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD) ime=true;
             if(window.getType()!=AccessibilityWindowInfo.TYPE_APPLICATION || !window.isFocused()) continue;
             AccessibilityNodeInfo candidate=window.getRoot();
             if(candidate!=null && candidate.getPackageName()!=null && APP.contentEquals(candidate.getPackageName())) {
+                imeSubstage="APP_ROOT";
                 require(candidate.isVisibleToUser() && candidate.isEnabled());
                 appRoot=candidate; appWindow=window.getId(); appMatches++;
             }
         }
+        imeAppMatches=Math.min(2,appMatches); imeSubstage="APP_WINDOW_UNIQUE";
         require(appMatches==1 && appRoot!=null); foreground="APP";
         AccessibilityNodeInfo focus=appRoot.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
         if(ime) {
             stage="ime_focus";
+            imeSubstage="FOCUSED_EDITABLE";
             require(focus!=null && focus.getPackageName()!=null && APP.contentEquals(focus.getPackageName())
                 && focus.isFocused() && focus.isEditable() && focus.isVisibleToUser() && focus.isEnabled());
         }
+        imeSubstage="READY";
         return new ImeObservation(ime,appWindow,focus);
+    }
+    private ImeObservation observeImeUntil(long end) {
+        while(SystemClock.elapsedRealtime()<end) {
+            requireLiveMutation(); // Observe only under the ORIGINAL guest expiry.
+            ImeObservation observed=null;
+            try { observed=inspectIme(); }
+            catch(IllegalStateException unavailable) { }
+            requireLiveMutation(); // A blocking read cannot cross that expiry.
+            if(SystemClock.elapsedRealtime()>=end) break;
+            if(observed!=null) return observed;
+            SystemClock.sleep(Math.max(0L,Math.min(100L,end-SystemClock.elapsedRealtime())));
+        }
+        throw new IllegalStateException();
     }
     private void sendImeKey(int action,boolean cancelled) {
         require(action==KeyEvent.ACTION_DOWN || action==KeyEvent.ACTION_UP);
@@ -625,7 +656,8 @@ public final class Phase1Input extends Instrumentation {
         AccessibilityServiceInfo info=automation.getServiceInfo(); require(info!=null);
         info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
         automation.setServiceInfo(info);
-        ImeObservation before=inspectIme();
+        imePhase="BEFORE_KEY";
+        ImeObservation before=observeImeUntil(SystemClock.elapsedRealtime()+5000L);
         result.putBoolean("ime_was_visible",before.visible);
         result.putBoolean("ime_dismissed",false);
         if(!before.visible) { stage="ime_noop"; return; }
@@ -633,15 +665,17 @@ public final class Phase1Input extends Instrumentation {
         // editable field above are mandatory before this fixed key sequence.
         stage="ime_back_down"; sendImeKey(KeyEvent.ACTION_DOWN,false);
         stage="ime_back_up"; sendImeKey(KeyEvent.ACTION_UP,false);
+        imePhase="AFTER_KEY";
         stage="ime_readback"; long end=SystemClock.elapsedRealtime()+5000L;
         while(SystemClock.elapsedRealtime()<end) {
-            ImeObservation after=inspectIme();
+            ImeObservation after=observeImeUntil(end);
             if(!after.visible) {
+                imeSubstage="SAME_WINDOW_FOCUS";
                 require(after.windowId==before.windowId && after.focus!=null && after.focus.equals(before.focus)
                     && after.focus.isFocused() && after.focus.isEditable() && after.focus.isVisibleToUser() && after.focus.isEnabled());
                 result.putBoolean("ime_dismissed",true); return;
             }
-            SystemClock.sleep(100);
+            SystemClock.sleep(Math.max(0L,Math.min(100L,end-SystemClock.elapsedRealtime())));
         }
         stage="ime_readback"; throw new IllegalStateException();
     }

@@ -262,6 +262,20 @@ class NativeAccount:
                 if original in shapes and current in shapes:
                     focus.update(original_hint_shape=original, current_hint_shape=current)
                 row['focus_identity_observation'] = focus
+        if op == 'account-dismiss-ime':
+            phase, substage = result.get('ime_observation_phase'), result.get('ime_observation_substage')
+            count = result.get('ime_observation_count', '')
+            if (phase in {'BEFORE_KEY', 'AFTER_KEY'} and substage in {
+                    'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
+                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS'}
+                    and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
+                observation = {'phase': phase, 'substage': substage, 'observations': int(count)}
+                for source, target, maximum in [('ime_window_count', 'window_count', 33),
+                        ('ime_focused_app_matches', 'focused_app_matches', 2)]:
+                    value = result.get(source, '')
+                    if re.fullmatch(r'[0-9]{1,2}', value) and 0 <= int(value) <= maximum:
+                        observation[target] = int(value)
+                row['ime_observation'] = observation
         diagnostic['native_input_failure'] = row
         self.save()
 
