@@ -533,6 +533,20 @@ class NativeAccountSafetyTest(unittest.TestCase):
             shape("مثال: ٣","OTHER");
             check(focusHintMatches("غرف النوم *","غرف النوم *, مثال: 3",true,true),false);
             check(focusHintMatches("الحمامات *","الحمامات *, مثال: 2",true,true),false);
+            String briefLabel="صف العقار",briefHint="النوع، الموقع، الغرف، الدور، الإيجار أو السعر…";
+            check(focusHintMatches(briefLabel,briefHint,true,true),true);
+            check(focusHintMatches(briefLabel,briefHint,true,false),false);
+            check(focusHintMatches(briefLabel,briefHint,false,true),false);
+            check(focusHintMatches(briefLabel,briefLabel+"\\n"+briefHint,true,true),false);
+            check(focusHintMatches(briefLabel,briefLabel+", "+briefHint,true,true),false);
+            check(focusHintMatches(briefLabel,briefHint+" ",true,true),false);
+            check(focusHintMatches(briefLabel,briefHint.replace("…","..."),true,true),false);
+            check(focusHintMatches("وصف العقار",briefHint,true,true),false);
+            check(focusHintMatches("غرف النوم *",briefHint,true,true),false);
+            check(focusHintMatches(briefLabel,"PRIVATE_FIELD_SENTINEL",true,true),false);
+            shape(briefLabel,"AI_BRIEF_LABEL");shape(briefHint,"AI_BRIEF_HINT");
+            shape(briefLabel+"\\n"+briefHint,"AI_BRIEF_LABEL_AND_HINT");
+            shape(briefLabel+", "+briefHint,"OTHER");
             System.out.print("FOCUS_HINT_POLICY_PASS");
           }
         }'''
@@ -561,6 +575,92 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertIn('Selection selection=selectedExpected(true,end)',source)
         for forbidden in ('pointerTap(', 'checkedAction(', 'send(', 'findAccessibilityNodeInfos'):
             self.assertNotIn(forbidden,observe)
+
+    def c4_prepare_scope(self):
+        self.probe._active_case=None;self.probe.authenticated=True;self.probe.recorder=None
+        self.probe.report['local_c4_executor']={'inflight':'prepare_request','uncertain':False}
+
+    def test_c4_prepare_markers_observe_only_exact_brief_and_response_calls_without_extra_input(self):
+        self.c4_prepare_scope();self.probe.has=Mock(return_value=True)
+        self.probe.wait('صف العقار')
+        self.assertEqual(self.probe.report['c4_prepare_diagnostic'],{'stage':'WAIT_BRIEF'})
+        row=self.node('',editable=True,hint='صف العقار')
+        self.probe.field=Mock(side_effect=lambda label:(
+            self.assertEqual(self.probe.report['c4_prepare_diagnostic']['stage'],'BRIEF_SET'),row)[1])
+        self.probe.act,self.probe.adb=Mock(),Mock()
+        self.probe.set('صف العقار','PRIVATE_BRIEF_SENTINEL')
+        self.probe.act.assert_called_once_with('set',row,value='PRIVATE_BRIEF_SENTINEL')
+        self.probe.adb.assert_called_once_with('shell','input','keyevent','4')
+        self.probe.wait('استخدام البيانات والمتابعة')
+        self.assertEqual(self.probe.report['c4_prepare_diagnostic'],{'stage':'WAIT_AI_RESPONSE'})
+        self.probe.wait('PRIVATE_LABEL_SENTINEL')
+        self.probe.c4_prepare_observation_stage('PRIVATE_STAGE_SENTINEL')
+        self.assertEqual(self.probe.report['c4_prepare_diagnostic'],{'stage':'WAIT_AI_RESPONSE'})
+        self.assertNotIn('PRIVATE_',json.dumps(self.probe.report))
+        self.assertEqual(self.probe.report['native_input_failures'],[])
+
+    def test_c4_prepare_diagnostics_refuse_other_scopes_and_any_already_uncertain_state(self):
+        cases=[{'inflight':'other'},{'uncertain':True},{'uncertain':None},
+            {'authenticated':False},{'recorder':'official-host-console'},
+            {'case':'C1-auth'},{'stopped':True},{'admission':'uncertain'}]
+        for change in cases:
+            self.c4_prepare_scope();self.probe.report.pop('c4_prepare_diagnostic',None)
+            self.probe._host_stop_unconfirmed=change.get('stopped',False)
+            self.probe.admission_metrics={'state':change.get('admission','open')}
+            self.probe.report['local_c4_executor'].update({k:v for k,v in change.items()if k in {'inflight','uncertain'}})
+            self.probe.authenticated=change.get('authenticated',True);self.probe.recorder=change.get('recorder')
+            self.probe._active_case=change.get('case')
+            self.probe.c4_prepare_observation_stage('BRIEF_SET')
+            self.probe.c4_prepare_input_failure('account-set',{},'PRIVATE_OUTPUT_SENTINEL','PRIVATE_REASON_SENTINEL')
+            self.assertNotIn('c4_prepare_diagnostic',self.probe.report)
+            self.assertNotIn('PRIVATE_',json.dumps(self.probe.report))
+
+    def test_c4_prepare_native_failure_retains_fixed_java_and_ai_focus_facts_without_private_receipts_or_replay(self):
+        self.c4_prepare_scope();self.probe.c4_prepare_observation_stage('BRIEF_SET')
+        self.probe.adb=Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: op=account-set','INSTRUMENTATION_RESULT: passed=false',
+            'INSTRUMENTATION_RESULT: stage=account_focus_hint_match','INSTRUMENTATION_RESULT: foreground_category=APP',
+            'INSTRUMENTATION_RESULT: focus_hint_transition=NONEMPTY_CHANGED',
+            'INSTRUMENTATION_RESULT: focus_source_node_same=true','INSTRUMENTATION_RESULT: focus_observed_focused=true',
+            'INSTRUMENTATION_RESULT: focus_observation_count=150',
+            'INSTRUMENTATION_RESULT: focus_hint_original_shape=AI_BRIEF_LABEL',
+            'INSTRUMENTATION_RESULT: focus_hint_current_shape=AI_BRIEF_HINT',
+            'INSTRUMENTATION_RESULT: hint=PRIVATE_HINT_SENTINEL','INSTRUMENTATION_RESULT: node_path=0.999',
+            'INSTRUMENTATION_RESULT: node_witness='+'f'*64,'INSTRUMENTATION_CODE: 0']))
+        with self.assertRaisesRegex(native.Blocked,'^native_input_not_delivered$'):
+            self.probe.instrument('account-set',node_path='0.999',node_witness='f'*64,value_b64='PRIVATE_VALUE_SENTINEL')
+        self.probe.adb.assert_called_once()
+        diagnostic=self.probe.report['c4_prepare_diagnostic']
+        self.assertEqual(diagnostic,{'stage':'BRIEF_SET','native_input_failure':{
+            'op':'account-set','java_stage':'account_focus_hint_match','foreground_category':'APP',
+            'passed_true':False,'passed_false':True,'code_minus_one':False,'code_zero':True,
+            'reason':'native_input_not_delivered','focus_identity_observation':{
+                'hint_transition':'NONEMPTY_CHANGED','same_original_android_node':True,'focused':True,'observations':150,
+                'original_hint_shape':'AI_BRIEF_LABEL','current_hint_shape':'AI_BRIEF_HINT'}}})
+        self.probe.c4_prepare_input_failure('account-click',{},'PRIVATE_OUTPUT_SENTINEL','PRIVATE_REASON_SENTINEL')
+        self.assertEqual(self.probe.report['c4_prepare_diagnostic'],diagnostic)
+        self.probe.adb.assert_called_once()
+        for value in ('PRIVATE_','0.999','f'*64):self.assertNotIn(value,json.dumps(self.probe.report))
+        self.assertEqual(self.probe.report['native_input_failures'],[])
+        self.assertEqual(self.probe.report['actions'],[])
+
+    def test_c4_prepare_failure_parser_drops_arbitrary_shapes_flags_and_java_strings(self):
+        for count,original,current in [('2','PRIVATE_SENTINEL','AI_BRIEF_HINT'),
+                ('2','AI_BRIEF_LABEL','PRIVATE_SENTINEL'),('151','AI_BRIEF_LABEL','AI_BRIEF_HINT')]:
+            self.c4_prepare_scope();self.probe.report.pop('c4_prepare_diagnostic',None)
+            self.probe.c4_prepare_observation_stage('BRIEF_SET')
+            result={'stage':'PRIVATE_JAVA_SENTINEL','foreground_category':'PRIVATE_FOREGROUND_SENTINEL',
+                'focus_hint_transition':'NONEMPTY_CHANGED','focus_source_node_same':'true',
+                'focus_observed_focused':'true','focus_observation_count':count,
+                'focus_hint_original_shape':original,'focus_hint_current_shape':current}
+            self.probe.c4_prepare_input_failure('account-set',result,'PRIVATE_OUTPUT_SENTINEL','PRIVATE_REASON_SENTINEL')
+            row=self.probe.report['c4_prepare_diagnostic']['native_input_failure']
+            self.assertIsNone(row['java_stage']);self.assertEqual(row['foreground_category'],'UNOBSERVED')
+            self.assertEqual(row['reason'],'native_instrumentation_unobserved')
+            focus=row.get('focus_identity_observation',{})
+            self.assertNotIn('original_hint_shape',focus);self.assertNotIn('current_hint_shape',focus)
+            if count=='151':self.assertNotIn('focus_identity_observation',row)
+            self.assertNotIn('PRIVATE_',json.dumps(self.probe.report))
 
     def test_focus_failure_exports_only_bounded_identity_categories_without_field_values(self):
         self.probe.case_phase('C1-photo-save');self.probe.authenticated=True

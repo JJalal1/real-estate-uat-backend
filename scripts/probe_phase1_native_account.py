@@ -217,6 +217,54 @@ class NativeAccount:
             self.report['native_journey_stages'][self._active_case] = stage
             self.save()
 
+    def c4_prepare_observation_scope(self):
+        state = self.report.get('local_c4_executor')
+        metrics = getattr(self, 'admission_metrics', {})
+        return (type(state) is dict and state.get('inflight') == 'prepare_request'
+                and state.get('uncertain') is False and self._active_case not in C1_CASES
+                and self.authenticated is True and self.recorder is None
+                and not getattr(self, '_host_stop_unconfirmed', False)
+                and (type(metrics) is not dict or metrics.get('state') != 'uncertain'))
+
+    def c4_prepare_observation_stage(self, stage):
+        if stage in {'WAIT_BRIEF', 'BRIEF_SET', 'WAIT_AI_RESPONSE'} and self.c4_prepare_observation_scope():
+            self.report.setdefault('c4_prepare_diagnostic', {})['stage'] = stage
+            self.save()
+
+    def c4_prepare_input_failure(self, op, result, output, reason):
+        if not self.c4_prepare_observation_scope() or op not in INPUT_OPS:
+            return
+        diagnostic = self.report.setdefault('c4_prepare_diagnostic', {})
+        if 'native_input_failure' in diagnostic:
+            return
+        row = {
+            'op': op,
+            'java_stage': result.get('stage') if result.get('stage') in INPUT_JAVA_STAGES else None,
+            'foreground_category': result.get('foreground_category') if result.get('foreground_category') in FOREGROUND_CATEGORIES else 'UNOBSERVED',
+            'passed_true': result.get('passed') == 'true', 'passed_false': result.get('passed') == 'false',
+            'code_minus_one': bool(re.search(r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M)),
+            'code_zero': bool(re.search(r'^INSTRUMENTATION_CODE: 0\s*$', output, re.M)),
+            'reason': reason if reason in INPUT_FAILURE_REASONS else 'native_instrumentation_unobserved',
+        }
+        if op == 'account-set' and diagnostic.get('stage') == 'BRIEF_SET':
+            transition = result.get('focus_hint_transition')
+            same, focused = result.get('focus_source_node_same'), result.get('focus_observed_focused')
+            count = result.get('focus_observation_count', '')
+            if (transition in {'SAME','NONEMPTY_TO_EMPTY','EMPTY_TO_NONEMPTY','NONEMPTY_CHANGED'}
+                    and same in {'true','false'} and focused in {'true','false'}
+                    and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
+                focus = {'hint_transition': transition, 'same_original_android_node': same == 'true',
+                         'focused': focused == 'true', 'observations': int(count)}
+                shapes = {'EMPTY','BEDROOMS_LABEL','BEDROOMS_EXAMPLE','BATHROOMS_LABEL','BATHROOMS_EXAMPLE',
+                          'BEDROOMS_LABEL_AND_EXAMPLE','BATHROOMS_LABEL_AND_EXAMPLE',
+                          'AI_BRIEF_LABEL','AI_BRIEF_HINT','AI_BRIEF_LABEL_AND_HINT','OTHER'}
+                original, current = result.get('focus_hint_original_shape'), result.get('focus_hint_current_shape')
+                if original in shapes and current in shapes:
+                    focus.update(original_hint_shape=original, current_hint_shape=current)
+                row['focus_identity_observation'] = focus
+        diagnostic['native_input_failure'] = row
+        self.save()
+
     def input_failure(self, op, result, output, reason):
         if self._active_case not in C1_CASES or op not in INPUT_OPS:
             return
@@ -277,6 +325,9 @@ class NativeAccount:
             return result
         except Exception as error:
             if self._active_case not in C1_CASES:
+                reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
+                    else 'native_instrumentation_unobserved'
+                self.c4_prepare_input_failure(op, result, output, reason)
                 raise
             reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
                 else 'native_instrumentation_unobserved'
@@ -306,6 +357,8 @@ class NativeAccount:
         return bool(self.matching(self.nodes(), label))
 
     def wait(self, label, seconds=45):
+        if label == 'صف العقار': self.c4_prepare_observation_stage('WAIT_BRIEF')
+        elif label == 'استخدام البيانات والمتابعة': self.c4_prepare_observation_stage('WAIT_AI_RESPONSE')
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             if self.has(label):
@@ -499,6 +552,7 @@ class NativeAccount:
         return near[0]
 
     def set(self, label, value):
+        if label == 'صف العقار': self.c4_prepare_observation_stage('BRIEF_SET')
         self.act('set', self.field(label), value=value)
         self.adb('shell', 'input', 'keyevent', '4')  # dismiss IME only after focused set
 

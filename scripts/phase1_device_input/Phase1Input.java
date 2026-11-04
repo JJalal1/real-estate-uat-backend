@@ -417,12 +417,14 @@ public final class Phase1Input extends Instrumentation {
     private static boolean focusHintMatches(String original,String current,boolean focused,boolean sameNode) {
         // Pinned Flutter3.27.3 retains the InputDecorator label and includes
         // its focused hint in the merged label with an exact newline join.
-        // Only these two source-backed compositions, or hint removal, belong
-        // to the SAME focused Android source/window node; no substring rule.
+        // The AI brief uses floatingLabelBehavior.never: after its label fades,
+        // only the fixed hint remains. Each transition belongs to the SAME
+        // focused Android source/window node; no substring rule.
         return original.equals(current) ||
             (sameNode && focused && ((!original.isEmpty() && current.isEmpty()) ||
                 ("غرف النوم *".equals(original) && "غرف النوم *\nمثال: 3".equals(current)) ||
-                ("الحمامات *".equals(original) && "الحمامات *\nمثال: 2".equals(current))));
+                ("الحمامات *".equals(original) && "الحمامات *\nمثال: 2".equals(current)) ||
+                ("صف العقار".equals(original) && "النوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(current))));
     }
     private static String focusHintShape(String value) {
         // Diagnostic categories only: no hint contents are returned, and this
@@ -432,6 +434,9 @@ public final class Phase1Input extends Instrumentation {
         if("مثال: 3".equals(value)) return "BEDROOMS_EXAMPLE";
         if("الحمامات *".equals(value)) return "BATHROOMS_LABEL";
         if("مثال: 2".equals(value)) return "BATHROOMS_EXAMPLE";
+        if("صف العقار".equals(value)) return "AI_BRIEF_LABEL";
+        if("النوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(value)) return "AI_BRIEF_HINT";
+        if("صف العقار\nالنوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(value)) return "AI_BRIEF_LABEL_AND_HINT";
         if(value.contains("غرف النوم *") && value.contains("مثال: 3")) return "BEDROOMS_LABEL_AND_EXAMPLE";
         if(value.contains("الحمامات *") && value.contains("مثال: 2")) return "BATHROOMS_LABEL_AND_EXAMPLE";
         return "OTHER";
