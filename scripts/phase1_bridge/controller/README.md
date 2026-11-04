@@ -137,6 +137,17 @@ proposal evidence for `AI_REVIEW`. Neither segment renews its original grant or
 extends120s expiry. No request, application or visual acceptance is inferred
 from preparation; all four actual visual review gates remain required.
 
+At `AI_REVIEW`, `copy_has_only_supplied_facts` requires every factual statement
+to come from the literal message or independently verified current-draft facts.
+The product deliberately submits `_aiFacts()` alongside the message. Root must
+read the same owned UUID through the normal owner API or a scoped read-only DB
+query before using any existing locality/address value, and record those exact
+values in `verified_existing_draft_copy_facts` (empty when none are used).
+Only address/governorate/district/street/city string values are admitted. This
+record is not automatic verification or authority to invent a missing fact.
+All copy and selected cards still require actual visual review; the original
+brief-only attestation is rejected rather than reinterpreted or fabricated.
+
 C4 filenames/hashes are supplied as the canonical sorted `[{file,sha256}]` wire
 lists accepted by `ci_remote_evidence`. Actual restore duration uses its faithful
 `duration_s_decimal` string. The codec alone converts these back to the original

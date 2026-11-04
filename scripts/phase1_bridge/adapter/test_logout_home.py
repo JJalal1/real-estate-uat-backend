@@ -11,15 +11,15 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 ROLE_PATH = 'C2_SOURCE_PROPOSAL/c2_native_roles.py'
 PREVIOUS_UNCHANGED = {
-    'variants/ROOT_C4_EXECUTOR/phase_extensions.py': '74f0f0c347a6d0fd3c7b07308ec70d306e8cdada2d464d9527fd91bd214e182b',
+    'variants/ROOT_C4_EXECUTOR/phase_extensions.py': '63669f4f64ecab8c61c1d87cb0127286011ca82060b59d383efa52490b6d5fa9',
     'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py': '01aedc9a2387fb7feff572e829bf52142bab2e51bade098d016350cb64f76906',
     'variants/ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py': '08e2f2d6647c429a25973d4915f7ac5a6f8db852af91fd31dd5a49573a8e1ced',
     'variants/LOCAL_REMAINING_PROPOSAL/local_stage_policy.py': '2a54658205998dbb02f2a0a3f4c59597d348125d0b520402e19ba8ef85527ec2',
     'variants/promoted_cleanup.py': '4a7752b29cc8b1417e5d82ab94c9113e3687b6b6e37ba995847e387f5d262f67',
     'variants/runtime/host_console_capture.py': '2ec10b2659ea3f073c47d02c1800cd49b35b58e51ce8430517af74a1ecadcafa',
-    'variants/ci_remote_evidence.py': '570059655c52fe428f898dcba66553798017687935df1a4d047d63a6f1507485',
+    'variants/ci_remote_evidence.py': 'c481b8b4c2556f27e16fc687858f8d7212789fa27cad372acd975754c459e2f7',
     # The separate Fix5 Home mixin factory delta is fenced by test_home_capture.
-    'ci_remote_evidence.py': '570059655c52fe428f898dcba66553798017687935df1a4d047d63a6f1507485',
+    'ci_remote_evidence.py': 'c481b8b4c2556f27e16fc687858f8d7212789fa27cad372acd975754c459e2f7',
 }
 
 

@@ -3,10 +3,10 @@
   "source_files_unchanged": true,
   "manifest": {
     "ROOT_C4_EXECUTOR/phase_extensions.py": {
-      "sha256": "74f0f0c347a6d0fd3c7b07308ec70d306e8cdada2d464d9527fd91bd214e182b",
-      "bytes": 26525,
+      "sha256": "63669f4f64ecab8c61c1d87cb0127286011ca82060b59d383efa52490b6d5fa9",
+      "bytes": 26823,
       "original_sha256": "ae28e3fe2f5cb331cdfd40a8c7bc926ca783f91a69359c5b170770cd4f0ad333",
-      "delta": "equivalent_generated_digit_translation_alphabet; separate_exact_brief_REQUEST_checkpoint_before_AI_request"
+      "delta": "equivalent_generated_digit_translation_alphabet; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts"
     },
     "ROOT_C2_EXECUTOR_V2/phase_extensions.py": {
       "sha256": "01aedc9a2387fb7feff572e829bf52142bab2e51bade098d016350cb64f76906",
@@ -42,8 +42,8 @@
       "original_sha256": "2ec10b2659ea3f073c47d02c1800cd49b35b58e51ce8430517af74a1ecadcafa"
     },
     "ci_remote_evidence.py": {
-      "sha256": "570059655c52fe428f898dcba66553798017687935df1a4d047d63a6f1507485",
-      "bytes": 7225,
+      "sha256": "c481b8b4c2556f27e16fc687858f8d7212789fa27cad372acd975754c459e2f7",
+      "bytes": 7621,
       "original_sha256": null
     }
   }

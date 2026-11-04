@@ -334,3 +334,15 @@ remain unchanged. Fixed relative timeout/remaining millisecond budgets now
 distinguish host clipping from a full instrumentation timeout without exporting
 absolute clocks, values, paths or credentials. This is instrumentation evidence,
 not a claim that the new native continuation already passed.
+
+
+Run56 reached actual native AI_REVIEW after the separate REQUEST grant. Seven
+original PNGs showed the exact AI notice/no literal fallback and selected floor2
+and unit7. Copy also used neighborhood/street explicitly supplied in the saved
+draft; a scoped read-only check of that exact UUID/actor/title verified both.
+The old literal-brief-only flag was not affirmed. Root explicitly finished early;
+normal native/API cleanup and VM shutdown passed. Application/recovery/C2 remain
+untested in56. The corrected review requires only supplied message or independently
+verified same-draft facts, with exact public locality values recorded explicitly.
+It rejects the old ambiguous key, private/unknown fields and malformed context;
+actual visual copy/card review and all Apply/restore gates remain mandatory.

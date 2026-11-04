@@ -42,6 +42,14 @@ def transform(name, text):
             "            expected_cursor=cursor, expected_frames=frames, actual_video=state.get('restore_video'))")
         text = replace_once(text, "state['helper_or_recorder_release_unconfirmed'] = True",
                             "state['admission_or_recorder_stop_unconfirmed'] = True")
+        text = replace_once(text, "data.get('copy_has_only_explicit_brief_facts') is True",
+                            "data.get('copy_has_only_supplied_facts') is True")
+        text = replace_once(text, "    selected = data.get('selected_fields')",
+            "    existing = data.get('verified_existing_draft_copy_facts')\n"
+            "    need(type(existing) is dict and set(existing) <= {'address','governorate','district','street','city'}\n"
+            "         and all(type(v) is str and 0 < len(v) <= 240 for v in existing.values()),\n"
+            "         'c4_verified_existing_copy_facts_required')\n"
+            "    selected = data.get('selected_fields')")
         text = replace_once(text, "    probe.set('صف العقار', BRIEF)\n    probe.tap('جهّز الإعلان')",
             "    probe.set('صف العقار', BRIEF)\n"
             "    probe.require_value('صف العقار', BRIEF)\n"
@@ -189,7 +197,7 @@ def build(source_root, capture_source, destination):
         if name in {'ROOT_C4_EXECUTOR/phase_extensions.py', 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py'}:
             manifest[name]['delta'] = 'equivalent_generated_digit_translation_alphabet'
         if name == 'ROOT_C4_EXECUTOR/phase_extensions.py':
-            manifest[name]['delta'] += '; separate_exact_brief_REQUEST_checkpoint_before_AI_request'
+            manifest[name]['delta'] += '; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts'
         if name == 'C2_SOURCE_PROPOSAL/c2_native_roles.py':
             manifest[name]['previous_utc_variant_sha256'] = PREVIOUS_ROLES_PIN
             manifest[name]['delta'] = 'one_logout_observed_guest_home_then_one_account_guest_gate'

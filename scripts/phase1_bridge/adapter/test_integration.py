@@ -89,6 +89,23 @@ class EvidenceTests(unittest.TestCase):
             json.loads('{"privacy_checked":false,"privacy_checked":true}',
                        object_pairs_hook=evidence.reject_duplicate_pairs)
 
+    def test_ai_copy_requires_explicit_grounding_record_and_rejects_private_or_untyped_context(self):
+        review={k:True for k in evidence.C4_EXTRA['AI_REVIEW']}
+        review.update({k:v for k,v in self.review().items() if k in evidence.C4_BASE})
+        review.update(cursor='AI_REVIEW',actual_ai_notice='راجع التفاصيل والنص قبل تطبيقها على مسودتك.',
+            literal_fallback_notice_visible=False,selected_fields={'floor_number':'2','unit_number':'7'},
+            verified_existing_draft_copy_facts={'district':'SYNTHETIC_NEIGHBORHOOD','street':'SYNTHETIC_STREET'})
+        with patch.object(evidence,'utc_now',return_value=NOW):
+            actual=evidence.normalize_c4_review(review,expected_cursor='AI_REVIEW',expected_frames={FRAME:DIGEST})
+            self.assertEqual(actual['verified_existing_draft_copy_facts'],review['verified_existing_draft_copy_facts'])
+            for bad in [True,{'phone':'SYNTHETIC_PRIVATE'}, {'street':False}, {'street':''}, {'street':'x'*241}]:
+                with self.assertRaises(evidence.RemoteEvidenceError):
+                    evidence.normalize_c4_review(dict(review,verified_existing_draft_copy_facts=bad),
+                        expected_cursor='AI_REVIEW',expected_frames={FRAME:DIGEST})
+            old=dict(review);old.pop('verified_existing_draft_copy_facts');old['copy_has_only_explicit_brief_facts']=old.pop('copy_has_only_supplied_facts')
+            with self.assertRaises(evidence.RemoteEvidenceError):
+                evidence.normalize_c4_review(old,expected_cursor='AI_REVIEW',expected_frames={FRAME:DIGEST})
+
 
 class Context:
     phase = 'C4'

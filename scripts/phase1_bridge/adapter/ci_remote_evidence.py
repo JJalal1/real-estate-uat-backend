@@ -21,8 +21,9 @@ C4_EXTRA = {
     'C1_REVIEW': frozenset({'c1_accepted', 'monthly_rent_still_blank',
         'same_tagged_fixture_visually_verified', 'original_UUID_bound_by_existing_fixture_receipt'}),
     'AI_REVIEW': frozenset({'actual_ai_notice', 'literal_fallback_notice_visible',
-        'all_selected_fields_and_copy_reviewed', 'copy_has_only_explicit_brief_facts',
-        'all_proposal_cards_visible_in_reviewed_frames', 'selected_fields'}),
+        'all_selected_fields_and_copy_reviewed', 'copy_has_only_supplied_facts',
+        'all_proposal_cards_visible_in_reviewed_frames', 'selected_fields',
+        'verified_existing_draft_copy_facts'}),
     'APPLY_REVIEW': frozenset({'same_exact_tagged_title_and_apply_visually_verified',
         'approved_proposal_frames'}),
     'RESTORE_REVIEW': frozenset({'same_exact_saved_draft_visually_verified',
@@ -150,6 +151,11 @@ def normalize_c4_review(record, *, expected_cursor, expected_frames, actual_vide
     result['frames'] = frame_map(record['frames'])
     need(type(expected_frames) is dict and result['frames'] == expected_frames,
          'c4_current_frame_binding_mismatch')
+    if expected_cursor == 'AI_REVIEW':
+        existing = record['verified_existing_draft_copy_facts']
+        need(type(existing) is dict and set(existing) <= {'address','governorate','district','street','city'}
+             and all(type(v) is str and 0 < len(v) <= 240 for v in existing.values()),
+             'c4_verified_existing_copy_facts_invalid')
     if expected_cursor == 'APPLY_REVIEW':
         result['approved_proposal_frames'] = frame_map(record['approved_proposal_frames'])
     if expected_cursor == 'RESTORE_REVIEW':

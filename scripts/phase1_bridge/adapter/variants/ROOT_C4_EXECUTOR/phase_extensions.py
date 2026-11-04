@@ -254,8 +254,12 @@ def selected_review(data):
     need(data.get('actual_ai_notice') == AI_NOTICE and
          data.get('literal_fallback_notice_visible') is False and
          data.get('all_selected_fields_and_copy_reviewed') is True and
-         data.get('copy_has_only_explicit_brief_facts') is True,
+         data.get('copy_has_only_supplied_facts') is True,
          'c4_actual_ai_all_proposals_copy_review_required')
+    existing = data.get('verified_existing_draft_copy_facts')
+    need(type(existing) is dict and set(existing) <= {'address','governorate','district','street','city'}
+         and all(type(v) is str and 0 < len(v) <= 240 for v in existing.values()),
+         'c4_verified_existing_copy_facts_required')
     selected = data.get('selected_fields')
     need(isinstance(selected, dict) and {'floor_number', 'unit_number'} <= selected.keys(),
          'c4_explicit_floor_and_unit_proposals_required')
