@@ -30,6 +30,9 @@ AUTH_LABELS = {'مرحبًا بعودتك', 'رقم واتساب', 'رمز ال�
                'رمز التحقق عبر واتساب', 'تأكيد والدخول', 'إرسال رمز واتساب'}
 AUTH_PHASES = frozenset({'account_open', 'login_open', 'phone_entry', 'code_request',
                          'otp_entry', 'confirm', 'postcondition'})
+C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
+                                'purpose', 'type', 'title', 'restore_options_wait',
+                                'logout_account_ready', 'logout_control', 'logout_confirm'})
 ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
 ACCOUNT_SCROLL_MODE = 'physical_scroll'
 INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
@@ -142,6 +145,7 @@ class NativeAccount:
                        'api_bootstrap_is_not_native_creation': True,
                        'submission_executed': False, 'financial_acceptance_executed': False,
                        'cases': [], 'actions': [], 'frames': [], 'videos': [], 'native_input_failures': [],
+                       'native_journey_stages': {},
                        'visual_review_required': True, 'fixture_title': self.title,
                        'limitations': ['C2 support/isolation and C4 AI are not tested here',
                                        'API36 KVM functional evidence, not a physical handset/performance claim']}
@@ -185,6 +189,13 @@ class NativeAccount:
         if case not in C1_CASES:
             raise Blocked('fixed_native_case_required')
         self._active_case = case
+
+    def journey_stage(self, stage):
+        if stage not in C1_JOURNEY_STAGES:
+            raise Blocked('fixed_native_journey_stage_required')
+        if self._active_case in C1_CASES:
+            self.report['native_journey_stages'][self._active_case] = stage
+            self.save()
 
     def input_failure(self, op, result, output, reason):
         if self._active_case not in C1_CASES or op not in INPUT_OPS:
@@ -616,10 +627,31 @@ class NativeAccount:
                   property_created=False, photos_uploaded=False,
                   facts_entered=False, api_session_logged_out=True)
 
-    def manual_entry(self, expected_title):
+    def wait_owned_title_editor(self, expected_title, seconds=60):
+        # Observe one rendered editor scene; never seek/scroll while it loads.
+        self.journey_stage('editor_wait')
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            anchors = self.matching(rows, 'عنوان الإعلان *')
+            direct = [row for row in anchors if row.get('editable')]
+            fields = direct if len(direct) == 1 else []
+            if not direct and len(anchors) == 1:
+                a, b, c, d = anchors[0]['bounds']
+                fields = [row for row in rows if row.get('editable') and row.get('enabled')
+                          and abs(row['bounds'][1] - b) <= 150
+                          and min(c, row['bounds'][2]) > max(a, row['bounds'][0])]
+            if len(fields) == 1 and fields[0].get('text') == expected_title:
+                self.journey_stage('editor_ready')
+                return
+            time.sleep(.5)
+        raise Blocked('native_owned_editor_title_not_observed')
+
+    def manual_entry(self, expected_title, title_editor_required=False):
         if not self.fixture_api or not self.fixture_api.state or not expected_title or \
                 self.fixture_api.state['tag'] not in expected_title:
             raise Blocked('known_new_fixture_required_before_native_entry')
+        self.journey_stage('manual_entry')
         self.tap('إضافة عقار')
         if self.has('تعبئة يدوي'):
             self.tap('تعبئة يدوي')
@@ -636,7 +668,10 @@ class NativeAccount:
                 rows, matches = self.seek(expected_title)
                 if len(matches) != 1:
                     raise Blocked('unique_owned_saved_fixture_not_observed')
+                self.journey_stage('selected_fixture')
                 self.tap(expected_title)
+                if title_editor_required:
+                    self.wait_owned_title_editor(expected_title)
                 return
             time.sleep(.5)
         raise Blocked('native_owned_saved_fixture_not_observed')
@@ -701,9 +736,12 @@ class NativeAccount:
         self.wait('صور الإعلان (1/12)', seconds=30)
 
     def create_and_save(self):
-        self.manual_entry(self.bootstrap_title)
+        self.manual_entry(self.bootstrap_title, title_editor_required=True)
+        self.journey_stage('purpose')
         self.tap('للإيجار')
+        self.journey_stage('type')
         self.tap('شقة')
+        self.journey_stage('title')
         self.set('عنوان الإعلان *', self.title)
         self.record_start('C1-create-photo')
         self.tap('التالي')
@@ -745,6 +783,7 @@ class NativeAccount:
         self.authenticated_account_evidence(seconds=45)
         self.authenticated = True
         self.manual_entry(self.title)
+        self.journey_stage('restore_options_wait')
         self.wait('خيارات المسودة')
         self.tap('السابق')
         self.wait('المواصفات')
@@ -777,9 +816,14 @@ class NativeAccount:
         self.adb('shell', 'am', 'force-stop', APP)
         self.authenticated = False
         self.startup()
-        self.tap('حسابي')
+        self.journey_stage('logout_account_ready')
+        self.authenticated_account_evidence(seconds=45)
+        if not self.has('تسجيل الخروج'):
+            self.tap('حسابي')
+        self.journey_stage('logout_control')
         self.tap('تسجيل الخروج')
         self.authenticated = False
+        self.journey_stage('logout_confirm')
         self.wait('تسجيل الدخول أو إنشاء حساب', seconds=45)
         self.report['session_logged_out'] = True
 

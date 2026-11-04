@@ -87,6 +87,8 @@ jobs:
           flutter-version: '3.27.3'
           channel: stable
           cache: true
+      - name: Install pinned synthetic photo fixture dependency
+        run: python3 -m pip install --disable-pip-version-check Pillow==12.3.0
       - name: Resolve approved locked graph
         working-directory: mobile_app
         run: |
