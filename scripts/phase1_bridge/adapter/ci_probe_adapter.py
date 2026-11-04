@@ -12,6 +12,7 @@ import json
 import math
 from pathlib import Path
 import re
+import struct
 import subprocess
 import tempfile
 import threading
@@ -358,10 +359,18 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
 
         def _validate_webm(self, path):
             try:
-                # The frozen validator alone decides acceptance. Observe a
-                # refusal before its caller deletes the owned temporary clip.
+                # Preserve the frozen single-stream path. The sole native
+                # silent-Vorbis layout is checked explicitly below.
                 return super()._validate_webm(path)
             except Exception as failure:
+                # AOSP's console recorder unconditionally adds native Vorbis.
+                # Keep one actual video stream and admit that sole audio track
+                # only when full PCM decoding proves every sample is zero.
+                if failure.args == ('host_webm_stream_or_duration_invalid',):
+                    try:
+                        return self._validate_native_silent_audio_webm(path)
+                    except Exception:
+                        pass  # Preserve the original refusal and diagnostics.
                 try:
                     self._healthy()
                     need(self._authority('media_write').authority_kind == 'SOURCE_PLAN_ONLY'
@@ -417,6 +426,54 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
                     try: self.save()
                     except Exception: pass
                 raise
+
+        def _validate_native_silent_audio_webm(self, path):
+            self._healthy()
+            self._authority('media_write')
+            need(self._owner_context().phase in {'C1','C4'} and self.authenticated is True
+                 and self.recorder is None and not getattr(self,'_host_stop_unconfirmed',False),
+                 'stopped_safe_native_video_required')
+            path=Path(path)
+            need(path==self._host_video_path and path.name=='capture.webm'
+                 and path.parent.parent==Path(self.private)/'host_console_capture_tmp'
+                 and not path.is_symlink() and path.is_file(), 'owned_native_video_required')
+            before=path.stat()
+            need(1024 <= before.st_size <= 64*1024*1024, 'bounded_native_video_required')
+            with path.open('rb') as stream:
+                need(stream.read(4)==b'\x1a\x45\xdf\xa3','native_webm_header_required')
+            probe=subprocess.run(['ffprobe','-v','error','-protocol_whitelist','file,pipe',
+                '-show_entries','format=format_name,duration:stream=codec_name,codec_type,width,height,avg_frame_rate,channels,sample_rate',
+                '-of','json',str(path)],capture_output=True,stdin=subprocess.DEVNULL,timeout=25)
+            need(probe.returncode==0 and len(probe.stdout)<=16384,'native_webm_probe_required')
+            value=json.loads(probe.stdout);streams=value.get('streams',[])
+            need(type(streams) is list and len(streams)==2 and all(type(s) is dict for s in streams),
+                 'one_video_one_silent_native_audio_required')
+            videos=[s for s in streams if s.get('codec_type')=='video']
+            audios=[s for s in streams if s.get('codec_type')=='audio']
+            need(len(videos)==len(audios)==1,'one_video_one_silent_native_audio_required')
+            video,audio=videos[0],audios[0];duration=float(value.get('format',{}).get('duration','nan'))
+            need(video.get('codec_name')=='vp9' and (video.get('width'),video.get('height'))==self.HOST_CAPTURE_SIZE
+                 and 'webm' in value.get('format',{}).get('format_name','')
+                 and math.isfinite(duration) and 0<duration<=self.HOST_VIDEO_SECONDS+5,
+                 'native_video_codec_dimensions_duration_required')
+            need(audio.get('codec_name')=='vorbis' and type(audio.get('channels')) is int
+                 and audio['channels'] in {1,2} and audio.get('sample_rate') in {'44100','48000'},
+                 'native_vorbis_layout_required')
+            pcm=subprocess.run(['ffmpeg','-nostdin','-v','error','-protocol_whitelist','file,pipe',
+                '-i',str(path),'-map','0:a:0','-vn','-c:a','pcm_f32le','-f','f32le','-fs','50000000','pipe:1'],
+                capture_output=True,stdin=subprocess.DEVNULL,timeout=25)
+            need(pcm.returncode==0 and 0<len(pcm.stdout)<50_000_000 and len(pcm.stdout)%4==0
+                 and all(s[0]==0.0 for s in struct.iter_unpack('<f',pcm.stdout)),
+                 'native_audio_exact_silence_required')
+            after=path.stat()
+            need((before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns)==
+                 (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns),'native_video_changed_during_read')
+            self.report.setdefault('native_silent_audio_tracks',{})[self.video_name+'.webm']={
+                'video_stream_count':1,'native_audio_stream_count':1,'audio_codec':'vorbis',
+                'all_decoded_samples_zero':True,'original_file_unmodified':True}
+            return {'duration_s':round(duration,3),'codec':video['codec_name'],
+                    'width':video['width'],'height':video['height'],
+                    'average_frame_rate':video.get('avg_frame_rate')}
 
         def _initial_os_picker_observation(self):
             target = '/sdcard/phase1-os-picker.xml'

@@ -195,3 +195,7 @@ exact fractional video metadata, actual OS-pipe ACKs and real protocol/packager
 composition. The separately frozen protocol has 39 tests and the action 25.
 See `OFFLINE_OWNER_RECEIPT.json` and `action/OFFLINE_ACTION_RECEIPT.json` for
 actual run receipts. These tests do not prove the real controller/native flow.
+
+## Original native WebM stream layout
+
+The actual AOSP console recorder always creates VP9 video and Vorbis audio. Exactly one video stream remains mandatory. The sole native Vorbis stream is allowed only for official host-console WebM, at one/two channels and 44100/48000 Hz, after decoding its complete PCM and proving every sample equals zero. The 50 MB decoder cap rejects rather than accepting partial verification. Any audible/nonfinite audio, second video, foreign/extra stream, malformed codec, changed file, invalid duration or dimensions refuses. Video-only files retain the existing route. No original media bytes or timeline are modified. Root repeats this check independently before review.

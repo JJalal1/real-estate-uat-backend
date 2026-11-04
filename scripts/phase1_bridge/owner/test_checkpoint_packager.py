@@ -309,6 +309,34 @@ class CheckpointTests(unittest.TestCase):
         self.assertFalse((self.owner / 'checkpoints/000001/PUBLIC_RECEIPT.json').exists())
         self.assertEqual(list((self.owner / '.checkpoint-staging').iterdir()), [])
 
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'),'Video tools unavailable')
+    def test_native_Vorbis_is_silent_and_original_WebM_bytes_are_preserved(self):
+        self.seal();video=self.evidence/'C1-native-silent.webm'
+        subprocess.run(['ffmpeg','-nostdin','-v','error','-f','lavfi','-i','color=c=blue:s=540x960:r=10',
+            '-f','lavfi','-i','anullsrc=r=44100:cl=stereo','-t','0.3','-c:v','libvpx-vp9','-c:a','libvorbis',
+            '-y',str(video)],check=True,capture_output=True,timeout=25)
+        video.chmod(0o600);original=video.read_bytes()
+        evidence={'file':video.name,'sha256':hashlib.sha256(original).hexdigest(),'kind':'webm',
+                  'capture':'official_emulator_console_host_webm'}
+        sealed=self.seal(seq=1,kind='review_checkpoint',evidence=[evidence])
+        with self.decrypt(sealed) as archive:
+            self.assertEqual(archive.read(video.name),original)
+        self.assertEqual(video.read_bytes(),original)
+
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'),'Video tools unavailable')
+    def test_audible_native_audio_is_refused_without_publishing_checkpoint(self):
+        self.seal();video=self.evidence/'C1-native-audible.webm'
+        subprocess.run(['ffmpeg','-nostdin','-v','error','-f','lavfi','-i','color=c=blue:s=540x960:r=10',
+            '-f','lavfi','-i','sine=frequency=1000:sample_rate=44100','-t','0.3','-c:v','libvpx-vp9',
+            '-c:a','libvorbis','-y',str(video)],check=True,capture_output=True,timeout=25)
+        video.chmod(0o600);original=video.read_bytes()
+        evidence={'file':video.name,'sha256':hashlib.sha256(original).hexdigest(),'kind':'webm',
+                  'capture':'official_emulator_console_host_webm'}
+        with self.assertRaisesRegex(pack.PackagerRefused,'native_audio_exact_silence_required'):
+            self.seal(seq=1,kind='review_checkpoint',evidence=[evidence])
+        self.assertEqual(video.read_bytes(),original)
+        self.assertFalse((self.owner/'checkpoints/000001/PUBLIC_RECEIPT.json').exists())
+
     def test_duplicate_media_is_not_archived_twice(self):
         self.seal(); frame = self.png()
         with self.assertRaisesRegex(pack.PackagerRefused, 'duplicate_or_total'):

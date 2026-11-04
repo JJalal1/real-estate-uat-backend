@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import struct
 import subprocess
 import uuid
 import zipfile
@@ -310,14 +311,18 @@ class CheckpointPackager:
                 require(head.startswith(b'\x1aE\xdf\xa3') if kind == 'webm' else head[4:8] == b'ftyp', 'actual_video_container_required')
                 try:
                     probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries',
-                        'format=duration:stream=codec_type,codec_name,width,height', '-of', 'json',
+                        'format=duration:stream=codec_type,codec_name,width,height,channels,sample_rate', '-of', 'json',
                         '/proc/self/fd/' + str(fd)], capture_output=True, timeout=20, pass_fds=(fd,))
                     require(probe.returncode == 0, 'actual_video_probe_failed')
                     value = json_bytes(probe.stdout, 16384)
                     streams = value.get('streams')
-                    require(type(streams) is list and len(streams) == 1 and type(streams[0]) is dict,
+                    require(type(streams) is list and 1 <= len(streams) <= 2 and all(type(s) is dict for s in streams),
                             'one_actual_video_stream_required')
-                    stream = streams[0]
+                    videos = [s for s in streams if s.get('codec_type') == 'video']
+                    audios = [s for s in streams if s.get('codec_type') == 'audio']
+                    require(len(videos) == 1 and len(audios) <= 1 and len(streams) == 1+len(audios),
+                            'one_actual_video_stream_required')
+                    stream = videos[0]
                     require(stream.get('codec_type') == 'video' and type(stream.get('width')) is int
                             and stream.get('width') == 540 and type(stream.get('height')) is int
                             and stream.get('height') == 960 and stream.get('codec_name') in
@@ -325,6 +330,18 @@ class CheckpointPackager:
                     duration = value.get('format', {}).get('duration')
                     require(type(duration) is str and re.fullmatch(r'[0-9]{1,3}(?:\.[0-9]{1,9})?', duration)
                             and 0 < Decimal(duration) <= 125, 'actual_video_duration_required')
+                    if audios:
+                        audio = audios[0]
+                        require(kind == 'webm' and capture == 'official_emulator_console_host_webm'
+                                and stream.get('codec_name') == 'vp9' and audio.get('codec_name') == 'vorbis'
+                                and type(audio.get('channels')) is int and audio['channels'] in {1,2}
+                                and audio.get('sample_rate') in {'44100','48000'}, 'native_silent_vorbis_layout_required')
+                        pcm = subprocess.run(['ffmpeg','-nostdin','-v','error','-protocol_whitelist','file,pipe',
+                            '-i','/proc/self/fd/'+str(fd),'-map','0:a:0','-vn','-c:a','pcm_f32le','-f','f32le','-fs','50000000','pipe:1'],
+                            capture_output=True,stdin=subprocess.DEVNULL,timeout=25,pass_fds=(fd,))
+                        require(pcm.returncode == 0 and 0 < len(pcm.stdout) < 50_000_000
+                                and len(pcm.stdout)%4 == 0 and all(s[0] == 0.0 for s in struct.iter_unpack('<f',pcm.stdout)),
+                                'native_audio_exact_silence_required')
                     result['duration_decimal'] = duration  # Preserve actual ffprobe text, no float rounding.
                 except PackagerRefused:
                     raise

@@ -6,6 +6,9 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shutil
+import struct
+import subprocess
 import sys
 import tempfile
 import threading
@@ -416,7 +419,7 @@ class OsPickerDiagnosticTests(unittest.TestCase):
                 patch.object(bridge.subprocess,'run',return_value=Mock(returncode=0,stdout=json.dumps(raw).encode(),stderr=b'PRIVATE_SENTINEL')) as probe:
             with self.assertRaises(bridge.BridgeRefused) as caught:p._validate_webm(path)
         self.assertIs(caught.exception,failure);validate.assert_called_once_with(path)
-        self.assertEqual(probe.call_count,1)
+        self.assertEqual(probe.call_count,2)  # native-format check plus refusal-only diagnostic
         result=p.report['host_video_diagnostic'];self.assertFalse(result['acceptance_claimed'])
         self.assertEqual((result['stream_count'],result['duration_s']),(2,31.25))
         self.assertEqual(result['streams'][0]['width'],1080)
@@ -437,6 +440,74 @@ class OsPickerDiagnosticTests(unittest.TestCase):
                 with self.assertRaises(bridge.BridgeRefused) as caught:p._validate_webm(path)
             self.assertIs(caught.exception,failure);probe.assert_not_called()
             self.assertEqual(p.report['host_video_diagnostic'],{'status':'REFUSED','acceptance_claimed':False})
+
+    @unittest.skipUnless(shutil.which('ffmpeg') and shutil.which('ffprobe'),'Video tools unavailable')
+    def test_actual_native_two_track_WebM_is_accepted_only_with_exact_digital_silence(self):
+        for silence in (True,False):
+            p,_,path,frozen=self.video_probe()
+            audio='anullsrc=r=44100:cl=stereo' if silence else 'sine=frequency=1000:sample_rate=44100'
+            subprocess.run(['ffmpeg','-nostdin','-v','error','-f','lavfi','-i','color=c=blue:s=540x960:r=10',
+                '-f','lavfi','-i',audio,'-t','0.3','-c:v','libvpx-vp9','-c:a','libvorbis','-y',str(path)],
+                check=True,capture_output=True,timeout=25)
+            original=path.read_bytes()
+            with self.subTest(silence=silence):
+                with self.assertRaisesRegex(bridge.BridgeRefused,'host_webm_stream_or_duration_invalid'):
+                    frozen._validate_webm(p,path)
+                if silence:
+                    facts=p._validate_webm(path)
+                    self.assertEqual((facts['codec'],facts['width'],facts['height']),('vp9',540,960))
+                    self.assertTrue(p.report['native_silent_audio_tracks']['C1-create-photo.webm']['all_decoded_samples_zero'])
+                else:
+                    with self.assertRaisesRegex(bridge.BridgeRefused,'host_webm_stream_or_duration_invalid'):
+                        p._validate_webm(path)
+                    self.assertNotIn('native_silent_audio_tracks',p.report)
+            self.assertEqual(path.read_bytes(),original)
+            self.assertEqual((p.report['frames'],p.report['videos']),([],[]))
+            p.adb.assert_not_called();p._console.assert_not_called()
+
+    def test_native_audio_decoder_refuses_nonzero_or_nan_samples_without_saving_audio(self):
+        value={'streams':[{'codec_type':'video','codec_name':'vp9','width':540,'height':960,'avg_frame_rate':'10/1'},
+                          {'codec_type':'audio','codec_name':'vorbis','channels':2,'sample_rate':'44100'}],
+               'format':{'format_name':'matroska,webm','duration':'1.0'}}
+        for sample in (0.0,0.00001,float('nan')):
+            p,_,path,_=self.video_probe()
+            def run(argv,**kwargs):
+                return Mock(returncode=0,stdout=json.dumps(value).encode() if argv[0]=='ffprobe' else struct.pack('<f',sample))
+            with self.subTest(sample=sample),patch.object(bridge.subprocess,'run',side_effect=run):
+                if sample==0.0:p._validate_native_silent_audio_webm(path)
+                else:
+                    with self.assertRaisesRegex(bridge.BridgeRefused,'native_audio_exact_silence_required'):
+                        p._validate_native_silent_audio_webm(path)
+                    self.assertNotIn('native_silent_audio_tracks',p.report)
+
+    def test_audio_decode_size_cap_is_a_refusal_not_acceptance_of_partial_silence(self):
+        class AtLimit(bytes):
+            def __len__(self):return 50_000_000
+        p,_,path,_=self.video_probe()
+        value={'streams':[{'codec_type':'video','codec_name':'vp9','width':540,'height':960},
+                          {'codec_type':'audio','codec_name':'vorbis','channels':2,'sample_rate':'44100'}],
+               'format':{'format_name':'webm','duration':'1.0'}}
+        commands=[]
+        def run(argv,**kwargs):
+            commands.append(argv)
+            return Mock(returncode=0,stdout=json.dumps(value).encode() if argv[0]=='ffprobe' else AtLimit(b'\0'*4))
+        with patch.object(bridge.subprocess,'run',side_effect=run):
+            with self.assertRaisesRegex(bridge.BridgeRefused,'native_audio_exact_silence_required'):
+                p._validate_native_silent_audio_webm(path)
+        self.assertIn('-fs',commands[1]);self.assertIn('50000000',commands[1])
+        self.assertNotIn('native_silent_audio_tracks',p.report)
+
+    def test_native_layout_never_accepts_extra_video_or_foreign_audio(self):
+        video={'codec_type':'video','codec_name':'vp9','width':540,'height':960}
+        native={'codec_type':'audio','codec_name':'vorbis','channels':2,'sample_rate':'44100'}
+        for streams in ([video,video],[video,dict(native,codec_name='opus')],[video,native,native],
+                        [video,dict(native,channels=8)],[video,dict(native,sample_rate='96000')]):
+            p,_,path,_=self.video_probe()
+            data=json.dumps({'streams':streams,'format':{'format_name':'webm','duration':'1.0'}}).encode()
+            with self.subTest(streams=streams),patch.object(bridge.subprocess,'run',return_value=Mock(returncode=0,stdout=data)) as run:
+                with self.assertRaises(bridge.BridgeRefused):p._validate_native_silent_audio_webm(path)
+            self.assertEqual(run.call_count,1)  # no audio decoding of a refused layout
+            self.assertNotIn('native_silent_audio_tracks',p.report)
 
 
 class VariantTests(unittest.TestCase):
