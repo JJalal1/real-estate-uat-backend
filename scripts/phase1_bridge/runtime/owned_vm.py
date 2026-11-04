@@ -56,6 +56,7 @@ class OwnedApi36Vm:
         self.private.mkdir(mode=0o700)
         self.process = None
         self.started = self.closed = False
+        self._clock_preparation_used = False
         self.receipt = {'android_api': 36, 'acceleration': 'KVM',
                         'network_modified': False, 'boot_and_CE_ready': False,
                         'vm_parent_exit_code': None, 'owned_process_group_absence_observed': False}
@@ -124,6 +125,59 @@ class OwnedApi36Vm:
             time.sleep(max(0, min(2, until - time.monotonic())))
         raise VmBlocked('owned_vm_boot_CE_not_ready')
 
+    def prepare_utc_clock(self, *, deadline):
+        """Set only the fresh owned emulator clock, then restore shell UID2000.
+
+        No application is installed yet. Actual clock acceptance remains the
+        unchanged later host/guest bracket check; setting is not proof of sync.
+        """
+        require(not self._clock_preparation_used and self.started and not self.closed
+                and self.receipt['boot_and_CE_ready'] is True
+                and self.process is not None and self.process.poll() is None,
+                'fresh_owned_vm_clock_preparation_required')
+        require(type(deadline) in (int, float) and math.isfinite(deadline)
+                and deadline > time.monotonic(), 'bounded_clock_preparation_required')
+        self._clock_preparation_used = True
+        deadline = min(deadline, time.monotonic() + 40)
+        observation = {'attempted_once': True, 'root_uid_verified': False,
+                       'date_setter_exit_zero': False, 'default_shell_uid_restored': False,
+                       'clock_acceptance_claimed': False}
+        self.receipt['clock_preparation'] = observation
+        def command(*args, maximum=5):
+            remaining = min(maximum, deadline - time.monotonic())
+            require(remaining > 0 and self.process.poll() is None,
+                    'owned_clock_preparation_deadline_or_runtime_lost')
+            try:
+                result = subprocess.run([str(self.sdk / 'platform-tools/adb'), '-s',
+                    'emulator-5554', *args], env=self.env, stdin=subprocess.DEVNULL,
+                    capture_output=True, timeout=remaining)
+            except (OSError, subprocess.TimeoutExpired):
+                raise VmBlocked('owned_clock_preparation_unobserved') from None
+            require(result.returncode == 0 and result.stderr == b'' and len(result.stdout) <= 4096,
+                    'owned_clock_preparation_unobserved')
+            try:
+                return result.stdout.decode('ascii').strip()
+            except UnicodeError:
+                raise VmBlocked('owned_clock_preparation_unobserved') from None
+        try:
+            command('root')
+            command('wait-for-device', maximum=10)
+            require(command('shell', 'id', '-u') == '0', 'owned_clock_root_uid_unverified')
+            observation['root_uid_verified'] = True
+            host_ns = time.time_ns()
+            require(type(host_ns) is int and host_ns > 0, 'actual_host_utc_required')
+            # Toybox accepts @UNIXTIME.FRACTION and -u/-s. No expiry value is
+            # translated, extended or clamped, and no raw timestamp is retained.
+            stamp = '@' + str(host_ns // 1000000000) + '.' + format(host_ns % 1000000000, '09d')
+            command('shell', 'date', '-u', '-s', stamp)
+            observation['date_setter_exit_zero'] = True
+        finally:
+            command('unroot')
+            command('wait-for-device', maximum=10)
+            require(command('shell', 'id', '-u') == '2000', 'owned_default_shell_uid_unverified')
+            observation['default_shell_uid_restored'] = True
+        return True
+
     def close(self, *, deadline=None):
         require(deadline is None or (type(deadline) in (int, float) and math.isfinite(deadline)),
                 'bounded_vm_cleanup_deadline_required')
@@ -148,7 +202,9 @@ class OwnedApi36Vm:
                         os.killpg(process.pid, signal.SIGKILL)
                         process.wait(timeout=remaining(5))
                 self.receipt['vm_parent_exit_code'] = process.returncode
-                until = time.monotonic() + remaining(3)
+                # The observed parent exit can precede its process-group drain.
+                # Keep the same strict absence check and bounded cleanup reserve.
+                until = time.monotonic() + remaining(20)
                 while True:
                     try:
                         os.killpg(process.pid, 0)

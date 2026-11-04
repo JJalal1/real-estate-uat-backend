@@ -199,9 +199,16 @@ jobs:
           name: phase1-native-account-encrypted-${{ github.run_id }}
           path: |
             phase1-native-account-encrypted/evidence.cms
-            phase1-native-account-encrypted/installer.cms
             phase1-native-account-encrypted/PUBLIC_RECEIPT.json
             phase1-native-account-private/APK_VERIFICATION.json
+          retention-days: 3
+          if-no-files-found: error
+      - name: Upload the separately verified encrypted installer
+        if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-native-installer-encrypted-${{ github.run_id }}
+          path: phase1-native-account-encrypted/installer.cms
           retention-days: 3
           if-no-files-found: error
 # Credentials use only standard runtime Actions secrets. No public git transport.

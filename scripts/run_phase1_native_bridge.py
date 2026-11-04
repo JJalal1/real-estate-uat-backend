@@ -485,11 +485,20 @@ def run_native(workspace, env, channels, run_root, tool_sha, guard):
         vm.start(boot_seconds=min(240, remaining))
         need(vm.receipt.get('boot_and_CE_ready') is True and vm.process is not None
             and vm.process.poll() is None, 'actual_owned_vm_readiness_required')
+        need(vm.prepare_utc_clock(deadline=deadline) is True,
+             'owned_vm_clock_preparation_required')
+        probe.report['owned_vm_clock_preparation'] = dict(vm.receipt['clock_preparation'])
+        probe.save()
+    def close_owned_runtime(*, deadline):
+        receipt = runtime_close(vm, deadline=deadline)
+        probe.report['owned_vm_lifecycle'] = dict(vm.receipt)
+        probe.save()
+        return receipt
     class LiveAliasController(m['controller'].Controller):
         def private_aliases(self): return current_private_aliases(probe)
     controller = LiveAliasController(probe=probe, c4=m['c4'], c2=m['c2'], dispatcher=m['dispatch'],
         fixture_api_class=m['base'].FixtureApi, public_reference_reader=m['base'].read_public_reference,
-        boot_runtime=boot, close_runtime=lambda *, deadline: runtime_close(vm, deadline=deadline),
+        boot_runtime=boot, close_runtime=close_owned_runtime,
         authority_getter=authority, context_getter=context,
         work_deadline_getter=lambda: holder['owner'].work_deadline)
     job_key = m['review_protocol'].JobEphemeralKey()

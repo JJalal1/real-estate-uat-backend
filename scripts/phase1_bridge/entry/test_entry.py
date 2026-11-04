@@ -283,9 +283,14 @@ class ConcreteCompositionContract(unittest.TestCase):
                     record['probe_env'] = dict(supplied_env); record['callbacks'] = callbacks
                     self.env = {k:v for k,v in supplied_env.items() if k != entry.SECRET}
                     self.private_values = {'SYNTHETIC_ROLE'}
+                    self.report = {}
                     self.out = root/'phase1-native-account-evidence'; self.out.mkdir(mode=0o700)
                     record['probe'] = self
-                def command(self, args, **kwargs): record['command'] = kwargs; return 'SYNTHETIC'
+                def command(self, args, **kwargs):
+                    assert 'clock_preparation_deadline' in record
+                    record['command'] = kwargs
+                    return 'SYNTHETIC'
+                def save(self): pass
             def factory(**kwargs): record['factory'] = kwargs; return Probe
             class VM:
                 def __init__(self, supplied_env): self.process = None; self.receipt = {}; record['vm_env']=supplied_env
@@ -293,6 +298,11 @@ class ConcreteCompositionContract(unittest.TestCase):
                     record['boot_seconds'] = boot_seconds
                     self.process = SimpleNamespace(poll=lambda: None)
                     self.receipt['boot_and_CE_ready'] = True
+                def prepare_utc_clock(self, *, deadline):
+                    record['clock_preparation_deadline'] = deadline
+                    self.receipt['clock_preparation'] = {'attempted_once': True,
+                        'default_shell_uid_restored': True, 'clock_acceptance_claimed': False}
+                    return True
                 def close(self, *, deadline): return {'vm_parent_exit_code': -15, 'owned_process_group_absence_observed': True}
             class Controller:
                 def __init__(self, **kwargs): record['controller'] = kwargs
@@ -335,6 +345,8 @@ class ConcreteCompositionContract(unittest.TestCase):
             self.assertEqual(record['channel'], ('9001', 2, 'SYNTHETIC_TOKEN'))
             self.assertIn('SYNTHETIC_TOKEN', record['packager']['private_aliases'])
             self.assertLessEqual(record['boot_seconds'], 20)
+            self.assertGreater(record['clock_preparation_deadline'], time.monotonic())
+            self.assertFalse(record['probe'].report['owned_vm_clock_preparation']['clock_acceptance_claimed'])
             self.assertLess(record['command']['timeout'], 20)
             self.assertTrue(record['closed']['all_created_processes_observed_ended'])
 

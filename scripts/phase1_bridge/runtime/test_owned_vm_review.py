@@ -178,5 +178,73 @@ class OwnedVmSourceReview(unittest.TestCase):
         self.assertIsNone(receipt['vm_parent_exit_code'])
         self.assertFalse(receipt['owned_process_group_absence_observed'])
 
+    def clock_instance(self):
+        instance = vm.OwnedApi36Vm(self.env)
+        instance.started = True
+        instance.receipt['boot_and_CE_ready'] = True
+        instance.process = Mock(pid=987654, returncode=None)
+        instance.process.poll.return_value = None
+        return instance
+
+    def test_clock_setter_is_once_before_apps_and_restores_default_shell_without_sync_claim(self):
+        instance = self.clock_instance()
+        calls, rooted = [], [False]
+        def fake(args, **kwargs):
+            self.assertEqual(args[:3], [str(self.sdk/'platform-tools/adb'), '-s', 'emulator-5554'])
+            operation = args[3:]; calls.append(operation)
+            self.assertLessEqual(kwargs['timeout'], 10)
+            if operation == ['root']: rooted[0] = True
+            elif operation == ['unroot']: rooted[0] = False
+            elif operation == ['shell','id','-u']:
+                return subprocess.CompletedProcess(args, 0, b'0\n' if rooted[0] else b'2000\n', b'')
+            elif operation[:4] == ['shell','date','-u','-s']:
+                self.assertTrue(rooted[0])
+                self.assertEqual(operation[4], '@1793754123.123456789')
+            else: self.assertEqual(operation, ['wait-for-device'])
+            return subprocess.CompletedProcess(args, 0, b'', b'')
+        with patch.object(vm.subprocess,'run',side_effect=fake), \
+             patch.object(vm.time,'time_ns',return_value=1793754123123456789), \
+             patch.object(vm.time,'monotonic',return_value=100):
+            self.assertTrue(instance.prepare_utc_clock(deadline=150))
+            before = len(calls)
+            with self.assertRaises(vm.VmBlocked): instance.prepare_utc_clock(deadline=150)
+            self.assertEqual(len(calls),before)
+        self.assertEqual(sum(call[:2] == ['shell','date'] for call in calls),1)
+        self.assertEqual(calls[-3:],[['unroot'],['wait-for-device'],['shell','id','-u']])
+        self.assertEqual(instance.receipt['clock_preparation'],{
+            'attempted_once':True,'root_uid_verified':True,'date_setter_exit_zero':True,
+            'default_shell_uid_restored':True,'clock_acceptance_claimed':False})
+        self.assertNotIn('1793754123',str(instance.receipt))
+
+    def test_failed_clock_setter_still_restores_shell_and_never_replays_or_exports_output(self):
+        instance = self.clock_instance()
+        calls, rooted = [], [False]
+        def fake(args, **kwargs):
+            operation=args[3:];calls.append(operation)
+            if operation==['root']:rooted[0]=True
+            elif operation==['unroot']:rooted[0]=False
+            elif operation==['shell','id','-u']:
+                return subprocess.CompletedProcess(args,0,b'0\n' if rooted[0] else b'2000\n',b'')
+            elif operation[:2]==['shell','date']:
+                return subprocess.CompletedProcess(args,1,b'SYNTHETIC_PRIVATE_OUTPUT',b'SYNTHETIC_PRIVATE_ERROR')
+            return subprocess.CompletedProcess(args,0,b'',b'')
+        with patch.object(vm.subprocess,'run',side_effect=fake), \
+             patch.object(vm.time,'time_ns',return_value=1793754123123456789), \
+             patch.object(vm.time,'monotonic',return_value=100):
+            with self.assertRaises(vm.VmBlocked) as caught:instance.prepare_utc_clock(deadline=150)
+            self.assertNotIn('SYNTHETIC_PRIVATE',str(caught.exception))
+            with self.assertRaises(vm.VmBlocked):instance.prepare_utc_clock(deadline=150)
+        self.assertEqual(sum(call[:2]==['shell','date'] for call in calls),1)
+        self.assertFalse(instance.receipt['clock_preparation']['date_setter_exit_zero'])
+        self.assertTrue(instance.receipt['clock_preparation']['default_shell_uid_restored'])
+
+    def test_clock_preparation_requires_live_owned_boot_and_cannot_extend_expired_budget(self):
+        instance=self.clock_instance()
+        with patch.object(vm.subprocess,'run') as run, patch.object(vm.time,'monotonic',return_value=100):
+            with self.assertRaises(vm.VmBlocked):instance.prepare_utc_clock(deadline=100)
+            instance.process.poll.return_value=0
+            with self.assertRaises(vm.VmBlocked):instance.prepare_utc_clock(deadline=150)
+            run.assert_not_called()
+
 
 if __name__ == '__main__': unittest.main()

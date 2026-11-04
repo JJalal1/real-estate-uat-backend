@@ -56,7 +56,15 @@ does not supply success stubs or affirmative review flags.
 
 The owned VM callback computes a bounded boot duration from the owner's work
 deadline and requires actual API36/KVM boot/CE readiness plus a live owned
-process. Close maps the actual VM parent exit/group observations into the exact
+process. Before any application install or account action, it makes one bounded
+clock preparation on this disposable userdebug emulator: root adbd, verify UID0,
+set Toybox date from the actual host UTC with its fractional seconds, unroot and
+verify the original shell UID2000. Raw epoch values and command output are never
+retained. The original later conservative guest/host interval must still fall
+within +/-250ms; preparation alone creates no clock acceptance and cannot be
+replayed. It translates or extends no signed expiry. The authoritative commands
+are documented in the AOSP adb man page and Toybox date.c sources.
+Close maps the actual VM parent exit/group observations into the exact
 six-field controller receipt. No relay is created by this entry, so relay fields
 honestly say false/null. Missing poll results cannot become zero or confirmed
 termination. Actual role/API/session/fixture cleanup remains the strict original
