@@ -586,6 +586,42 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.node('نص الإعلان',path='0.3',bounds=[20,230,500,250]),
             self.node('generated copy',path='0.4',bounds=[20,258,500,430],editable=True)]
 
+    def test_c4_prepare_entry_seeks_backward_first_and_taps_only_latest_observed_named_row(self):
+        self.c4_prepare_scope()
+        container=self.node('',path='0.8',scrollable=True,bounds=[0,80,540,830])
+        entry=dict(self.node('جهّز الإعلان بالصوت أو المساعد',path='0.4',clickable=True),witness='b'*64)
+        before=[container];after=[container,entry];order=[]
+        self.probe.nodes=Mock(side_effect=[before,before,before,after])
+        self.probe.act=Mock(side_effect=lambda kind,row,**kw:order.append((kind,row,kw)))
+        self.probe.tap('جهّز الإعلان بالصوت أو المساعد')
+        self.assertEqual(order,[('scroll',container,{'direction':'backward'}),('click',entry,{})])
+        self.assertEqual(self.probe.nodes.call_count,4)
+
+    def test_c4_prepare_entry_other_labels_and_scopes_keep_forward_first(self):
+        cases=[{'label':'other control'},{'authenticated':False},{'uncertain':True},
+            {'inflight':'edit_reviewed_title'},{'recorder':'official-host-console'},
+            {'case':'C1-photo-save'},{'stopped':True},{'admission':'uncertain'}]
+        for change in cases:
+            self.c4_prepare_scope();self.probe._host_stop_unconfirmed=change.get('stopped',False)
+            self.probe.admission_metrics={'state':change.get('admission','open')}
+            self.probe.report['local_c4_executor'].update({k:v for k,v in change.items()if k in {'inflight','uncertain'}})
+            self.probe.authenticated=change.get('authenticated',True);self.probe.recorder=change.get('recorder')
+            self.probe._active_case=change.get('case');label=change.get('label','جهّز الإعلان بالصوت أو المساعد')
+            row=self.node(label,clickable=True)
+            self.probe.nodes=Mock(side_effect=[[],[row]]);self.probe.scroll=Mock()
+            self.assertEqual(self.probe.seek(label),([row],[row]))
+            self.probe.scroll.assert_called_once_with('forward')
+
+    def test_c4_prepare_entry_absence_preserves_twelve_backward_then_twelve_forward_observations(self):
+        self.c4_prepare_scope();self.probe.nodes=Mock(return_value=[])
+        self.probe.scroll,self.probe.act,self.probe.safe_capture=Mock(),Mock(),Mock()
+        with self.assertRaisesRegex(native.Blocked,'^named_native_control_not_found$'):
+            self.probe.seek('جهّز الإعلان بالصوت أو المساعد')
+        self.assertEqual(self.probe.scroll.call_args_list,
+            [unittest.mock.call('backward')]*12+[unittest.mock.call('forward')]*12)
+        self.assertEqual(self.probe.nodes.call_count,24)
+        self.probe.act.assert_not_called();self.probe.safe_capture.assert_not_called()
+
     def test_candidate_c4_ai_fields_bind_below_each_header_without_preceding_title_misbinding(self):
         self.c4_prepare_scope();rows=self.c4_ai_candidate_rows()
         self.probe.nodes=Mock(return_value=rows);self.probe.scroll=Mock()

@@ -525,7 +525,9 @@ class NativeAccount:
         return candidates[0] if candidates else None
 
     def seek(self, label, attempts=12):
-        for direction in ('forward', 'backward'):
+        directions = ('backward', 'forward') if (label == 'جهّز الإعلان بالصوت أو المساعد'
+            and self.c4_prepare_observation_scope()) else ('forward', 'backward')
+        for direction in directions:
             for _ in range(attempts):
                 rows = self.nodes()
                 matched = self.matching(rows, label)
