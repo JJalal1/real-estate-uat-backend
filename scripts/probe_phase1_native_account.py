@@ -1184,6 +1184,18 @@ class NativeAccount:
         deadline = time.monotonic() + 45
         selected, final_sent, app_returned = False, False, False
         drawer_sent, downloads_sent = False, False
+        downloads_signature, downloads_stable_since = None, None
+        downloads_stable_observed = False
+        root_matches, download_matches, file_matches = 0, 0, 0
+        identity_keys = ('package', 'class', 'resource-id', 'text', 'content-desc',
+                         'bounds', 'enabled', 'clickable', 'focusable')
+
+        def identity(node):
+            return tuple(node.get(key) for key in identity_keys)
+
+        def pause(seconds):
+            time.sleep(max(0, min(seconds, deadline - time.monotonic())))
+
         while time.monotonic() < deadline:
             target = '/sdcard/phase1-os-picker.xml'
             self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
@@ -1193,6 +1205,9 @@ class NativeAccount:
             except ET.ParseError:
                 raise Blocked('fresh_os_picker_tree_unavailable') from None
             self.adb('shell', 'rm', '-f', target)
+            observed_at = time.monotonic()
+            if observed_at >= deadline:
+                break
             candidates = [n for n in rows if n.get('package') in
                           {'com.google.android.documentsui', 'com.android.documentsui',
                            'com.google.android.providers.media.module', 'com.android.providers.media.module'}]
@@ -1215,30 +1230,32 @@ class NativeAccount:
             if not rows or rows[0].get('package') not in {
                     'com.google.android.documentsui', 'com.android.documentsui',
                     'com.google.android.providers.media.module', 'com.android.providers.media.module'}:
-                time.sleep(.7)
+                downloads_signature, downloads_stable_since = None, None
+                root_matches, download_matches, file_matches = 0, 0, 0
+                pause(.7)
                 continue
-            def tap_os(node):
+            def tap_os(node, attempt=None):
+                nonlocal drawer_sent, downloads_sent, final_sent
                 found = re.fullmatch(r'\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]', node.get('bounds', ''))
                 if not found:
                     raise Blocked('os_picker_bounds_invalid')
                 a, b, c, d = map(int, found.groups())
                 if c <= a or d <= b:
                     raise Blocked('os_picker_bounds_invalid')
+                if time.monotonic() >= deadline:
+                    return False
+                if attempt == 'drawer': drawer_sent = True
+                elif attempt == 'downloads': downloads_sent = True
+                elif attempt == 'final': final_sent = True
                 self.adb('shell', 'input', 'tap', (a+c)//2, (b+d)//2)
+                return True
             # A visible roots drawer can leave the dimmed file tree mounted.
             # Select Downloads only within its actual roots_list, never a
             # toolbar/breadcrumb with the same label. Dispatch each route once.
             roots = [n for n in candidates if n.get('resource-id', '').rsplit('/', 1)[-1] == 'roots_list']
-            if roots and not selected:
-                if len(roots) == 1 and not downloads_sent:
-                    downloads = [n for n in roots[0].iter('node') if n in candidates
-                                 and n.get('text', '') in {'Downloads', 'التنزيلات'}
-                                 and n.get('enabled') == 'true']
-                    if len(downloads) == 1:
-                        downloads_sent = True
-                        tap_os(downloads[0])
-                time.sleep(.7)
-                continue
+            downloads = [n for n in roots[0].iter('node') if n in candidates
+                         and n.get('text', '') in {'Downloads', 'التنزيلات'}
+                         and n.get('enabled') == 'true'] if len(roots) == 1 else []
             # AOSP GridPhotoHolder exposes "displayName, size, date" on the
             # actual photo item and a separate "Preview the file ..." control.
             # Bind the complete owned filename as the first metadata field;
@@ -1252,17 +1269,37 @@ class NativeAccount:
                           or ((n.get('clickable') == 'true' or
                                (n in document_items and n.get('focusable') == 'true')) and
                               n.get('content-desc', '').split(', ', 1)[0] == self.photo_name))]
+            # Counts are diagnostic only; 2 means multiple. Covered file nodes
+            # never become actionable while the roots drawer is mounted.
+            root_matches, download_matches, file_matches = min(2,len(roots)), min(2,len(downloads)), min(2,len(files))
+            if roots and not selected:
+                if len(roots) == 1 and len(downloads) == 1 and not downloads_sent:
+                    signature = (identity(rows[0]), identity(roots[0]), identity(downloads[0]))
+                    if signature != downloads_signature:
+                        downloads_signature, downloads_stable_since = signature, observed_at
+                    elif observed_at >= downloads_stable_since + .7:
+                        downloads_stable_observed = True
+                        if not tap_os(downloads[0], 'downloads'):
+                            break
+                else:
+                    downloads_signature, downloads_stable_since = None, None
+                pause(.7)
+                continue
+            downloads_signature, downloads_stable_since = None, None
             if len(files) == 1 and not selected:
                 self.journey_stage('photo_file_select')
-                tap_os(files[0]); selected = True; time.sleep(.6)
+                if not tap_os(files[0]):
+                    break
+                selected = True; pause(.6)
                 # Multiple mode may require a visible final Open/Select action.
                 continue
             done = [n for n in candidates if selected and n.get('text', '') in
                     {'OPEN', 'Open', 'SELECT', 'Select', 'فتح', 'اختيار'} and n.get('enabled') == 'true']
             if len(done) == 1 and not final_sent:
                 self.journey_stage('photo_final_select')
-                final_sent = True  # Never repeat a dispatched final Open.
-                tap_os(done[0]); time.sleep(.6)
+                if not tap_os(done[0], 'final'):  # Never repeat a dispatched final Open.
+                    break
+                pause(.6)
                 continue
             if selected:
                 self.journey_stage('photo_app_return')
@@ -1271,9 +1308,16 @@ class NativeAccount:
                          {'Show roots', 'Open navigation drawer', 'عرض الجذور', 'فتح قائمة التنقل'}
                          and n.get('enabled') == 'true']
                 if len(menus) == 1:
-                    drawer_sent = True
-                    tap_os(menus[0])
-            time.sleep(.7)
+                    if not tap_os(menus[0], 'drawer'):
+                        break
+            pause(.7)
+        if not selected or not app_returned:
+            self.report['os_photo_selection_failure'] = {
+                'roots_matches': root_matches, 'scoped_downloads_matches': download_matches,
+                'file_matches': file_matches, 'drawer_attempted': drawer_sent,
+                'downloads_attempted': downloads_sent, 'downloads_stable_observed': downloads_stable_observed,
+                'file_tap_returned': selected, 'final_sent': final_sent, 'app_returned': app_returned}
+            self.save()
         if not selected:
             raise Blocked('genuine_os_photo_selection_not_observed')
         if not app_returned:

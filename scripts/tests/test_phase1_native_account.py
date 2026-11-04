@@ -1759,6 +1759,29 @@ class NativeAccountSafetyTest(unittest.TestCase):
         done = '<node package="' + package + '" text="OPEN" bounds="[90,190][110,210]" enabled="true" />'
         return '<hierarchy>' + file + (done if include_done else '') + '</hierarchy>'
 
+    def picker_drawer_xml(self, root_changes=None, download_changes=None, roots=1, downloads=1):
+        package='com.android.documentsui'
+        tree=native.ET.Element('hierarchy')
+        foreground=native.ET.SubElement(tree,'node',{'package':package,'class':'android.widget.FrameLayout',
+            'resource-id':package+':id/drawer_layout','text':'','content-desc':'','bounds':'[0,0][540,960]',
+            'enabled':'true','clickable':'false','focusable':'false'})
+        # The same text outside roots_list must never become a route target.
+        native.ET.SubElement(foreground,'node',{'package':package,'enabled':'true','text':'Downloads',
+            'bounds':'[400,20][500,60]'})
+        for _ in range(roots):
+            attrs={'package':package,'class':'android.widget.ListView','resource-id':package+':id/roots_list',
+                'text':'','content-desc':'','bounds':'[0,80][360,960]',
+                'enabled':'true','clickable':'false','focusable':'true'}
+            attrs.update(root_changes or {})
+            root=native.ET.SubElement(foreground,'node',attrs)
+            for _ in range(downloads):
+                attrs={'package':package,'class':'android.widget.TextView','resource-id':package+':id/title',
+                    'text':'Downloads','content-desc':'','bounds':'[10,270][350,310]',
+                    'enabled':'true','clickable':'false','focusable':'false'}
+                attrs.update(download_changes or {})
+                native.ET.SubElement(root,'node',attrs)
+        return native.ET.tostring(tree,encoding='unicode')
+
     def test_os_picker_selects_file_once_then_the_observed_open_action(self):
         # A transient empty/IME tree and a delayed repeated Open are not an
         # APP return. Neither file selection nor final Open may be replayed.
@@ -1812,6 +1835,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.wait.assert_called_once_with('صور الإعلان (1/12)', seconds=30)
 
     def test_os_picker_uses_drawer_scoped_downloads_once_before_uncovered_file(self):
+        clock=self.stability_clock()
         package = 'com.android.documentsui'
         menu = '<node package="' + package + '" enabled="true" content-desc="Show roots" bounds="[0,0][20,20]" />'
         drawer = ('<hierarchy><node package="' + package + '">' + menu +
@@ -1820,69 +1844,210 @@ class NativeAccountSafetyTest(unittest.TestCase):
                   '<node package="' + package + '" enabled="true" text="Downloads" bounds="[10,70][90,110]" />' +
                   '</node>' + self.picker_xml().removeprefix('<hierarchy>').removesuffix('</hierarchy>') +
                   '</node></hierarchy>')
-        frames = iter(['<hierarchy>' + menu + '</hierarchy>', drawer, drawer,
+        frames = iter(['<hierarchy>' + menu + '</hierarchy>', drawer, drawer, drawer,
                        self.picker_xml(), '<hierarchy><node package="' + native.APP + '" /></hierarchy>'])
-        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames)
-                             if a[:2] == ('exec-out', 'cat') else '')
+        observations=[]
+        def adb(*args,**kwargs):
+            if args[:2] == ('exec-out','cat'):
+                observations.append(clock[0]);return next(frames)
+            if args[:3] == ('shell','input','tap') and args[3:] == (50,90):
+                self.assertGreaterEqual(len(observations),3)
+                self.assertGreaterEqual(clock[0],observations[1]+.7)
+            return ''
+        self.probe.adb = Mock(side_effect=adb)
         self.probe.tap, self.probe.wait = Mock(), Mock()
-        with patch.object(native.time, 'sleep'):
-            self.probe.photo_picker()
+        self.probe.photo_picker()
         taps = [c.args[3:] for c in self.probe.adb.call_args_list
                 if c.args[:3] == ('shell', 'input', 'tap')]
         self.assertEqual(taps, [(10, 10), (50, 90), (20, 20)])
+        self.assertNotIn('os_photo_selection_failure',self.probe.report)
+
+    def test_os_picker_downloads_identity_changes_restart_two_observation_stability(self):
+        clock=self.stability_clock();base=self.picker_drawer_xml()
+        changes={'package':'com.google.android.documentsui','class':'OTHER_CLASS',
+            'resource-id':'OTHER_ID','text':'التنزيلات','content-desc':'PRIVATE_DESCRIPTION_SENTINEL',
+            'bounds':'[20,280][360,320]','enabled':'false','clickable':'true','focusable':'true'}
+        for scope in ('root','download'):
+            for key,value in changes.items():
+                clock[0]=0
+                if scope=='root' and key=='resource-id':value='OTHER_PACKAGE:id/roots_list'
+                if scope=='root' and key=='focusable':value='false'
+                changed=self.picker_drawer_xml(**{scope+'_changes':{key:value}})
+                # A -> B -> A cannot reuse A's first timestamp.
+                frames=iter([base,changed,base,base,self.picker_xml(),
+                    '<hierarchy><node package="'+native.APP+'" /></hierarchy>'])
+                reads=[];taps=[]
+                def adb(*args,**kwargs):
+                    if args[:2]==('exec-out','cat'):
+                        reads.append(clock[0]);return next(frames)
+                    if args[:3]==('shell','input','tap'):
+                        taps.append(args[3:])
+                        if args[3:]==(180,290):
+                            self.assertEqual(len(reads),4)
+                            self.assertGreaterEqual(clock[0],reads[2]+.7)
+                    return ''
+                self.probe.adb=Mock(side_effect=adb);self.probe.tap,self.probe.wait=Mock(),Mock()
+                with self.subTest(scope=scope,key=key):self.probe.photo_picker()
+                self.assertEqual(taps,[(180,290),(20,20)])
+
+    def test_os_picker_downloads_missing_foreign_or_ambiguous_observation_resets_stability(self):
+        clock=self.stability_clock();base=self.picker_drawer_xml()
+        cases=[self.picker_drawer_xml(roots=0),self.picker_drawer_xml(roots=2),
+            self.picker_drawer_xml(downloads=0),self.picker_drawer_xml(downloads=2),
+            self.picker_drawer_xml(download_changes={'package':'com.example.foreign'}),
+            '<hierarchy/>','<hierarchy><node package="com.example.foreign" /></hierarchy>']
+        for changed in cases:
+            clock[0]=0;reads=[];taps=[]
+            frames=iter([base,changed,base,base,self.picker_xml(),
+                '<hierarchy><node package="'+native.APP+'" /></hierarchy>'])
+            def adb(*args,**kwargs):
+                if args[:2]==('exec-out','cat'):
+                    reads.append(clock[0]);return next(frames)
+                if args[:3]==('shell','input','tap'):
+                    taps.append(args[3:])
+                    if args[3:]==(180,290):self.assertEqual(len(reads),4)
+                return ''
+            self.probe.adb=Mock(side_effect=adb);self.probe.tap,self.probe.wait=Mock(),Mock()
+            self.probe.photo_picker()
+            self.assertEqual(taps,[(180,290),(20,20)])
+
+    def test_os_picker_downloads_requires_elapsed_stability_even_with_many_fresh_observations(self):
+        clock=self.stability_clock();base=self.picker_drawer_xml();reads=[];taps=[]
+        frames=iter([base]*9+[self.picker_xml(),'<hierarchy><node package="'+native.APP+'" /></hierarchy>'])
+        def adb(*args,**kwargs):
+            if args[:2]==('exec-out','cat'):
+                reads.append(clock[0]);return next(frames)
+            if args[:3]==('shell','input','tap'):
+                taps.append(args[3:])
+                if args[3:]==(180,290):self.assertGreaterEqual(clock[0],.7)
+            return ''
+        self.probe.adb=Mock(side_effect=adb);self.probe.tap,self.probe.wait=Mock(),Mock()
+        # A faster observer still cannot treat its second read as .7s proof.
+        with patch.object(native.time,'sleep',side_effect=lambda _:clock.__setitem__(0,clock[0]+.1)):
+            self.probe.photo_picker()
+        self.assertEqual(taps,[(180,290),(20,20)])
+        self.assertGreaterEqual(len(reads),9)
+
+    def test_os_picker_slow_xml_observation_never_dispatches_after_original_deadline(self):
+        clock=self.stability_clock();base=self.picker_drawer_xml();fullmatch=native.re.fullmatch
+        for expiry_at in ('xml','dispatch'):
+            clock[0]=0;reads=[]
+            def adb(*args,**kwargs):
+                if args[:2]==('exec-out','cat'):
+                    reads.append(clock[0])
+                    if len(reads)==2 and expiry_at=='xml':clock[0]=45
+                    return base
+                return ''
+            def match(pattern,*args,**kwargs):
+                # Expiry between the fresh observation and physical dispatch.
+                if expiry_at=='dispatch' and pattern.startswith(r'\['):clock[0]=45
+                return fullmatch(pattern,*args,**kwargs)
+            self.probe.adb=Mock(side_effect=adb);self.probe.tap,self.probe.wait=Mock(),Mock()
+            with self.subTest(expiry_at=expiry_at),patch.object(native.re,'fullmatch',side_effect=match),self.assertRaisesRegex(native.Blocked,'^genuine_os_photo_selection_not_observed$'):
+                self.probe.photo_picker()
+            self.assertEqual(len(reads),2);self.assertEqual(clock[0],45)
+            self.assertFalse(any(c.args[:3]==('shell','input','tap')for c in self.probe.adb.call_args_list))
+            facts=self.probe.report['os_photo_selection_failure']
+            self.assertFalse(facts['downloads_attempted'])
+            self.assertEqual(facts['downloads_stable_observed'],expiry_at=='dispatch')
+
+    def test_os_picker_stable_downloads_is_never_replayed_and_failure_facts_are_minimized(self):
+        clock=self.stability_clock();reads=[]
+        menu='<hierarchy><node package="com.android.documentsui" enabled="true" content-desc="Show roots" bounds="[0,0][20,20]" /></hierarchy>'
+        base=self.picker_drawer_xml(download_changes={'content-desc':'PRIVATE_DESCRIPTION_SENTINEL'})
+        def adb(*args,**kwargs):
+            if args[:2]==('exec-out','cat'):
+                reads.append(clock[0]);return menu if len(reads)==1 else base
+            return ''
+        self.probe.adb=Mock(side_effect=adb);self.probe.tap,self.probe.wait=Mock(),Mock()
+        with self.assertRaisesRegex(native.Blocked,'^genuine_os_photo_selection_not_observed$'):
+            self.probe.photo_picker()
+        self.assertEqual(clock[0],45)
+        taps=[c.args[3:]for c in self.probe.adb.call_args_list if c.args[:3]==('shell','input','tap')]
+        self.assertEqual(taps,[(10,10),(180,290)])
+        facts=self.probe.report['os_photo_selection_failure']
+        self.assertEqual(facts,{'roots_matches':1,'scoped_downloads_matches':1,'file_matches':0,
+            'drawer_attempted':True,'downloads_attempted':True,'downloads_stable_observed':True,
+            'file_tap_returned':False,'final_sent':False,'app_returned':False})
+        for private in ('PRIVATE_DESCRIPTION_SENTINEL',self.probe.photo_name,'roots_list','[10,270][350,310]'):
+            self.assertNotIn(private,json.dumps(facts))
+        self.probe.wait.assert_not_called()
+
+    def test_os_picker_ambiguous_targets_remain_readonly_and_counts_are_capped(self):
+        clock=self.stability_clock()
+        for roots,downloads,expected in [(4,1,(2,0)),(1,4,(1,2)),(1,0,(1,0))]:
+            clock[0]=0;base=self.picker_drawer_xml(roots=roots,downloads=downloads)
+            self.probe.adb=Mock(side_effect=lambda *a,**kw:base if a[:2]==('exec-out','cat')else '')
+            self.probe.tap,self.probe.wait=Mock(),Mock()
+            with self.subTest(roots=roots,downloads=downloads),self.assertRaisesRegex(native.Blocked,'^genuine_os_photo_selection_not_observed$'):
+                self.probe.photo_picker()
+            self.assertEqual(clock[0],45)
+            self.assertFalse(any(c.args[:3]==('shell','input','tap')for c in self.probe.adb.call_args_list))
+            facts=self.probe.report['os_photo_selection_failure']
+            self.assertEqual((facts['roots_matches'],facts['scoped_downloads_matches']),expected)
+            self.assertFalse(facts['downloads_attempted']);self.assertFalse(facts['downloads_stable_observed'])
 
     def test_os_picker_recycler_photo_can_be_focusable_without_own_click_listener(self):
+        clock=self.stability_clock()
         package='com.android.documentsui'
         item=('<node package="'+package+'" enabled="true" clickable="false" focusable="true" '
               'content-desc="'+self.probe.photo_name+', 12 kB, today" bounds="[10,20][90,100]" />')
         for in_documents in (True,False):
+            clock[0]=0
             wrapper='<node package="'+package+'" resource-id="'+package+':id/dir_list">' if in_documents else '<node package="'+package+'">'
             xml='<hierarchy>'+wrapper+item+'</node></hierarchy>'
             frames=iter([xml,'<hierarchy><node package="'+native.APP+'" /></hierarchy>'])
             self.probe.adb=Mock(side_effect=lambda *a,**kw: next(frames) if a[:2]==('exec-out','cat') else '')
             self.probe.tap,self.probe.wait=Mock(),Mock()
-            with self.subTest(in_documents=in_documents),patch.object(native.time,'sleep'):
+            with self.subTest(in_documents=in_documents):
                 if in_documents:self.probe.photo_picker()
                 else:
                     self.probe.adb=Mock(side_effect=lambda *a,**kw: xml if a[:2]==('exec-out','cat') else '')
-                    with patch.object(native.time,'monotonic',side_effect=[0,1,46]):
-                        with self.assertRaisesRegex(native.Blocked,'^genuine_os_photo_selection_not_observed$'):
-                            self.probe.photo_picker()
+                    with self.assertRaisesRegex(native.Blocked,'^genuine_os_photo_selection_not_observed$'):
+                        self.probe.photo_picker()
             taps=[c.args[3:] for c in self.probe.adb.call_args_list if c.args[:3]==('shell','input','tap')]
             self.assertEqual(taps,[(50,60)] if in_documents else [])
 
     def test_os_picker_duplicate_grid_files_or_preview_only_never_select(self):
+        clock=self.stability_clock()
         package = 'com.android.documentsui'
         name = self.probe.photo_name
-        for descriptions in [(name + ', 12 kB, today',) * 2, ('Preview the file ' + name,)]:
+        for descriptions in [(name + ', 12 kB, today',) * 3, ('Preview the file ' + name,)]:
+            clock[0]=0
             xml = '<hierarchy><node package="' + package + '">' + ''.join(
                 '<node package="' + package + '" enabled="true" clickable="true" content-desc="' +
                 description + '" bounds="[10,10][30,30]" />' for description in descriptions) + '</node></hierarchy>'
             self.probe.adb = Mock(side_effect=lambda *a, **kw: xml
                                  if a[:2] == ('exec-out', 'cat') else '')
             self.probe.tap = Mock()
-            with self.subTest(descriptions=descriptions), patch.object(native.time, 'sleep'), \
-                    patch.object(native.time, 'monotonic', side_effect=[0, 1, 46]):
+            with self.subTest(descriptions=descriptions):
                 with self.assertRaisesRegex(native.Blocked, '^genuine_os_photo_selection_not_observed$'):
                     self.probe.photo_picker()
             self.assertFalse(any(c.args[:3] == ('shell', 'input', 'tap')
                                  for c in self.probe.adb.call_args_list))
+            facts=self.probe.report['os_photo_selection_failure']
+            self.assertEqual(facts['file_matches'],2 if len(descriptions)==3 else 0)
+            self.assertNotIn(name,json.dumps(facts))
 
     def test_os_picker_missing_app_return_never_opens_native_snapshot_or_repeats_open(self):
+        clock=self.stability_clock()
+        foreign='<hierarchy><node package="com.example.other"><node package="'+native.APP+'" text="underlying APP is not foreground" /></node></hierarchy>'
         frames = iter([self.picker_xml(), self.picker_xml(include_done=True),
                        self.picker_xml(include_done=True),
-                       '<hierarchy><node package="com.example.other"><node package="' +
-                       native.APP + '" text="underlying APP is not foreground" /></node></hierarchy>'])
-        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames)
+                       foreign])
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames,foreign)
                              if a[:2] == ('exec-out', 'cat') else '')
         self.probe.tap, self.probe.wait = Mock(), Mock()
-        with patch.object(native.time, 'sleep'), patch.object(native.time, 'monotonic',
-                side_effect=[0, 1, 2, 3, 4, 46]):
-            with self.assertRaisesRegex(native.Blocked, '^genuine_os_picker_return_not_observed$'):
-                self.probe.photo_picker()
+        with self.assertRaisesRegex(native.Blocked, '^genuine_os_picker_return_not_observed$'):
+            self.probe.photo_picker()
         taps = [c.args[3:] for c in self.probe.adb.call_args_list
                 if c.args[:3] == ('shell', 'input', 'tap')]
         self.assertEqual(taps, [(20, 20), (100, 200)])
+        self.assertEqual(clock[0],45)
+        self.assertEqual(self.probe.report['os_photo_selection_failure'],{
+            'roots_matches':0,'scoped_downloads_matches':0,'file_matches':0,'drawer_attempted':False,
+            'downloads_attempted':False,'downloads_stable_observed':False,
+            'file_tap_returned':True,'final_sent':True,'app_returned':False})
         self.probe.wait.assert_not_called()
         self.assertNotIn('os_photo_selection_observation', self.probe.report)
 
@@ -1903,6 +2068,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.assertNotIn(private, (self.probe.out / 'report.json').read_text())
 
     def test_os_picker_never_clicks_a_foreign_package_file(self):
+        clock=self.stability_clock()
         xml = self.picker_xml(include_done=True, package='com.example.untrusted')
 
         def adb(*args, **kwargs):
@@ -1910,10 +2076,9 @@ class NativeAccountSafetyTest(unittest.TestCase):
 
         self.probe.adb = Mock(side_effect=adb)
         self.probe.tap = Mock()
-        with patch.object(native.time, 'sleep'), \
-                patch.object(native.time, 'monotonic', side_effect=[0, 1, 46]):
-            with self.assertRaisesRegex(native.Blocked, 'genuine_os_photo_selection'):
-                self.probe.photo_picker()
+        with self.assertRaisesRegex(native.Blocked, 'genuine_os_photo_selection'):
+            self.probe.photo_picker()
+        self.assertEqual(clock[0],45)
         self.assertFalse(any(call.args[:3] == ('shell', 'input', 'tap')
                              for call in self.probe.adb.call_args_list))
 

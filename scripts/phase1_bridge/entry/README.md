@@ -27,7 +27,7 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`1ff589d4e3379bb4030dbdc446e9571f0aae9e4a490c108688c5305f50508b7a`
+`9378a26678ff25f472838a960a306db5d7ad75d3803a0aed4797d30489e6acce`
 and Java SHA
 `2f5be1c6f71d79d0f4d856aa2c128c3b4dbf37c0cad01988d03a64cdb5e9464d`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
@@ -114,6 +114,25 @@ boolean receipts `before_save` and `after_reopen` are retained. The C1 review
 checkpoint requires that exact pair to be true and binds it to its fresh scene;
 missing, malformed or changed proof refuses. No rent value, contact tree, path
 or witness is exported by this check.
+
+Run44 stopped earlier in OS photo selection: its original 45-second loop ended
+without selecting the fixture, and its separately guarded diagnostic showed an
+open roots drawer with Downloads visible. The report did not retain whether
+Downloads had matched or been attempted. Its later APP-only snapshot failure
+occurred during logout while the picker remained foreground; the reported
+`account_cache_clear` stage does not establish that cache clearing returned
+false. Run44 did not reach the draft-options or blank-rent checks above.
+
+The Downloads route now requires two fresh identical OS XML observations at
+least 0.7 seconds apart before its sole first tap. The original unique
+`roots_list` scope and exact enabled Downloads descendant are retained; a
+missing, ambiguous or changed candidate resets only the observation. Identity
+attributes stay in RAM. Failure receipts contain only fixed booleans and
+counts capped at 2, where 2 means multiple. The original 45-second deadline is
+checked again before each OS dispatch, and dispatched actions are never
+replayed. This improves readiness and diagnosis; it does not claim which
+unobserved selection branch caused run44. Java cache/APP ownership, media,
+privacy, source and authority checks are unchanged.
 
 Guest UTC is observed with `date -u +%s%3N`, bracketed by host UTC and monotonic
 time. It must produce exact13-digit milliseconds, a <=2s observation, consistent
