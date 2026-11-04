@@ -365,6 +365,19 @@ class NativeAccountSafetyTest(unittest.TestCase):
             for operation in (self.probe.tap, self.probe.scroll, self.probe.safe_capture):
                 operation.assert_not_called()
 
+    def test_owned_title_settling_resets_on_missing_headers_and_needs_fresh_full_stability(self):
+        wanted = self.fixture().state['title']
+        full = self.editor_rows(wanted, basics=False)
+        partial = [row for row in full if '1/4' not in native.labels(row)]
+        self.probe.nodes = Mock(side_effect=[full, full, partial, [], full, full, full])
+        self.probe.tap, self.probe.scroll, self.probe.safe_capture = Mock(), Mock(), Mock()
+        ticks = iter(i * .4 for i in range(100))
+        with patch.object(native.time, 'monotonic', side_effect=lambda: next(ticks)), patch.object(native.time, 'sleep'):
+            self.probe.wait_stable_owned_title(wanted, 60)
+        self.assertEqual(self.probe.nodes.call_count, 7)
+        for operation in (self.probe.tap, self.probe.scroll, self.probe.safe_capture):
+            operation.assert_not_called()
+
     def test_owned_title_settling_is_deadline_bounded_and_exports_no_nodes(self):
         self.probe.nodes = Mock(return_value=self.editor_rows(basics=False))
         self.probe.tap, self.probe.scroll, self.probe.safe_capture = Mock(), Mock(), Mock()

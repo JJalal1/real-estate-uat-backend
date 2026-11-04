@@ -851,21 +851,25 @@ class NativeAccount:
 
     def wait_stable_owned_title(self, expected_title, deadline):
         # Read-only settling after one known scroll, never another UI action or
-        # capture retry. A changed identity/route still refuses immediately.
+        # capture retry. Missing semantics reset stability; a different title,
+        # private surface or a positively observed other step still refuses.
         self.journey_stage('editor_title_settle')
         until = min(deadline, time.monotonic() + 15)
         signature, since, observations = None, None, 0
         while time.monotonic() < until:
             rows = self.nodes()
-            if not self.basic_editor_context(rows):
-                raise Blocked('native_basic_editor_context_changed')
             field = self.visible_editor_title(rows)
             now = time.monotonic()
-            if field is None:
+            if field is not None and field.get('text') != expected_title:
+                raise Blocked('native_owned_editor_title_mismatch')
+            forbidden = AUTH_LABELS | {'رقم الاتصال *', 'رقم اتصال آخر',
+                'رقم اتصال آخر (اختياري)', 'الإيجار والتواصل', 'السعر والتواصل',
+                '2/4', '3/4', '4/4'}
+            if any(label in labels(row) for row in rows for label in forbidden):
+                raise Blocked('native_basic_editor_context_changed')
+            if not self.basic_editor_context(rows) or field is None:
                 signature, since, observations = None, None, 0
             else:
-                if field.get('text') != expected_title:
-                    raise Blocked('native_owned_editor_title_mismatch')
                 bounds = field.get('bounds')
                 if not (type(bounds) is list and len(bounds) == 4
                         and all(type(value) is int for value in bounds)):
