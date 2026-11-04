@@ -321,7 +321,36 @@ class NativeAccount:
                 self.scroll(direction)
         raise Blocked('named_native_control_not_found')
 
+    def wait_account_logout_control(self, seconds=30):
+        if self.recorder is not None:
+            raise Blocked('logout_recording_must_be_stopped')
+        deadline = time.monotonic() + seconds
+        account_observed, scrolls = False, 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            if any(label in labels(row) for row in rows for label in AUTH_LABELS):
+                raise Blocked('native_account_logout_context_changed')
+            if self.matching(rows, 'تسجيل الخروج'):
+                return
+            account_observed = account_observed or all(self.matching(rows, label)
+                for label in ('الأمان والخصوصية', 'الملف الشخصي'))
+            if account_observed and all(self.matching(rows, label)
+                    for label in ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…')):
+                raise Blocked('native_account_logout_context_changed')
+            # First observe the real Account route. Then use at most four
+            # ordinary semantic-container scrolls to its offscreen logout.
+            # No private rows, paths or witnesses are retained in the report.
+            if account_observed and scrolls < 4 and any(
+                    row.get('scrollable') and row.get('enabled') for row in rows):
+                self.scroll('forward')
+                scrolls += 1
+            time.sleep(max(0, min(.4, deadline-time.monotonic())))
+        raise Blocked('native_logout_control_not_observed')
+
     def tap(self, label, seek=True):
+        if label == 'تسجيل الخروج' and seek:
+            self.wait_account_logout_control()
+            seek = False
         rows = self.nodes()
         matched = self.matching(rows, label)
         if not matched and seek:
@@ -1187,7 +1216,7 @@ class NativeAccount:
         if not self.has('تسجيل الخروج'):
             self.tap('حسابي')
         self.journey_stage('logout_control')
-        self.wait('تسجيل الخروج', seconds=30)
+        self.wait_account_logout_control(seconds=30)
         self.tap('تسجيل الخروج', seek=False)
         self.authenticated = False
         self.journey_stage('logout_marketplace_wait')

@@ -93,8 +93,18 @@ class C1HomeConsoleCaptureMixin:
                         'width': width, 'height': height, 'acceptance_claimed': False}
             dimensions = self._validate_png(data)  # Unchanged frozen CRC/540x960 validator.
             after_case, after = self._c1_home_binding()  # Full privacy + Home again.
-            self._c1_home_need(before_case == after_case and before == after,
-                               'broker_home_binding_changed_during_capture')
+            self._c1_home_need(before_case == after_case, 'fixed_initial_c1_home_scope_required')
+            if before != after:
+                # This Home PNG is an optional diagnostic, excluded from C1
+                # acceptance media. Both complete privacy/Home checks passed,
+                # but its changed binding means no image may be exported.
+                # The subsequent Add still has its own unchanged fresh stable
+                # target checks. Never retry this capture or any UI input here.
+                self.report.setdefault('home_console_diagnostic_skipped', {})[name] = {
+                    'reason': 'home_binding_changed_no_media_exported',
+                    'privacy_before_and_after': True, 'acceptance_claimed': False}
+                self.save()
+                return False
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
             try:
                 fd = os.open(destination, flags, 0o600)

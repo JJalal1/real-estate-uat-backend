@@ -353,7 +353,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.record_stop,self.probe.adb,self.probe.startup=Mock(),Mock(),Mock()
         self.probe.authenticated_account_evidence=Mock(side_effect=lambda **kw:order.append('broker-ready'))
         self.probe.has=Mock(return_value=True)
-        self.probe.wait=Mock(side_effect=lambda *args,**kw:order.append('logout-ready'))
+        self.probe.wait_account_logout_control=Mock(side_effect=lambda *args,**kw:order.append('logout-ready'))
         self.probe.tap=Mock(side_effect=lambda label,**kw:order.append(label))
         self.probe.wait_guest_marketplace=Mock(side_effect=lambda:order.append('guest-marketplace'))
         self.probe.wait_guest_account=Mock(side_effect=lambda:order.append('guest-account'))
@@ -370,7 +370,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.record_stop,self.probe.adb,self.probe.startup=Mock(),Mock(),Mock()
         self.probe.authenticated_account_evidence=Mock(side_effect=lambda **kw:order.append('broker-ready'))
         self.probe.has=Mock(return_value=False)
-        self.probe.wait=Mock(side_effect=lambda *args,**kw:order.append('logout-ready'))
+        self.probe.wait_account_logout_control=Mock(side_effect=lambda *args,**kw:order.append('logout-ready'))
         self.probe.tap=Mock(side_effect=lambda label,**kw:order.append(label))
         self.probe.wait_guest_marketplace=Mock(side_effect=lambda:order.append('guest-marketplace'))
         self.probe.wait_guest_account=Mock(side_effect=lambda:order.append('guest-account'))
@@ -392,6 +392,29 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.tap.assert_any_call('تسجيل الخروج', seek=False)
         self.probe.scroll.assert_not_called(); self.probe.safe_capture.assert_not_called()
 
+    def test_offscreen_logout_scrolls_only_after_positive_account_route_observation(self):
+        home = self.broker_home_rows()
+        account = [self.node('الأمان والخصوصية'), self.node('الملف الشخصي', path='0.2'),
+                   self.node('', path='0.3', scrollable=True)]
+        self.probe.nodes = Mock(side_effect=[home, account, [self.node('تسجيل الخروج')]])
+        self.probe.scroll, self.probe.tap, self.probe.safe_capture = Mock(), Mock(), Mock()
+        with patch.object(native.time,'sleep'):
+            self.probe.wait_account_logout_control()
+        self.probe.scroll.assert_called_once_with('forward')
+        self.probe.tap.assert_not_called(); self.probe.safe_capture.assert_not_called()
+        self.assertNotIn('الأمان والخصوصية', json.dumps(self.probe.report,ensure_ascii=False))
+
+    def test_logout_search_refuses_recording_or_auth_transition_before_any_scroll(self):
+        self.probe.scroll = Mock()
+        self.probe.recorder = object()
+        with self.assertRaisesRegex(native.Blocked,'recording_must_be_stopped'):
+            self.probe.wait_account_logout_control()
+        self.probe.recorder = None
+        self.probe.nodes = Mock(return_value=[self.node('رمز التحقق')])
+        with self.assertRaisesRegex(native.Blocked,'logout_context_changed'):
+            self.probe.wait_account_logout_control()
+        self.probe.scroll.assert_not_called()
+
     def test_logout_marketplace_and_guest_account_are_readonly_exact_scope_checks(self):
         self.probe.tap,self.probe.scroll=Mock(),Mock()
         self.probe.nodes=Mock(side_effect=[self.guest_rows()[:-1],self.guest_rows()])
@@ -412,6 +435,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         for failure in ('home','account'):
             self.probe.record_stop,self.probe.adb,self.probe.startup=Mock(),Mock(),Mock()
             self.probe.authenticated_account_evidence=Mock();self.probe.has=Mock(return_value=True)
+            self.probe.wait_account_logout_control=Mock()
             self.probe.tap=Mock();self.probe.wait_guest_marketplace=Mock();self.probe.wait_guest_account=Mock()
             if failure=='home':self.probe.wait_guest_marketplace.side_effect=native.Blocked('native_guest_marketplace_not_observed')
             else:self.probe.wait_guest_account.side_effect=native.Blocked('native_guest_account_not_observed')
