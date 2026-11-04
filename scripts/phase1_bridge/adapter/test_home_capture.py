@@ -210,6 +210,7 @@ class HomeCaptureTests(unittest.TestCase):
     def test_frozen_editor_path_and_all_old_probe_logic_remain_unchanged(self):
         self.assertIs(Probe.safe_capture,capture.HostConsoleCaptureMixin.safe_capture)
         self.assertIs(Probe._capture_guard,capture.HostConsoleCaptureMixin._capture_guard)
+        self.assertIs(Probe._capture_rows_private,capture.HostConsoleCaptureMixin._capture_rows_private)
         self.assertEqual(hashlib.sha256((HERE/'variants/runtime/host_console_capture.py').read_bytes()).hexdigest(),
                          '2ec10b2659ea3f073c47d02c1800cd49b35b58e51ce8430517af74a1ecadcafa')
         with self.assertRaises(RuntimeError):self.probe.safe_capture('C1-editor-test')
@@ -223,6 +224,25 @@ class HomeCaptureTests(unittest.TestCase):
                 return node
         normalized=Normalize().visit(tree)
         self.assertEqual(hashlib.sha256(ast.dump(normalized,include_attributes=False).encode()).hexdigest(),
+                         'f059d91f1957813606cd5ce0b1d0fdb5fa69cc077e46044c17c38c216d2c4cfa')
+        # The reviewed extension adds only its imports, two diagnostic methods
+        # and a timeout handler around the original base photo-picker call.
+        # Strip precisely that extension and keep the prior whole-core pin.
+        class PriorCore(Normalize):
+            def visit_Import(self,node):
+                return None if all(a.name in {'hashlib','json','tempfile','xml.etree.ElementTree'} for a in node.names) else node
+            def visit_ImportFrom(self,node):
+                return None if node.module=='pathlib' else super().visit_ImportFrom(node)
+            def visit_FunctionDef(self,node):
+                if node.name in {'_initial_os_picker_observation','capture_initial_os_picker_diagnostic'}:return None
+                self.generic_visit(node)
+                if node.name=='photo_picker':
+                    assert isinstance(node.body[-1],ast.Try) and len(node.body[-1].body)==1
+                    assert isinstance(node.body[-1].body[0],ast.Return)
+                    node.body[-1]=node.body[-1].body[0]
+                return node
+        prior=PriorCore().visit(ast.parse((HERE/'ci_probe_adapter.py').read_text()))
+        self.assertEqual(hashlib.sha256(ast.dump(prior,include_attributes=False).encode()).hexdigest(),
                          '9b431d9a8d0ef7ad7ad54a055b397aa94eb889e7e4fcf0a2c774f593d0a43707')
 
 

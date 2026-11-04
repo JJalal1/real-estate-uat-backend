@@ -3,12 +3,14 @@ import base64
 from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import Mock, patch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'oneshot'))
@@ -300,6 +302,91 @@ class ProbeTests(unittest.TestCase):
         self.assertIsNone(p._active_case)
         with self.assertRaises(bridge.BridgeRefused): p.cleanup()
         with self.assertRaises(bridge.BridgeRefused): p.execute()
+
+
+class OsPickerDiagnosticTests(unittest.TestCase):
+    """Synthetic snapshots/PNG only; no real device or account acceptance."""
+
+    def probe(self, views):
+        spec=importlib.util.spec_from_file_location('_diagnostic_host',HERE/'variants/runtime/host_console_capture.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        cls=bridge.make_probe_class(base_class=SyntheticBase,host_capture_mixin=module.HostConsoleCaptureMixin,
+            validate_access=synthetic_access,secret_name='SYNTHETIC_ACCESS',install_known_roles=install_roles,
+            authority_types=(SyntheticAuthority,SourceAuthority),app='synthetic.app',
+            activity='synthetic.activity',helper='synthetic.helper')
+        context=Context();context.phase,context.cursor='C1','INITIAL_C1'
+        authority=SourceAuthority()
+        temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
+        root=Path(temp.name)
+        p=cls(root,{},authority_getter=lambda:authority,context_getter=lambda:context,
+              verify_helper_identity=lambda:True,verify_guest_utc=lambda:True)
+        p.private=root;p.out=root/'out';p.out.mkdir(mode=0o700)
+        p.start_session();p.authenticated=True;p._active_case='C1-photo-save'
+        p.recorder='official-host-console';p.video_name='C1-create-photo';p.record_tainted=False
+        sequence=iter(views)
+        def adb(*args,**kwargs):
+            if args==('exec-out','cat','/sdcard/phase1-os-picker.xml'):return next(sequence)
+            if args[:3] in {('shell','uiautomator','dump'),('shell','rm','-f')}:return 'OK'
+            raise AssertionError('diagnostic must not deliver UI input or APP instrumentation')
+        p.adb=Mock(side_effect=adb)
+        from PIL import Image
+        png=io.BytesIO();Image.new('RGB',(540,960),'white').save(png,format='PNG');data=png.getvalue()
+        def console(*args):
+            self.assertEqual(args[0],'screenshot');(args[1]/'actual.png').write_bytes(data)
+        p._console=Mock(side_effect=console)
+        return p,authority
+
+    def xml(self,text='Downloads',package='com.android.documentsui',extra=''):
+        return '<hierarchy><node package="'+package+'" text="'+text+'" class="android.widget.FrameLayout" enabled="true">'+extra+'</node></hierarchy>'
+
+    def test_stable_trusted_picker_diagnostic_is_separate_from_accepted_editor_media(self):
+        xml=self.xml(extra='<node package="com.android.documentsui" text="synthetic-photo.jpg" enabled="true"/>')
+        p,_=self.probe([xml,xml]);p.capture_initial_os_picker_diagnostic()
+        result=p.report['os_picker_diagnostic'];image=p.out/result['file']
+        self.assertEqual(result['status'],'CAPTURED')
+        self.assertEqual(result['sha256'],hashlib.sha256(image.read_bytes()).hexdigest())
+        self.assertEqual((result['width'],result['height']),(540,960))
+        self.assertFalse(result['acceptance_claimed'])
+        self.assertTrue(result['privacy_before_and_after'])
+        self.assertEqual(result['observed_controls']['exact_filename_matches'],1)
+        self.assertEqual((p.report['frames'],p.report['videos']),([],[]))
+        self.assertFalse(p.record_tainted)
+        self.assertFalse(any('instrument' in call.args or 'tap' in call.args for call in p.adb.call_args_list))
+
+    def test_private_foreign_or_account_picker_scenes_never_export_or_hash_auth_data(self):
+        cases=[self.xml(package='synthetic.app'),self.xml(text='258147'),self.xml(text='Password'),
+               self.xml(text='someone@example.test'),
+               self.xml(extra='<node package="synthetic.app" text="رقم الاتصال *" visible-to-user="false"/>')]
+        for xml in cases:
+            p,_=self.probe([xml])
+            with self.subTest(scene=cases.index(xml)),self.assertRaises(bridge.BridgeRefused):
+                p.capture_initial_os_picker_diagnostic()
+            self.assertEqual(list(p.out.iterdir()),[])
+            self.assertTrue(p.record_tainted)
+            p._console.assert_not_called()
+            self.assertNotIn('os_picker_diagnostic',p.report)
+
+    def test_changed_picker_scene_discards_png_and_root_authority_cannot_capture_it(self):
+        p,_=self.probe([self.xml(),self.xml(text='Images')])
+        with self.assertRaisesRegex(bridge.BridgeRefused,'binding_changed'):
+            p.capture_initial_os_picker_diagnostic()
+        self.assertEqual(list(p.out.iterdir()),[]);self.assertTrue(p.record_tainted)
+        p,_=self.probe([self.xml()]);p._owner_authority=lambda:SyntheticAuthority()
+        with self.assertRaisesRegex(bridge.BridgeRefused,'initial_source_picker_diagnostic_only'):
+            p.capture_initial_os_picker_diagnostic()
+        p.adb.assert_not_called();p._console.assert_not_called()
+
+    def test_known_picker_timeout_only_gets_one_diagnostic_and_original_failure_stays(self):
+        context=Context();context.phase,context.cursor='C1','INITIAL_C1'
+        for code,wanted in [('genuine_os_photo_selection_not_observed',1),('synthetic_unknown_failure',0)]:
+            p=PROBE(None,{},authority_getter=SourceAuthority,context_getter=lambda:context,
+                verify_helper_identity=lambda:True,verify_guest_utc=lambda:True)
+            p.capture_initial_os_picker_diagnostic=Mock()
+            p.record_start('C1-create-photo')
+            with patch.object(SyntheticBase,'photo_picker',side_effect=RuntimeError(code)):
+                with self.assertRaisesRegex(RuntimeError,'^'+code+'$'):p.photo_picker()
+            self.assertEqual(p.capture_initial_os_picker_diagnostic.call_count,wanted)
+            self.assertEqual(p.report['cases'],[])
 
 
 class VariantTests(unittest.TestCase):

@@ -7,8 +7,13 @@ from __future__ import annotations
 
 import calendar
 from datetime import datetime, timedelta
+import hashlib
+import json
+from pathlib import Path
 import re
+import tempfile
 import threading
+import xml.etree.ElementTree as ET
 
 from oneshot_adapter import AdmissionError, OneShotAdmission, OneShotInstrumentAdapter
 from c1_home_capture import C1HomeConsoleCaptureMixin
@@ -334,7 +339,101 @@ def make_probe_class(*, base_class, host_capture_mixin, validate_access,
             # the real <=120 second console clip. Never label this whole journey.
             super().record_start('C1-create-photo')
             self.report['create_clip_scope'] = 'actual_specs_photo_selection_only'
-            return base_class.photo_picker(self)
+            try:
+                return base_class.photo_picker(self)
+            except Exception as failure:
+                # Diagnose only a known source selection/return timeout, before
+                # cleanup can move the UI. This is never C1 acceptance media.
+                if failure.args in (('genuine_os_photo_selection_not_observed',),
+                                     ('genuine_os_picker_return_not_observed',)):
+                    try:
+                        self.capture_initial_os_picker_diagnostic()
+                    except Exception:
+                        self.report['os_picker_diagnostic'] = {
+                            'status': 'REFUSED', 'acceptance_claimed': False}
+                        self.save()
+                raise
+
+        def _initial_os_picker_observation(self):
+            target = '/sdcard/phase1-os-picker.xml'
+            self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
+            try:
+                raw = self.adb('exec-out', 'cat', target)
+                need(type(raw) is str and 0 < len(raw) <= 512 * 1024,
+                     'bounded_os_picker_tree_required')
+                try:
+                    nodes = list(ET.fromstring(raw).iter('node'))
+                except ET.ParseError:
+                    raise BridgeRefused('actual_os_picker_tree_required') from None
+            finally:
+                self.adb('shell', 'rm', '-f', target)
+            allowed = {'com.google.android.documentsui', 'com.android.documentsui',
+                       'com.google.android.providers.media.module', 'com.android.providers.media.module'}
+            if not (0 < len(nodes) <= 1200 and nodes[0].get('package') in allowed):
+                self.record_tainted = True
+                raise BridgeRefused('actual_os_picker_foreground_required')
+            rows = [{'package': n.get('package', ''), 'class': n.get('class', ''),
+                     'text': n.get('text', ''), 'description': n.get('content-desc', ''),
+                     'hint': n.get('hint', ''), 'bounds': n.get('bounds', ''),
+                     'resource_id': n.get('resource-id', ''),
+                     'visible': n.get('visible-to-user', 'true') == 'true',
+                     'enabled': n.get('enabled', 'false') == 'true',
+                     'clickable': n.get('clickable', 'false') == 'true',
+                     'selected': n.get('selected', 'false') == 'true'} for n in nodes]
+            # Reuse the unchanged full mounted-contact/auth/profile/private-
+            # alias predicate. No APP-only snapshot or new UI input occurs.
+            text = '\n'.join(row[key] for row in rows if row['visible']
+                             for key in ('text', 'description', 'hint'))
+            english_auth = {'sign in', 'sign-in', 'password', 'email or phone',
+                            'email address', 'phone number', 'verify it\'s you', 'enter your email'}
+            if (self._capture_rows_private(rows) or english_auth & {s.strip().casefold() for s in text.splitlines()}
+                    or re.search(r'[^\s@]+@[^\s@]+\.[^\s@]+', text) is not None):
+                self.record_tainted = True
+                raise BridgeRefused('private_os_picker_diagnostic_refused')
+            binding = hashlib.sha256(json.dumps(rows, sort_keys=True,
+                separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+            facts = {'node_count': len(rows),
+                     'exact_filename_matches': sum(self.photo_name in {row['text'],row['description']} for row in rows),
+                     'filename_contains_matches': sum(self.photo_name in row['text'] or self.photo_name in row['description'] for row in rows),
+                     'downloads_matches': sum(row['text'] in {'Downloads','التنزيلات'} for row in rows),
+                     'drawer_matches': sum(row['description'] in {'Show roots','Open navigation drawer','عرض الجذور','فتح قائمة التنقل'} for row in rows)}
+            return binding, facts
+
+        def capture_initial_os_picker_diagnostic(self):
+            self._healthy()
+            need(self._authority('media_write').authority_kind == 'SOURCE_PLAN_ONLY'
+                 and self._active_case == 'C1-photo-save' and self.authenticated is True
+                 and self.recorder == 'official-host-console' and self.video_name == 'C1-create-photo',
+                 'initial_source_picker_diagnostic_only')
+            name = 'C1-os-picker-diagnostic.png'
+            destination = Path(self.out) / name
+            need(not destination.exists() and not destination.is_symlink(),
+                 'unique_os_picker_diagnostic_required')
+            before, facts = self._initial_os_picker_observation()
+            with tempfile.TemporaryDirectory(prefix='picker-png-', dir=self._host_capture_root()) as directory:
+                folder = Path(directory)
+                self._console('screenshot', folder)
+                files = list(folder.iterdir())
+                need(len(files) == 1 and files[0].suffix.lower() == '.png'
+                     and files[0].is_file() and not files[0].is_symlink(),
+                     'unique_os_picker_console_png_required')
+                data = files[0].read_bytes()
+                dims = self._validate_png(data)
+                after, _ = self._initial_os_picker_observation()
+                if before != after:
+                    self.record_tainted = True
+                    raise BridgeRefused('os_picker_binding_changed_during_capture')
+                destination.write_bytes(data)
+                destination.chmod(0o600)
+            self.report['os_picker_diagnostic'] = {'status': 'CAPTURED',
+                'file': name, 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
+                'width': dims[0], 'height': dims[1],
+                'capture': 'official_emulator_console_host_png',
+                'capture_scope': 'fresh_owned_os_picker_failure_diagnostic',
+                'privacy_before_and_after': True, 'picker_binding_unchanged': True,
+                'observed_controls': facts, 'acceptance_claimed': False}
+            # Deliberately separate from accepted editor frames and clips.
+            self.save()
 
         def execute(self):
             raise BridgeRefused('same_job_owner_stage_router_required') from None
