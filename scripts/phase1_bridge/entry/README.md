@@ -175,3 +175,5 @@ A photo card handled by the DocumentsUI RecyclerView may be focusable without it
 ## Refused video metadata diagnostic
 
 The original host video validator still makes the sole acceptance decision. On an initial C1 refusal only, the adapter may record bounded metadata from the exact stopped owned temporary clip before its normal deletion. It exports no failed clip, hashes, raw probe output, paths or arbitrary error text. The original exception is rethrown. The fixed controller diagnostic preserves known video refusal codes; all acceptance, privacy, dimensions, codec and duration checks remain unchanged.
+
+Fresh disposable VM collections use independent workflow run identifiers. Retained original artifacts are never replaced by retrying an old run. An infrastructure failure before app installation creates no account fixture and does not exercise subsequent native changes.
