@@ -60,13 +60,15 @@ def failure_location(exc, operation):
 class Budget:
     work_seconds: int = 5400
     cleanup_seconds: int = 600
-    hold_seconds: int = 300
+    # Artifact download and actual visual review may span a chat interruption.
+    # Waiting grants no input authority and never extends a signed command TTL.
+    hold_seconds: int = 900
     poll_seconds: int = 5
 
     def validate(self):
         require(type(self.work_seconds) is int and 600 <= self.work_seconds <= 5400
                 and type(self.cleanup_seconds) is int and 60 <= self.cleanup_seconds <= 600
-                and type(self.hold_seconds) is int and 30 <= self.hold_seconds <= 360
+                and type(self.hold_seconds) is int and 30 <= self.hold_seconds <= 900
                 and type(self.poll_seconds) is int and 2 <= self.poll_seconds <= 20,
                 'owner_budget_invalid')
 

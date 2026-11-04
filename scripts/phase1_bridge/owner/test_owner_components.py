@@ -269,11 +269,58 @@ class OwnerKernelTests(unittest.TestCase):
         self.session = self.make_session()
         self.controller.session = self.session
 
-    def make_session(self, packager=None):
+    def make_session(self, packager=None, budget=None):
         return owner.OwnerSession(root=Path(self.temp.name), controller=self.controller,
             channel=self.channel, packager=packager or self.packager, job_key=self.job,
             root_public=self.root.public_key(), checkpoint_io=self.io,
-            budget=owner.Budget(work_seconds=600, cleanup_seconds=60, hold_seconds=30, poll_seconds=5), clock=self.clock)
+            budget=budget or owner.Budget(work_seconds=600, cleanup_seconds=60, hold_seconds=30, poll_seconds=5), clock=self.clock)
+
+    def extended_review_session(self):
+        self.session = self.make_session(budget=owner.Budget(
+            work_seconds=600, cleanup_seconds=60, hold_seconds=900, poll_seconds=5))
+        self.controller.session = self.session
+
+    def test_extended_review_wait_accepts_a_new_fresh_signature_after_visual_review(self):
+        self.extended_review_session()
+        original = self.channel.poll.side_effect
+        def reviewed_later(seq):
+            self.assertIsNone(self.session.active_authority)
+            self.assertNotIn('advance', self.controller.events)
+            self.clock.value += 400
+            return original(seq)
+        self.channel.poll.side_effect = reviewed_later
+        result = self.session.run()
+        self.assertTrue(result.collected)
+        self.assertTrue(result.cleanup_confirmed)
+        self.assertEqual(self.controller.events.count('advance'), 1)
+
+    def test_extended_review_wait_does_not_renew_an_expired_signature(self):
+        self.extended_review_session()
+        original = self.channel.poll.side_effect
+        cached = []
+        def expired(seq):
+            if not cached:
+                cached.append(original(seq))
+                self.clock.value += 400
+            return cached[0]
+        self.channel.poll.side_effect = expired
+        result = self.session.run()
+        self.assertFalse(result.collected)
+        self.assertNotIn('advance', self.controller.events)
+        self.assertTrue(result.cleanup_confirmed)
+        self.assertIn(('COMMAND_REFUSED', 1), self.io.statuses)
+
+    def test_extended_review_wait_cannot_extend_the_overall_work_deadline(self):
+        self.extended_review_session()
+        original = self.channel.poll.side_effect
+        def past_work_budget(seq):
+            self.clock.value += 601
+            return original(seq)
+        self.channel.poll.side_effect = past_work_budget
+        result = self.session.run()
+        self.assertFalse(result.collected)
+        self.assertNotIn('advance', self.controller.events)
+        self.assertTrue(result.cleanup_confirmed)
 
     def test_same_owner_keeps_fixture_sequence_and_reserves_before_active_grant(self):
         def advance(review):
