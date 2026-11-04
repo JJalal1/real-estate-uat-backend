@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -15,6 +16,55 @@ import prepare_phase1_native_account as build
 
 
 class NativeAccountBuildSafetyTest(unittest.TestCase):
+    def test_optional_installer_refuses_changed_build_identity_before_export(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary); evidence, export = self.export_context(folder)
+            private = folder / 'private'; private.mkdir()
+            (private / 'target.apk').write_bytes(b'INVENTED_NOT_INSTALLABLE_TEST_ONLY')
+            (private / 'APK_VERIFICATION.json').write_text(json.dumps({'source_commit': 'b' * 40}))
+            proof = {'source_commit': 'a' * 40, 'ci_run_id': '123', 'version_code': 1467}
+            with patch.object(build, 'guard', return_value=proof), patch.object(build, 'PRIVATE', private), \
+                    patch.object(build, 'EVIDENCE', evidence), patch.object(build, 'EXPORT', export):
+                with self.assertRaisesRegex(RuntimeError, 'installer_identity'):
+                    build.encrypt_evidence({'RUNNER_TEMP': str(folder)}, include_installer=True)
+            self.assertFalse(export.exists())
+
+    @unittest.skipUnless(shutil.which('openssl'), 'OpenSSL unavailable')
+    def test_optional_installer_and_host_clip_leave_only_matching_ciphertext(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary); evidence, export = self.export_context(folder)
+            # Invented non-installable bytes test encryption, not APK validation.
+            private = folder / 'private'; private.mkdir()
+            apk = b'OFFLINE_INVENTED_APK_BYTES_NOT_INSTALLABLE'
+            (private / 'target.apk').write_bytes(apk)
+            (evidence / 'C1_test.webm').write_bytes(b'OFFLINE_TEST_MEDIA_NOT_A_NATIVE_CAPTURE')
+            proof = {'source_commit': 'a' * 40, 'ci_run_id': '123', 'ci_run_number': 1, 'version_code': 1467}
+            identity = {**proof, 'package': 'com.aqer.yemen.uat', 'bytes': len(apk),
+                        'sha256': hashlib.sha256(apk).hexdigest()}
+            (private / 'APK_VERIFICATION.json').write_text(json.dumps(identity))
+            key, certificate = folder / 'key.pem', folder / 'recipient.pem'
+            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                            '-keyout', str(key), '-out', str(certificate), '-days', '1',
+                            '-subj', '/CN=OfflineInstallerCipherTest'], check=True, capture_output=True)
+            key.chmod(0o600)
+            with patch.object(build, 'guard', return_value=proof), patch.object(build, 'PRIVATE', private), \
+                    patch.object(build, 'EVIDENCE', evidence), patch.object(build, 'EXPORT', export), \
+                    patch.object(build.close, 'RECIPIENT', str(certificate)):
+                build.encrypt_evidence({'RUNNER_TEMP': str(folder)}, include_installer=True)
+            self.assertEqual({p.name for p in export.iterdir()}, {'evidence.cms', 'installer.cms', 'PUBLIC_RECEIPT.json'})
+            receipt = json.loads((export / 'PUBLIC_RECEIPT.json').read_text())
+            self.assertFalse(receipt['phase1_accepted'])
+            self.assertEqual(receipt['installer_identity']['sha256'], identity['sha256'])
+            self.assertNotIn(apk.decode(), json.dumps(receipt))
+            for name in ('evidence', 'installer'):
+                subprocess.run(['openssl', 'cms', '-decrypt', '-binary', '-inform', 'DER',
+                    '-in', str(export / (name + '.cms')), '-recip', str(certificate),
+                    '-inkey', str(key), '-out', str(folder / (name + '-plain'))], check=True, capture_output=True)
+            self.assertEqual((folder / 'installer-plain').read_bytes(), apk)
+            with zipfile.ZipFile(folder / 'evidence-plain') as archive:
+                self.assertIsNone(archive.testzip())
+                self.assertEqual(set(archive.namelist()), {'report.json', 'C1_test.webm'})
+
     def environment(self):
         return {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': 'JJalal1/real-estate-uat-backend',
                 'GITHUB_REF': build.REF, 'GITHUB_EVENT_NAME': 'push',

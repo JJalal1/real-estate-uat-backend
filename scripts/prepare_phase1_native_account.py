@@ -23,16 +23,73 @@ PRIVATE = ROOT / 'phase1-native-account-private'
 EVIDENCE = ROOT / 'phase1-native-account-evidence'
 EXPORT = ROOT / 'phase1-native-account-encrypted'
 ALLOWED = {
+    '.github/actions/phase1-review/README.md',
+    '.github/actions/phase1-review/action.yml',
+    '.github/actions/phase1-review/index.js',
+    '.github/actions/phase1-review/package-lock.json',
+    '.github/actions/phase1-review/package.json',
+    '.github/actions/phase1-review/test_index.js',
+    '.github/phase1-close-recipient.pem',
     '.github/workflows/phase1-native-account.yml',
-    'scripts/prepare_phase1_native_account.py',
-    'scripts/phase1_native_account_readiness.py',
-    'scripts/probe_phase1_native_account.py',
-    'scripts/phase1_native_fixture_api.py',
+    'scripts/phase1_bridge/adapter/README.md',
+    'scripts/phase1_bridge/adapter/build_ci_variants.py',
+    'scripts/phase1_bridge/adapter/c1_basics_capture.py',
+    'scripts/phase1_bridge/adapter/c1_home_capture.py',
+    'scripts/phase1_bridge/adapter/ci_probe_adapter.py',
+    'scripts/phase1_bridge/adapter/ci_remote_evidence.py',
+    'scripts/phase1_bridge/adapter/test_basics_capture.py',
+    'scripts/phase1_bridge/adapter/test_home_capture.py',
+    'scripts/phase1_bridge/adapter/test_integration.py',
+    'scripts/phase1_bridge/adapter/test_logout_home.py',
+    'scripts/phase1_bridge/adapter/variants/C2_SOURCE_PROPOSAL/c2_native_roles.py',
+    'scripts/phase1_bridge/adapter/variants/LOCAL_REMAINING_PROPOSAL/local_stage_policy.py',
+    'scripts/phase1_bridge/adapter/variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py',
+    'scripts/phase1_bridge/adapter/variants/ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py',
+    'scripts/phase1_bridge/adapter/variants/ROOT_C4_EXECUTOR/phase_extensions.py',
+    'scripts/phase1_bridge/adapter/variants/VARIANT_MANIFEST.json',
+    'scripts/phase1_bridge/adapter/variants/ci_remote_evidence.py',
+    'scripts/phase1_bridge/adapter/variants/promoted_cleanup.py',
+    'scripts/phase1_bridge/adapter/variants/runtime/host_console_capture.py',
+    'scripts/phase1_bridge/controller/README.md',
+    'scripts/phase1_bridge/controller/bounded_api.py',
+    'scripts/phase1_bridge/controller/controller.py',
+    'scripts/phase1_bridge/controller/test_bounded_api.py',
+    'scripts/phase1_bridge/controller/test_controller.py',
+    'scripts/phase1_bridge/controller/test_home_diagnostic.py',
+    'scripts/phase1_bridge/entry/README.md',
+    'scripts/phase1_bridge/entry/test_entry.py',
+    'scripts/phase1_bridge/oneshot/README.md',
+    'scripts/phase1_bridge/oneshot/oneshot_adapter.py',
+    'scripts/phase1_bridge/oneshot/test_oneshot_adapter.py',
+    'scripts/phase1_bridge/owner/README.md',
+    'scripts/phase1_bridge/owner/checkpoint_io.py',
+    'scripts/phase1_bridge/owner/checkpoint_packager.py',
+    'scripts/phase1_bridge/owner/command_transport.py',
+    'scripts/phase1_bridge/owner/grants.py',
+    'scripts/phase1_bridge/owner/owner_session.py',
+    'scripts/phase1_bridge/owner/test_checkpoint_io.py',
+    'scripts/phase1_bridge/owner/test_checkpoint_packager.py',
+    'scripts/phase1_bridge/owner/test_owner_components.py',
+    'scripts/phase1_bridge/protocol/README.md',
+    'scripts/phase1_bridge/protocol/review_protocol.py',
+    'scripts/phase1_bridge/protocol/test_review_protocol.py',
+    'scripts/phase1_bridge/root_review_public.json',
+    'scripts/phase1_bridge/runtime/owned_vm.py',
+    'scripts/phase1_bridge/runtime/test_owned_vm_review.py',
+    'scripts/phase1_bridge/tool_manifest.json',
+    'scripts/phase1_device_input/AndroidManifest.xml',
     'scripts/phase1_device_input/Phase1Input.java',
+    'scripts/phase1_native_account_readiness.py',
+    'scripts/phase1_native_fixture_api.py',
+    'scripts/prepare_phase1_close.py',
+    'scripts/prepare_phase1_followup.py',
+    'scripts/prepare_phase1_native_account.py',
+    'scripts/probe_phase1_native_account.py',
+    'scripts/run_phase1_native_bridge.py',
     'scripts/tests/test_phase1_native_account.py',
     'scripts/tests/test_phase1_native_account_build.py',
-    'scripts/tests/test_phase1_native_account_readiness.py',
     'scripts/tests/test_phase1_native_account_fixture.py',
+    'scripts/tests/test_phase1_native_account_readiness.py',
 }
 
 
@@ -132,13 +189,27 @@ def prepare(env):
     print('AQER_PHASE1_NATIVE_RELEASE_AND_HELPER_VERIFIED')
 
 
-def encrypt_evidence(env):
+def encrypt_evidence(env, include_installer=False):
     proof = guard(env)
+    installer = installer_proof = None
+    if include_installer:
+        installer = PRIVATE / 'target.apk'
+        metadata = PRIVATE / 'APK_VERIFICATION.json'
+        if installer.is_symlink() or metadata.is_symlink() or not installer.is_file() or not metadata.is_file():
+            raise RuntimeError('verified_native_installer_required')
+        installer_proof = json.loads(metadata.read_text())
+        if not (installer_proof.get('source_commit') == proof['source_commit']
+                and str(installer_proof.get('ci_run_id')) == str(proof['ci_run_id'])
+                and installer_proof.get('version_code') == proof['version_code']
+                and installer_proof.get('package') == 'com.aqer.yemen.uat'
+                and installer_proof.get('bytes') == installer.stat().st_size
+                and installer_proof.get('sha256') == digest(installer)):
+            raise RuntimeError('native_installer_identity_mismatch')
     if not EVIDENCE.is_dir() or not (EVIDENCE / 'report.json').is_file():
         raise RuntimeError('native_evidence_report_missing')
     files = sorted(EVIDENCE.iterdir())
     if any(p.is_symlink() or not p.is_file() or p.resolve().parent != EVIDENCE.resolve()
-           or not (p.name == 'report.json' or re.fullmatch(r'[A-Za-z0-9_-]+\.(?:png|mp4)', p.name))
+           or not (p.name == 'report.json' or re.fullmatch(r'[A-Za-z0-9_-]+\.(?:png|mp4|webm)', p.name))
            for p in files):
         raise RuntimeError('native_evidence_export_allowlist_failed')
     EXPORT.mkdir(mode=0o700)
@@ -157,8 +228,13 @@ def encrypt_evidence(env):
                'version_code': proof['version_code'], 'recipient_sha256': close.RECIPIENT_SHA256,
                'encrypted_evidence': result, 'plaintext_file_count': len(files),
                'native_results_require_private_review': True, 'phase1_accepted': False}
+    if include_installer:
+        receipt['encrypted_installer'] = close.encrypt(installer, EXPORT / 'installer.cms', ROOT / close.RECIPIENT)
+        receipt['installer_identity'] = {key: installer_proof[key] for key in
+            ('source_commit', 'ci_run_id', 'version_code', 'package', 'bytes', 'sha256')}
     (EXPORT / 'PUBLIC_RECEIPT.json').write_text(json.dumps(receipt, indent=2) + '\n')
-    if {p.name for p in EXPORT.iterdir()} != {'evidence.cms', 'PUBLIC_RECEIPT.json'}:
+    expected = {'evidence.cms', 'PUBLIC_RECEIPT.json'} | ({'installer.cms'} if include_installer else set())
+    if {p.name for p in EXPORT.iterdir()} != expected:
         raise RuntimeError('native_ciphertext_export_scope_failed')
     print('AQER_PHASE1_NATIVE_ACCOUNT_EVIDENCE_ENCRYPTED')
 
@@ -168,12 +244,15 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--source-only', action='store_true')
     mode.add_argument('--encrypt-evidence', action='store_true')
+    parser.add_argument('--include-installer', action='store_true')
     args = parser.parse_args()
     try:
+        if args.include_installer and not args.encrypt_evidence:
+            raise RuntimeError('explicit_installer_encryption_mode_required')
         if args.source_only:
             guard(os.environ); print('AQER_PHASE1_NATIVE_ACCOUNT_SOURCE_VERIFIED')
         elif args.encrypt_evidence:
-            encrypt_evidence(os.environ)
+            encrypt_evidence(os.environ, include_installer=args.include_installer)
         else:
             prepare(os.environ)
     except Exception:

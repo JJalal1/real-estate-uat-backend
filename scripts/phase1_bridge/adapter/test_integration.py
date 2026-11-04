@@ -1,0 +1,382 @@
+"""Synthetic/offline contracts only; never device or actor acceptance tests."""
+import base64
+from datetime import datetime, timedelta, timezone
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import sys
+import tempfile
+import threading
+import unittest
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / 'oneshot'))
+import ci_probe_adapter as bridge
+import ci_remote_evidence as evidence
+import build_ci_variants as builder
+from oneshot_adapter import AdmissionError
+
+
+NOW = datetime(2026, 11, 3, 12, 0, 0, tzinfo=timezone.utc)
+DIGEST = 'a' * 64
+FRAME = 'C1-restored-title.png'
+
+
+class EvidenceTests(unittest.TestCase):
+    def review(self):
+        result = {k: True for k in evidence.C4_EXTRA['C1_REVIEW']}
+        result.update(kind=evidence.ROOT_KIND, phase='C4', case='C4-native-saved-draft',
+            cursor='C1_REVIEW', fixture_key='synthetic', fixture_tag='SYNTHETIC',
+            title='SYNTHETIC', privacy_checked=True, manual_review_completed=True,
+            frames=evidence.frames_wire({FRAME: DIGEST}), review_completed_utc='2026-11-03T12:00:00Z')
+        return result
+
+    def test_actual_utc_age_edges_and_no_legacy_substitution(self):
+        for age, wanted in [(-6, False), (-5, True), (0, True), (120, True), (121, False)]:
+            self.assertEqual(evidence.fresh_remote_review(self.review(),
+                now_utc=NOW + timedelta(seconds=age)), wanted)
+        review = self.review()
+        review['reviewed_monotonic'] = 123
+        self.assertFalse(evidence.fresh_remote_review(review, now_utc=NOW))
+        self.assertFalse(evidence.fresh_remote_review(self.review(), now_utc=NOW.replace(tzinfo=None)))
+
+    def test_sorted_frame_records_bind_exact_filename_and_digest(self):
+        frames = {'C1-z.png': DIGEST, 'C1-a.png': 'b' * 64}
+        wire = evidence.frames_wire(frames)
+        self.assertEqual(evidence.frame_map(wire), frames)
+        for bad in [wire[::-1], [wire[0], wire[0]], [{'file': '../secret', 'sha256': DIGEST}],
+                    [{'file': FRAME, 'sha256': DIGEST, 'approval': True}]]:
+            with self.assertRaises(evidence.RemoteEvidenceError): evidence.frame_map(bad)
+
+    def test_normalization_preserves_false_flags_and_checks_exact_schema(self):
+        original_clock = evidence.utc_now
+        evidence.utc_now = lambda: NOW
+        try:
+            review = self.review()
+            review['manual_review_completed'] = False
+            decoded = evidence.normalize_c4_review(review, expected_cursor='C1_REVIEW',
+                expected_frames={FRAME: DIGEST})
+            self.assertIs(decoded['manual_review_completed'], False)
+            self.assertEqual(decoded['frames'], {FRAME: DIGEST})
+            for bad in [dict(review, unreviewed_extra=True),
+                        dict(review, review_completed_utc='2026-11-03T11:57:00Z')]:
+                with self.assertRaises(evidence.RemoteEvidenceError):
+                    evidence.normalize_c4_review(bad, expected_cursor='C1_REVIEW', expected_frames={FRAME: DIGEST})
+            with self.assertRaises(evidence.RemoteEvidenceError):
+                evidence.normalize_c4_review(review, expected_cursor='C1_REVIEW', expected_frames={FRAME: 'b' * 64})
+        finally:
+            evidence.utc_now = original_clock
+
+    def test_video_decimal_is_exact_observed_tuple_not_new_duration(self):
+        actual = {'file': 'C1-c4-restored-facts.webm', 'sha256': DIGEST, 'duration_s': 31.275}
+        wire = evidence.video_wire(actual)
+        self.assertEqual(wire['duration_s_decimal'], '31.275')
+        self.assertEqual(evidence.video_tuple(wire, actual), actual)
+        for changed in [dict(wire, duration_s_decimal='31.276'), dict(wire, file='other.webm'),
+                        dict(wire, duration_s_decimal=31.275), dict(wire, duration_s_decimal='NaN')]:
+            with self.assertRaises(evidence.RemoteEvidenceError): evidence.video_tuple(changed, actual)
+        with self.assertRaises(evidence.RemoteEvidenceError):
+            evidence.video_wire(dict(actual, duration_s=31.2751))
+
+    def test_duplicate_json_keys_are_rejected(self):
+        with self.assertRaises(evidence.RemoteEvidenceError):
+            json.loads('{"privacy_checked":false,"privacy_checked":true}',
+                       object_pairs_hook=evidence.reject_duplicate_pairs)
+
+
+class Context:
+    phase = 'C4'
+    cursor = 'AI_REVIEW'
+
+
+class SyntheticAuthority:
+    authority_kind = 'ROOT_VERIFIED'
+    expires_utc = NOW + timedelta(seconds=120)
+    def __init__(self):
+        self.active = True
+        self.checked = []
+    def require_input(self, context, category, minimum_remaining_seconds=0):
+        if not self.active: raise RuntimeError('synthetic-expired')
+        self.checked.append(category)
+        return True
+
+
+class SourceAuthority(SyntheticAuthority):
+    authority_kind = 'SOURCE_PLAN_ONLY'
+
+
+class SyntheticHost:
+    def record_start(self, name): self.recorder = name
+    def photo_picker(self): raise AssertionError('host photo_picker is not the base method')
+
+
+class SyntheticBase:
+    def __init__(self, private, env):
+        self.access = {'otp': 'discarded', 'phones': {'broker': 'discarded'}}
+        self.private_values = set()
+        self.report = {'cases': [], 'frames': [], 'videos': []}
+        self.recorder, self.authenticated = None, False
+        self.photo_name = 'synthetic-photo.jpg'
+        self.serial = 'synthetic'
+        self.calls = []
+        self.capable, self.enforced = True, True
+        self.ime_visible, self.ime_dismissed = 'true', 'true'
+        self.after_driver = None
+        self._active_case, self._auth_phase = 'C1-force-stop-restore', None
+    def instrument(self, op, **extras):
+        args = ['shell', 'am', 'instrument', '-w', '-e', 'op', op]
+        for key, value in extras.items(): args.extend(['-e', key, str(value)])
+        self.adb(*args, 'synthetic.helper')
+        result = {'passed': 'true', 'op': op,
+            'deadline_capable': 'true' if self.capable else 'false',
+            'deadline_enforced': 'true' if self.enforced else 'false'}
+        if op == 'account-snapshot': result['tree_b64'] = base64.b64encode(b'[]').decode()
+        elif op == 'account-dismiss-ime':
+            result.update(ime_was_visible=self.ime_visible, ime_dismissed=self.ime_dismissed)
+        else: result.update(account_action_delivered='true', set_text_delivered='true')
+        if self.after_driver is not None: self.after_driver()
+        return result
+    def adb(self, *args, **kwargs): return self.command(['adb', '-s', self.serial, *args], **kwargs)
+    def command(self, args, **kwargs):
+        self.calls.append(tuple(str(a) for a in args))
+        if tuple(args[-3:]) == ('shell', 'wm', 'size'): return 'Physical size: 1080x1920\nOverride size: 540x960'
+        if tuple(args[-3:]) == ('shell', 'wm', 'density'): return 'Physical density: 420\nOverride density: 210'
+        return 'OK'
+    def startup(self): self.adb('shell', 'am', 'start', '-W', '-n', 'synthetic.activity')
+    def save(self): pass
+    def photo_picker(self): self.report['synthetic_photo_selected'] = self.recorder is not None
+
+
+def synthetic_access(_):
+    return {'otp': '258147', 'phones': {'broker': '+9000000001', 'support': '+9000000002', 'regular': '+9000000003'}}
+
+
+def install_roles(probe, access):
+    # Type identity of real KnownRoleMemory is tested through generated imports;
+    # this synthetic class never stands in for native actor proof.
+    probe.role_names = tuple(sorted(access['phones']))
+    probe.private_values.add(access['otp'])
+
+
+PROBE = bridge.make_probe_class(base_class=SyntheticBase, host_capture_mixin=SyntheticHost,
+    validate_access=synthetic_access, secret_name='SYNTHETIC_ACCESS', install_known_roles=install_roles,
+    authority_types=(SyntheticAuthority, SourceAuthority), app='synthetic.app',
+    activity='synthetic.activity', helper='synthetic.helper')
+
+
+class ProbeTests(unittest.TestCase):
+    def probe(self, authority=None, context=None):
+        authority = authority or SyntheticAuthority()
+        context = context or Context()
+        probe = PROBE(None, {}, authority_getter=lambda: authority, context_getter=lambda: context,
+            verify_helper_identity=lambda: True, verify_guest_utc=lambda: True)
+        probe.start_session()
+        probe.preflight_deadline_helper()
+        return probe, authority
+
+    def click(self, p): return p.instrument('account-click', node_path='0.1', node_witness=DIGEST)
+
+    def test_three_roles_retained_before_base_discards_and_metrics_redacted(self):
+        p, _ = self.probe()
+        self.assertEqual(set(p.access['phones']), {'broker', 'support', 'regular'})
+        safe = json.dumps(p.admission_metrics) + repr(p)
+        self.assertFalse(any(value in safe for value in p.private_values))
+        p.clear_role_memory()
+        self.assertEqual(p.access, {'otp': '', 'phones': {}})
+
+    def test_each_dispatch_uses_original_signed_expiry_and_no_caller_override(self):
+        p, authority = self.probe()
+        self.click(p)
+        p.instrument('account-set', node_path='0.1', node_witness=DIGEST, value_b64='eA==')
+        p.adb('shell', 'input', 'keyevent', '4')
+        calls = [call for call in p.calls if 'deadline_utc_ms' in call]
+        self.assertEqual(len(calls), 3)
+        wanted = bridge.exact_deadline_ms(authority)
+        self.assertTrue(all(call[call.index('deadline_utc_ms')+1] == wanted for call in calls))
+        self.assertEqual(authority.checked.count('tap'), 1)
+        self.assertEqual(authority.checked.count('text'), 1)
+        self.assertTrue(all(call[-1] == 'synthetic.helper' for call in calls))
+        with self.assertRaises(AdmissionError):
+            p.instrument('account-click', node_path='0.1', node_witness=DIGEST, deadline_utc_ms=wanted)
+
+    def test_expiry_between_actions_prevents_second_dispatch_and_latches(self):
+        p, authority = self.probe()
+        self.click(p)
+        dispatched = len(p.calls)
+        authority.active = False
+        with self.assertRaises(AdmissionError): self.click(p)
+        self.assertEqual(len(p.calls), dispatched)
+        self.assertEqual(p.admission_metrics['state'], 'uncertain')
+        with self.assertRaises(AdmissionError): p.stop_session()
+        with self.assertRaises(bridge.BridgeRefused): p.start_session()
+
+    def test_missing_capability_blocks_first_root_input(self):
+        p, _ = self.probe()
+        p.capable = False
+        with self.assertRaises(bridge.BridgeRefused): p.preflight_deadline_helper()
+        dispatched = len(p.calls)
+        with self.assertRaises(AdmissionError): self.click(p)
+        self.assertEqual(len(p.calls), dispatched)
+
+    def test_missing_enforcement_after_attempt_latches_uncertainty(self):
+        p, _ = self.probe()
+        p.enforced = False
+        with self.assertRaises(AdmissionError): self.click(p)
+        self.assertEqual(p.admission_metrics['state'], 'uncertain')
+        dispatched = len(p.calls)
+        with self.assertRaises(bridge.BridgeRefused): p.adb('shell', 'input', 'keyevent', '4')
+        self.assertEqual(len(p.calls), dispatched)
+
+    def test_ime_noop_is_checked_and_bad_pair_latches(self):
+        p, _ = self.probe()
+        p.ime_visible = p.ime_dismissed = 'false'
+        self.assertEqual(p.adb('shell', 'input', 'keyevent', '4')['ime_dismissed'], 'false')
+        p.ime_visible, p.ime_dismissed = 'true', 'false'
+        with self.assertRaises(AdmissionError): p.adb('shell', 'input', 'keyevent', '4')
+        self.assertEqual(p.admission_metrics['state'], 'uncertain')
+
+    def test_lifecycle_guard_and_closed_transport_allowlist(self):
+        p, authority = self.probe()
+        p.adb('shell', 'am', 'force-stop', 'synthetic.app')
+        self.assertIn('app_stop', authority.checked)
+        dispatched = len(p.calls)
+        for args in [('shell', 'input', 'tap', 1, 2), ('shell', 'rm', '-rf', '/sdcard'),
+                     ('shell', 'am', 'start', '-n', 'other'), ('shell', 'input', 'text', 'private')]:
+            with self.assertRaises(bridge.BridgeRefused): p.adb(*args)
+        with self.assertRaises(bridge.BridgeRefused): p.command(['adb', 'shell', 'input', 'keyevent', '4'])
+        authority.active = False
+        with self.assertRaises(bridge.BridgeRefused): p.adb('shell', 'am', 'force-stop', 'synthetic.app')
+        self.assertEqual(len(p.calls), dispatched)
+
+    def test_source_lease_cannot_enter_phase_executor_or_impersonate_root(self):
+        context = Context()
+        context.phase, context.cursor = 'C1', 'INITIAL_C1'
+        p, _ = self.probe(SourceAuthority(), context)
+        with self.assertRaises(bridge.BridgeRefused): p.require_phase_scope('C4')
+        root, _ = self.probe()
+        self.assertTrue(root.require_phase_scope('C4'))
+        with self.assertRaises(bridge.BridgeRefused): root.require_phase_scope('C2')
+
+    def test_real_thread_reservation_prevents_second_driver_dispatch(self):
+        p, _ = self.probe()
+        entered, release = threading.Event(), threading.Event()
+        p.after_driver = lambda: (entered.set(), release.wait(timeout=3))
+        failures = []
+        def work():
+            try: self.click(p)
+            except BaseException as error: failures.append(type(error).__name__)
+        thread = threading.Thread(target=work)
+        thread.start()
+        self.assertTrue(entered.wait(timeout=3))
+        dispatched = len(p.calls)
+        with self.assertRaises(AdmissionError): self.click(p)
+        with self.assertRaises(AdmissionError): p.stop_session()
+        self.assertEqual(len(p.calls), dispatched)
+        release.set()
+        thread.join(timeout=3)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(failures, [])
+
+    def test_source_creation_clip_starts_at_photo_not_long_map(self):
+        context = Context()
+        context.phase, context.cursor = 'C1', 'INITIAL_C1'
+        p, _ = self.probe(SourceAuthority(), context)
+        p.record_start('C1-create-photo')
+        self.assertIsNone(p.recorder)
+        p.photo_picker()
+        self.assertEqual(p.recorder, 'C1-create-photo')
+        self.assertIs(p.report['synthetic_photo_selected'], True)
+        self.assertEqual(p.report['create_clip_scope'], 'actual_specs_photo_selection_only')
+
+    def test_display_actual_readback_and_c1_diagnostic_boundary(self):
+        context = Context()
+        context.phase, context.cursor = 'C1', 'INITIAL_C1'
+        p, _ = self.probe(SourceAuthority(), context)
+        self.assertIs(p.configure_host_display()['actual_readback_checked'], True)
+        with self.assertRaises(bridge.BridgeRefused): p.hold_after_initial_c1()
+        p.report['cases'] = [{'id': 'C1-force-stop-restore', 'status': 'PASS'}]
+        p.hold_after_initial_c1()
+        self.assertIsNone(p._active_case)
+        with self.assertRaises(bridge.BridgeRefused): p.cleanup()
+        with self.assertRaises(bridge.BridgeRefused): p.execute()
+
+
+class VariantTests(unittest.TestCase):
+    def load(self, relative):
+        spec = importlib.util.spec_from_file_location('_synthetic_' + relative.replace('/', '_'),
+                                                       HERE / 'variants' / relative)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_all_three_active_freshness_paths_execute_real_utc_checks(self):
+        module = self.load('ROOT_C2_EXECUTOR_V2/phase_extensions.py')
+        tag = 'AQER-C1-' + 'a' * 12
+        title = 'SYNTHETIC ' + tag
+        record = dict(kind=evidence.ROOT_KIND, context='submit_open', privacy_checked=True,
+            manual_review_completed=True, fixture_key='synthetic', fixture_tag=tag,
+            exact_fixture_title=title, frame_sha256=DIGEST,
+            review_completed_utc='2026-11-03T12:00:00Z',
+            same_exact_tagged_item_and_button_visually_verified=True)
+        old_clock = evidence.utc_now
+        evidence.utc_now = lambda: NOW
+        try:
+            self.assertTrue(module._valid_review(record, 'submit_open', 'synthetic', tag, title))
+            stale = dict(record, review_completed_utc='2026-11-03T11:57:00Z')
+            self.assertFalse(module._valid_review(stale, 'submit_open', 'synthetic', tag, title))
+            # A fresh record reaches the preserved scene validator; a stale one
+            # stops at freshness before any tree/input is used.
+            for candidate, expected in [(record, 'fresh_app_root_required'),
+                                         (stale, 'actual_manual_frame_review_expired')]:
+                with self.assertRaisesRegex(module.policy.RemainingBlocked, '^' + expected + '$'):
+                    module.policy.reviewed_action_node([], 'submit_open', title, tag, candidate,
+                                                       native_role='broker', auth_uncertain=False)
+            executor = module.C2Executor.__new__(module.C2Executor)
+            executor.key, executor.tag, executor.title = 'synthetic', tag, title
+            regular = dict(record, context='regular_isolation')
+            del regular['frame_sha256']
+            executor.reviews = {'regular_isolation': regular}
+            self.assertEqual(executor._fresh_review('regular_isolation'), regular)
+            executor.reviews['regular_isolation'] = dict(regular, review_completed_utc='2026-11-03T11:57:00Z')
+            with self.assertRaisesRegex(module.C2Blocked, '^regular_prior_frames_nonimage_review_required$'):
+                executor._fresh_review('regular_isolation')
+        finally:
+            evidence.utc_now = old_clock
+
+    def test_original_full_tree_privacy_predicate_still_blocks_hidden_contact_fields(self):
+        module = self.load('runtime/host_console_capture.py')
+        capture = module.HostConsoleCaptureMixin()
+        capture.private_values = {'synthetic-secret'}
+        hidden_contact = [{'hint': 'رقم الاتصال *', 'visible': False}]
+        self.assertTrue(capture._capture_rows_private(hidden_contact))
+        self.assertTrue(capture._capture_rows_private([{'text': 'synthetic-secret', 'visible': True}]))
+        self.assertTrue(capture._capture_rows_private([{'text': 'تسجيل الخروج', 'visible': True}]))
+        self.assertFalse(capture._capture_rows_private([{'text': 'المواصفات', 'visible': True}]))
+
+    def test_all_clock_sites_adapted_original_hashes_and_capture_unchanged(self):
+        root = HERE.parents[2]
+        originals = root / 'native-fixture'
+        capture = root / 'android-alt/api36-proposal/runtime/host_console_capture.py'
+        with tempfile.TemporaryDirectory(prefix='offline-variants-', dir=HERE) as directory:
+            output = Path(directory) / 'variants'
+            manifest = builder.build(originals, capture, output)
+            for relative, digest in builder.PINS.items():
+                self.assertEqual(hashlib.sha256((originals / relative).read_bytes()).hexdigest(), digest)
+                self.assertNotIn('reviewed_monotonic', (output / relative).read_text())
+                compile((output / relative).read_text(), relative, 'exec')
+            self.assertEqual((output / 'runtime/host_console_capture.py').read_bytes(), capture.read_bytes())
+            self.assertEqual(len(manifest), 8)
+            policy_text = (output / 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py').read_text()
+            self.assertIn('fresh_remote_review(review, now_utc=now_utc)', policy_text)
+            c2_text = (output / 'ROOT_C2_EXECUTOR_V2/phase_extensions.py').read_text()
+            self.assertEqual(c2_text.count('fresh_remote_review('), 2)
+            dispatch = (output / 'ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py').read_text()
+            self.assertIn('root_review_utc_expired', dispatch)
+            self.assertIn("'frame_sha256', 'review_completed_utc'", dispatch)
+        for relative, row in json.loads((HERE / 'variants/VARIANT_MANIFEST.json').read_text())['manifest'].items():
+            self.assertEqual(hashlib.sha256((HERE / 'variants' / relative).read_bytes()).hexdigest(), row['sha256'])
+
+
+if __name__ == '__main__':
+    unittest.main()

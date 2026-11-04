@@ -10,6 +10,9 @@ on:
       - scripts/phase1_native_fixture_api.py
       - scripts/phase1_device_input/Phase1Input.java
       - scripts/tests/test_phase1_native_account*.py
+      - scripts/run_phase1_native_bridge.py
+      - scripts/phase1_bridge/**
+      - .github/actions/phase1-review/**
 permissions:
   contents: read
 concurrency:
@@ -55,12 +58,13 @@ jobs:
         run: python3 -B scripts/prepare_phase1_native_account.py --source-only
       - name: Run only native collector safety tests
         run: |
-          python3 -m pip install --disable-pip-version-check Pillow==12.3.0
-          python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_native_account*.py' -v
+          python3 -m pip install --disable-pip-version-check Pillow==12.3.0 cryptography==50.0.2
+          python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_native_account*.py' -q
+          python3 -B scripts/run_phase1_native_bridge.py --offline-tests
   native:
     needs: [secure-channel, collector-safety]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 125
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,8 +91,16 @@ jobs:
           flutter-version: '3.27.3'
           channel: stable
           cache: true
-      - name: Install pinned synthetic photo fixture dependency
-        run: python3 -m pip install --disable-pip-version-check Pillow==12.3.0
+      - name: Set up Node24 for the pinned checkpoint client
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install pinned collector and checkpoint dependencies
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check Pillow==12.3.0 cryptography==50.0.2
+          npm ci --ignore-scripts --omit=dev --prefix .github/actions/phase1-review
+          command -v ffprobe >/dev/null
       - name: Resolve approved locked graph
         working-directory: mobile_app
         run: |
@@ -130,11 +142,7 @@ jobs:
             ${{ env.GRADLE_USER_HOME }}/caches/modules-2
             ${{ env.GRADLE_USER_HOME }}/wrapper/dists
           key: ${{ steps.gradle-deps.outputs.cache-primary-key }}
-      - name: Boot disposable API36 KVM and execute native account journey
-        id: native
-        timeout-minutes: 20
-        env:
-          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+      - name: Prepare one fresh disposable API36 KVM image
         shell: bash
         run: |
           set -euo pipefail
@@ -143,7 +151,6 @@ jobs:
           test "$GITHUB_REF" = refs/heads/work/phase1-native-account-20261103
           test -f phase1-native-account-private/APK_VERIFICATION.json
           test -c /dev/kvm
-          # Only reproducible files created by this job; private verified APKs remain.
           rm -rf mobile_app/build "$RUNNER_TEMP/aqer-native-account-gradle"
           sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
           export ANDROID_USER_HOME="$RUNNER_TEMP/aqer-native-account-android"
@@ -154,27 +161,25 @@ jobs:
             --path "$ANDROID_AVD_HOME/aqer-native-account.avd" \
             --package 'system-images;android-36;google_apis;x86_64'
           sudo chmod 666 /dev/kvm
-          QT_QPA_PLATFORM=offscreen "$ANDROID_HOME/emulator/emulator" -avd aqer-native-account \
-            -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on \
-            -memory 2048 -cores 2 > "$RUNNER_TEMP/aqer-native-account-emulator.log" 2>&1 &
-          emulator_pid=$!
-          trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
-          ready=false
-          for attempt in $(seq 1 120); do
-            if ! kill -0 "$emulator_pid" 2>/dev/null; then echo 'AQER_NATIVE_EMULATOR_EXITED'; exit 1; fi
-            if [ "$(timeout 3s adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] && \
-               [ "$(timeout 3s adb shell getprop sys.user.0.ce_available 2>/dev/null | tr -d '\r')" = true ]; then
-              ready=true
-              break
-            fi
-            sleep 2
-          done
-          test "$ready" = true
-          python3 -B scripts/probe_phase1_native_account.py --private-dir phase1-native-account-private
+          printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' \
+            "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+      - name: Verify frozen same-job tool bundle
+        run: python3 -B scripts/run_phase1_native_bridge.py --source-only --github-env
+      - name: Execute one bounded native session with actual Root review checkpoints
+        id: native
+        timeout-minutes: 108
+        uses: ./.github/actions/phase1-review
+        with:
+          owner-timeout-seconds: '6200'
+          cleanup-grace-seconds: '180'
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+          GITHUB_TOKEN: ${{ github.token }}
+          QT_QPA_PLATFORM: offscreen
       - name: Encrypt private account evidence to current task recipient
         id: evidence
         if: ${{ !cancelled() && hashFiles('phase1-native-account-evidence/report.json') != '' }}
-        run: python3 -B scripts/prepare_phase1_native_account.py --encrypt-evidence
+        run: python3 -B scripts/prepare_phase1_native_account.py --encrypt-evidence --include-installer
       - name: Upload ciphertext and minimal public identity only
         if: ${{ !cancelled() && steps.evidence.outcome == 'success' }}
         uses: actions/upload-artifact@v4
@@ -182,6 +187,7 @@ jobs:
           name: phase1-native-account-encrypted-${{ github.run_id }}
           path: |
             phase1-native-account-encrypted/evidence.cms
+            phase1-native-account-encrypted/installer.cms
             phase1-native-account-encrypted/PUBLIC_RECEIPT.json
             phase1-native-account-private/APK_VERIFICATION.json
           retention-days: 3

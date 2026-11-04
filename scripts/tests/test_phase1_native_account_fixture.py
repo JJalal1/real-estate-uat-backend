@@ -1,6 +1,7 @@
 """Owner-fixture boundaries against an in-memory HTTP model; no network/accounts."""
 import copy
 import json
+import re
 from pathlib import Path
 import sys
 import unittest
@@ -17,6 +18,35 @@ def dummy_access():
     phone = '+' + ''.join(str((index * 3 + 1) % 10) for index in range(9))
     otp = ''.join(str((index * 7 + 2) % 10) for index in range(6))
     return phone, otp
+
+
+class SyntheticTagSafety(unittest.TestCase):
+    def test_synthetic_tag_avoids_otp_redaction_collision_without_weakening_labels(self):
+        bad = uuid.UUID('a258147b-cdef-4abc-8def-abcdefabcdef')
+        good = uuid.UUID('abcdefab-cdef-4abc-8def-abcdefabcdef')
+        with patch.object(fixture.uuid, 'uuid4', side_effect=[bad, good]) as create:
+            tag = fixture.new_fixture_tag()
+        self.assertEqual(create.call_count, 2)
+        self.assertRegex(tag, r'^AQER-C1-[a-f0-9]{12}$')
+        self.assertIsNone(re.search(r'[0-9]{6}', tag))
+
+    def test_tag_generation_is_bounded_and_never_adopts_ambiguous_fallback(self):
+        bad = uuid.UUID('a258147b-cdef-4abc-8def-abcdefabcdef')
+        with patch.object(fixture.uuid, 'uuid4', return_value=bad) as create:
+            with self.assertRaisesRegex(fixture.FixtureError, 'synthetic_tag_unavailable'):
+                fixture.new_fixture_tag()
+        self.assertEqual(create.call_count, 8)
+
+    def test_unavailable_safe_tag_creates_no_business_fixture_and_revokes_api_session(self):
+        api = MemoryOwnerApi()
+        probe = fixture.FixtureApi(*dummy_access(), '9001', transport=api)
+        with patch.object(fixture, 'new_fixture_tag', side_effect=fixture.FixtureError('unambiguous_synthetic_tag_unavailable')):
+            with self.assertRaises(fixture.FixtureError):
+                probe.bootstrap()
+        self.assertIsNone(probe.state)
+        self.assertFalse(api.active)
+        self.assertEqual((api.properties, api.drafts), api.original)
+        self.assertFalse(any(method in {'PUT', 'DELETE'} for method, *_ in api.calls))
 
 
 class MemoryOwnerApi:

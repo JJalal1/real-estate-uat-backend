@@ -15,7 +15,7 @@ import probe_phase1_native_account as native
 
 class NativeAccountSafetyTest(unittest.TestCase):
     def test_fixed_mode_selected_before_account_input_dispatch(self):
-        for op in ('account-click', 'account-set', 'account-scroll', 'account-snapshot'):
+        for op in ('account-click', 'account-set', 'account-scroll', 'account-snapshot', 'account-dismiss-ime'):
             receipt = ['INSTRUMENTATION_RESULT: passed=true',
                        'INSTRUMENTATION_RESULT: op=' + op, 'INSTRUMENTATION_CODE: -1']
             self.probe.adb = Mock(return_value='\n'.join(receipt))
@@ -461,6 +461,204 @@ class NativeAccountSafetyTest(unittest.TestCase):
         with self.assertRaisesRegex(native.Blocked,'^native_named_add_not_stable$'):
             self.probe.dispatch_stable_initial_add(seconds=3)
         self.probe.act.assert_not_called();self.probe.tap.assert_not_called()
+
+    def startup_home_rows(self, broker=False):
+        footer = ['الرئيسية', 'عملي', 'العملاء', 'حسابي'] if broker else ['العقارات', 'الرسائل', 'إعلاناتي', 'حسابي']
+        return [self.node(name, path='0.' + str(index)) for index, name in enumerate(
+            ['ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…'] + footer)]
+
+    def startup_intro_rows(self):
+        rows = [self.node(name, path='0.' + str(index)) for index, name in enumerate(
+            ['عقارات في منطقتك', 'تحديد موقعي', 'اختيار المحافظة يدويًا', 'المتابعة الآن'])]
+        rows[-1].update(clickable=True)
+        return rows
+
+    def startup_scope(self):
+        self.probe.case_phase('C1-native-network')
+        self.probe.adb, self.probe.act, self.probe.tap = Mock(), Mock(), Mock()
+        return self.stability_clock()
+
+    def test_startup_dispatches_one_original_continue_lease_only_after_stable_intro(self):
+        clock = self.startup_scope()
+        intro, home = self.startup_intro_rows(), self.startup_home_rows()
+        self.probe.nodes = Mock(side_effect=[intro] * 5 + [home] * 5)
+        def dispatch(*args):
+            self.assertGreaterEqual(clock[0], 2)
+            self.assertGreaterEqual(self.probe.nodes.call_count, 3)
+        self.probe.act.side_effect = dispatch
+        self.probe.startup()
+        self.probe.act.assert_called_once_with('click', {'path': '0.3', 'witness': 'a' * 64})
+        self.probe.tap.assert_not_called()
+        row = self.probe.report['native_startup_diagnostics']['C1-native-network']
+        self.assertEqual((row['stage'], row['continue_attempts']), ('home_ready', 1))
+
+    def test_startup_requires_three_reads_even_when_two_seconds_already_elapsed(self):
+        clock = self.startup_scope()
+        intro, home = self.startup_intro_rows(), self.startup_home_rows()
+        def read():
+            if self.probe.nodes.call_count == 2:
+                clock[0] = 2
+            return intro if self.probe.nodes.call_count <= 3 else home
+        self.probe.nodes = Mock(side_effect=read)
+        self.probe.act.side_effect = lambda *args: self.assertEqual(self.probe.nodes.call_count, 3)
+        self.probe.startup()
+        self.probe.act.assert_called_once()
+
+    def test_startup_stable_guest_or_retained_broker_home_requires_no_continue_click(self):
+        clock = self.startup_scope()
+        for broker in (False, True):
+            clock[0] = 0
+            self.probe.authenticated = False
+            self.probe.nodes = Mock(return_value=self.startup_home_rows(broker))
+            self.probe.act.reset_mock()
+            self.probe.startup()
+            self.assertEqual(self.probe.nodes.call_count, 5)
+            self.assertEqual(clock[0], 2)
+            self.probe.act.assert_not_called()
+
+    def test_startup_initial_home_then_intro_resets_before_one_continue_dispatch(self):
+        clock = self.startup_scope()
+        home, intro = self.startup_home_rows(), self.startup_intro_rows()
+        self.probe.nodes = Mock(side_effect=[home] * 2 + [intro] * 5 + [home] * 5)
+        self.probe.act.side_effect = lambda *args: self.assertGreaterEqual(clock[0], 3)
+        self.probe.startup()
+        self.probe.act.assert_called_once()
+        self.assertGreaterEqual(self.probe.report['native_startup_diagnostics']['C1-native-network']['stability_resets'], 1)
+
+    def test_startup_home_anchor_change_restarts_readonly_home_stability(self):
+        clock = self.startup_scope()
+        original, changed = self.startup_home_rows(), self.startup_home_rows()
+        changed[0]['bounds'] = [0, 0, 201, 50]
+        self.probe.nodes = Mock(side_effect=[original] * 2 + [changed] * 5)
+        self.probe.startup()
+        self.assertEqual(self.probe.nodes.call_count, 7)
+        self.assertEqual(clock[0], 3)
+        self.probe.act.assert_not_called()
+
+    def test_startup_continue_can_disappear_into_stable_home_without_any_dispatch(self):
+        self.startup_scope()
+        self.probe.nodes = Mock(side_effect=[self.startup_intro_rows()] * 2 + [self.startup_home_rows()] * 5)
+        self.probe.startup()
+        self.probe.act.assert_not_called()
+        self.assertEqual(self.probe.report['native_startup_diagnostics']['C1-native-network']['continue_attempts'], 0)
+
+    def test_startup_candidate_or_public_intro_binding_changes_reset_full_window(self):
+        clock = self.startup_scope()
+        for change in ('path', 'witness', 'bounds', 'intro'):
+            clock[0] = 0
+            original, changed = self.startup_intro_rows(), self.startup_intro_rows()
+            if change == 'path': changed[-1]['path'] = '0.99'
+            elif change == 'witness': changed[-1]['witness'] = 'b' * 64
+            elif change == 'bounds': changed[-1]['bounds'] = [0, 0, 201, 50]
+            else: changed[0]['witness'] = 'b' * 64
+            self.probe.nodes = Mock(side_effect=[original] * 2 + [changed] * 5 + [self.startup_home_rows()] * 5)
+            self.probe.act.reset_mock()
+            self.probe.act.side_effect = lambda *args: self.assertGreaterEqual(clock[0], 3)
+            with self.subTest(change=change): self.probe.startup()
+            self.probe.act.assert_called_once_with('click', {'path': changed[-1]['path'], 'witness': changed[-1]['witness']})
+
+    def test_startup_incomplete_or_absent_intro_resets_without_input(self):
+        self.startup_scope()
+        intro = self.startup_intro_rows()
+        self.probe.nodes = Mock(side_effect=[intro] * 2 + [intro[1:], []] + [intro] * 5 + [self.startup_home_rows()] * 5)
+        self.probe.startup()
+        self.assertEqual(self.probe.nodes.call_count, 14)
+        self.probe.act.assert_called_once()
+
+    def test_startup_deadline_before_dispatch_never_clicks(self):
+        clock = self.startup_scope()
+        def read():
+            if self.probe.nodes.call_count == 3: clock[0] = 60
+            return self.startup_intro_rows()
+        self.probe.nodes = Mock(side_effect=read)
+        with self.assertRaisesRegex(native.Blocked, '^native_startup_not_ready$'): self.probe.startup()
+        self.probe.act.assert_not_called()
+
+    def test_startup_uncertain_continue_propagates_without_replay_or_os_fallback(self):
+        self.startup_scope()
+        self.probe.nodes = Mock(return_value=self.startup_intro_rows())
+        self.probe.act.side_effect = native.Blocked('native_input_not_delivered')
+        with self.assertRaisesRegex(native.Blocked, '^native_input_not_delivered$'): self.probe.startup()
+        self.probe.act.assert_called_once()
+        self.assertEqual(self.probe.nodes.call_count, 5)
+        self.probe.adb.assert_called_once_with('shell', 'am', 'start', '-W', '-n', native.ACTIVITY)
+        self.assertEqual(self.probe.report['native_startup_diagnostics']['C1-native-network']['stage'], 'continue_dispatch')
+
+    def test_startup_delivered_but_persistent_intro_never_gets_second_continue_click(self):
+        self.startup_scope()
+        self.probe.nodes = Mock(return_value=self.startup_intro_rows())
+        with self.assertRaisesRegex(native.Blocked, '^native_startup_not_ready$'): self.probe.startup()
+        self.probe.act.assert_called_once()
+        self.assertEqual(self.probe.report['native_startup_diagnostics']['C1-native-network']['continue_attempts'], 1)
+
+    def test_startup_partial_hidden_foreign_or_private_home_never_returns(self):
+        clock = self.startup_scope()
+        cases = [[self.node('حسابي')], self.startup_home_rows()[:-1]]
+        hidden, foreign = self.startup_home_rows(), self.startup_home_rows()
+        hidden[0]['visible'] = False; foreign[0]['package'] = 'synthetic.foreign'
+        cases += [hidden, foreign, self.startup_home_rows() + [self.node('تسجيل الخروج')]]
+        for rows in cases:
+            clock[0] = 0
+            self.probe.nodes = Mock(return_value=rows)
+            with self.subTest(rows=len(rows)), self.assertRaisesRegex(native.Blocked, '^native_startup_not_ready$'):
+                self.probe.startup()
+            self.probe.act.assert_not_called()
+
+    def test_startup_observed_permission_deny_preserves_scope_and_resets_stability(self):
+        self.startup_scope()
+        intro, home = self.startup_intro_rows(), self.startup_home_rows()
+        self.probe.nodes = Mock(side_effect=[intro] * 2 + [native.Blocked('unobserved')] + [intro] * 5 + [home] * 5)
+        xml = '<hierarchy><node package="com.android.permissioncontroller" resource-id="com.android.permissioncontroller:id/permission_deny_button" bounds="[0,0][100,100]"/></hierarchy>'
+        self.probe.adb.side_effect = lambda *args, **kwargs: xml if args[:2] == ('exec-out', 'cat') else ''
+        self.probe.startup()
+        self.assertEqual(sum(call.args[:3] == ('shell', 'input', 'tap') for call in self.probe.adb.call_args_list), 1)
+        self.probe.adb.assert_any_call('shell', 'input', 'tap', 50, 50)
+        self.probe.act.assert_called_once()
+        self.assertEqual(self.probe.report['native_startup_diagnostics']['C1-native-network']['permission_denials'], 1)
+
+    def test_startup_foreign_permission_control_never_receives_input(self):
+        self.startup_scope(); self.probe.nodes = Mock(side_effect=native.Blocked('PRIVATE_STARTUP_EXCEPTION_SENTINEL'))
+        xml = '<hierarchy><node package="synthetic.foreign" resource-id="synthetic.foreign:id/permission_deny_button" bounds="[0,0][100,100]"/></hierarchy>'
+        self.probe.adb.side_effect = lambda *args, **kwargs: xml if args[:2] == ('exec-out', 'cat') else ''
+        with self.assertRaisesRegex(native.Blocked, '^native_startup_window_unexpected$'): self.probe.startup()
+        self.assertFalse(any(call.args[:3] == ('shell', 'input', 'tap') for call in self.probe.adb.call_args_list))
+        self.probe.act.assert_not_called()
+        self.assertNotIn('PRIVATE_STARTUP_EXCEPTION_SENTINEL', (self.probe.out / 'report.json').read_text())
+
+    def test_startup_report_contains_only_fixed_stage_counts_and_no_source_tree_or_hash(self):
+        self.startup_scope()
+        private_row = self.node('PRIVATE_STARTUP_TREE_SENTINEL', path='0.999')
+        private_row['witness'] = 'c' * 64
+        rows = self.startup_home_rows() + [private_row]
+        self.probe.nodes = Mock(return_value=rows)
+        self.probe.startup()
+        row = self.probe.report['native_startup_diagnostics']['C1-native-network']
+        self.assertEqual(set(row), {'stage', 'observations', 'stable_observations', 'stability_resets', 'continue_attempts', 'permission_denials'})
+        self.assertEqual(row['stage'], 'home_ready')
+        self.assertTrue(all(type(value) is int and 0 <= value <= 120 for key, value in row.items() if key != 'stage'))
+        serialized = (self.probe.out / 'report.json').read_text()
+        for private in ('PRIVATE_STARTUP_TREE_SENTINEL', '0.999', 'c' * 64): self.assertNotIn(private, serialized)
+        self.assertEqual((self.probe.report['frames'], self.probe.report['videos']), ([], []))
+
+    def test_future_ime_deadline_diagnostic_is_fixed_and_does_not_echo_expiry(self):
+        self.probe.case_phase('C1-cleanup')
+        self.probe.authenticated = True
+        self.probe.adb = Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: passed=false', 'INSTRUMENTATION_RESULT: op=account-dismiss-ime',
+            'INSTRUMENTATION_RESULT: stage=input_deadline_expired',
+            'INSTRUMENTATION_RESULT: foreground_category=APP',
+            'INSTRUMENTATION_RESULT: deadline_utc_ms=1700000000123',
+            'INSTRUMENTATION_RESULT: deadline_enforced=true', 'INSTRUMENTATION_CODE: 0']))
+        with self.assertRaises(native.Blocked):
+            self.probe.instrument('account-dismiss-ime', deadline_utc_ms='1700000000123')
+        self.probe.adb.assert_called_once()
+        failure = self.probe.report['native_input_failures'][0]
+        self.assertEqual(failure['op'], 'account-dismiss-ime')
+        self.assertEqual(failure['java_stage'], 'input_deadline_expired')
+        self.assertNotIn('1700000000123', json.dumps(self.probe.report))
+        self.assertNotIn('deadline_enforced', failure)
+        self.assertEqual(self.probe.report['actions'], [])
+
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()

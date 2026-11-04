@@ -1,0 +1,363 @@
+"""Dependency-injected, offline-loadable one-shot NativeAccount integration.
+
+The owner supplies exact classes and checked source identity/UTC preflight
+callbacks. Constructing this class alone is neither native proof nor a grant.
+"""
+from __future__ import annotations
+
+import calendar
+from datetime import datetime, timedelta
+import re
+import threading
+
+from oneshot_adapter import AdmissionError, OneShotAdmission, OneShotInstrumentAdapter
+from c1_home_capture import C1HomeConsoleCaptureMixin
+from c1_basics_capture import C1BasicsConsoleCaptureMixin
+
+
+class BridgeRefused(RuntimeError):
+    """Fixed diagnostics; never include arguments, output, nodes or exceptions."""
+
+
+def need(ok, code):
+    if not ok:
+        raise BridgeRefused(code) from None
+
+
+def exact_deadline_ms(authority):
+    """Use the original signed whole-second UTC expiry, never a new lease."""
+    expires = getattr(authority, 'expires_utc', None)
+    need(type(expires) is datetime and expires.tzinfo is not None
+         and expires.utcoffset() == timedelta(0) and expires.microsecond == 0,
+         'exact_whole_second_utc_expiry_required')
+    result = str(calendar.timegm(expires.utctimetuple()) * 1000)
+    need(re.fullmatch(r'[0-9]{13}', result) is not None, 'guest_deadline_range_invalid')
+    return result
+
+
+def make_probe_class(*, base_class, host_capture_mixin, validate_access,
+                     secret_name, install_known_roles, authority_types,
+                     app, activity, helper):
+    """Bind source classes once; no workspace-absolute or private imports.
+
+    ``authority_types`` is the exact owner VerifiedGrant/SourcePlanLease classes
+    (and optionally CleanupLease), not untrusted payload classes. ``install``
+    must be from the SAME C2 variant module as its executor (type identity).
+    The factory does not instantiate an emulator, probe, authority, or role.
+    """
+    need(type(authority_types) is tuple and authority_types
+         and all(isinstance(t, type) for t in authority_types), 'owner_authority_types_required')
+    need(all(callable(f) for f in (base_class, host_capture_mixin, validate_access,
+                                  install_known_roles)), 'bridge_dependencies_required')
+
+    class CIProbe(C1BasicsConsoleCaptureMixin, C1HomeConsoleCaptureMixin, host_capture_mixin, base_class):
+        # C2 V2's operation selector remains the four supported account ops.
+        # Actual click delivery is checked by the pinned Java/base receipts.
+        explicit_pointer_mode = False
+        HOST_CAPTURE_ERROR = BridgeRefused
+
+        def __init__(self, private, env, *, authority_getter, context_getter,
+                     verify_helper_identity, verify_guest_utc):
+            need(all(callable(f) for f in (authority_getter, context_getter,
+                  verify_helper_identity, verify_guest_utc)), 'owner_callbacks_required')
+            retained = validate_access(env.get(secret_name, ''))
+            need(type(retained) is dict and type(retained.get('phones')) is dict
+                 and set(retained['phones']) == {'broker', 'support', 'regular'},
+                 'all_three_known_roles_required')
+            # Retain only the validated role pool in RAM before base discards
+            # optional actors/removes the secret from its child-process env.
+            retained = {'otp': retained['otp'], 'phones': dict(retained['phones'])}
+            self._owner_authority = authority_getter
+            self._owner_context = context_getter
+            self._verify_helper_identity = verify_helper_identity
+            self._verify_guest_utc = verify_guest_utc
+            self._transport = threading.local()
+            self._raw_lock = threading.RLock()
+            self._admission = OneShotAdmission()
+            self._one_shot = OneShotInstrumentAdapter(self._checked_driver, admission=self._admission)
+            self._epoch = None
+            self.adapter = None
+            self._deadline_preflight = False
+            self._pending_creation_clip = False
+            super().__init__(private, env)
+            self.access = retained
+            install_known_roles(self, retained)
+            # Full aliases, including 00/country format, join base redactions.
+            for value in retained['phones'].values():
+                digits = value.lstrip('+')
+                self.private_values.update({value, digits, '+' + digits})
+                if digits.startswith('00'):
+                    self.private_values.update({digits[2:], '+' + digits[2:]})
+            del retained
+
+        def __repr__(self):
+            return '<CIProbe one_shot_admission=' + self._admission.metrics['state'] + '>'
+
+        @property
+        def admission_metrics(self):
+            return self._admission.metrics
+
+        def _authority(self, category):
+            try:
+                authority = self._owner_authority()
+                context = self._owner_context()
+                need(type(authority) in authority_types, 'active_owner_authority_required')
+                kind = authority.authority_kind
+                need(kind in {'ROOT_VERIFIED', 'SOURCE_PLAN_ONLY', 'OWNER_CLEANUP'},
+                     'fixed_owner_authority_kind_required')
+                if kind == 'SOURCE_PLAN_ONLY':
+                    need(context.phase == 'C1' and context.cursor == 'INITIAL_C1',
+                         'initial_source_scope_required')
+                if kind == 'OWNER_CLEANUP':
+                    need(context.phase == 'C5' and context.cursor == 'OWNER_CLEANUP',
+                         'fixed_cleanup_scope_required')
+                need(authority.require_input(context, category) is True,
+                     'owner_input_not_authorized')
+                return authority
+            except BaseException:
+                raise BridgeRefused('owner_input_authority_refused') from None
+
+        def _healthy(self):
+            need(self._admission.metrics['state'] != 'uncertain', 'oneshot_runtime_uncertain')
+            need(not getattr(self, '_host_stop_unconfirmed', False), 'host_recorder_stop_unconfirmed')
+
+        def require_phase_scope(self, phase):
+            """Source/cleanup leases never enter the generic phase executors."""
+            need(phase in {'C4', 'C2'}, 'fixed_phase_required')
+            authority = self._authority('tap')
+            need(authority.authority_kind == 'ROOT_VERIFIED'
+                 and self._owner_context().phase == phase, 'root_phase_authority_required')
+            return True
+
+        def start_session(self):
+            self._healthy()
+            need(self.adapter is None, 'admission_already_open')
+            self._epoch = self._one_shot.start()
+            self.adapter = self._one_shot
+            # Admission is not a persistent UiAutomation/native-release fact.
+            return self.admission_metrics
+
+        def stop_session(self, reason=None):
+            # Do not retain arbitrary human reasons in diagnostics.
+            metrics = self._one_shot.stop()
+            self.adapter, self._epoch = None, None
+            return metrics
+
+        def startup(self):
+            if self.adapter is None:
+                self.start_session()
+            return base_class.startup(self)
+
+        def preflight_deadline_helper(self):
+            """Owner must bind actual installed SHA and measured guest UTC sync.
+
+            Capability is a fresh nonmutating checked snapshot. A result after
+            first input cannot substitute for the before-input identity proof.
+            """
+            self._healthy()
+            need(self.adapter is not None, 'admission_must_be_open')
+            self._deadline_preflight = False
+            try:
+                need(self._verify_helper_identity() is True and self._verify_guest_utc() is True,
+                     'deadline_helper_identity_or_utc_unverified')
+                result = self.instrument('account-snapshot')
+                need(result.get('deadline_capable') == 'true', 'deadline_helper_capability_missing')
+            except BaseException:
+                raise BridgeRefused('deadline_helper_preflight_refused') from None
+            self._deadline_preflight = True
+
+        def _checked_driver(self, op, **extras):
+            """Called only after the SAME admission has reserved this call."""
+            with self._raw_lock:
+                authority = None
+                if op != 'account-snapshot':
+                    category = {'account-click': 'tap', 'account-set': 'text',
+                                'account-scroll': 'scroll', 'account-dismiss-ime': 'back'}[op]
+                    authority = self._authority(category)
+                    if authority.authority_kind != 'SOURCE_PLAN_ONLY':
+                        need(self._deadline_preflight, 'deadline_helper_preflight_required')
+                        extras = dict(extras, deadline_utc_ms=exact_deadline_ms(authority))
+                self._transport.instrument_op = op
+                try:
+                    result = base_class.instrument(self, op, **extras)
+                finally:
+                    self._transport.instrument_op = None
+                if authority is not None and authority.authority_kind != 'SOURCE_PLAN_ONLY':
+                    need(type(result) is dict and result.get('deadline_capable') == 'true'
+                         and result.get('deadline_enforced') == 'true',
+                         'guest_deadline_enforcement_unconfirmed')
+                return result
+
+        def instrument(self, op, **extras):
+            self._healthy()
+            need(self.adapter is self._one_shot and self._epoch is not None,
+                 'admission_must_be_open')
+            # Foundation rejects unsolicited mode/deadline arguments. Its
+            # checked-driver binding appends the original grant expiry itself.
+            return self._one_shot.instrument(op, expected_epoch=self._epoch, **extras)
+
+        def _dismiss_ime(self):
+            self._healthy()
+            need(self.adapter is self._one_shot and self._epoch is not None,
+                 'admission_must_be_open')
+            # New helper op, SAME reservation/latch, no fake selected-node data.
+            reservation = self._admission._reserve(self._epoch)
+            known, result = False, None
+            try:
+                result = self._checked_driver('account-dismiss-ime')
+                visible, dismissed = result.get('ime_was_visible'), result.get('ime_dismissed')
+                known = (result.get('passed') == 'true' and result.get('op') == 'account-dismiss-ime'
+                         and (visible, dismissed) in {('true', 'true'), ('false', 'false')})
+            except BaseException:
+                pass
+            finally:
+                self._admission._complete(reservation, known=known)
+            if not known:
+                raise AdmissionError('instrumentation_completion_uncertain') from None
+            return result
+
+        def adb(self, *args, **kwargs):
+            """Closed list of source transports; mutations checked at dispatch.
+
+            Lifecycle adb has a host before-dispatch guarantee only. It cannot
+            prove Android's eventual server execution happened before expiry.
+            Root APP semantic/pointer/IME inputs use guest enforcement instead.
+            """
+            values = tuple(str(x) for x in args)
+            if values == ('shell', 'input', 'keyevent', '4'):
+                authority = self._authority('back')
+                if authority.authority_kind != 'SOURCE_PLAN_ONLY':
+                    return self._dismiss_ime()
+            with self._raw_lock:
+                op = getattr(self._transport, 'instrument_op', None)
+                if values[:4] == ('shell', 'am', 'instrument', '-w'):
+                    need(op is not None and values[4:7] == ('-e', 'op', op)
+                         and values[-1] == helper, 'direct_instrumentation_refused')
+                else:
+                    category, source_only = self._classify_adb(values)
+                    if category is not None:
+                        authority = self._authority(category)
+                        if source_only:
+                            need(authority.authority_kind == 'SOURCE_PLAN_ONLY',
+                                 'raw_input_initial_source_only')
+                        if category not in {'app_stop', 'recorder_stop'}:
+                            self._healthy()
+                        # Stopping native/host processes may remain possible
+                        # during uncertain cleanup; no new UI may be delivered.
+                        need(self._admission.metrics['inflight'] == 0,
+                             'native_transaction_inflight')
+                self._transport.adb_dispatch = True
+                try:
+                    return base_class.adb(self, *args, **kwargs)
+                finally:
+                    self._transport.adb_dispatch = False
+
+        def _classify_adb(self, args):
+            if args == ('shell', 'am', 'start', '-W', '-n', activity):
+                return 'app_start', False
+            if args == ('shell', 'am', 'force-stop', app):
+                return 'app_stop', False
+            if args[:2] == ('emu', 'screenrecord'):
+                need(len(args) >= 3, 'console_operation_required')
+                if args[2] == 'start': return 'recorder_start', False
+                if args[2] == 'stop': return 'recorder_stop', False
+                if args[2] == 'screenshot':
+                    self._healthy()
+                    return None, False
+            if args[:3] == ('shell', 'input', 'tap') and len(args) == 5:
+                need(all(re.fullmatch(r'[0-9]{1,4}', v) for v in args[3:]), 'os_pointer_invalid')
+                return 'os_picker', True
+            if args == ('shell', 'input', 'keyevent', '4'):
+                return 'back', True
+            if args[:1] == ('install',): return 'media_write', True
+            if args[:1] == ('push',) and len(args) == 3:
+                need(args[2] == '/sdcard/Download/' + self.photo_name, 'fixed_owned_photo_path_required')
+                return 'media_write', True
+            if args == ('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+                        '-d', 'file:///sdcard/Download/' + self.photo_name):
+                return 'media_write', True
+            if args in {('shell', 'wm', 'size', '540x960'), ('shell', 'wm', 'density', '210')}:
+                return 'media_write', True
+            if args in {('shell', 'wm', 'size'), ('shell', 'wm', 'density'), ('reverse', '--list'),
+                        ('shell', 'service', 'check', 'package'), ('shell', 'pidof', 'system_server'),
+                        ('shell', 'cat', '/etc/hosts')}:
+                return None, False
+            if args[:2] == ('shell', 'getprop') and len(args) == 3 and args[2] in {
+                    'sys.boot_completed', 'sys.user.0.ce_available', 'ro.boot.qemu', 'ro.build.version.sdk'}:
+                return None, False
+            targets = {'/sdcard/phase1-startup-permission.xml', '/sdcard/phase1-os-picker.xml'}
+            if ((args[:3] == ('shell', 'uiautomator', 'dump') and len(args) == 4 and args[3] in targets)
+                or (args[:2] == ('exec-out', 'cat') and len(args) == 3 and args[2] in targets)
+                or (args[:3] == ('shell', 'rm', '-f') and len(args) == 4 and args[3] in targets)):
+                return 'os_picker', True
+            raise BridgeRefused('unclassified_adb_operation_refused') from None
+
+        def command(self, args, **kwargs):
+            values = tuple(str(x) for x in args)
+            if not getattr(self._transport, 'adb_dispatch', False):
+                need(values == ('adb', 'devices') or
+                     (len(values) == 2 and values[0].endswith('/emulator/emulator')
+                      and values[1] == '-accel-check'), 'direct_transport_refused')
+                need(self._authority('media_write').authority_kind == 'SOURCE_PLAN_ONLY',
+                     'preinstall_source_authority_required')
+            return base_class.command(self, args, **kwargs)
+
+        def configure_host_display(self):
+            self.adb('shell', 'wm', 'size', '540x960')
+            self.adb('shell', 'wm', 'density', '210')
+            def effective(output, label):
+                lines = str(output).splitlines()
+                override = [line.removeprefix('Override ' + label + ': ').strip()
+                            for line in lines if line.startswith('Override ' + label + ': ')]
+                physical = [line.removeprefix('Physical ' + label + ': ').strip()
+                            for line in lines if line.startswith('Physical ' + label + ': ')]
+                need(len(override) <= 1 and len(physical) == 1, 'display_readback_invalid')
+                return override[0] if override else physical[0]
+            need(effective(self.adb('shell', 'wm', 'size'), 'size') == '540x960'
+                 and effective(self.adb('shell', 'wm', 'density'), 'density') == '210',
+                 'host_capture_display_not_verified')
+            return {'width': 540, 'height': 960, 'density_dpi': 210, 'actual_readback_checked': True}
+
+        def record_start(self, name):
+            if name == 'C1-create-photo':
+                need(self._authority('recorder_start').authority_kind == 'SOURCE_PLAN_ONLY',
+                     'initial_creation_clip_scope_required')
+                need(not self._pending_creation_clip, 'creation_clip_already_pending')
+                self._pending_creation_clip = True
+                return
+            return super().record_start(name)
+
+        def photo_picker(self):
+            need(self._pending_creation_clip, 'creation_clip_not_requested')
+            self._pending_creation_clip = False
+            # Specs now observed by base; actual photo selection remains within
+            # the real <=120 second console clip. Never label this whole journey.
+            super().record_start('C1-create-photo')
+            self.report['create_clip_scope'] = 'actual_specs_photo_selection_only'
+            return base_class.photo_picker(self)
+
+        def execute(self):
+            raise BridgeRefused('same_job_owner_stage_router_required') from None
+
+        def hold_after_initial_c1(self):
+            """Clear C1-only diagnostics after actual restore, never invent PASS."""
+            need(any(row.get('id') == 'C1-force-stop-restore' and row.get('status') == 'PASS'
+                     for row in self.report.get('cases', [])) and self.recorder is None,
+                 'actual_c1_restore_required_before_hold')
+            self._active_case, self._auth_phase = None, None
+            self.report['held_after_c1_restore_for_root_review'] = True
+            self.save()
+
+        def cleanup(self):
+            raise BridgeRefused('owner_promoted_property_first_cleanup_required') from None
+
+        def clear_role_memory(self):
+            # Owner invokes only after all work/cleanup; no secret is serialized.
+            memory = getattr(self, '_known_role_memory', None)
+            if memory is not None:
+                memory.clear()
+            self.access.get('phones', {}).clear()
+            self.access['otp'] = ''
+            self.private_values.clear()
+
+    return CIProbe

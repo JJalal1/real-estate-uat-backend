@@ -38,7 +38,7 @@ C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait'
                                 'home_wait', 'add_stable_wait', 'add_dispatch'})
 ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
 ACCOUNT_SCROLL_MODE = 'physical_scroll'
-INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
+INPUT_OPS = frozenset({'account-dismiss-ime', 'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
 C1_CASES = ('C1-native-network', 'C1-api-empty-fixture', 'C1-auth', 'C1-photo-save',
             'C1-force-stop-restore', 'C1-cleanup')
 FOREGROUND_CATEGORIES = frozenset({'APP', 'PERMISSION_CONTROLLER', 'DOCUMENT_PICKER',
@@ -49,7 +49,9 @@ INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_inp
                               'account_focus', 'account_focus_pointer', 'account_focus_request',
                               'account_focus_observe', 'account_set_request',
                               'selected_path_resolve', 'selected_node_guard', 'complete',
-                              'account_cache_clear', 'account_focus_cache_clear', 'initial_path_format', 'initial_witness_format', 'initial_cache_clear', 'initial_root_guard', 'initial_path_resolve', 'initial_node_guard', 'initial_witness_match', 'pointer_path_format', 'pointer_witness_format', 'pointer_cache_clear', 'pointer_root_guard', 'pointer_path_resolve', 'pointer_node_guard', 'pointer_witness_match', 'pointer_bounds_width', 'pointer_bounds_height', 'pointer_bounds_containment', 'pointer_swipe_height', 'initial_input_guard', 'pointer_input_guard', 'pointer_target_guard'})
+                              'account_cache_clear', 'account_focus_cache_clear', 'initial_path_format', 'initial_witness_format', 'initial_cache_clear', 'initial_root_guard', 'initial_path_resolve', 'initial_node_guard', 'initial_witness_match', 'pointer_path_format', 'pointer_witness_format', 'pointer_cache_clear', 'pointer_root_guard', 'pointer_path_resolve', 'pointer_node_guard', 'pointer_witness_match', 'pointer_bounds_width', 'pointer_bounds_height', 'pointer_bounds_containment', 'pointer_swipe_height', 'initial_input_guard', 'pointer_input_guard', 'pointer_target_guard', 'input_deadline_policy', 'input_deadline_expired',
+                              'ime_window_policy', 'ime_windows', 'ime_focus', 'ime_noop',
+                              'ime_back_down', 'ime_back_up', 'ime_readback'})
 INPUT_FAILURE_REASONS = frozenset({'native_input_not_delivered', 'ambiguous_native_input_receipt',
                                   'device_command_timeout', 'device_command_failed',
                                   'native_instrumentation_unobserved'})
@@ -494,13 +496,92 @@ class NativeAccount:
                            android_api=36, acceleration='KVM', network_modified=False)
         self.save()
 
+    def startup_public_binding(self, rows, names):
+        visible = [row for row in rows if row.get('package') == APP and row.get('visible') is True]
+        binding = []
+        for name in names:
+            matches = self.matching(visible, name)
+            leaves = [row for row in matches if not any(
+                other['path'].startswith(row['path'] + '.') for other in matches)]
+            if len(leaves) != 1:
+                return None
+            row = leaves[0]
+            path, witness, bounds = row.get('path'), row.get('witness'), row.get('bounds')
+            if not (isinstance(path, str) and re.fullmatch(r'0(?:\.[0-9]{1,4}){0,40}', path)
+                    and isinstance(witness, str) and re.fullmatch(r'[a-f0-9]{64}', witness)
+                    and isinstance(bounds, list) and len(bounds) == 4
+                    and all(type(value) is int for value in bounds)
+                    and bounds[0] < bounds[2] and bounds[1] < bounds[3]):
+                return None
+            binding.append((name, path, witness, tuple(bounds)))
+        return tuple(binding)
+
+    def startup_home_binding(self, rows):
+        visible = [row for row in rows if row.get('package') == APP and row.get('visible') is True]
+        names = set().union(*(labels(row) for row in visible)) if visible else set()
+        forbidden = AUTH_LABELS | {'عقارات في منطقتك', 'تحديد موقعي', 'اختيار المحافظة يدويًا',
+            'المتابعة الآن', 'تسجيل الدخول أو إنشاء حساب', 'الملف الشخصي', 'تعديل الملف الشخصي',
+            'الأمان والخصوصية', 'تسجيل الخروج', 'رقم الاتصال *', 'رقم اتصال آخر (اختياري)',
+            'الإيجار والتواصل', 'السعر والتواصل'}
+        if names & forbidden:
+            return None
+        anchors = ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…')
+        for footer in (('العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'),
+                       ('الرئيسية', 'عملي', 'العملاء', 'حسابي')):
+            binding = self.startup_public_binding(visible, anchors + footer)
+            if binding is not None:
+                return binding
+        return None
+
+    def startup_continue_target(self, rows):
+        rows = [row for row in rows if row.get('package') == APP and row.get('visible') is True]
+        intro = self.startup_public_binding(rows, ('عقارات في منطقتك', 'تحديد موقعي',
+            'اختيار المحافظة يدويًا', 'المتابعة الآن'))
+        if intro is None or any(label in labels(row) for row in rows for label in AUTH_LABELS):
+            return None
+        matched = self.matching(rows, 'المتابعة الآن')
+        candidates = [row for row in matched if row.get('clickable')]
+        if not candidates:
+            for item in matched:
+                ancestors = [row for row in rows if row.get('clickable') and
+                             item['path'].startswith(row['path'] + '.')]
+                if ancestors:
+                    candidates.append(max(ancestors, key=lambda row: len(row['path'])))
+        if not candidates:
+            candidates = [row for row in matched if row.get('class') == 'android.widget.Button']
+            if len(candidates) > 1:
+                raise Blocked('ambiguous_native_pointer_target')
+        unique = {row['path']: row for row in candidates}
+        if not unique:
+            return None
+        row = min(unique.values(), key=lambda row: (row['bounds'][2] - row['bounds'][0]) *
+                                                   (row['bounds'][3] - row['bounds'][1]))
+        signature = (row['path'], row['witness'], tuple(row['bounds']), tuple(sorted(labels(row))), intro)
+        return row, signature
+
     def startup(self):
         self.adb('shell', 'am', 'start', '-W', '-n', ACTIVITY)
         deadline = time.monotonic() + 60
+        signature, since, stable = None, None, 0
+        observations, resets, attempts, denials = 0, 0, 0, 0
+
+        def note(stage):
+            # Only fixed stage identifiers and bounded counts leave startup.
+            if self._active_case in C1_CASES:
+                self.report.setdefault('native_startup_diagnostics', {})[self._active_case] = {
+                    'stage': stage, 'observations': min(observations, 120),
+                    'stable_observations': min(stable, 120), 'stability_resets': min(resets, 120),
+                    'continue_attempts': attempts, 'permission_denials': min(denials, 120)}
+                self.save()
+
+        note('observing')
         while time.monotonic() < deadline:
             try:
                 rows = self.nodes()
             except Blocked:
+                signature, since, stable = None, None, 0
+                resets += 1
+                note('permission_check')
                 # A fresh install may show the OS notification prompt. Deny only
                 # that observed permissioncontroller control; never grant access.
                 target = '/sdcard/phase1-startup-permission.xml'
@@ -520,13 +601,41 @@ class NativeAccount:
                 if not match:
                     raise Blocked('native_permission_bounds_invalid')
                 a, b, c, d = map(int, match.groups())
+                denials += 1
+                note('permission_deny')
                 self.adb('shell', 'input', 'tap', (a+c)//2, (b+d)//2)
                 continue
-            if self.matching(rows, 'المتابعة الآن'):
-                self.tap('المتابعة الآن', seek=False)
-            elif self.matching(rows, 'حسابي'):
-                return
+            observations += 1
+            home = self.startup_home_binding(rows)
+            selected = self.startup_continue_target(rows) if not attempts and home is None else None
+            current = ('home', home) if home is not None else ('intro', selected[1]) if selected else None
+            now = time.monotonic()
+            if current is None:
+                if signature is not None:
+                    resets += 1
+                signature, since, stable = None, None, 0
+            elif current != signature:
+                if signature is not None:
+                    resets += 1
+                signature, since, stable = current, now, 1
+            else:
+                stable += 1
+            note('home_wait' if attempts or home is not None else 'continue_stable_wait')
+            if current is not None and stable >= 3 and now - since >= 2:
+                if time.monotonic() >= deadline:
+                    break
+                if home is not None:
+                    note('home_ready')
+                    return
+                # One original observed lease, with no fresh tap/reselection.
+                lease = {'path': selected[0]['path'], 'witness': selected[0]['witness']}
+                attempts = 1
+                note('continue_dispatch')
+                self.act('click', lease)
+                signature, since, stable = None, None, 0
+                note('home_wait')
             time.sleep(.5)
+        note('not_ready')
         raise Blocked('native_startup_not_ready')
 
     def login(self):

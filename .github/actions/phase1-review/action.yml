@@ -1,0 +1,14 @@
+name: Aqer Phase1 same-job review owner
+description: Runs one bounded owner and uploads only encrypted immutable checkpoints.
+inputs:
+  owner-timeout-seconds:
+    description: Total owner lifetime before requesting cleanup; workflow must reserve cleanup time.
+    required: false
+    default: '6200'
+  cleanup-grace-seconds:
+    description: Bounded SIGTERM cleanup window before the known owner is killed.
+    required: false
+    default: '180'
+runs:
+  using: node24
+  main: index.js

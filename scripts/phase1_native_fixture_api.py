@@ -88,6 +88,16 @@ def read_public_reference(transport=None):
         raise FixtureError('public_reference_transport_or_response_failed') from None
 
 
+def new_fixture_tag():
+    # Keep synthetic identifiers distinguishable under the unchanged OTP-safe
+    # accessibility label redactor, which hides standalone six-digit runs.
+    for _ in range(8):
+        suffix = uuid.uuid4().hex[:12]
+        if not re.search(r'[0-9]{6}', suffix):
+            return 'AQER-C1-' + suffix
+    raise FixtureError('unambiguous_synthetic_tag_unavailable')
+
+
 class FixtureApi:
     def __init__(self, phone, otp, run_id, transport=None, expected_actor_id=28):
         require(isinstance(phone, str) and re.fullmatch(PHONE_PATTERN, phone.strip()),
@@ -305,7 +315,7 @@ class FixtureApi:
         try:
             self._login(receipt)
             baseline = self._snapshot()
-            key, tag = str(uuid.uuid4()), 'AQER-C1-' + uuid.uuid4().hex[:12]
+            key, tag = str(uuid.uuid4()), new_fixture_tag()
             title = 'مسودة اختبار الواجهة ' + tag
             require(key not in baseline['drafts'], 'new_owned_uuid_required')
             code, _, _ = self._call('GET', '/listing-editor-drafts/' + key, token=self._active_token)

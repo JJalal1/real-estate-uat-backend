@@ -2,12 +2,16 @@ package com.aqer.phase1.input;
 
 import android.app.Instrumentation;
 import android.app.UiAutomation;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.InputDevice;
 import android.view.MotionEvent;
+import android.view.KeyEvent;
+import android.view.KeyCharacterMap;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.util.Base64;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +36,9 @@ public final class Phase1Input extends Instrumentation {
     private String stage="guard";
     private String foreground="UNOBSERVED";
     private int selectionContext; // 0=ordinary field observation, 1=initial, 2=pointer recheck
+    private final DeadlineLease deadline=new DeadlineLease();
+    private boolean imeKeyActive;
+    private long imeKeyDownTime;
 
 
     @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); args = arguments; start(); }
@@ -40,6 +47,9 @@ public final class Phase1Input extends Instrumentation {
         String op = args == null ? "" : args.getString("op", "");
         try {
             require(Build.VERSION.SDK_INT == 36 && ("ranchu".equals(Build.HARDWARE) || "goldfish".equals(Build.HARDWARE)));
+            stage="input_deadline_policy";
+            long leaseElapsed=SystemClock.elapsedRealtime();
+            deadline.configure(args.getString("deadline_utc_ms",null),System.currentTimeMillis(),leaseElapsed);
             stage="automation"; automation = getUiAutomation();
             origin = SystemClock.uptimeMillis();
             AccessibilityNodeInfo root = readyRoot(op); stage="root_ready";
@@ -59,7 +69,7 @@ public final class Phase1Input extends Instrumentation {
                 List<AccessibilityNodeInfo> controls=new ArrayList<>();
                 namedClickable(root,"تنفيذ",controls); require(controls.size()==1);
                 stage="submit_action";
-                require(controls.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                require(checkedAction(controls.get(0),AccessibilityNodeInfo.ACTION_CLICK));
                 SystemClock.sleep(500);
                 result.putBoolean("semantic_click_delivered",true);
             } else if ("fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op)) {
@@ -70,7 +80,7 @@ public final class Phase1Input extends Instrumentation {
                 // Flutter3.27.3 exposes its Dart setText handler only while
                 // focused. A bridge-side cached value is not a typed query.
                 stage="query_focus";
-                require(fields.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                require(checkedAction(fields.get(0),AccessibilityNodeInfo.ACTION_CLICK));
                 long focusDeadline=SystemClock.uptimeMillis()+5000;
                 AccessibilityNodeInfo field=null;
                 while(SystemClock.uptimeMillis()<focusDeadline) {
@@ -87,7 +97,7 @@ public final class Phase1Input extends Instrumentation {
                 Bundle value = new Bundle();
                 String query = "fixture-query".equals(op) ? QUERY : "clear-query".equals(op) ? "" : "phase1-ci-no-match";
                 value.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, query);
-                stage="query_action"; require(field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, value));
+                stage="query_action"; require(checkedAction(field,AccessibilityNodeInfo.ACTION_SET_TEXT,value));
                 long deadline=SystemClock.uptimeMillis()+5000;
                 boolean matched=false; stage="query_match";
                 while(SystemClock.uptimeMillis()<deadline) {
@@ -147,14 +157,18 @@ public final class Phase1Input extends Instrumentation {
                 result.putString("event_ms", numbers(eventTimes));
                 result.putString("return_ms", numbers(returnTimes));
             }
+            result.putBoolean("deadline_capable",true);
+            result.putBoolean("deadline_enforced",deadline.enabled);
             stage="complete"; result.putString("op", op);
             result.putBoolean("passed", true);
             finish(-1, result);
         } catch (Throwable failure) {
-            cancelPointer();
+            cancelPointer(); cancelImeKey();
             // Never return arbitrary exception text, accessibility content or stack traces.
             result.putString("op", safeOp(op));
             result.putBoolean("passed", false);
+            result.putBoolean("deadline_capable",true);
+            result.putBoolean("deadline_enforced",deadline.enabled);
             result.putInt("events", events);
             result.putString("stage", stage);
             result.putString("foreground_category", foreground);
@@ -203,7 +217,7 @@ public final class Phase1Input extends Instrumentation {
         pointerActive=false;
     }
     private static String safeOp(String op) {
-        return "account-snapshot".equals(op) || "account-click".equals(op) || "account-set".equals(op) || "account-scroll".equals(op) || "fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op) || "submit-query".equals(op) || "empty-query".equals(op) || "double-tap".equals(op)
+        return "account-dismiss-ime".equals(op) || "account-snapshot".equals(op) || "account-click".equals(op) || "account-set".equals(op) || "account-scroll".equals(op) || "fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op) || "submit-query".equals(op) || "empty-query".equals(op) || "double-tap".equals(op)
             || "pinch-in".equals(op) || "pinch-out".equals(op) ? op : "invalid";
     }
     private static String plain(CharSequence value) { return value==null ? "" : value.toString(); }
@@ -292,6 +306,7 @@ public final class Phase1Input extends Instrumentation {
         boolean physicalScroll="physical_scroll".equals(inputMode);
         require(!physicalClickFocus || "account-click".equals(op) || "account-set".equals(op));
         require(!physicalScroll || "account-scroll".equals(op));
+        if("account-dismiss-ime".equals(op)) { dismissIme(result); return; }
         if("account-snapshot".equals(op)) {
             JSONArray nodes=new JSONArray(); snapshot(root,"0",nodes,0);
             String encoded=Base64.encodeToString(nodes.toString().getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP);
@@ -301,7 +316,7 @@ public final class Phase1Input extends Instrumentation {
         if("account-click".equals(op)) {
             stage="account_click";
             if(!physicalClickFocus && (node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) {
-                require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK)); result.putBoolean("semantic_action_used",true);
+                require(checkedAction(node,AccessibilityNodeInfo.ACTION_CLICK)); result.putBoolean("semantic_action_used",true);
             } else {
                 require(node.isClickable() || node.isEditable() || "android.widget.Button".contentEquals(node.getClassName()));
                 stage="account_pointer_tap"; pointerTap(node); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events);
@@ -309,7 +324,7 @@ public final class Phase1Input extends Instrumentation {
         } else if("account-scroll".equals(op)) {
             stage="account_scroll"; int action="backward".equals(args.getString("direction","forward")) ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
             require(node.isScrollable());
-            if(!physicalScroll && (node.getActions()&action)!=0) { require(node.performAction(action)); result.putBoolean("semantic_action_used",true); }
+            if(!physicalScroll && (node.getActions()&action)!=0) { require(checkedAction(node,action)); result.putBoolean("semantic_action_used",true); }
             else { stage="account_pointer_swipe"; pointerSwipe(node,"backward".equals(args.getString("direction","forward"))); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
         } else {
             require("account-set".equals(op) && node.isEditable()); stage="account_focus";
@@ -318,7 +333,7 @@ public final class Phase1Input extends Instrumentation {
             if(!node.isFocused()) {
                 stage="account_focus_request";
                 if(physicalClickFocus) require(node.isClickable() || node.isEditable() || "android.widget.Button".contentEquals(node.getClassName()));
-                if(!physicalClickFocus && (node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) require(node.performAction(AccessibilityNodeInfo.ACTION_CLICK));
+                if(!physicalClickFocus && (node.getActions()&AccessibilityNodeInfo.ACTION_CLICK)!=0) require(checkedAction(node,AccessibilityNodeInfo.ACTION_CLICK));
                 else { stage="account_focus_pointer"; pointerTap(node); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
             }
             stage="account_focus_observe";
@@ -339,7 +354,7 @@ public final class Phase1Input extends Instrumentation {
             }
             require(field!=null); stage="account_set_request";
             Bundle text=new Bundle(); text.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);
-            require(field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,text));
+            require(checkedAction(field,AccessibilityNodeInfo.ACTION_SET_TEXT,text));
             result.putBoolean("set_text_delivered",true);
             // Never echo input contents, lengths, arbitrary exceptions or stack traces.
         }
@@ -410,13 +425,119 @@ public final class Phase1Input extends Instrumentation {
         long when=SystemClock.uptimeMillis();
         lastDown=down; lastX=xs; lastY=ys;
         boolean ending=(action & MotionEvent.ACTION_MASK)==MotionEvent.ACTION_UP || (action & MotionEvent.ACTION_MASK)==MotionEvent.ACTION_CANCEL;
-        if(!ending) pointerActive=true;
         MotionEvent event=MotionEvent.obtain(down,when,action,xs.length,properties,coords,0,0,1,1,0,0,InputDevice.SOURCE_TOUCHSCREEN,0);
         try {
+            if(!(ending && pointerActive)) requireLiveMutation();
+            if(!ending) pointerActive=true;
             require(automation.injectInputEvent(event,true)); events++;
             if(ending) pointerActive=false;
             eventTimes.add(when-origin); returnTimes.add(SystemClock.uptimeMillis()-origin);
         } finally { event.recycle(); }
         return when;
     }
+    // The absolute signed expiry is never renewed. This lease is initialized once
+    // per checked one-shot transaction; the host retains the same grant deadline.
+    private static final class DeadlineLease {
+        private boolean initialized,enabled;
+        private long utcExpiry,elapsedExpiry;
+        void configure(String raw,long utcNow,long elapsedNow) {
+            require(!initialized); initialized=true;
+            if(raw==null) return;
+            require(raw.matches("[1-9][0-9]{12}"));
+            long expiry=Long.parseLong(raw);
+            require(expiry>utcNow && expiry-utcNow<=120000L && elapsedNow>=0);
+            require(elapsedNow<=Long.MAX_VALUE-(expiry-utcNow));
+            utcExpiry=expiry; elapsedExpiry=elapsedNow+(expiry-utcNow); enabled=true;
+        }
+        boolean live(long utcNow,long elapsedNow) {
+            return !enabled || (utcNow<utcExpiry && elapsedNow<elapsedExpiry);
+        }
+    }
+    private void requireLiveMutation() {
+        if(deadline.enabled && !deadline.live(System.currentTimeMillis(),SystemClock.elapsedRealtime())) {
+            stage="input_deadline_expired"; throw new IllegalStateException();
+        }
+    }
+    private boolean checkedAction(AccessibilityNodeInfo node,int action) {
+        requireLiveMutation(); return node.performAction(action);
+    }
+    private boolean checkedAction(AccessibilityNodeInfo node,int action,Bundle value) {
+        requireLiveMutation(); return node.performAction(action,value);
+    }
+    private static final class ImeObservation {
+        final boolean visible; final int windowId; final AccessibilityNodeInfo focus;
+        ImeObservation(boolean visible,int windowId,AccessibilityNodeInfo focus) {
+            this.visible=visible; this.windowId=windowId; this.focus=focus;
+        }
+    }
+    private ImeObservation inspectIme() {
+        stage="ime_windows";
+        AccessibilityServiceInfo info=automation.getServiceInfo();
+        require(info!=null && (info.flags & AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS)!=0);
+        List<AccessibilityWindowInfo> windows=automation.getWindows();
+        require(windows!=null && !windows.isEmpty() && windows.size()<=32);
+        AccessibilityNodeInfo appRoot=null; int appWindow=-1,appMatches=0; boolean ime=false;
+        for(AccessibilityWindowInfo window:windows) {
+            require(window!=null);
+            if(window.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD) ime=true;
+            if(window.getType()!=AccessibilityWindowInfo.TYPE_APPLICATION || !window.isFocused()) continue;
+            AccessibilityNodeInfo candidate=window.getRoot();
+            if(candidate!=null && candidate.getPackageName()!=null && APP.contentEquals(candidate.getPackageName())) {
+                require(candidate.isVisibleToUser() && candidate.isEnabled());
+                appRoot=candidate; appWindow=window.getId(); appMatches++;
+            }
+        }
+        require(appMatches==1 && appRoot!=null); foreground="APP";
+        AccessibilityNodeInfo focus=appRoot.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if(ime) {
+            stage="ime_focus";
+            require(focus!=null && focus.getPackageName()!=null && APP.contentEquals(focus.getPackageName())
+                && focus.isFocused() && focus.isEditable() && focus.isVisibleToUser() && focus.isEnabled());
+        }
+        return new ImeObservation(ime,appWindow,focus);
+    }
+    private void sendImeKey(int action,boolean cancelled) {
+        require(action==KeyEvent.ACTION_DOWN || action==KeyEvent.ACTION_UP);
+        boolean releasing=action==KeyEvent.ACTION_UP && imeKeyActive;
+        if(!releasing) requireLiveMutation();
+        long now=SystemClock.uptimeMillis();
+        if(action==KeyEvent.ACTION_DOWN) { require(!imeKeyActive); imeKeyDownTime=now; }
+        KeyEvent event=new KeyEvent(imeKeyDownTime,now,action,KeyEvent.KEYCODE_BACK,0,0,
+            KeyCharacterMap.VIRTUAL_KEYBOARD,0,cancelled ? KeyEvent.FLAG_CANCELED : 0,InputDevice.SOURCE_KEYBOARD);
+        if(!releasing) requireLiveMutation();
+        if(action==KeyEvent.ACTION_DOWN) imeKeyActive=true;
+        require(automation.injectInputEvent(event,true));
+        if(action==KeyEvent.ACTION_UP) imeKeyActive=false;
+    }
+    private void cancelImeKey() {
+        if(!imeKeyActive || automation==null) return;
+        try { sendImeKey(KeyEvent.ACTION_UP,true); } catch(Throwable ignored) { }
+        imeKeyActive=false;
+    }
+    private void dismissIme(Bundle result) {
+        stage="ime_window_policy";
+        AccessibilityServiceInfo info=automation.getServiceInfo(); require(info!=null);
+        info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
+        automation.setServiceInfo(info);
+        ImeObservation before=inspectIme();
+        result.putBoolean("ime_was_visible",before.visible);
+        result.putBoolean("ime_dismissed",false);
+        if(!before.visible) { stage="ime_noop"; return; }
+        // No general Back navigation: the fresh APP + visible IME + focused
+        // editable field above are mandatory before this fixed key sequence.
+        stage="ime_back_down"; sendImeKey(KeyEvent.ACTION_DOWN,false);
+        stage="ime_back_up"; sendImeKey(KeyEvent.ACTION_UP,false);
+        stage="ime_readback"; long end=SystemClock.elapsedRealtime()+5000L;
+        while(SystemClock.elapsedRealtime()<end) {
+            ImeObservation after=inspectIme();
+            if(!after.visible) {
+                require(after.windowId==before.windowId && after.focus!=null && after.focus.equals(before.focus)
+                    && after.focus.isFocused() && after.focus.isEditable() && after.focus.isVisibleToUser() && after.focus.isEnabled());
+                result.putBoolean("ime_dismissed",true); return;
+            }
+            SystemClock.sleep(100);
+        }
+        stage="ime_readback"; throw new IllegalStateException();
+    }
+
 }
