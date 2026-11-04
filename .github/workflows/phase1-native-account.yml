@@ -98,6 +98,15 @@ jobs:
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
           flutter pub get --enforce-lockfile
           git diff --exit-code -- pubspec.yaml
+      - name: Restore only public Gradle dependency archives
+        id: gradle-deps
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ef562ae410023046b4abee283f09707051a0e7b6-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
       - name: Build unchanged release for actual account journey
         working-directory: mobile_app
         env:
@@ -112,6 +121,15 @@ jobs:
       - name: Verify release and compile self-targeted input helper
         id: prepare
         run: python3 -B scripts/prepare_phase1_native_account.py
+      - name: Save only public Gradle dependencies before disposable cleanup
+        if: steps.gradle-deps.outputs.cache-hit != 'true' && steps.gradle-deps.outputs.cache-primary-key != ''
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: ${{ steps.gradle-deps.outputs.cache-primary-key }}
       - name: Boot disposable API36 KVM and execute native account journey
         id: native
         timeout-minutes: 20

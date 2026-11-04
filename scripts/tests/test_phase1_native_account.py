@@ -85,47 +85,8 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertEqual(self.probe.adb.call_args.args.count('physical_scroll'), 1)
         self.assertEqual(self.probe.report['actions'], [])
 
-    def test_owned_editor_wait_observes_delayed_exact_title_without_any_input(self):
-        self.probe.case_phase('C1-photo-save')
-        wanted = self.fixture().state['title']
-        self.probe.nodes = Mock(side_effect=[[], [self.node('wrong title', hint='عنوان الإعلان *', editable=True)],
-                                            [self.node(wanted, hint='عنوان الإعلان *', editable=True)]])
-        self.probe.tap, self.probe.seek, self.probe.scroll, self.probe.act = Mock(), Mock(), Mock(), Mock()
-        with patch.object(native.time, 'monotonic', side_effect=[0, 0, .5, 1]), patch.object(native.time, 'sleep'):
-            self.probe.wait_owned_title_editor(wanted)
-        self.assertEqual(self.probe.nodes.call_count, 3)
-        for operation in (self.probe.tap, self.probe.seek, self.probe.scroll, self.probe.act):
-            operation.assert_not_called()
-        self.assertEqual(self.probe.report['native_journey_stages']['C1-photo-save'], 'editor_ready')
-        self.assertEqual(self.probe.report['actions'], [])
-        self.assertEqual(self.probe.report['frames'], [])
 
-    def test_owned_editor_wait_supports_separate_unique_label_without_scrolling(self):
-        wanted = self.fixture().state['title']
-        self.probe.nodes = Mock(return_value=[self.node('عنوان الإعلان *', path='0.1'),
-                                             self.node(wanted, path='0.2', editable=True)])
-        self.probe.seek, self.probe.scroll = Mock(), Mock()
-        self.probe.wait_owned_title_editor(wanted)
-        self.probe.seek.assert_not_called()
-        self.probe.scroll.assert_not_called()
 
-    def test_owned_editor_wait_refuses_wrong_or_ambiguous_title_on_bounded_readonly_poll(self):
-        wanted = self.fixture().state['title']
-        cases = [[], [self.node('wrong', hint='عنوان الإعلان *', editable=True)],
-                 [self.node(wanted, hint='عنوان الإعلان *', editable=True),
-                  self.node(wanted, hint='عنوان الإعلان *', path='0.2', editable=True)]]
-        self.probe.case_phase('C1-photo-save')
-        self.probe.tap, self.probe.seek, self.probe.scroll = Mock(), Mock(), Mock()
-        for rows in cases:
-            self.probe.nodes = Mock(return_value=rows)
-            with self.subTest(rows=len(rows)), patch.object(native.time, 'monotonic', side_effect=[0, 0, 61]), \
-                    patch.object(native.time, 'sleep'):
-                with self.assertRaisesRegex(native.Blocked, '^native_owned_editor_title_not_observed$'):
-                    self.probe.wait_owned_title_editor(wanted)
-            self.probe.nodes.assert_called_once()
-        for operation in (self.probe.tap, self.probe.seek, self.probe.scroll):
-            operation.assert_not_called()
-        self.assertEqual(self.probe.report['native_journey_stages']['C1-photo-save'], 'editor_wait')
 
     def test_initial_entry_waits_after_single_exact_fixture_tap_before_return(self):
         self.probe.fixture_api = self.fixture()
@@ -177,30 +138,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertNotIn('session_logged_out', self.probe.report)
         self.assertFalse(self.probe.authenticated)
 
-    def test_logout_profile_ready_avoids_reopening_account_and_taps_logout_once(self):
-        order = []
-        self.probe.record_stop, self.probe.adb, self.probe.startup = Mock(), Mock(), Mock()
-        self.probe.authenticated_account_evidence = Mock(side_effect=lambda **kw: order.append('broker-ready'))
-        self.probe.has = Mock(return_value=True)
-        self.probe.tap = Mock(side_effect=lambda label: order.append(label))
-        self.probe.wait = Mock()
-        self.probe.safe_capture, self.probe.record_start = Mock(), Mock()
-        self.probe.native_logout()
-        self.assertEqual(order, ['broker-ready', 'تسجيل الخروج'])
-        self.probe.wait.assert_called_once_with('تسجيل الدخول أو إنشاء حساب', seconds=45)
-        self.assertTrue(self.probe.report['session_logged_out'])
-        self.probe.safe_capture.assert_not_called()
-        self.probe.record_start.assert_not_called()
 
-    def test_logout_footer_ready_uses_normal_account_then_logout_after_evidence(self):
-        order = []
-        self.probe.record_stop, self.probe.adb, self.probe.startup = Mock(), Mock(), Mock()
-        self.probe.authenticated_account_evidence = Mock(side_effect=lambda **kw: order.append('broker-ready'))
-        self.probe.has = Mock(return_value=False)
-        self.probe.tap = Mock(side_effect=lambda label: order.append(label))
-        self.probe.wait = Mock()
-        self.probe.native_logout()
-        self.assertEqual(order, ['broker-ready', 'حسابي', 'تسجيل الخروج'])
 
     def test_journey_stages_are_fixed_bounded_and_preserve_each_case_failure_context(self):
         self.probe.case_phase('C1-photo-save')
@@ -212,6 +150,176 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertEqual(self.probe.report['native_journey_stages'], {
             'C1-photo-save': 'editor_wait', 'C1-cleanup': 'logout_account_ready'})
         self.assertNotIn('PRIVATE_STAGE_SENTINEL', (self.probe.out/'report.json').read_text())
+
+    def editor_rows(self, title=None, basics=True):
+        names = ['إضافة عقار', '1/4', 'التالي']
+        if basics:
+            names += ['نوع الإعلان والعقار', 'للبيع', 'للإيجار', 'شقة']
+        rows = [self.node(name, path='0.'+str(i)) for i, name in enumerate(names)]
+        if title is not None:
+            rows.append(self.node(title, path='0.99', hint='عنوان الإعلان *', editable=True))
+        return rows
+
+    def guest_rows(self, account=False):
+        names = ['العقارات', 'الرسائل', 'إعلاناتي', 'حسابي']
+        names += ['تسجيل الدخول أو إنشاء حساب'] if account else ['ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…']
+        return [self.node(name, path='0.'+str(i)) for i, name in enumerate(names)]
+
+    def test_owned_editor_wait_observes_delayed_exact_title_without_any_input(self):
+        self.probe.case_phase('C1-photo-save')
+        wanted = self.fixture().state['title']
+        self.probe.nodes = Mock(side_effect=[[], self.editor_rows(wanted)])
+        self.probe.tap, self.probe.seek, self.probe.scroll, self.probe.act = Mock(), Mock(), Mock(), Mock()
+        self.probe.capture_basic_editor, self.probe.return_to_basic_editor = Mock(), Mock()
+        with patch.object(native.time, 'monotonic', side_effect=[0, 0, .5, 1]), patch.object(native.time, 'sleep'):
+            self.probe.wait_owned_title_editor(wanted)
+        self.assertEqual(self.probe.nodes.call_count, 2)
+        for operation in (self.probe.tap, self.probe.seek, self.probe.scroll, self.probe.act):
+            operation.assert_not_called()
+        self.assertEqual(self.probe.report['native_journey_stages']['C1-photo-save'], 'editor_ready')
+        self.assertEqual(self.probe.report['actions'], [])
+
+    def test_owned_editor_wait_supports_separate_unique_label_without_scrolling(self):
+        wanted = self.fixture().state['title']
+        self.probe.nodes = Mock(return_value=self.editor_rows()+[
+            self.node('عنوان الإعلان *', path='0.98'), self.node(wanted, path='0.99', editable=True)])
+        self.probe.seek, self.probe.scroll = Mock(), Mock()
+        self.probe.capture_basic_editor, self.probe.return_to_basic_editor = Mock(), Mock()
+        self.probe.wait_owned_title_editor(wanted)
+        self.probe.seek.assert_not_called(); self.probe.scroll.assert_not_called()
+
+    def test_owned_editor_wait_refuses_wrong_or_ambiguous_title_on_bounded_readonly_poll(self):
+        wanted = self.fixture().state['title']
+        cases = [[], self.editor_rows('wrong'), self.editor_rows(wanted)+[
+                 self.node(wanted, hint='عنوان الإعلان *', path='0.100', editable=True)]]
+        self.probe.case_phase('C1-photo-save')
+        self.probe.tap, self.probe.seek, self.probe.scroll = Mock(), Mock(), Mock()
+        self.probe.capture_basic_editor = Mock()
+        for rows in cases:
+            self.probe.nodes = Mock(return_value=rows)
+            with self.subTest(rows=len(rows)), patch.object(native.time, 'monotonic', side_effect=[0, 0, 61]), \
+                    patch.object(native.time, 'sleep'):
+                with self.assertRaises(native.Blocked):
+                    self.probe.wait_owned_title_editor(wanted)
+            self.probe.nodes.assert_called_once()
+        for operation in (self.probe.tap, self.probe.seek, self.probe.scroll, self.probe.capture_basic_editor):
+            operation.assert_not_called()
+        self.assertEqual(self.probe.report['native_journey_stages']['C1-photo-save'], 'editor_wait')
+
+    def test_offscreen_title_scrolls_only_after_loaded_basics_and_returns_before_facts(self):
+        wanted = self.fixture().state['title']
+        self.probe.nodes = Mock(side_effect=[self.editor_rows(), self.editor_rows(wanted, basics=False),
+                                            self.editor_rows(wanted, basics=False), self.editor_rows()])
+        self.probe.scroll, self.probe.tap, self.probe.set = Mock(), Mock(), Mock()
+        self.probe.capture_basic_editor = Mock()
+        self.probe.wait_owned_title_editor(wanted)
+        self.assertEqual([call.args[0] for call in self.probe.scroll.call_args_list], ['forward','backward'])
+        self.assertEqual([call.args[0] for call in self.probe.capture_basic_editor.call_args_list],
+                         ['C1-basic-editor','C1-owned-editor-title'])
+        self.probe.tap.assert_not_called(); self.probe.set.assert_not_called()
+
+    def test_scrollable_loading_scene_does_not_trigger_premature_scroll(self):
+        wanted = self.fixture().state['title']; order = []
+        scenes = iter([[self.node('loading', scrollable=True)], self.editor_rows(),
+                       self.editor_rows(wanted, basics=False), self.editor_rows()])
+        self.probe.nodes = Mock(side_effect=lambda: order.append('read') or next(scenes))
+        self.probe.scroll = Mock(side_effect=lambda direction: order.append('scroll'))
+        self.probe.capture_basic_editor = Mock(side_effect=lambda *args: order.append('anchored-capture'))
+        with patch.object(native.time,'sleep'):
+            self.probe.wait_owned_title_editor(wanted)
+        self.assertEqual(order[:4], ['read','read','anchored-capture','scroll'])
+
+    def test_wrong_title_or_changed_route_after_viewport_scroll_holds_without_more_input(self):
+        wanted = self.fixture().state['title']
+        for scene in (self.editor_rows('another draft',basics=False), [self.node('لديك إعلان غير مكتمل')]):
+            self.probe.nodes = Mock(side_effect=[self.editor_rows(),scene])
+            self.probe.scroll, self.probe.tap, self.probe.set = Mock(), Mock(), Mock()
+            self.probe.capture_basic_editor = Mock()
+            with self.subTest(scene=len(scene)),self.assertRaises(native.Blocked):
+                self.probe.wait_owned_title_editor(wanted)
+            self.probe.scroll.assert_called_once_with('forward')
+            self.probe.tap.assert_not_called();self.probe.set.assert_not_called()
+            self.assertEqual(self.probe.capture_basic_editor.call_count,1)
+
+    def test_uncertain_viewport_scroll_is_not_replayed(self):
+        self.probe.nodes = Mock(return_value=self.editor_rows())
+        self.probe.scroll = Mock(side_effect=native.Blocked('native_input_not_delivered'))
+        self.probe.capture_basic_editor = Mock()
+        with self.assertRaises(native.Blocked):self.probe.wait_owned_title_editor(self.fixture().state['title'])
+        self.probe.scroll.assert_called_once_with('forward')
+
+    def test_basic_diagnostic_captures_require_editor_anchor_no_contact_and_existing_private_guard(self):
+        self.probe.authenticated=True; self.probe.adb=Mock()
+        for rows in ([self.node('unknown')], self.editor_rows()+[self.node('رقم الاتصال *')],
+                     self.editor_rows()+[self.node(self.access['phones']['broker'])],
+                     self.editor_rows()+[self.node('رمز التحقق')]):
+            self.probe.nodes=Mock(return_value=rows)
+            with self.subTest(rows=len(rows)),self.assertRaises(native.Blocked):
+                self.probe.capture_basic_editor('C1-basic-editor')
+        self.probe.adb.assert_not_called()
+        self.assertEqual(self.probe.report['frames'],[])
+
+    def test_title_diagnostic_capture_requires_exact_expected_title_and_known_name(self):
+        self.probe.nodes=Mock(return_value=self.editor_rows('wrong'))
+        self.probe.safe_capture=Mock()
+        with self.assertRaises(native.Blocked):self.probe.capture_basic_editor('C1-owned-editor-title','wanted')
+        with self.assertRaises(native.Blocked):self.probe.capture_basic_editor('C1-unknown','wanted')
+        self.probe.safe_capture.assert_not_called()
+
+    def test_logout_profile_ready_avoids_reopening_account_before_single_logout(self):
+        order=[]
+        self.probe.record_stop,self.probe.adb,self.probe.startup=Mock(),Mock(),Mock()
+        self.probe.authenticated_account_evidence=Mock(side_effect=lambda **kw:order.append('broker-ready'))
+        self.probe.has=Mock(return_value=True)
+        self.probe.tap=Mock(side_effect=lambda label,**kw:order.append(label))
+        self.probe.wait_guest_marketplace=Mock(side_effect=lambda:order.append('guest-marketplace'))
+        self.probe.wait_guest_account=Mock(side_effect=lambda:order.append('guest-account'))
+        self.probe.safe_capture,self.probe.record_start=Mock(),Mock()
+        self.probe.native_logout()
+        self.assertEqual(order,['broker-ready','تسجيل الخروج','guest-marketplace','حسابي','guest-account'])
+        self.assertEqual(sum(call.args[0]=='تسجيل الخروج' for call in self.probe.tap.call_args_list),1)
+        self.probe.tap.assert_any_call('حسابي',seek=False)
+        self.assertTrue(self.probe.report['session_logged_out'])
+        self.probe.safe_capture.assert_not_called();self.probe.record_start.assert_not_called()
+
+    def test_logout_footer_ready_uses_normal_account_then_logout_after_evidence(self):
+        order=[]
+        self.probe.record_stop,self.probe.adb,self.probe.startup=Mock(),Mock(),Mock()
+        self.probe.authenticated_account_evidence=Mock(side_effect=lambda **kw:order.append('broker-ready'))
+        self.probe.has=Mock(return_value=False)
+        self.probe.tap=Mock(side_effect=lambda label,**kw:order.append(label))
+        self.probe.wait_guest_marketplace=Mock(side_effect=lambda:order.append('guest-marketplace'))
+        self.probe.wait_guest_account=Mock(side_effect=lambda:order.append('guest-account'))
+        self.probe.native_logout()
+        self.assertEqual(order,['broker-ready','حسابي','تسجيل الخروج','guest-marketplace','حسابي','guest-account'])
+
+    def test_logout_marketplace_and_guest_account_are_readonly_exact_scope_checks(self):
+        self.probe.tap,self.probe.scroll=Mock(),Mock()
+        self.probe.nodes=Mock(side_effect=[self.guest_rows()[:-1],self.guest_rows()])
+        with patch.object(native.time,'sleep'):self.probe.wait_guest_marketplace()
+        self.probe.nodes=Mock(return_value=self.guest_rows(account=True));self.probe.wait_guest_account()
+        self.probe.tap.assert_not_called();self.probe.scroll.assert_not_called()
+
+    def test_guest_scope_observation_rejects_missing_anchors_logout_or_auth_fields(self):
+        for account in (False,True):
+            valid=self.guest_rows(account=account)
+            for rows in (valid[:-1],valid+[self.node('تسجيل الخروج')],valid+[self.node('رقم واتساب')]):
+                self.probe.nodes=Mock(return_value=rows)
+                wait=self.probe.wait_guest_account if account else self.probe.wait_guest_marketplace
+                with self.subTest(account=account),patch.object(native.time,'monotonic',side_effect=[0,0,61]),patch.object(native.time,'sleep'):
+                    with self.assertRaises(native.Blocked):wait()
+
+    def test_logout_transition_failure_never_replays_logout_or_claims_success(self):
+        for failure in ('home','account'):
+            self.probe.record_stop,self.probe.adb,self.probe.startup=Mock(),Mock(),Mock()
+            self.probe.authenticated_account_evidence=Mock();self.probe.has=Mock(return_value=True)
+            self.probe.tap=Mock();self.probe.wait_guest_marketplace=Mock();self.probe.wait_guest_account=Mock()
+            if failure=='home':self.probe.wait_guest_marketplace.side_effect=native.Blocked('native_guest_marketplace_not_observed')
+            else:self.probe.wait_guest_account.side_effect=native.Blocked('native_guest_account_not_observed')
+            with self.subTest(failure=failure),self.assertRaises(native.Blocked):self.probe.native_logout()
+            self.assertEqual(sum(call.args[0]=='تسجيل الخروج' for call in self.probe.tap.call_args_list),1)
+            self.assertEqual(sum(call.args[0]=='حسابي' for call in self.probe.tap.call_args_list),0 if failure=='home' else 1)
+            self.assertNotIn('session_logged_out',self.probe.report)
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()

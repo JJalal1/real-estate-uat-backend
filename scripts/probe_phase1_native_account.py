@@ -32,7 +32,9 @@ AUTH_PHASES = frozenset({'account_open', 'login_open', 'phone_entry', 'code_requ
                          'otp_entry', 'confirm', 'postcondition'})
 C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
                                 'purpose', 'type', 'title', 'restore_options_wait',
-                                'logout_account_ready', 'logout_control', 'logout_confirm'})
+                                'logout_account_ready', 'logout_control', 'logout_confirm',
+                                'editor_basics_loaded', 'editor_title_seek', 'editor_basics_return',
+                                'logout_marketplace_wait', 'logout_guest_marketplace', 'logout_guest_account_wait'})
 ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
 ACCOUNT_SCROLL_MODE = 'physical_scroll'
 INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
@@ -627,24 +629,108 @@ class NativeAccount:
                   property_created=False, photos_uploaded=False,
                   facts_entered=False, api_session_logged_out=True)
 
+    def basic_editor_context(self, rows):
+        excluded = {'رقم الاتصال *', 'رقم اتصال آخر', 'رقم اتصال آخر (اختياري)',
+                    'الإيجار والتواصل', 'السعر والتواصل', 'لديك إعلان غير مكتمل', 'مسوداتي'}
+        return (bool(self.matching(rows, 'إضافة عقار')) and bool(self.matching(rows, '1/4'))
+                and not any(label in labels(row) for row in rows for label in excluded | AUTH_LABELS))
+
+    def basic_editor_loaded(self, rows):
+        return self.basic_editor_context(rows) and all(self.matching(rows, label) for label in
+            ('نوع الإعلان والعقار', 'للبيع', 'للإيجار', 'شقة'))
+
+    def visible_editor_title(self, rows):
+        anchors = self.matching(rows, 'عنوان الإعلان *')
+        direct = [row for row in anchors if row.get('editable')]
+        if len(direct) > 1:
+            raise Blocked('native_owned_editor_title_ambiguous')
+        if direct:
+            return direct[0]
+        if len(anchors) == 1:
+            a, b, c, d = anchors[0]['bounds']
+            fields = [row for row in rows if row.get('editable') and row.get('enabled')
+                      and abs(row['bounds'][1] - b) <= 150
+                      and min(c, row['bounds'][2]) > max(a, row['bounds'][0])]
+            if len(fields) > 1:
+                raise Blocked('native_owned_editor_title_ambiguous')
+            if fields:
+                return fields[0]
+        return None
+
+    def capture_basic_editor(self, name, expected_title=None):
+        rows = self.nodes()
+        if name == 'C1-basic-editor':
+            ready = self.basic_editor_loaded(rows)
+        elif name == 'C1-owned-editor-title':
+            field = self.visible_editor_title(rows)
+            ready = (self.basic_editor_context(rows) and field is not None
+                     and field.get('text') == expected_title)
+        else:
+            raise Blocked('fixed_basic_editor_capture_required')
+        if not ready:
+            raise Blocked('safe_basic_editor_anchor_not_observed')
+        # The existing capture path takes another fresh private/auth guard.
+        # A basics frame is not a visible title or UUID identity claim.
+        self.safe_capture(name)
+
+    def return_to_basic_editor(self, deadline):
+        for attempt in range(7):
+            if time.monotonic() >= deadline:
+                break
+            rows = self.nodes()
+            if self.basic_editor_loaded(rows):
+                return
+            if not self.basic_editor_context(rows):
+                raise Blocked('native_basic_editor_context_changed')
+            if attempt < 6:
+                self.journey_stage('editor_basics_return')
+                self.scroll('backward')
+        raise Blocked('native_basic_editor_purpose_not_observed')
+
     def wait_owned_title_editor(self, expected_title, seconds=60):
-        # Observe one rendered editor scene; never seek/scroll while it loads.
         self.journey_stage('editor_wait')
         deadline = time.monotonic() + seconds
+        basics_captured = False
+        # Before loaded basics or the exact visible title, observe only.
         while time.monotonic() < deadline:
             rows = self.nodes()
-            anchors = self.matching(rows, 'عنوان الإعلان *')
-            direct = [row for row in anchors if row.get('editable')]
-            fields = direct if len(direct) == 1 else []
-            if not direct and len(anchors) == 1:
-                a, b, c, d = anchors[0]['bounds']
-                fields = [row for row in rows if row.get('editable') and row.get('enabled')
-                          and abs(row['bounds'][1] - b) <= 150
-                          and min(c, row['bounds'][2]) > max(a, row['bounds'][0])]
-            if len(fields) == 1 and fields[0].get('text') == expected_title:
+            field = self.visible_editor_title(rows)
+            if field is not None:
+                if field.get('text') != expected_title:
+                    raise Blocked('native_owned_editor_title_mismatch')
+                if not self.basic_editor_context(rows):
+                    raise Blocked('native_basic_editor_context_changed')
+                break
+            if self.basic_editor_loaded(rows):
+                self.journey_stage('editor_basics_loaded')
+                self.capture_basic_editor('C1-basic-editor')
+                basics_captured = True
+                break
+            time.sleep(.5)
+        else:
+            raise Blocked('native_owned_editor_title_not_observed')
+        for attempt in range(7):
+            if time.monotonic() >= deadline:
+                break
+            # rows is the exact visible-title/loaded scene just observed above.
+            field = self.visible_editor_title(rows)
+            if field is not None:
+                if field.get('text') != expected_title:
+                    raise Blocked('native_owned_editor_title_mismatch')
+                if not self.basic_editor_context(rows):
+                    raise Blocked('native_basic_editor_context_changed')
+                self.capture_basic_editor('C1-owned-editor-title', expected_title)
+                self.return_to_basic_editor(deadline)
+                if not basics_captured:
+                    self.capture_basic_editor('C1-basic-editor')
                 self.journey_stage('editor_ready')
                 return
-            time.sleep(.5)
+            if not self.basic_editor_context(rows):
+                raise Blocked('native_basic_editor_context_changed')
+            if attempt < 6:
+                self.journey_stage('editor_title_seek')
+                self.scroll('forward')
+                rows = self.nodes()
         raise Blocked('native_owned_editor_title_not_observed')
 
     def manual_entry(self, expected_title, title_editor_required=False):
@@ -809,6 +895,31 @@ class NativeAccount:
                   same_unique_title=True, location_restored=True, bedroom_count=3,
                   bathroom_count=2, floor='2', photo_count=1, photo_state='complete')
 
+    def wait_guest_marketplace(self, seconds=60):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            footer = all(self.matching(rows, label) for label in ('العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'))
+            home = all(self.matching(rows, label) for label in ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…'))
+            excluded = self.matching(rows, 'تسجيل الخروج') or any(
+                label in labels(row) for row in rows for label in AUTH_LABELS)
+            if footer and home and not excluded:
+                return
+            time.sleep(.6)
+        raise Blocked('native_guest_marketplace_not_observed')
+
+    def wait_guest_account(self, seconds=45):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            footer = all(self.matching(rows, label) for label in ('العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'))
+            excluded = self.matching(rows, 'تسجيل الخروج') or any(
+                label in labels(row) for row in rows for label in AUTH_LABELS)
+            if footer and self.matching(rows, 'تسجيل الدخول أو إنشاء حساب') and not excluded:
+                return
+            time.sleep(.6)
+        raise Blocked('native_guest_account_not_observed')
+
     def native_logout(self):
         self.record_stop()
         # A known retained session avoids a Back dialog that might save/retire
@@ -823,8 +934,13 @@ class NativeAccount:
         self.journey_stage('logout_control')
         self.tap('تسجيل الخروج')
         self.authenticated = False
+        self.journey_stage('logout_marketplace_wait')
+        self.wait_guest_marketplace()
+        self.journey_stage('logout_guest_marketplace')
+        self.tap('حسابي', seek=False)
+        self.journey_stage('logout_guest_account_wait')
+        self.wait_guest_account()
         self.journey_stage('logout_confirm')
-        self.wait('تسجيل الدخول أو إنشاء حساب', seconds=45)
         self.report['session_logged_out'] = True
 
     def cleanup(self):
