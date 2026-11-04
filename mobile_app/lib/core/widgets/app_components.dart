@@ -774,16 +774,17 @@ class AppPropertyMedia extends StatelessWidget {
 }
 
 class AppPropertyPrice extends StatelessWidget {
-  const AppPropertyPrice({required this.price, required this.currency, this.suffix, super.key});
+  const AppPropertyPrice({required this.price, required this.currency, this.suffix, this.compact = false, super.key});
   final String price, currency;
   final String? suffix;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Text.rich(TextSpan(children: [
     TextSpan(text: formatMoneyAmount(price), style: Theme.of(context).textTheme.titleLarge?.copyWith(
-      fontSize: 18, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800)),
-    TextSpan(text: ' ${currencyLabel(currency)}', style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: 11)),
+      fontSize: compact ? 13.5 : 18, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800)),
+    TextSpan(text: ' ${currencyLabel(currency)}', style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: compact ? 9 : 11)),
     if (suffix != null) TextSpan(text: ' $suffix', style: Theme.of(context).textTheme.bodySmall),
-  ]));
+  ]), maxLines: compact ? 1 : null, overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip);
 }
 
 class AppPropertyFacts extends StatelessWidget {

@@ -127,3 +127,8 @@ High-level result:
 - account page reorganized
 - backend capabilities drive professional service visibility
 - accepted Flutter services-screen hash updated in CI after successful validation
+
+
+## 2026-10-27 — Owner UX wave on unified bdab326a
+
+Implements the six attached current-wave UX requirements in an isolated branch. See `docs/OWNER_UX_WAVE_2026-10-27_AR.md`; source, CI and Android delivery evidence pending. No backend runtime, database, paid service or production change.

@@ -1,4 +1,5 @@
 import 'property_schema.dart';
+import 'property_coordinates.dart';
 import 'dart:convert';
 
 class PropertyImageItem {
@@ -199,6 +200,7 @@ class PropertyDetails {
     required this.currency,
     required this.latitude,
     required this.longitude,
+    this.locationProvided = true,
     required this.images,
     this.basePrice,
     this.priceDisplayMode,
@@ -299,6 +301,8 @@ class PropertyDetails {
   final int duplicateCheckScore;
   final double latitude;
   final double longitude;
+  final bool locationProvided;
+  bool get hasValidLocation => locationProvided && hasValidPropertyCoordinates(latitude, longitude);
   final String status;
   final String reviewStatus;
   final String? lastReviewReason;
@@ -395,6 +399,7 @@ class PropertyDetails {
           : null,
       duplicateCheckStatus: _nullableString(json['duplicate_check_status']),
       duplicateCheckScore: _asInt(json['duplicate_check_score']) ?? 0,
+      locationProvided: _asDouble(json['latitude']) != null && _asDouble(json['longitude']) != null,
       latitude: _asDouble(json['latitude']) ?? 0,
       longitude: _asDouble(json['longitude']) ?? 0,
       status: json['status']?.toString() ?? 'published',

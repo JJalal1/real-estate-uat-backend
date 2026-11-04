@@ -19,6 +19,7 @@ import 'package:real_estate_mobile/features/properties/domain/property_compariso
 import 'package:real_estate_mobile/features/properties/domain/rental_condition_summary.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_location_picker_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_location_address.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
@@ -172,13 +173,15 @@ void main() {
     await finishWave6(tester);
   });
 
-  testWidgets('address waits for explicit point confirmation and text corrections preserve the point', (tester) async {
+  testWidgets('one current-location action accepts the GPS point and text corrections preserve it', (tester) async {
     final snapshot=editorSnapshot()..['step']=1..['latitude']=null..['longitude']=null;
     final recovery=Wave6Recovery(snapshot);
     var picks=0, fixes=0;
     final boundary=GlobalKey();
     await pumpWave6(tester,ProviderScope(overrides:[
-      propertyCurrentLocationProvider.overrideWithValue(() async { fixes++; return const PropertyLocationSelection(latitude:13.96,longitude:44.18); }),
+      propertyCurrentLocationProvider.overrideWithValue(() async { fixes++; return const PropertyLocationSelection(latitude:13.96,longitude:44.18,
+        address:PropertyLocationAddress(governorate:'إب',district:'السبل',street:'المدخل')); }),
+      propertyMapPreviewBuilderProvider.overrideWithValue((context,lat,lon) => Text('نقطة اختبار $lat,$lon')),
       propertyLocationPickerProvider.overrideWithValue((context,{initialLatitude,initialLongitude}) async {
         picks++;expect(initialLatitude,13.96);expect(initialLongitude,44.18);
         return picks==1 ? null : const PropertyLocationSelection(latitude:13.96,longitude:44.18,
@@ -188,13 +191,11 @@ void main() {
     final governorate=textField('المحافظة *'),gps=find.byKey(const ValueKey('listing-current-location'));
     expect(tester.widget<TextField>(governorate).enabled,isFalse);
     await tester.ensureVisible(gps);await tester.tap(gps);await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(governorate).enabled,isFalse);
-    await tester.tap(gps);await tester.pumpAndSettle();
     expect(tester.widget<TextField>(governorate).enabled,isTrue);
     expect(tester.widget<TextField>(governorate).controller!.text,'إب');
     await tester.ensureVisible(governorate);await tester.enterText(governorate,'تعز');await tester.pump(const Duration(seconds:1));
     expect(recovery.snapshot!['latitude'],13.96);expect(recovery.snapshot!['longitude'],44.18);
-    expect((recovery.snapshot!['fields'] as Map)['governorate'],'تعز');expect(fixes,2);expect(picks,2);
+    expect((recovery.snapshot!['fields'] as Map)['governorate'],'تعز');expect(fixes,1);expect(picks,0);
     FocusManager.instance.primaryFocus?.unfocus();await tester.pumpAndSettle();
     await previewWave6(tester,boundary,'new-wave-confirmed-location-1.0');
     expect(tester.takeException(),isNull);await finishWave6(tester);
@@ -218,7 +219,7 @@ void main() {
     final boundary=GlobalKey();
     await pumpWave6(tester,const AppShellScreen(),boundary:boundary,scale:scale);
     final nav=find.byType(AppNavigationBar);
-    expect(tester.widget<AppNavigationBar>(nav).destinations.map((d)=>d.label),['العقارات','الخريطة','الرسائل','حسابي']);
+    expect(tester.widget<AppNavigationBar>(nav).destinations.map((d)=>d.label),['الرئيسية','عملي','العملاء','حسابي']);
     await tester.tap(find.byKey(const ValueKey('floating-smart-search')));await tester.pumpAndSettle();
     expect(find.text('بحث عن عقار بالذكاء'),findsOneWidget);expect(find.text('إضافة عقار بالذكاء'),findsOneWidget);
     expect(find.text('تعبئة يدوي'),findsNothing);

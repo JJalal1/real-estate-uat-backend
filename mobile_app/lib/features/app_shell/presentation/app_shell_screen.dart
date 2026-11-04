@@ -12,6 +12,8 @@ import '../../admin/presentation/general_manager_finance_hubs.dart';
 import '../../admin/presentation/general_manager_pages.dart';
 import '../../discovery/presentation/marketplace_home_screen.dart';
 import '../../messages/presentation/messages_screen.dart';
+import '../../broker/presentation/broker_workspaces.dart';
+import '../../broker/presentation/broker_connections_screen.dart';
 import '../../properties/presentation/my_listings_screen.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
@@ -65,7 +67,8 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (_openingEditor) return;
     FocusManager.instance.primaryFocus?.unfocus();
     ref.read(brokerAssistantMenuProvider.notifier).state = false;
-    if (ref.read(authControllerProvider).asData?.value?.hasVerifiedProfessionalProfile == true) {
+    final user = ref.read(authControllerProvider).asData?.value;
+    if (user?.isBroker == true || user?.hasVerifiedProfessionalProfile == true) {
       _openingEditor = true;
       context.push('/add-property?assistant=0').whenComplete(() => _openingEditor = false);
       return;
@@ -158,7 +161,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
                 .toList(growable: false),
             selectedIndex: _index,
             onSelected: _selectTab,
-            onCreate: const ['anonymous', 'regular', 'advertiser'].contains(mode) ? _createListing : null,
+            onCreate: const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode) ? _createListing : null,
             createExpanded: _createMenuOpen,
           ),
         ),
@@ -174,12 +177,25 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     }
     if (roles.contains('support_manager')) return 'manager';
     if (roles.contains('support_agent')) return 'agent';
+    if (user.isBroker == true) return 'broker';
     if (user.hasVerifiedProfessionalProfile == true) return 'advertiser';
     return 'regular';
   }
 
   _ShellData _shellFor(String mode, dynamic user) {
     switch (mode) {
+      case 'broker':
+        return _ShellData(pages: [
+          MarketplaceHomeScreen(showAdvertiserActions: user.hasVerifiedProfessionalProfile == true),
+          const Stage6AuthGate(requireProfessional: true, child: BrokerDashboardScreen()),
+          const Stage6AuthGate(requireProfessional: true, child: BrokerConnectionsScreen()),
+          const AccountScreen(),
+        ], items: const [
+          _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
+          _NavItemData(label: 'عملي', icon: Icons.work_outline),
+          _NavItemData(label: 'العملاء', icon: Icons.people_outline),
+          _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
+        ]);
       case 'agent':
         return const _ShellData(
           pages: [
