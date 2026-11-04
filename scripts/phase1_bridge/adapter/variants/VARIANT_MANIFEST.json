@@ -1,0 +1,50 @@
+{
+  "scope": "Offline remote-UTC plus guest-Home logout variant; no native acceptance",
+  "source_files_unchanged": true,
+  "manifest": {
+    "ROOT_C4_EXECUTOR/phase_extensions.py": {
+      "sha256": "0a5c9ca9e534852de6a05abbda2e781601d2a059f8104adb5b53f24a9faedf4a",
+      "bytes": 28640,
+      "original_sha256": "ae28e3fe2f5cb331cdfd40a8c7bc926ca783f91a69359c5b170770cd4f0ad333",
+      "delta": "equivalent_generated_digit_translation_alphabet; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts; actual_response_snapshot_boundary_before_bounded_short_notice_seek"
+    },
+    "ROOT_C2_EXECUTOR_V2/phase_extensions.py": {
+      "sha256": "01aedc9a2387fb7feff572e829bf52142bab2e51bade098d016350cb64f76906",
+      "bytes": 40051,
+      "original_sha256": "27a567dbb175140c50a0de705385e56ea5ab4817714d165f06b94cfb8d2159b8"
+    },
+    "ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py": {
+      "sha256": "08e2f2d6647c429a25973d4915f7ac5a6f8db852af91fd31dd5a49573a8e1ced",
+      "bytes": 25891,
+      "original_sha256": "612d92003702e39cc071815bb4b0ace564eaaeed679bc44cb693defec1e3d79f"
+    },
+    "LOCAL_REMAINING_PROPOSAL/local_stage_policy.py": {
+      "sha256": "2a54658205998dbb02f2a0a3f4c59597d348125d0b520402e19ba8ef85527ec2",
+      "bytes": 21803,
+      "original_sha256": "6ad2d841bddb9458752ebd4a79414a7c8c7f4f5d6cab43ac74d7b6c97d8eac44",
+      "delta": "equivalent_generated_digit_translation_alphabet"
+    },
+    "C2_SOURCE_PROPOSAL/c2_native_roles.py": {
+      "sha256": "ba0c77c9ffe66bdae719856215fb03470849277f636513f745aa02e75d42d3aa",
+      "bytes": 19690,
+      "original_sha256": "789a790fa1bbced95653cf0ecf66190420b814caf15c73189f5b783c5efc183c",
+      "previous_utc_variant_sha256": "cfec7b46f3d37b68c6432893435cd37c970b6713561c644ca6adbc562d635b6c",
+      "delta": "one_logout_observed_guest_home_then_one_account_guest_gate"
+    },
+    "promoted_cleanup.py": {
+      "sha256": "4a7752b29cc8b1417e5d82ab94c9113e3687b6b6e37ba995847e387f5d262f67",
+      "bytes": 17185,
+      "original_sha256": "4a7752b29cc8b1417e5d82ab94c9113e3687b6b6e37ba995847e387f5d262f67"
+    },
+    "runtime/host_console_capture.py": {
+      "sha256": "2ec10b2659ea3f073c47d02c1800cd49b35b58e51ce8430517af74a1ecadcafa",
+      "bytes": 13511,
+      "original_sha256": "2ec10b2659ea3f073c47d02c1800cd49b35b58e51ce8430517af74a1ecadcafa"
+    },
+    "ci_remote_evidence.py": {
+      "sha256": "c481b8b4c2556f27e16fc687858f8d7212789fa27cad372acd975754c459e2f7",
+      "bytes": 7621,
+      "original_sha256": null
+    }
+  }
+}

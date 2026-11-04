@@ -1,0 +1,1850 @@
+#!/usr/bin/env python3
+"""Actual C1 UI journey, using runtime-only Actions test credentials.
+
+Normal API setup labels a new empty draft; all property facts/photo/recovery use UI.
+No stored-session injection, test widgets, TLS/DNS changes or submission.
+All artifact export is performed separately, encrypted to the current recipient.
+"""
+import argparse
+import base64
+import datetime
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
+import re
+import signal
+import subprocess
+import time
+import xml.etree.ElementTree as ET
+
+from phase1_native_account_readiness import preflight, validate_access, SECRET_NAME
+from phase1_native_fixture_api import FixtureApi, FixtureError, read_public_reference, digest
+
+ROOT = Path(__file__).resolve().parents[1]
+APP = 'com.aqer.yemen.uat'
+ACTIVITY = APP + '/com.example.real_estate_mobile.MainActivity'
+HELPER = 'com.aqer.phase1.input/.Phase1Input'
+API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
+AUTH_LABELS = {'مرحبًا بعودتك', 'رقم واتساب', 'رمز التحقق',
+               'رمز التحقق عبر واتساب', 'تأكيد والدخول', 'إرسال رمز واتساب'}
+AUTH_PHASES = frozenset({'account_open', 'login_open', 'phone_entry', 'code_request',
+                         'otp_entry', 'confirm', 'postcondition'})
+C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
+                                'purpose', 'type', 'title', 'location_step', 'location_confirm',
+                                'governorate', 'city', 'specifications_step', 'floor_select',
+                                'bedrooms', 'bathrooms', 'parking_select', 'facade_select',
+                                'photo_select', 'photo_picker_open', 'photo_file_select', 'photo_final_select',
+                                'photo_app_return', 'photo_count_wait', 'photo_capture', 'photo_next_dispatch',
+                                'final_actions_wait', 'rent_blank_check', 'draft_save',
+                                'restore_startup', 'restore_specs', 'restore_bedrooms', 'restore_bathrooms',
+                                'restore_photo', 'restore_location', 'restore_title', 'restore_options_wait',
+                                'restore_rent_blank_check',
+                                'logout_account_ready', 'logout_control', 'logout_confirm',
+                                'editor_basics_loaded', 'editor_title_seek', 'editor_basics_return',
+                                'logout_marketplace_wait', 'logout_guest_marketplace', 'logout_guest_account_wait',
+                                'home_wait', 'home_dispatch', 'add_stable_wait', 'add_dispatch', 'editor_title_settle'})
+ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
+ACCOUNT_SCROLL_MODE = 'physical_scroll'
+INPUT_OPS = frozenset({'account-dismiss-ime', 'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
+C1_CASES = ('C1-native-network', 'C1-api-empty-fixture', 'C1-auth', 'C1-photo-save',
+            'C1-force-stop-restore', 'C1-cleanup')
+FOREGROUND_CATEGORIES = frozenset({'APP', 'PERMISSION_CONTROLLER', 'DOCUMENT_PICKER',
+                                  'SYSTEM_UI', 'OTHER', 'UNOBSERVED'})
+# Literal account-operation stages from the paired Phase1Input.java helper.
+INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_input_policy', 'account_click',
+                              'account_snapshot_settle', 'account_set_settle',
+                              'pointer_focus_source_match', 'pointer_focus_stable_wait',
+                              'pointer_focus_stable_deadline', 'pointer_focus_stable_cache_clear',
+                              'pointer_focus_stable_root_guard', 'pointer_focus_stable_source_match',
+                              'pointer_focus_stable_witness_match', 'pointer_focus_stable_bounds_match',
+                              'account_pointer_tap', 'account_scroll', 'account_pointer_swipe',
+                              'account_focus', 'account_focus_pointer', 'account_focus_request',
+                              'account_focus_observe', 'account_focus_editable_match', 'account_focus_class_match',
+                              'account_focus_description_match', 'account_focus_hint_match',
+                              'account_focus_pending', 'account_focus_text_action_pending', 'account_set_request',
+                              'selected_path_resolve', 'selected_node_guard', 'complete',
+                              'account_cache_clear', 'account_focus_cache_clear', 'initial_path_format', 'initial_witness_format', 'initial_cache_clear', 'initial_root_guard', 'initial_path_resolve', 'initial_node_guard', 'initial_witness_match', 'pointer_path_format', 'pointer_witness_format', 'pointer_cache_clear', 'pointer_root_guard', 'pointer_path_resolve', 'pointer_node_guard', 'pointer_witness_match', 'pointer_bounds_width', 'pointer_bounds_height', 'pointer_bounds_containment', 'pointer_swipe_height', 'initial_input_guard', 'pointer_input_guard', 'pointer_target_guard', 'input_deadline_policy', 'input_deadline_expired',
+                              'ime_window_policy', 'ime_windows', 'ime_focus', 'ime_noop',
+                              'ime_back_down', 'ime_back_up', 'ime_readback'})
+INPUT_FAILURE_REASONS = frozenset({'native_input_not_delivered', 'ambiguous_native_input_receipt',
+                                  'device_command_timeout', 'device_command_failed',
+                                  'native_instrumentation_unobserved'})
+
+
+class Blocked(RuntimeError):
+    """Fixed diagnostic identifiers only; never interpolate a command or value."""
+
+
+def labels(row):
+    return {s.strip() for key in ('text', 'description', 'hint')
+            for s in str(row.get(key, '')).splitlines() if s.strip()}
+
+
+def common_depth(a, b):
+    count = 0
+    for left, right in zip(a.split('.'), b.split('.')):
+        if left != right:
+            break
+        count += 1
+    return count
+
+
+def account_delivery(result, kind):
+    """Accept only complete, unambiguous receipts from the pinned input helper."""
+    if result.get('account_action_delivered') != 'true':
+        raise Blocked('native_action_not_delivered')
+    if kind not in {'click', 'scroll', 'set'}:
+        raise Blocked('native_action_kind_invalid')
+    for flag in ['native_pointer_used', 'semantic_action_used']:
+        if flag in result and result[flag] not in {'true', 'false'}:
+            raise Blocked('native_delivery_receipt_invalid')
+    pointer = result.get('native_pointer_used') == 'true'
+    semantic = result.get('semantic_action_used') == 'true'
+    if pointer and semantic:
+        raise Blocked('native_delivery_receipt_ambiguous')
+    if kind == 'set' and result.get('set_text_delivered') != 'true':
+        raise Blocked('native_set_text_not_delivered')
+    if kind in {'click', 'scroll'} and not (pointer or semantic):
+        raise Blocked('native_delivery_mode_missing')
+    if pointer:
+        expected = 14 if kind == 'scroll' else 2
+        if result.get('native_pointer_events') != str(expected):
+            raise Blocked('native_pointer_event_count_mismatch')
+        return {'delivery': 'pointer_swipe' if kind == 'scroll' else
+                            'pointer_focus' if kind == 'set' else 'pointer_tap',
+                'native_pointer_events': expected}
+    if 'native_pointer_events' in result:
+        raise Blocked('unexpected_native_pointer_events')
+    return {'delivery': 'semantic_text' if kind == 'set' else 'semantic_action',
+            'native_pointer_events': 0}
+
+
+class NativeAccount:
+    def __init__(self, private, env):
+        self.env = {key: value for key, value in env.items() if key != SECRET_NAME}
+        self.private = private
+        self.out = ROOT / 'phase1-native-account-evidence'
+        self.out.mkdir(mode=0o700, exist_ok=True)
+        validated = validate_access(env.get(SECRET_NAME, ''))
+        # This collector exercises only the broker. Optional known actors may
+        # exist in the configured secret, but are not retained or logged in.
+        self.access = {'otp': validated['otp'], 'phones': {'broker': validated['phones']['broker']}}
+        del validated
+        # Credentials are needed only by this in-memory driver, never its tools.
+        os.environ.pop(SECRET_NAME, None)
+        self.private_values = {self.access['otp']}
+        for phone in self.access['phones'].values():
+            digits = phone.lstrip('+')
+            self.private_values.update({phone, digits, '+' + digits})
+            # The backend interprets an international 00 prefix; retain that
+            # full-number display alias without stripping a guessed country.
+            if digits.startswith('00'):
+                self.private_values.update({digits[2:], '+' + digits[2:]})
+        self.authenticated = False
+        self.auth_attempted = False
+        self._auth_phase = None
+        self._active_case = None
+        self.serial = None
+        self.recorder = None
+        self.record_tainted = False
+        self.fixture_possible = False
+        self.fixture_api = None
+        self.bootstrap_title = None
+        self.title = 'اختبار استعادة المسودة ' + env['GITHUB_RUN_ID']
+        self.photo_name = 'phase1-account-' + env['GITHUB_RUN_ID'] + '.jpg'
+        self.report = {'scope': 'C1 actual Android account draft recovery only',
+                       'source_commit': env['GITHUB_SHA'], 'ci_run_id': env['GITHUB_RUN_ID'],
+                       'api': API, 'synthetic_widgets': False, 'phase1_accepted': False,
+                       'c1_accepted': False, 'manual_review_completed': False,
+                       'native_auth_executed': False, 'authentication_captures': False,
+                       'native_auth_attempted': False,
+                       'native_click_focus_policy': ACCOUNT_CLICK_FOCUS_MODE,
+                       'native_scroll_policy': ACCOUNT_SCROLL_MODE,
+                       'native_text_policy': 'semantic_set_text',
+                       'api_bootstrap_is_not_native_creation': True,
+                       'submission_executed': False, 'financial_acceptance_executed': False,
+                       'cases': [], 'actions': [], 'frames': [], 'videos': [], 'native_input_failures': [],
+                       'native_journey_stages': {},
+                       'visual_review_required': True, 'fixture_title': self.title,
+                       'limitations': ['C2 support/isolation and C4 AI are not tested here',
+                                       'API36 KVM functional evidence, not a physical handset/performance claim']}
+        for key in ('C1-native-network', 'C1-api-empty-fixture', 'C1-auth',
+                    'C1-photo-save', 'C1-force-stop-restore', 'C1-cleanup'):
+            self.report['cases'].append({'id': key, 'status': 'NOT RUN'})
+        self.save()
+
+    def command(self, args, timeout=90, codes=(0,), binary=False):
+        try:
+            result = subprocess.run([str(s) for s in args], capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise Blocked('device_command_timeout') from None
+        if result.returncode not in codes:
+            raise Blocked('device_command_failed')
+        return result.stdout if binary else result.stdout.decode('utf-8', errors='replace').strip()
+
+    def adb(self, *args, **kwargs):
+        return self.command(['adb', '-s', self.serial, *args], **kwargs)
+
+    def save(self):
+        # Defense in depth: arbitrary framework output never enters this object.
+        data = json.dumps(self.report, ensure_ascii=False, indent=2)
+        if any(value and value in data for value in self.private_values):
+            raise Blocked('private_value_in_receipt_refused')
+        (self.out / 'report.json').write_text(data + '\n')
+
+    def mark(self, case, status, **facts):
+        row = next(c for c in self.report['cases'] if c['id'] == case)
+        row.update(status=status, **facts)
+        self.save()
+
+    def auth_phase(self, phase):
+        if phase not in AUTH_PHASES:
+            raise Blocked('fixed_native_auth_phase_required')
+        self._auth_phase = phase
+        self.report['native_auth_phase'] = phase
+        self.save()
+
+    def case_phase(self, case):
+        if case not in C1_CASES:
+            raise Blocked('fixed_native_case_required')
+        self._active_case = case
+
+    def journey_stage(self, stage):
+        if stage not in C1_JOURNEY_STAGES:
+            raise Blocked('fixed_native_journey_stage_required')
+        if self._active_case in C1_CASES:
+            self.report['native_journey_stages'][self._active_case] = stage
+            self.save()
+
+    def c4_prepare_observation_scope(self):
+        state = self.report.get('local_c4_executor')
+        metrics = getattr(self, 'admission_metrics', {})
+        return (type(state) is dict and state.get('inflight') == 'prepare_request'
+                and state.get('uncertain') is False and self._active_case not in C1_CASES
+                and self.authenticated is True and self.recorder is None
+                and not getattr(self, '_host_stop_unconfirmed', False)
+                and (type(metrics) is not dict or metrics.get('state') != 'uncertain'))
+
+    def c4_prepare_observation_stage(self, stage):
+        if stage in {'WAIT_BRIEF', 'BRIEF_SET', 'WAIT_AI_RESPONSE'} and self.c4_prepare_observation_scope():
+            self.report.setdefault('c4_prepare_diagnostic', {})['stage'] = stage
+            self.save()
+
+    def c4_prepare_command_budget(self, op, requested, remaining):
+        if op not in INPUT_OPS or not self.c4_prepare_observation_scope():
+            return
+        if (type(requested) not in (int, float) or type(remaining) not in (int, float)
+                or not math.isfinite(requested) or not math.isfinite(remaining)
+                or not 0 < requested <= 90 or not 0 < remaining <= 125):
+            return
+        self.report.setdefault('c4_prepare_diagnostic', {})['last_command_budget'] = {
+            'op': op, 'requested_timeout_ms': int(requested*1000),
+            'remaining_ms': int(remaining*1000),
+            'effective_timeout_ms': int(min(requested, remaining)*1000),
+            'deadline_limited': remaining < requested}
+        self.save()
+
+    def c4_prepare_input_failure(self, op, result, output, reason):
+        if not self.c4_prepare_observation_scope() or op not in INPUT_OPS:
+            return
+        diagnostic = self.report.setdefault('c4_prepare_diagnostic', {})
+        if 'native_input_failure' in diagnostic:
+            return
+        row = {
+            'op': op,
+            'java_stage': result.get('stage') if result.get('stage') in INPUT_JAVA_STAGES else None,
+            'foreground_category': result.get('foreground_category') if result.get('foreground_category') in FOREGROUND_CATEGORIES else 'UNOBSERVED',
+            'passed_true': result.get('passed') == 'true', 'passed_false': result.get('passed') == 'false',
+            'code_minus_one': bool(re.search(r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M)),
+            'code_zero': bool(re.search(r'^INSTRUMENTATION_CODE: 0\s*$', output, re.M)),
+            'reason': reason if reason in INPUT_FAILURE_REASONS else 'native_instrumentation_unobserved',
+        }
+        if op == 'account-set' and diagnostic.get('stage') == 'BRIEF_SET':
+            transition = result.get('focus_hint_transition')
+            same, focused = result.get('focus_source_node_same'), result.get('focus_observed_focused')
+            count = result.get('focus_observation_count', '')
+            if (transition in {'SAME','NONEMPTY_TO_EMPTY','EMPTY_TO_NONEMPTY','NONEMPTY_CHANGED'}
+                    and same in {'true','false'} and focused in {'true','false'}
+                    and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
+                focus = {'hint_transition': transition, 'same_original_android_node': same == 'true',
+                         'focused': focused == 'true', 'observations': int(count)}
+                shapes = {'EMPTY','BEDROOMS_LABEL','BEDROOMS_EXAMPLE','BATHROOMS_LABEL','BATHROOMS_EXAMPLE',
+                          'BEDROOMS_LABEL_AND_EXAMPLE','BATHROOMS_LABEL_AND_EXAMPLE',
+                          'AI_BRIEF_LABEL','AI_BRIEF_HINT','AI_BRIEF_LABEL_AND_HINT','OTHER'}
+                original, current = result.get('focus_hint_original_shape'), result.get('focus_hint_current_shape')
+                if original in shapes and current in shapes:
+                    focus.update(original_hint_shape=original, current_hint_shape=current)
+                row['focus_identity_observation'] = focus
+        if op == 'account-dismiss-ime':
+            phase, substage = result.get('ime_observation_phase'), result.get('ime_observation_substage')
+            count = result.get('ime_observation_count', '')
+            if (phase in {'BEFORE_KEY', 'AFTER_KEY'} and substage in {
+                    'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
+                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS'}
+                    and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
+                observation = {'phase': phase, 'substage': substage, 'observations': int(count)}
+                for source, target, maximum in [('ime_window_count', 'window_count', 33),
+                        ('ime_focused_app_matches', 'focused_app_matches', 2)]:
+                    value = result.get(source, '')
+                    if re.fullmatch(r'[0-9]{1,2}', value) and 0 <= int(value) <= maximum:
+                        observation[target] = int(value)
+                row['ime_observation'] = observation
+        diagnostic['native_input_failure'] = row
+        self.save()
+
+    def input_failure(self, op, result, output, reason):
+        if self._active_case not in C1_CASES or op not in INPUT_OPS:
+            return
+        failures = self.report['native_input_failures']
+        if len(failures) >= len(C1_CASES) or any(row['case'] == self._active_case for row in failures):
+            return
+        failures.append({
+            'case': self._active_case,
+            'auth_phase': self._auth_phase if self._active_case == 'C1-auth' and self._auth_phase in AUTH_PHASES else None,
+            'op': op,
+            'java_stage': result.get('stage') if result.get('stage') in INPUT_JAVA_STAGES else None,
+            'foreground_category': result.get('foreground_category') if result.get('foreground_category') in FOREGROUND_CATEGORIES else 'UNOBSERVED',
+            'passed_true': result.get('passed') == 'true',
+            'passed_false': result.get('passed') == 'false',
+            'code_minus_one': bool(re.search(r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M)),
+            'code_zero': bool(re.search(r'^INSTRUMENTATION_CODE: 0\s*$', output, re.M)),
+            'reason': reason if reason in INPUT_FAILURE_REASONS else 'native_instrumentation_unobserved',
+        })
+        if op == 'account-set' and self._active_case == 'C1-photo-save':
+            transition = result.get('focus_hint_transition')
+            same, focused = result.get('focus_source_node_same'), result.get('focus_observed_focused')
+            count = result.get('focus_observation_count', '')
+            if (transition in {'SAME','NONEMPTY_TO_EMPTY','EMPTY_TO_NONEMPTY','NONEMPTY_CHANGED'}
+                    and same in {'true','false'} and focused in {'true','false'}
+                    and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
+                failures[-1]['focus_identity_observation'] = {'hint_transition':transition,
+                    'same_original_android_node':same=='true','focused':focused=='true','observations':int(count)}
+                shapes = {'EMPTY','BEDROOMS_LABEL','BEDROOMS_EXAMPLE','BATHROOMS_LABEL','BATHROOMS_EXAMPLE',
+                          'BEDROOMS_LABEL_AND_EXAMPLE','BATHROOMS_LABEL_AND_EXAMPLE','OTHER'}
+                original, current = result.get('focus_hint_original_shape'), result.get('focus_hint_current_shape')
+                if original in shapes and current in shapes:
+                    failures[-1]['focus_identity_observation'].update(original_hint_shape=original, current_hint_shape=current)
+        self.save()
+
+    def instrument(self, op, **extras):
+        output, result = '', {}
+        try:
+            # Select each fixed physical policy before dispatch; never retry a semantic failure.
+            if 'input_mode' in extras:
+                raise Blocked('fixed_native_input_mode_required')
+            if op in {'account-click', 'account-set'}:
+                extras = dict(extras, input_mode=ACCOUNT_CLICK_FOCUS_MODE)
+            elif op == 'account-scroll':
+                extras = dict(extras, input_mode=ACCOUNT_SCROLL_MODE)
+            args = ['shell', 'am', 'instrument', '-w', '-e', 'op', op]
+            for key, value in extras.items():
+                args.extend(['-e', key, str(value)])
+            output = self.adb(*args, HELPER, timeout=45)
+            for line in output.splitlines():
+                if line.startswith('INSTRUMENTATION_RESULT: '):
+                    key, _, value = line.removeprefix('INSTRUMENTATION_RESULT: ').partition('=')
+                    if key in result:
+                        raise Blocked('ambiguous_native_input_receipt')
+                    result[key] = value
+            if result.get('passed') != 'true' or result.get('op') != op or not re.search(
+                    r'^INSTRUMENTATION_CODE: -1\s*$', output, re.M):
+                raise Blocked('native_input_not_delivered')
+            return result
+        except Exception as error:
+            if self._active_case not in C1_CASES:
+                reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
+                    else 'native_instrumentation_unobserved'
+                self.c4_prepare_input_failure(op, result, output, reason)
+                raise
+            reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
+                else 'native_instrumentation_unobserved'
+            self.input_failure(op, result, output, reason)
+            if isinstance(error, Blocked) or (not self.authenticated and self._auth_phase in AUTH_PHASES):
+                raise Blocked(reason) from None
+            raise
+
+    def nodes(self):
+        result = self.instrument('account-snapshot')
+        try:
+            rows = json.loads(base64.b64decode(result['tree_b64'], validate=True))
+        except (ValueError, KeyError, TypeError):
+            raise Blocked('fresh_native_tree_unavailable') from None
+        if not isinstance(rows, list) or len(rows) > 1200:
+            raise Blocked('native_tree_shape_invalid')
+        visible = [r for r in rows if r.get('package') == APP and r.get('visible')]
+        if self.recorder is not None and any(label in labels(r) for r in visible for label in AUTH_LABELS):
+            self.record_tainted = True
+            raise Blocked('authentication_transition_during_recording')
+        return visible
+
+    def matching(self, rows, label):
+        return [r for r in rows if label in labels(r) and r.get('enabled')]
+
+    def has(self, label):
+        return bool(self.matching(self.nodes(), label))
+
+    def wait(self, label, seconds=45):
+        if label == 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.':
+            return self.wait_account_draft_saved(seconds=seconds)
+        if label == 'صف العقار': self.c4_prepare_observation_stage('WAIT_BRIEF')
+        elif label == 'استخدام البيانات والمتابعة': self.c4_prepare_observation_stage('WAIT_AI_RESPONSE')
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if self.has(label):
+                return
+            time.sleep(.6)
+        raise Blocked('expected_native_state_not_observed')
+
+    def wait_account_draft_saved(self, seconds=120):
+        # Explicit Save is delivered once. Observe the persistent server/photo
+        # status as well as the brief toast; never repeat the write or capture
+        # the rent/contact page. Reopen/media verification remains separate.
+        requested = getattr(self, '_account_save_action_delivered', False)
+        self._account_save_action_delivered = False
+        if (requested is not True or self.authenticated is not True
+                or self.recorder is not None or type(seconds) is not int or not 1 <= seconds <= 120):
+            raise Blocked('expected_native_state_not_observed')
+        proof = {'save_action_delivered': True, 'toast_seen': False,
+                 'saved_banner_seen': False, 'saving_seen': False,
+                 'failure_seen': False, 'observations': 0, 'confirmed': False}
+        self.report.setdefault('account_draft_save_confirmations', []).append(proof)
+        deadline, consecutive = time.monotonic() + seconds, 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            seen = {value for row in rows for value in labels(row)}
+            toast = 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' in seen
+            saved = 'حُفظ تقدمك وصورك على حسابك' in seen
+            saving = 'جارٍ حفظ تقدمك على حسابك…' in seen
+            failed = any(value.startswith(('تعذر الحفظ على الحساب.',
+                'تعذر حفظ نسخة الجهاز.', 'تغيرت المسودة على جهاز آخر.',
+                'لم يكتمل الحفظ على الحساب.', 'تغيّر الحساب.')) for value in seen)
+            proof['observations'] += 1
+            for name, value in [('toast_seen', toast), ('saved_banner_seen', saved),
+                                ('saving_seen', saving), ('failure_seen', failed)]:
+                proof[name] = proof[name] or value
+            ready = (toast or saved) and not saving and not failed and \
+                'حفظ مسودة' not in seen and bool(self.matching(rows, 'خيارات المسودة'))
+            consecutive = consecutive + 1 if ready else 0
+            if consecutive >= 2:
+                proof['confirmed'] = True
+                self.save()
+                return
+            if failed:
+                break
+            time.sleep(.6)
+        self.save()
+        raise Blocked('expected_native_state_not_observed')
+
+    def wait_c1_final_actions(self, seconds=45):
+        # Step4 may contain contact fields: observations stay in RAM and only
+        # fixed failure facts leave this wait. Recording must already be off.
+        if (self._active_case != 'C1-photo-save' or self.authenticated is not True
+                or self.recorder is not None or type(seconds) is not int or not 1 <= seconds <= 45):
+            raise Blocked('post_photo_next_nonimage_scope_required')
+        known_validation = {
+            'أدخل عدد الأدوار من 1 إلى 50.': 'FLOOR_COUNT_REQUIRED',
+            'أدخل عدد الوحدات في كل دور من 1 إلى 100.': 'UNITS_PER_FLOOR_REQUIRED',
+            'أدخل عدد فتحات المحل من 1 إلى 100.': 'SHOP_OPENINGS_REQUIRED',
+            'أدخل مساحة صحيحة أكبر من صفر.': 'AREA_REQUIRED',
+            'أضف صورًا حقيقية للعقار قبل المتابعة.': 'PHOTO_REQUIRED',
+            'أكمل عدد الأشهر للشرط المحدد (من 1 إلى 24).': 'RENTAL_CONDITION_MONTHS',
+            'اكتب الشرط الخاص أو احذفه.': 'RENTAL_SPECIAL_CONDITION',
+            'أشهر المقدم لا يمكن أن تتجاوز مدة العقد المحددة.': 'RENTAL_ADVANCE_EXCEEDS_TERM',
+            'أدخل رقم الوحدة أو موضعها لتمييزها عن غيرها.': 'UNIT_REQUIRED',
+            'أدخل رقم الدور.': 'FLOOR_REQUIRED',
+            'اختر دورًا من الأرضي إلى السابع.': 'FLOOR_OPTION_REQUIRED',
+            'أدخل عدد غرف النوم.': 'BEDROOMS_REQUIRED',
+            'أدخل عدد الحمامات.': 'BATHROOMS_REQUIRED',
+            'حدد هل يوجد موقف سيارة.': 'PARKING_REQUIRED',
+            'اختر واجهة البناء.': 'FACADE_REQUIRED',
+        }
+        flags = {
+            'step3_observed': '3/4', 'step4_observed': '4/4',
+            'specifications_heading_observed': 'المواصفات',
+            'rent_contact_heading_observed': 'الإيجار والتواصل',
+            'draft_options_control_observed': 'خيارات المسودة',
+            'completed_review_navigation_observed': 'العودة إلى النواقص',
+        }
+        observation = dict.fromkeys(flags, False)
+        observation.update(observations=0, draft_options_control_enabled=False, known_validation_code='UNOBSERVED')
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            visible_labels = set().union(*(labels(row) for row in rows)) if rows else set()
+            observation.update({key: value in visible_labels for key, value in flags.items()})
+            observation['observations'] = min(90, observation['observations'] + 1)
+            observation['draft_options_control_enabled'] = bool(self.matching(rows, 'خيارات المسودة'))
+            validations = {code for text, code in known_validation.items() if text in visible_labels}
+            observation['known_validation_code'] = (next(iter(validations)) if len(validations) == 1
+                else 'MULTIPLE' if validations else 'NONE')
+            if observation['draft_options_control_enabled']:
+                return
+            time.sleep(max(0, min(.6, deadline - time.monotonic())))
+        self.report['c1_post_next_failure'] = observation
+        self.save()
+        raise Blocked('expected_native_state_not_observed')
+
+    def require_c1_monthly_rent_blank(self, point):
+        expected_case = {'before_save': 'C1-photo-save', 'after_reopen': 'C1-force-stop-restore'}
+        if (type(point) is not str or point not in expected_case or self._active_case != expected_case[point]
+                or self.authenticated is not True or self.recorder is not None):
+            raise Blocked('c1_monthly_rent_readback_scope_required')
+        row = self.field('الإيجار الشهري بالريال اليمني *', seek=False)
+        if (type(row) is not dict or row.get('package') != APP or row.get('visible') is not True
+                or row.get('enabled') is not True or row.get('editable') is not True
+                or type(row.get('text')) is not str or row['text'] != ''):
+            raise Blocked('c1_monthly_rent_not_exactly_blank')
+        self.report.setdefault('c1_monthly_rent_blank_checks', {})[point] = True
+        self.save()
+
+    def act(self, kind, row, value=None, direction='forward', scroll_step=None):
+        extra = {'node_path': row['path'], 'node_witness': row['witness']}
+        if scroll_step is not None and (kind != 'scroll' or scroll_step != 'short'):
+            raise Blocked('fixed_native_scroll_step_required')
+        if kind == 'set':
+            extra['value_b64'] = base64.b64encode(value.encode()).decode()
+        if kind == 'scroll':
+            extra['direction'] = direction
+            if scroll_step is not None:
+                extra['scroll_step'] = scroll_step
+        result = self.instrument('account-' + kind, **extra)
+        receipt = account_delivery(result, kind)
+        if self.authenticated:
+            self.report['actions'].append({'kind': kind, 'witness': row['witness'],
+                                           'authenticated': True, **receipt})
+        else:
+            # Even a UI witness hash can fingerprint a low-entropy phone field.
+            # Authentication receipts retain only a count, never node hashes.
+            self.report['auth_input_operations_delivered'] = self.report.get('auth_input_operations_delivered', 0) + 1
+        self.save()
+        time.sleep(.25)
+
+    def scroll(self, direction='forward', *, short=False):
+        deadline = time.monotonic() + 3
+        while True:
+            rows = [r for r in self.nodes() if r.get('scrollable') and r.get('enabled')]
+            if rows:
+                break
+            if time.monotonic() >= deadline:
+                raise Blocked('scrollable_native_container_missing')
+            # Missing semantics authorize observations, never a guessed swipe.
+            time.sleep(max(0, min(.25, deadline-time.monotonic())))
+        def area(r):
+            a, b, c, d = r['bounds']
+            return (c - a) * (d - b)
+        if short:
+            self.act('scroll', max(rows, key=area), direction=direction, scroll_step='short')
+        else:
+            self.act('scroll', max(rows, key=area), direction=direction)
+
+    def c4_ai_field_scope(self, label):
+        state = self.report.get('local_c4_executor')
+        metrics = getattr(self, 'admission_metrics', {})
+        return (label in {'عنوان الإعلان', 'نص الإعلان'} and type(state) is dict
+                and state.get('inflight') in {'prepare_request', 'edit_reviewed_title'}
+                and state.get('uncertain') is False and self._active_case not in C1_CASES
+                and self.authenticated is True and self.recorder is None
+                and not getattr(self, '_host_stop_unconfirmed', False)
+                and (type(metrics) is not dict or metrics.get('state') != 'uncertain'))
+
+    def c4_ai_field_in_rows(self, rows, label):
+        visible = [r for r in rows if r.get('package') == APP and r.get('visible') is True
+                   and r.get('enabled') is True]
+        headers = [r for r in self.matching(visible, label) if r.get('editable') is not True]
+        if not headers:
+            return None
+        if len(headers) != 1:
+            raise Blocked('unique_native_field_label_missing')
+
+        def bounds(row):
+            value = row.get('bounds')
+            if (type(value) is not list or len(value) != 4 or any(type(v) is not int for v in value)
+                    or value[2] <= value[0] or value[3] <= value[1]):
+                raise Blocked('unique_labelled_native_field_missing')
+            return value
+
+        a, b, c, d = bounds(headers[0])
+        limit = None
+        if label == 'عنوان الإعلان':
+            # Product source places the next copy heading after the title
+            # editor. Keep that next section out of the title's candidates.
+            following = [r for r in self.matching(visible, 'نص الإعلان') if r.get('editable') is not True]
+            if len(following) > 1:
+                raise Blocked('unique_native_field_label_missing')
+            if following:
+                limit = bounds(following[0])[1]
+                if limit < d:
+                    raise Blocked('unique_labelled_native_field_missing')
+        candidates = []
+        for row in visible:
+            if row.get('editable') is not True:
+                continue
+            left, top, right, bottom = bounds(row)
+            if top >= d and min(c, right) > max(a, left) and (limit is None or bottom <= limit):
+                candidates.append(row)
+        if len(candidates) > 1:
+            raise Blocked('unique_labelled_native_field_missing')
+        return candidates[0] if candidates else None
+
+    def seek(self, label, attempts=12):
+        photo = label == 'صور الإعلان (1/12)'
+        observation = None
+        if photo:
+            observation = {'heading_seen':False,'complete_seen':False,'together_observed':False,
+                           'observations':0,'short_scrolls':0,'short_scrolls_completed':0,'normal_scrolls':0}
+            self.report['one_photo_seek_observation'] = observation
+        directions = ('backward', 'forward') if (label == 'جهّز الإعلان بالصوت أو المساعد'
+            and self.c4_prepare_observation_scope()) else ('forward', 'backward')
+        for direction in directions:
+            for _ in range(attempts):
+                rows = self.nodes()
+                matched = self.matching(rows, label)
+                complete = self.matching(rows, 'مكتمل') if photo else []
+                if photo:
+                    observation['observations'] += 1
+                    observation['heading_seen'] |= bool(matched)
+                    observation['complete_seen'] |= bool(complete)
+                    observation['together_observed'] = bool(matched and complete)
+                    self.save()
+                if self.c4_ai_field_scope(label):
+                    if self.c4_ai_field_in_rows(rows, label) is not None:
+                        return rows, matched
+                    self.scroll(direction)
+                    continue
+                # The one-photo heading can enter the viewport before its
+                # lower status. Reveal that exact completion status for callers.
+                if matched and (not photo or complete):
+                    return rows, matched
+                if photo and (matched or complete):
+                    # A full-height fling can skip the interval where this
+                    # heading and its lower status are visible together.
+                    observation['short_scrolls'] += 1
+                    self.scroll('forward' if matched else 'backward', short=True)
+                    observation['short_scrolls_completed'] += 1
+                else:
+                    if photo: observation['normal_scrolls'] += 1
+                    self.scroll(direction)
+        if (photo and self._active_case == 'C1-force-stop-restore' and self.authenticated
+                and self.recorder is not None):
+            # A refused restore remains refused. Retain only an independently
+            # privacy-checked safe editor PNG to diagnose its last viewport.
+            try:
+                self.safe_capture('C1-photo-seek-diagnostic')
+                observation['diagnostic_png_exported'] = True
+            except Exception:
+                observation['diagnostic_png_exported'] = False
+            self.save()
+        raise Blocked('named_native_control_not_found')
+
+    def wait_account_logout_control(self, seconds=30):
+        if self.recorder is not None:
+            raise Blocked('logout_recording_must_be_stopped')
+        deadline = time.monotonic() + seconds
+        account_observed, scrolls = False, 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            if any(label in labels(row) for row in rows for label in AUTH_LABELS):
+                raise Blocked('native_account_logout_context_changed')
+            if self.matching(rows, 'تسجيل الخروج'):
+                return
+            account_observed = account_observed or all(self.matching(rows, label)
+                for label in ('الأمان والخصوصية', 'الملف الشخصي'))
+            if account_observed and all(self.matching(rows, label)
+                    for label in ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…')):
+                raise Blocked('native_account_logout_context_changed')
+            # First observe the real Account route. Then use at most four
+            # ordinary semantic-container scrolls to its offscreen logout.
+            # No private rows, paths or witnesses are retained in the report.
+            if account_observed and scrolls < 4 and any(
+                    row.get('scrollable') and row.get('enabled') for row in rows):
+                self.scroll('forward')
+                scrolls += 1
+            time.sleep(max(0, min(.4, deadline-time.monotonic())))
+        raise Blocked('native_logout_control_not_observed')
+
+    def tap(self, label, seek=True):
+        if label == 'حفظ مسودة':
+            self._account_save_action_delivered = False
+        if label == 'تسجيل الخروج' and seek:
+            self.wait_account_logout_control()
+            seek = False
+        rows = self.nodes()
+        matched = self.matching(rows, label)
+        if not matched and seek:
+            rows, matched = self.seek(label)
+        if not matched:
+            raise Blocked('named_native_control_not_found')
+        candidates = [r for r in matched if r.get('clickable')]
+        if not candidates:
+            for item in matched:
+                ancestors = [r for r in rows if r.get('clickable') and
+                             item['path'].startswith(r['path'] + '.')]
+                if ancestors:
+                    candidates.append(max(ancestors, key=lambda r: len(r['path'])))
+        if not candidates:
+            # Original template Buttons can lack accessibility ACTION_CLICK.
+            # The helper still revalidates this named node/witness and injects
+            # a bounded physical tap; never fall back to an unnamed View.
+            candidates = [r for r in matched if r.get('class') == 'android.widget.Button']
+            if len(candidates) > 1:
+                raise Blocked('ambiguous_native_pointer_target')
+        unique = {r['path']: r for r in candidates}
+        if not unique:
+            raise Blocked('semantic_native_click_unavailable')
+        # Smaller actionable semantic bounds distinguish raised Add from an account row.
+        row = min(unique.values(), key=lambda r: (r['bounds'][2] - r['bounds'][0]) *
+                                                 (r['bounds'][3] - r['bounds'][1]))
+        self.act('click', row)
+        if label == 'حفظ مسودة' and self.authenticated is True:
+            self._account_save_action_delivered = True
+
+    def field(self, label, seek=True):
+        rows = self.nodes()
+        if self.c4_ai_field_scope(label):
+            candidate = self.c4_ai_field_in_rows(rows, label)
+            if candidate is None and seek:
+                rows, _ = self.seek(label)
+                candidate = self.c4_ai_field_in_rows(rows, label)
+            if candidate is None:
+                raise Blocked('unique_labelled_native_field_missing')
+            return candidate
+        matched = self.matching(rows, label)
+        if not matched and seek:
+            rows, matched = self.seek(label)
+        direct = [r for r in matched if r.get('editable')]
+        if len(direct) == 1:
+            return direct[0]
+        if len(matched) != 1:
+            raise Blocked('unique_native_field_label_missing')
+        # Some Flutter versions expose a separate label immediately above the editor.
+        label_row = matched[0]
+        a, b, c, d = label_row['bounds']
+        near = [r for r in rows if r.get('editable') and r.get('enabled') and
+                abs(r['bounds'][1] - b) <= 150 and
+                min(c, r['bounds'][2]) > max(a, r['bounds'][0])]
+        if len(near) != 1:
+            raise Blocked('unique_labelled_native_field_missing')
+        return near[0]
+
+    def set(self, label, value):
+        if label == 'صف العقار': self.c4_prepare_observation_stage('BRIEF_SET')
+        self.act('set', self.field(label), value=value)
+        # This exact prepare footer remains above the IME and unfocuses in its
+        # own request handler; the frozen caller next taps that named control.
+        if not (label == 'صف العقار' and self.c4_prepare_observation_scope()):
+            self.adb('shell', 'input', 'keyevent', '4')  # dismiss IME only after focused set
+
+    def require_value(self, label, expected):
+        if expected not in labels(self.field(label)):
+            raise Blocked('restored_native_field_value_mismatch')
+
+    def safe_capture(self, name):
+        if not self.authenticated or not re.fullmatch(r'C1-[a-z0-9-]+', name):
+            raise Blocked('authentication_capture_refused')
+        rows = self.nodes()
+        home_capture = name in {'C1-before-add-home', 'C1-restore-before-add-home'}
+        if home_capture and not self.broker_home_ready(rows):
+            raise Blocked('safe_broker_home_not_observed')
+        visible = '\n'.join('\n'.join(labels(r)) for r in rows)
+        if any(label in labels(r) for r in rows for label in AUTH_LABELS) or any(
+                secret and secret in visible for secret in self.private_values):
+            raise Blocked('private_native_capture_refused')
+        data = self.adb('exec-out', 'screencap', '-p', binary=True)
+        if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+            raise Blocked('native_frame_invalid')
+        name += '.png'
+        (self.out / name).write_bytes(data)
+        receipt = {'file': name, 'sha256': hashlib.sha256(data).hexdigest(),
+                   'bytes': len(data), 'authenticated_editor_only': not home_capture}
+        if home_capture:
+            receipt['capture_scope'] = 'authenticated_broker_marketplace_before_add'
+        self.report['frames'].append(receipt)
+        self.save()
+
+    def record_start(self, name):
+        self.safe_capture(name + '-start')
+        if self.recorder is not None:
+            raise Blocked('recorder_already_active')
+        self.video_name = name
+        self.record_tainted = False
+        self.recorder = subprocess.Popen(['adb', '-s', self.serial, 'shell', 'screenrecord',
+            '--bit-rate', '2000000', '--time-limit', '180', '/sdcard/phase1-account.mp4'],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def record_stop(self, export=False):
+        if self.recorder is None:
+            return
+        recorder, self.recorder = self.recorder, None
+        try:
+            self.adb('shell', 'pkill', '-2', 'screenrecord', codes=(0, 1))
+            recorder.wait(timeout=15)
+            if export:
+                if self.record_tainted:
+                    raise Blocked('tainted_native_video_discarded')
+                self.safe_capture(self.video_name + '-end')
+                data = self.adb('exec-out', 'cat', '/sdcard/phase1-account.mp4', binary=True)
+                if len(data) < 1024 or data[4:8] != b'ftyp':
+                    raise Blocked('native_video_invalid')
+                name = self.video_name + '.mp4'
+                (self.out / name).write_bytes(data)
+                self.report['videos'].append({'file': name, 'bytes': len(data),
+                                              'sha256': hashlib.sha256(data).hexdigest(),
+                                              'authentication_frames': False})
+        finally:
+            if recorder.poll() is None:
+                recorder.kill()
+            self.adb('shell', 'rm', '-f', '/sdcard/phase1-account.mp4', codes=(0, 1))
+        self.save()
+
+    def require_preauth_runtime(self):
+        # Fresh framework observations only; no app storage, UID, or credentials.
+        for key, wanted in [('sys.boot_completed', '1'), ('sys.user.0.ce_available', 'true')]:
+            if self.adb('shell', 'getprop', key, timeout=10) != wanted:
+                raise Blocked('native_boot_CE_not_ready')
+        if self.adb('shell', 'service', 'check', 'package', timeout=10) != 'Service package: found':
+            raise Blocked('native_package_service_not_ready')
+        pids = self.adb('shell', 'pidof', 'system_server', timeout=10).split()
+        if not pids or len(pids) > 16 or len(set(pids)) != len(pids) or any(
+                not re.fullmatch(r'[1-9][0-9]*', pid) for pid in pids):
+            raise Blocked('native_system_server_not_ready')
+
+    def require_fresh_package_absent(self, package):
+        if package not in {APP, 'com.aqer.phase1.input'}:
+            raise Blocked('fixed_native_package_required')
+        try:
+            result = subprocess.run(['adb', '-s', self.serial, 'shell', 'pm', 'path', package],
+                                    capture_output=True, timeout=20)
+        except (subprocess.TimeoutExpired, OSError):
+            raise Blocked('fresh_package_state_unobserved') from None
+        # ABSENT is an exact successful observation of pm's missing-package result.
+        # Error output, an empty success, and transport failures are UNOBSERVED.
+        if result.returncode == 1 and result.stdout == b'' and result.stderr == b'':
+            self.require_preauth_runtime()
+            return
+        if result.returncode == 0 and result.stdout.startswith(b'package:') and result.stderr == b'':
+            raise Blocked('fresh_native_install_required')
+        raise Blocked('fresh_package_state_unobserved')
+
+    def validate_and_install(self):
+        proof = json.loads((self.private / 'APK_VERIFICATION.json').read_text())
+        if proof['source_commit'] != self.env['GITHUB_SHA'] or proof['package'] != APP:
+            raise Blocked('verified_apk_source_mismatch')
+        apk, helper = self.private / 'target.apk', self.private / 'input.apk'
+        if hashlib.sha256(apk.read_bytes()).hexdigest() != proof['sha256'] or \
+                hashlib.sha256(helper.read_bytes()).hexdigest() != proof['input_driver']['sha256']:
+            raise Blocked('verified_apk_bytes_mismatch')
+        output = self.command(['adb', 'devices'])
+        devices = re.findall(r'^(emulator-[0-9]+)\s+device\s*$', output, re.M)
+        if len(devices) != 1:
+            raise Blocked('one_fresh_emulator_required')
+        self.serial = devices[0]
+        for key, wanted in [('ro.boot.qemu', '1'), ('ro.build.version.sdk', '36')]:
+            if self.adb('shell', 'getprop', key) != wanted:
+                raise Blocked('disposable_booted_api36_required')
+        if 'KVM' not in self.command([Path(self.env['ANDROID_HOME']) / 'emulator/emulator', '-accel-check']):
+            raise Blocked('kvm_required')
+        if self.adb('reverse', '--list') or API.split('/')[2] in self.adb('shell', 'cat', '/etc/hosts'):
+            raise Blocked('unaltered_uat_network_required')
+        self.require_preauth_runtime()
+        for package in (APP, 'com.aqer.phase1.input'):
+            self.require_fresh_package_absent(package)
+        self.require_preauth_runtime()
+        self.adb('install', '--no-streaming', apk, timeout=180)
+        self.require_preauth_runtime()
+        self.adb('install', '--no-streaming', '-t', helper, timeout=90)
+        self.report.update(version_code=proof['version_code'], apk_sha256=proof['sha256'],
+                           android_api=36, acceleration='KVM', network_modified=False)
+        self.save()
+
+    def startup_public_binding(self, rows, names):
+        visible = [row for row in rows if row.get('package') == APP and row.get('visible') is True]
+        binding = []
+        for name in names:
+            matches = self.matching(visible, name)
+            leaves = [row for row in matches if not any(
+                other['path'].startswith(row['path'] + '.') for other in matches)]
+            if len(leaves) != 1:
+                return None
+            row = leaves[0]
+            path, witness, bounds = row.get('path'), row.get('witness'), row.get('bounds')
+            if not (isinstance(path, str) and re.fullmatch(r'0(?:\.[0-9]{1,4}){0,40}', path)
+                    and isinstance(witness, str) and re.fullmatch(r'[a-f0-9]{64}', witness)
+                    and isinstance(bounds, list) and len(bounds) == 4
+                    and all(type(value) is int for value in bounds)
+                    and bounds[0] < bounds[2] and bounds[1] < bounds[3]):
+                return None
+            binding.append((name, path, witness, tuple(bounds)))
+        return tuple(binding)
+
+    def startup_home_binding(self, rows):
+        visible = [row for row in rows if row.get('package') == APP and row.get('visible') is True]
+        names = set().union(*(labels(row) for row in visible)) if visible else set()
+        forbidden = AUTH_LABELS | {'عقارات في منطقتك', 'تحديد موقعي', 'اختيار المحافظة يدويًا',
+            'المتابعة الآن', 'تسجيل الدخول أو إنشاء حساب', 'الملف الشخصي', 'تعديل الملف الشخصي',
+            'الأمان والخصوصية', 'تسجيل الخروج', 'رقم الاتصال *', 'رقم اتصال آخر (اختياري)',
+            'الإيجار والتواصل', 'السعر والتواصل'}
+        if names & forbidden:
+            return None
+        anchors = ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…')
+        for footer in (('العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'),
+                       ('الرئيسية', 'عملي', 'العملاء', 'حسابي')):
+            binding = self.startup_public_binding(visible, anchors + footer)
+            if binding is not None:
+                return binding
+        return None
+
+    def startup_continue_target(self, rows):
+        rows = [row for row in rows if row.get('package') == APP and row.get('visible') is True]
+        intro = self.startup_public_binding(rows, ('عقارات في منطقتك', 'تحديد موقعي',
+            'اختيار المحافظة يدويًا', 'المتابعة الآن'))
+        if intro is None or any(label in labels(row) for row in rows for label in AUTH_LABELS):
+            return None
+        matched = self.matching(rows, 'المتابعة الآن')
+        candidates = [row for row in matched if row.get('clickable')]
+        if not candidates:
+            for item in matched:
+                ancestors = [row for row in rows if row.get('clickable') and
+                             item['path'].startswith(row['path'] + '.')]
+                if ancestors:
+                    candidates.append(max(ancestors, key=lambda row: len(row['path'])))
+        if not candidates:
+            candidates = [row for row in matched if row.get('class') == 'android.widget.Button']
+            if len(candidates) > 1:
+                raise Blocked('ambiguous_native_pointer_target')
+        unique = {row['path']: row for row in candidates}
+        if not unique:
+            return None
+        row = min(unique.values(), key=lambda row: (row['bounds'][2] - row['bounds'][0]) *
+                                                   (row['bounds'][3] - row['bounds'][1]))
+        signature = (row['path'], row['witness'], tuple(row['bounds']), tuple(sorted(labels(row))), intro)
+        return row, signature
+
+    def startup(self):
+        self.adb('shell', 'am', 'start', '-W', '-n', ACTIVITY)
+        deadline = time.monotonic() + 60
+        signature, since, stable = None, None, 0
+        observations, resets, attempts, denials = 0, 0, 0, 0
+
+        def note(stage):
+            # Only fixed stage identifiers and bounded counts leave startup.
+            if self._active_case in C1_CASES:
+                self.report.setdefault('native_startup_diagnostics', {})[self._active_case] = {
+                    'stage': stage, 'observations': min(observations, 120),
+                    'stable_observations': min(stable, 120), 'stability_resets': min(resets, 120),
+                    'continue_attempts': attempts, 'permission_denials': min(denials, 120)}
+                self.save()
+
+        note('observing')
+        while time.monotonic() < deadline:
+            try:
+                rows = self.nodes()
+            except Blocked:
+                signature, since, stable = None, None, 0
+                resets += 1
+                note('permission_check')
+                # A fresh install may show the OS notification prompt. Deny only
+                # that observed permissioncontroller control; never grant access.
+                target = '/sdcard/phase1-startup-permission.xml'
+                self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
+                raw = self.adb('exec-out', 'cat', target)
+                self.adb('shell', 'rm', '-f', target)
+                try:
+                    os_rows = list(ET.fromstring(raw).iter('node'))
+                except ET.ParseError:
+                    raise Blocked('native_startup_not_ready') from None
+                deny = [n for n in os_rows if n.get('package') in
+                        {'com.google.android.permissioncontroller', 'com.android.permissioncontroller'}
+                        and n.get('resource-id', '').endswith(':id/permission_deny_button')]
+                if len(deny) != 1:
+                    raise Blocked('native_startup_window_unexpected')
+                match = re.fullmatch(r'\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]', deny[0].get('bounds', ''))
+                if not match:
+                    raise Blocked('native_permission_bounds_invalid')
+                a, b, c, d = map(int, match.groups())
+                denials += 1
+                note('permission_deny')
+                self.adb('shell', 'input', 'tap', (a+c)//2, (b+d)//2)
+                continue
+            observations += 1
+            home = self.startup_home_binding(rows)
+            selected = self.startup_continue_target(rows) if not attempts and home is None else None
+            current = ('home', home) if home is not None else ('intro', selected[1]) if selected else None
+            now = time.monotonic()
+            if current is None:
+                if signature is not None:
+                    resets += 1
+                signature, since, stable = None, None, 0
+            elif current != signature:
+                if signature is not None:
+                    resets += 1
+                signature, since, stable = current, now, 1
+            else:
+                stable += 1
+            note('home_wait' if attempts or home is not None else 'continue_stable_wait')
+            if current is not None and stable >= 3 and now - since >= 2:
+                if time.monotonic() >= deadline:
+                    break
+                if home is not None:
+                    note('home_ready')
+                    return
+                # One original observed lease, with no fresh tap/reselection.
+                lease = {'path': selected[0]['path'], 'witness': selected[0]['witness']}
+                attempts = 1
+                note('continue_dispatch')
+                self.act('click', lease)
+                signature, since, stable = None, None, 0
+                note('home_wait')
+            time.sleep(.5)
+        note('not_ready')
+        raise Blocked('native_startup_not_ready')
+
+    def login(self):
+        self.case_phase('C1-auth')
+        try:
+            self.auth_phase('account_open')
+            self.tap('حسابي')
+            self.auth_phase('login_open')
+            self.tap('تسجيل الدخول أو إنشاء حساب')
+            self.wait('مرحبًا بعودتك')
+            self.auth_phase('phone_entry')
+            self.set('رقم واتساب', self.access['phones']['broker'])
+            self.auth_phase('code_request')
+            self.tap('إرسال رمز واتساب')
+            self.wait('تأكيد والدخول', seconds=60)
+            self.auth_phase('otp_entry')
+            self.set('رمز التحقق', self.access['otp'])
+            self.auth_phase('confirm')
+            self.auth_attempted = True
+            self.report['native_auth_attempted'] = True
+            self.tap('تأكيد والدخول')
+            self.auth_phase('postcondition')
+            evidence = self.authenticated_account_evidence()
+            self.authenticated = True
+            self.report['native_auth_executed'] = True
+            self.mark('C1-auth', 'PASS', normal_whatsapp_ui=True, secret_capture=False, **evidence)
+        finally:
+            self._auth_phase = None
+
+    def authenticated_account_evidence(self, seconds=90):
+        bootstrap = self.report.get('api_bootstrap') or {}
+        identity = bootstrap.get('identity') or {}
+        api_pinned = (bootstrap.get('status') == 'PASS' and bootstrap.get('fresh_session_cleaned') is True
+                      and identity.get('actor_id') == 28 and identity.get('account_type') == 'broker')
+        deadline = time.monotonic() + seconds
+        profile_opened = False
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            if any(label in labels(r) for r in rows for label in AUTH_LABELS):
+                time.sleep(.7)
+                continue
+            if self.matching(rows, 'عملي') and self.matching(rows, 'العملاء'):
+                return {'native_auth_witness': 'broker_footer', 'broker_role_ui_witness': True,
+                        'broker_role_api_pinned': api_pinned}
+            profile_role = bool(self.matching(rows, 'نوع الحساب: دلال'))
+            professional_controls = any(self.matching(rows, label) for label in ['إدارة العملاء', 'عقاراتي'])
+            if self.matching(rows, 'تسجيل الخروج') and (profile_role or api_pinned):
+                return {'native_auth_witness': 'authenticated_profile_logout_control',
+                        'broker_role_ui_witness': profile_role, 'broker_role_api_pinned': api_pinned,
+                        'professional_controls_visible': professional_controls}
+            if self.matching(rows, 'حسابي') and not profile_opened:
+                self.tap('حسابي')
+                profile_opened = True
+            elif profile_opened:
+                try:
+                    self.seek('تسجيل الخروج', attempts=2)
+                except Blocked:
+                    pass
+            time.sleep(.7)
+        raise Blocked('native_broker_auth_not_observed')
+
+    def public_network_readiness(self):
+        # Fresh install, default networking, and a real published UAT card are
+        # prerequisites only; previous guest-search acceptance is not repeated.
+        references = read_public_reference()
+        deadline = time.monotonic() + 60
+        scrolls = 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            matches = [reference for reference in references if self.matching(rows, reference['title'])]
+            if matches:
+                self.mark('C1-native-network', 'PASS', real_published_card_observed=True,
+                          public_reference_count=len(references), public_reference_sha256=digest(references),
+                          visible_match_count=len(matches), visible_match_sha256=digest(matches),
+                          default_network=True, host_reference_is_not_native_network_trace=True,
+                          acceptance_scope='prerequisite only')
+                return
+            if scrolls < 4:
+                try:
+                    self.scroll()
+                    scrolls += 1
+                except Blocked:
+                    pass
+            time.sleep(1)
+        raise Blocked('native_public_uat_response_not_observed')
+
+    def bootstrap_fixture(self):
+        self.require_preauth_runtime()
+        self.fixture_api = FixtureApi(self.access['phones']['broker'], self.access['otp'],
+                                      self.env['GITHUB_RUN_ID'])
+        try:
+            self.fixture_api.bootstrap()
+        finally:
+            if self.fixture_api.state:
+                state = self.fixture_api.state
+                self.fixture_possible = bool(state.get('creation_request_sent'))
+                self.report['fixture_key'] = state.get('key')
+                self.report['fixture_tag'] = state.get('tag')
+            self.report['api_bootstrap'] = self.fixture_api.last_receipt
+            self.save()
+        state = self.fixture_api.state
+        self.bootstrap_title = state['title']
+        self.title = 'اختبار استعادة المسودة ' + state['tag']
+        self.report['fixture_title'] = self.title
+        self.mark('C1-api-empty-fixture', 'PASS', native_creation_claim=False,
+                  bootstrap_fields=['synthetic_title_label_only'],
+                  property_created=False, photos_uploaded=False,
+                  facts_entered=False, api_session_logged_out=True)
+
+    def basic_editor_context(self, rows):
+        excluded = {'رقم الاتصال *', 'رقم اتصال آخر', 'رقم اتصال آخر (اختياري)',
+                    'الإيجار والتواصل', 'السعر والتواصل', 'لديك إعلان غير مكتمل', 'مسوداتي'}
+        return (bool(self.matching(rows, 'إضافة عقار')) and bool(self.matching(rows, '1/4'))
+                and not any(label in labels(row) for row in rows for label in excluded | AUTH_LABELS))
+
+    def basic_editor_loaded(self, rows):
+        return self.basic_editor_context(rows) and all(self.matching(rows, label) for label in
+            ('نوع الإعلان والعقار', 'للبيع', 'للإيجار', 'شقة'))
+
+    def visible_editor_title(self, rows):
+        anchors = self.matching(rows, 'عنوان الإعلان *')
+        direct = [row for row in anchors if row.get('editable')]
+        if len(direct) > 1:
+            raise Blocked('native_owned_editor_title_ambiguous')
+        if direct:
+            return direct[0]
+        if len(anchors) == 1:
+            a, b, c, d = anchors[0]['bounds']
+            fields = [row for row in rows if row.get('editable') and row.get('enabled')
+                      and abs(row['bounds'][1] - b) <= 150
+                      and min(c, row['bounds'][2]) > max(a, row['bounds'][0])]
+            if len(fields) > 1:
+                raise Blocked('native_owned_editor_title_ambiguous')
+            if fields:
+                return fields[0]
+        return None
+
+    def capture_basic_editor(self, name, expected_title=None):
+        rows = self.nodes()
+        if name == 'C1-basic-editor':
+            ready = self.basic_editor_loaded(rows)
+        elif name == 'C1-owned-editor-title':
+            field = self.visible_editor_title(rows)
+            ready = (self.basic_editor_context(rows) and field is not None
+                     and field.get('text') == expected_title)
+        else:
+            raise Blocked('fixed_basic_editor_capture_required')
+        if not ready:
+            raise Blocked('safe_basic_editor_anchor_not_observed')
+        # The existing capture path takes another fresh private/auth guard.
+        # A basics frame is not a visible title or UUID identity claim.
+        self.safe_capture(name)
+
+    def return_to_basic_editor(self, deadline, *, expected_title, loaded_basics_observed):
+        for attempt in range(7):
+            if time.monotonic() >= deadline:
+                break
+            rows = self.nodes()
+            field = self.visible_editor_title(rows)
+            if field is not None and field.get('text') != expected_title:
+                raise Blocked('native_owned_editor_title_mismatch')
+            if self.basic_editor_loaded(rows):
+                return
+            if not self.basic_editor_context(rows):
+                raise Blocked('native_basic_editor_context_changed')
+            # The reviewed loaded-basics frame and exact title already bind
+            # this editor. Its section heading may now be above the viewport
+            # even though all next input targets and the owned title are visible.
+            # Avoid an unnecessary backward gesture in that observed state.
+            if loaded_basics_observed is True and field is not None and all(
+                    self.matching(rows, label) for label in ('للبيع', 'للإيجار', 'شقة')):
+                return
+            if attempt < 6:
+                self.journey_stage('editor_basics_return')
+                self.scroll('backward')
+        raise Blocked('native_basic_editor_purpose_not_observed')
+
+    def wait_stable_owned_title(self, expected_title, deadline):
+        # Read-only settling after one known scroll, never another UI action or
+        # capture retry. Missing semantics reset stability; a different title,
+        # private surface or a positively observed other step still refuses.
+        self.journey_stage('editor_title_settle')
+        until = min(deadline, time.monotonic() + 15)
+        signature, since, observations = None, None, 0
+        while time.monotonic() < until:
+            rows = self.nodes()
+            field = self.visible_editor_title(rows)
+            now = time.monotonic()
+            if field is not None and field.get('text') != expected_title:
+                raise Blocked('native_owned_editor_title_mismatch')
+            forbidden = AUTH_LABELS | {'رقم الاتصال *', 'رقم اتصال آخر',
+                'رقم اتصال آخر (اختياري)', 'الإيجار والتواصل', 'السعر والتواصل',
+                '2/4', '3/4', '4/4'}
+            if any(label in labels(row) for row in rows for label in forbidden):
+                raise Blocked('native_basic_editor_context_changed')
+            if not self.basic_editor_context(rows) or field is None:
+                signature, since, observations = None, None, 0
+            else:
+                bounds = field.get('bounds')
+                if not (type(bounds) is list and len(bounds) == 4
+                        and all(type(value) is int for value in bounds)):
+                    raise Blocked('safe_basic_editor_anchor_not_observed')
+                current = (field.get('path'), field.get('witness'), tuple(bounds))
+                if current != signature:
+                    signature, since, observations = current, now, 1
+                else:
+                    observations += 1
+                if observations >= 3 and now - since >= 1:
+                    return
+            time.sleep(max(0, min(.4, until - time.monotonic())))
+        raise Blocked('native_owned_editor_title_not_stable')
+
+    def wait_owned_title_editor(self, expected_title, seconds=60):
+        self.journey_stage('editor_wait')
+        deadline = time.monotonic() + seconds
+        basics_observed = False
+        # Before loaded basics or the exact visible title, observe only.
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            field = self.visible_editor_title(rows)
+            if field is not None:
+                if field.get('text') != expected_title:
+                    raise Blocked('native_owned_editor_title_mismatch')
+                if not self.basic_editor_context(rows):
+                    raise Blocked('native_basic_editor_context_changed')
+                break
+            if self.basic_editor_loaded(rows):
+                self.journey_stage('editor_basics_loaded')
+                basics_observed = True
+                break
+            time.sleep(.5)
+        else:
+            raise Blocked('native_owned_editor_title_not_observed')
+        for attempt in range(7):
+            if time.monotonic() >= deadline:
+                break
+            # rows is the exact visible-title/loaded scene just observed above.
+            field = self.visible_editor_title(rows)
+            if field is not None:
+                if field.get('text') != expected_title:
+                    raise Blocked('native_owned_editor_title_mismatch')
+                if not self.basic_editor_context(rows):
+                    raise Blocked('native_basic_editor_context_changed')
+                self.wait_stable_owned_title(expected_title, deadline)
+                self.return_to_basic_editor(deadline, expected_title=expected_title,
+                                            loaded_basics_observed=basics_observed)
+                self.report['initial_owned_editor_observation'] = {
+                    'bootstrap_title_matched': True, 'stable_title_field_observed': True,
+                    'pre_input_png_exported': False, 'acceptance_claimed': False}
+                self.journey_stage('editor_ready')
+                return
+            if not self.basic_editor_context(rows):
+                raise Blocked('native_basic_editor_context_changed')
+            if attempt < 6:
+                self.journey_stage('editor_title_seek')
+                self.scroll('forward')
+                rows = self.nodes()
+        raise Blocked('native_owned_editor_title_not_observed')
+
+    def broker_home_ready(self, rows):
+        required = ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…', 'الرئيسية', 'عملي', 'العملاء', 'حسابي')
+        excluded = {'رقم الاتصال *', 'رقم اتصال آخر', 'رقم اتصال آخر (اختياري)',
+                    'الإيجار والتواصل', 'السعر والتواصل'} | AUTH_LABELS
+        return (all(self.matching(rows, label) for label in required)
+                and not any(label in labels(row) for row in rows for label in excluded))
+
+    def initial_home_capture_name(self):
+        names = {'C1-photo-save': 'C1-before-add-home',
+                 'C1-force-stop-restore': 'C1-restore-before-add-home'}
+        if not self.authenticated or self._active_case not in names:
+            raise Blocked('initial_c1_add_scope_required')
+        return names[self._active_case]
+
+    def capture_initial_broker_home(self):
+        # Dedicated override hook for the future official-console capture adapter.
+        name = self.initial_home_capture_name()
+        if any(row.get('file') == name + '.png' for row in self.report['frames']) or (self.out / (name + '.png')).exists():
+            raise Blocked('initial_home_capture_already_exists')
+        self.safe_capture(name)
+
+    def ensure_initial_broker_home(self, seconds=45):
+        self.initial_home_capture_name()  # Scope guard before any observation/input.
+        self.journey_stage('home_wait')
+        deadline = time.monotonic() + seconds
+        opened = False
+        signature, since, observations = None, None, 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            if self.broker_home_ready(rows):
+                return
+            footer = all(self.matching(rows, label) for label in ('الرئيسية', 'عملي', 'العملاء', 'حسابي'))
+            auth = any(label in labels(row) for row in rows for label in AUTH_LABELS)
+            selected = self.initial_navigation_target(rows, 'الرئيسية') if footer and not auth and not opened else None
+            now = time.monotonic()
+            if selected is None:
+                signature, since, observations = None, None, 0
+            else:
+                row, current = selected
+                if current != signature:
+                    signature, since, observations = current, now, 1
+                else:
+                    observations += 1
+                if observations >= 3 and now - since >= 1:
+                    # Dispatch the exact target from this stable observation;
+                    # do not re-read/reselect it through tap(label).
+                    lease = {'path': row['path'], 'witness': row['witness']}
+                    self.journey_stage('home_dispatch')
+                    if time.monotonic() >= deadline:
+                        break
+                    opened = True
+                    self.act('click', lease)
+                    self.journey_stage('home_wait')
+            time.sleep(.5)
+        raise Blocked('native_broker_home_not_observed')
+
+    def initial_add_target(self, rows):
+        return self.initial_navigation_target(rows, 'إضافة عقار')
+
+    def initial_navigation_target(self, rows, label):
+        if label not in {'إضافة عقار', 'الرئيسية'}:
+            raise Blocked('fixed_initial_navigation_target_required')
+        matched = self.matching(rows, label)
+        candidates = [row for row in matched if row.get('clickable')]
+        if not candidates:
+            for item in matched:
+                ancestors = [row for row in rows if row.get('clickable') and item['path'].startswith(row['path'] + '.')]
+                if ancestors:
+                    candidates.append(max(ancestors, key=lambda row: len(row['path'])))
+        if not candidates:
+            candidates = [row for row in matched if row.get('class') == 'android.widget.Button']
+            if len(candidates) > 1:
+                raise Blocked('ambiguous_native_pointer_target')
+        unique = {row['path']: row for row in candidates}
+        if not unique:
+            return None
+        row = min(unique.values(), key=lambda row: (row['bounds'][2] - row['bounds'][0]) *
+                                                   (row['bounds'][3] - row['bounds'][1]))
+        named = [item for item in matched if item['path'] == row['path'] or item['path'].startswith(row['path'] + '.')]
+        signature = (row['path'], row['witness'], tuple(row['bounds']), tuple(sorted(labels(row))),
+                     tuple(sorted((item['path'], item['witness'], tuple(item['bounds']), tuple(sorted(labels(item)))) for item in named)))
+        return row, signature
+
+    def dispatch_stable_initial_add(self, seconds=20):
+        self.initial_home_capture_name()
+        self.journey_stage('add_stable_wait')
+        deadline = time.monotonic() + seconds
+        signature, since, observations = None, None, 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            selected = self.initial_add_target(rows) if self.broker_home_ready(rows) else None
+            now = time.monotonic()
+            if selected is None:
+                signature, since, observations = None, None, 0
+            else:
+                row, current = selected
+                if current != signature:
+                    signature, since, observations = current, now, 1
+                else:
+                    observations += 1
+                if observations >= 3 and now - since >= 2:
+                    # Construct one original expected node lease ONLY now.
+                    # No new observation/adoption occurs between this and act.
+                    lease = {'path': row['path'], 'witness': row['witness']}
+                    self.journey_stage('add_dispatch')
+                    if time.monotonic() >= deadline:
+                        break
+                    self.act('click', lease)
+                    return
+            time.sleep(1)
+        raise Blocked('native_named_add_not_stable')
+
+    def manual_entry(self, expected_title, title_editor_required=False):
+        if not self.fixture_api or not self.fixture_api.state or not expected_title or \
+                self.fixture_api.state['tag'] not in expected_title:
+            raise Blocked('known_new_fixture_required_before_native_entry')
+        self.journey_stage('manual_entry')
+        if self._active_case in {'C1-photo-save', 'C1-force-stop-restore'}:
+            self.ensure_initial_broker_home()
+            self.dispatch_stable_initial_add()
+        else:
+            # Other executor/Root-reviewed flows retain their original selection.
+            self.tap('إضافة عقار')
+        if self.has('تعبئة يدوي'):
+            self.tap('تعبئة يدوي')
+        elif self.has('تعبئة يدوية'):
+            self.tap('تعبئة يدوية')
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            if self.matching(rows, 'لديك إعلان غير مكتمل'):
+                # The default recovery candidate may be an old protected draft.
+                # Never continue it or start a new draft that retires it.
+                self.tap('مسوداتي')
+                self.wait('مسوداتي')
+                rows, matches = self.seek(expected_title)
+                if len(matches) != 1:
+                    raise Blocked('unique_owned_saved_fixture_not_observed')
+                self.journey_stage('selected_fixture')
+                self.tap(expected_title)
+                if title_editor_required:
+                    self.wait_owned_title_editor(expected_title)
+                return
+            time.sleep(.5)
+        raise Blocked('native_owned_saved_fixture_not_observed')
+
+    def photo_picker(self):
+        from PIL import Image, ImageDraw
+        path = self.private / self.photo_name
+        picture = Image.new('RGB', (800, 600), (32, 111, 113))
+        draw = ImageDraw.Draw(picture)
+        draw.rectangle((100, 90, 700, 510), outline=(255, 255, 255), width=12)
+        draw.text((180, 290), 'PHASE1 SYNTHETIC RECOVERY FIXTURE', fill=(255, 255, 255))
+        picture.save(path, 'JPEG', quality=85)
+        self.adb('push', path, '/sdcard/Download/' + self.photo_name)
+        self.adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+                 '-d', 'file:///sdcard/Download/' + self.photo_name)
+        self.journey_stage('photo_picker_open')
+        self.tap('إضافة صور')
+        # The OS picker is outside our self-targeted helper. Use fresh, observed nodes.
+        deadline = time.monotonic() + 45
+        selected, final_sent, app_returned = False, False, False
+        drawer_sent, downloads_sent = False, False
+        downloads_signature, downloads_stable_since = None, None
+        downloads_stable_observed = False
+        root_matches, download_matches, file_matches = 0, 0, 0
+        identity_keys = ('package', 'class', 'resource-id', 'text', 'content-desc',
+                         'bounds', 'enabled', 'clickable', 'focusable')
+
+        def identity(node):
+            return tuple(node.get(key) for key in identity_keys)
+
+        def pause(seconds):
+            time.sleep(max(0, min(seconds, deadline - time.monotonic())))
+
+        while time.monotonic() < deadline:
+            target = '/sdcard/phase1-os-picker.xml'
+            self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
+            raw = self.adb('exec-out', 'cat', target)
+            try:
+                rows = list(ET.fromstring(raw).iter('node'))
+            except ET.ParseError:
+                raise Blocked('fresh_os_picker_tree_unavailable') from None
+            self.adb('shell', 'rm', '-f', target)
+            observed_at = time.monotonic()
+            if observed_at >= deadline:
+                break
+            candidates = [n for n in rows if n.get('package') in
+                          {'com.google.android.documentsui', 'com.android.documentsui',
+                           'com.google.android.providers.media.module', 'com.android.providers.media.module'}]
+            app_rows = [n for n in rows if n.get('package') == APP]
+            app_labels = {s.strip() for n in app_rows for key in ('text', 'content-desc')
+                          for s in n.get(key, '').splitlines() if s.strip()}
+            private_labels = AUTH_LABELS | {'تسجيل الدخول أو إنشاء حساب', 'رقم الاتصال *',
+                'رقم اتصال آخر', 'رقم اتصال آخر (اختياري)', 'الإيجار والتواصل',
+                'السعر والتواصل', 'الملف الشخصي', 'الأمان والخصوصية', 'تسجيل الخروج'}
+            if app_labels & private_labels or any(value and value in '\n'.join(app_labels)
+                                                 for value in self.private_values):
+                self.record_tainted = True
+                raise Blocked('private_transition_during_os_picker')
+            # Empty/foreign/IME trees do not prove that the picker has closed.
+            # Do not start an APP-only instrumentation connection until the
+            # normal picker has visibly returned to this APP window.
+            if selected and rows and rows[0].get('package') == APP and app_rows and not candidates:
+                app_returned = True
+                break
+            if not rows or rows[0].get('package') not in {
+                    'com.google.android.documentsui', 'com.android.documentsui',
+                    'com.google.android.providers.media.module', 'com.android.providers.media.module'}:
+                downloads_signature, downloads_stable_since = None, None
+                root_matches, download_matches, file_matches = 0, 0, 0
+                pause(.7)
+                continue
+            def tap_os(node, attempt=None):
+                nonlocal drawer_sent, downloads_sent, final_sent
+                found = re.fullmatch(r'\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]', node.get('bounds', ''))
+                if not found:
+                    raise Blocked('os_picker_bounds_invalid')
+                a, b, c, d = map(int, found.groups())
+                if c <= a or d <= b:
+                    raise Blocked('os_picker_bounds_invalid')
+                if time.monotonic() >= deadline:
+                    return False
+                if attempt == 'drawer': drawer_sent = True
+                elif attempt == 'downloads': downloads_sent = True
+                elif attempt == 'final': final_sent = True
+                self.adb('shell', 'input', 'tap', (a+c)//2, (b+d)//2)
+                return True
+            # A visible roots drawer can leave the dimmed file tree mounted.
+            # Select Downloads only within its actual roots_list, never a
+            # toolbar/breadcrumb with the same label. Dispatch each route once.
+            roots = [n for n in candidates if n.get('resource-id', '').rsplit('/', 1)[-1] == 'roots_list']
+            downloads = [n for n in roots[0].iter('node') if n in candidates
+                         and n.get('text', '') in {'Downloads', 'التنزيلات'}
+                         and n.get('enabled') == 'true'] if len(roots) == 1 else []
+            # AOSP GridPhotoHolder exposes "displayName, size, date" on the
+            # actual photo item and a separate "Preview the file ..." control.
+            # Bind the complete owned filename as the first metadata field;
+            # a substring or preview action is not a file-selection witness.
+            document_items = {child for n in candidates
+                              if n.get('resource-id', '').rsplit('/', 1)[-1] == 'dir_list'
+                              for child in n.iter('node')}
+            files = [n for n in candidates if n.get('enabled') == 'true'
+                     and n.get('resource-id', '').rsplit('/', 1)[-1] != 'preview_icon'
+                     and (self.photo_name in {n.get('text', ''), n.get('content-desc', '')}
+                          or ((n.get('clickable') == 'true' or
+                               (n in document_items and n.get('focusable') == 'true')) and
+                              n.get('content-desc', '').split(', ', 1)[0] == self.photo_name))]
+            # Counts are diagnostic only; 2 means multiple. Covered file nodes
+            # never become actionable while the roots drawer is mounted.
+            root_matches, download_matches, file_matches = min(2,len(roots)), min(2,len(downloads)), min(2,len(files))
+            if roots and not selected:
+                if len(roots) == 1 and len(downloads) == 1 and not downloads_sent:
+                    signature = (identity(rows[0]), identity(roots[0]), identity(downloads[0]))
+                    if signature != downloads_signature:
+                        downloads_signature, downloads_stable_since = signature, observed_at
+                    elif observed_at >= downloads_stable_since + .7:
+                        downloads_stable_observed = True
+                        if not tap_os(downloads[0], 'downloads'):
+                            break
+                else:
+                    downloads_signature, downloads_stable_since = None, None
+                pause(.7)
+                continue
+            downloads_signature, downloads_stable_since = None, None
+            if len(files) == 1 and not selected:
+                self.journey_stage('photo_file_select')
+                if not tap_os(files[0]):
+                    break
+                selected = True; pause(.6)
+                # Multiple mode may require a visible final Open/Select action.
+                continue
+            done = [n for n in candidates if selected and n.get('text', '') in
+                    {'OPEN', 'Open', 'SELECT', 'Select', 'فتح', 'اختيار'} and n.get('enabled') == 'true']
+            if len(done) == 1 and not final_sent:
+                self.journey_stage('photo_final_select')
+                if not tap_os(done[0], 'final'):  # Never repeat a dispatched final Open.
+                    break
+                pause(.6)
+                continue
+            if selected:
+                self.journey_stage('photo_app_return')
+            if not selected and not drawer_sent and not downloads_sent:
+                menus = [n for n in candidates if n.get('content-desc', '') in
+                         {'Show roots', 'Open navigation drawer', 'عرض الجذور', 'فتح قائمة التنقل'}
+                         and n.get('enabled') == 'true']
+                if len(menus) == 1:
+                    if not tap_os(menus[0], 'drawer'):
+                        break
+            pause(.7)
+        if not selected or not app_returned:
+            self.report['os_photo_selection_failure'] = {
+                'roots_matches': root_matches, 'scoped_downloads_matches': download_matches,
+                'file_matches': file_matches, 'drawer_attempted': drawer_sent,
+                'downloads_attempted': downloads_sent, 'downloads_stable_observed': downloads_stable_observed,
+                'file_tap_returned': selected, 'final_sent': final_sent, 'app_returned': app_returned}
+            self.save()
+        if not selected:
+            raise Blocked('genuine_os_photo_selection_not_observed')
+        if not app_returned:
+            raise Blocked('genuine_os_picker_return_not_observed')
+        self.report['os_photo_selection_observation'] = {
+            'exact_fixture_filename_observed': True, 'file_tap_sent_once': True,
+            'final_open_sent_once': final_sent, 'app_window_return_observed': True}
+        self.journey_stage('photo_count_wait')
+        self.wait('صور الإعلان (1/12)', seconds=30)
+
+    def create_and_save(self):
+        self.manual_entry(self.bootstrap_title, title_editor_required=True)
+        self.journey_stage('purpose')
+        self.tap('للإيجار')
+        self.journey_stage('type')
+        self.tap('شقة')
+        self.journey_stage('title')
+        self.set('عنوان الإعلان *', self.title)
+        self.record_start('C1-create-photo')
+        self.journey_stage('location_step')
+        self.tap('التالي')
+        self.journey_stage('location_confirm')
+        self.tap('تأكيد الموقع على الخريطة')
+        self.wait('تأكيد هذا الموقع', seconds=60)
+        self.tap('تأكيد هذا الموقع')
+        self.wait('تم تحديد موقع العقار على الخريطة', seconds=45)
+        self.journey_stage('governorate')
+        self.set('المحافظة *', 'صنعاء')
+        self.journey_stage('city')
+        self.set('المدينة', 'صنعاء')
+        self.journey_stage('specifications_step')
+        self.tap('التالي')
+        self.journey_stage('floor_select')
+        self.tap('الشقة في الدور *')
+        self.tap('الثاني')
+        self.journey_stage('bedrooms')
+        self.set('غرف النوم *', '3')
+        self.journey_stage('bathrooms')
+        self.set('الحمامات *', '2')
+        self.journey_stage('parking_select')
+        self.tap('موقف سيارة *')
+        self.tap('لا يوجد')
+        self.journey_stage('facade_select')
+        self.tap('واجهة البناء *')
+        self.tap('شمالية')
+        self.journey_stage('photo_select')
+        self.photo_picker()
+        self.journey_stage('photo_capture')
+        self.safe_capture('C1-photo-selected')
+        self.record_stop(export=True)  # Never record step4's contact fields.
+        self.journey_stage('photo_next_dispatch')
+        self.tap('التالي')
+        self.journey_stage('final_actions_wait')
+        self.wait_c1_final_actions()
+        self.journey_stage('rent_blank_check')
+        self.require_c1_monthly_rent_blank('before_save')
+        self.journey_stage('draft_save')
+        self.tap('خيارات المسودة')
+        self.tap('حفظ مسودة')
+        self.wait('حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.', seconds=120)
+        self.mark('C1-photo-save', 'PASS', explicit_save=True, image_count=1,
+                  normal_os_picker=True, monthly_rent_deliberately_unfilled=True,
+                  property_created=False, submitted=False)
+
+    def restore(self):
+        self.journey_stage('restore_startup')
+        self.adb('shell', 'am', 'force-stop', APP)
+        time.sleep(1)
+        self.authenticated = False
+        self.startup()
+        # Normal saved session restoration; never inject or read its storage.
+        self.authenticated_account_evidence(seconds=45)
+        self.authenticated = True
+        self.manual_entry(self.title)
+        self.journey_stage('restore_options_wait')
+        self.wait('خيارات المسودة')
+        self.journey_stage('restore_rent_blank_check')
+        self.require_c1_monthly_rent_blank('after_reopen')
+        self.journey_stage('restore_specs')
+        self.tap('السابق')
+        self.wait('المواصفات')
+        self.record_start('C1-restored-facts')
+        self.journey_stage('restore_bedrooms')
+        self.require_value('غرف النوم *', '3')
+        self.journey_stage('restore_bathrooms')
+        self.require_value('الحمامات *', '2')
+        self.seek('الثاني')
+        self.seek('لا يوجد')
+        self.seek('شمالية')
+        self.journey_stage('restore_photo')
+        self.seek('صور الإعلان (1/12)')
+        self.wait('مكتمل', seconds=90)
+        self.safe_capture('C1-restored-complete-photo')
+        self.journey_stage('restore_location')
+        self.tap('السابق')
+        self.wait('تم تحديد موقع العقار على الخريطة')
+        self.require_value('المحافظة *', 'صنعاء')
+        self.journey_stage('restore_title')
+        self.tap('السابق')
+        self.require_value('عنوان الإعلان *', self.title)
+        self.safe_capture('C1-restored-title')
+        self.record_stop(export=True)
+        if len(self.report['videos']) != 2:
+            raise Blocked('native_recovery_video_missing')
+        self.mark('C1-force-stop-restore', 'PASS', force_stop_without_reset=True,
+                  same_unique_title=True, location_restored=True, bedroom_count=3,
+                  bathroom_count=2, floor='2', photo_count=1, photo_state='complete')
+
+    def wait_guest_marketplace(self, seconds=60):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            footer = all(self.matching(rows, label) for label in ('العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'))
+            home = all(self.matching(rows, label) for label in ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…'))
+            excluded = self.matching(rows, 'تسجيل الخروج') or any(
+                label in labels(row) for row in rows for label in AUTH_LABELS)
+            if footer and home and not excluded:
+                return
+            time.sleep(.6)
+        raise Blocked('native_guest_marketplace_not_observed')
+
+    def wait_guest_account(self, seconds=45):
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            footer = all(self.matching(rows, label) for label in ('العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'))
+            excluded = self.matching(rows, 'تسجيل الخروج') or any(
+                label in labels(row) for row in rows for label in AUTH_LABELS)
+            if footer and self.matching(rows, 'تسجيل الدخول أو إنشاء حساب') and not excluded:
+                return
+            time.sleep(.6)
+        raise Blocked('native_guest_account_not_observed')
+
+    def native_logout(self):
+        self.record_stop()
+        # A known retained session avoids a Back dialog that might save/retire
+        # an unrelated recovery candidate. Do not reset or read app storage.
+        self.adb('shell', 'am', 'force-stop', APP)
+        self.authenticated = False
+        self.startup()
+        self.journey_stage('logout_account_ready')
+        self.authenticated_account_evidence(seconds=45)
+        if not self.has('تسجيل الخروج'):
+            self.tap('حسابي')
+        self.journey_stage('logout_control')
+        self.wait_account_logout_control(seconds=30)
+        self.tap('تسجيل الخروج', seek=False)
+        self.authenticated = False
+        self.journey_stage('logout_marketplace_wait')
+        self.wait_guest_marketplace()
+        self.journey_stage('logout_guest_marketplace')
+        self.tap('حسابي', seek=False)
+        self.journey_stage('logout_guest_account_wait')
+        self.wait_guest_account()
+        self.journey_stage('logout_confirm')
+        self.report['session_logged_out'] = True
+
+    def cleanup(self):
+        self.case_phase('C1-cleanup')
+        errors = []
+        try:
+            self.record_stop()
+            if self.auth_attempted:
+                try:
+                    self.native_logout()
+                except Blocked as error:
+                    errors.append(str(error))
+                except Exception:
+                    errors.append('native_logout_not_confirmed')
+        finally:
+            # Halt any delayed native writer before deleting the only new UUID.
+            if self.serial:
+                try:
+                    self.adb('shell', 'am', 'force-stop', APP)
+                except Exception:
+                    errors.append('native_writer_stop_not_confirmed')
+            if self.fixture_api and self.fixture_api.state:
+                try:
+                    self.fixture_api.cleanup()
+                except FixtureError as error:
+                    errors.append(str(error))
+                except Exception:
+                    errors.append('api_fixture_cleanup_not_confirmed')
+                finally:
+                    self.report['api_cleanup'] = self.fixture_api.last_receipt
+                    self.fixture_possible = self.fixture_api.has_pending_fixture
+                    self.save()
+        if errors:
+            self.report['cleanup_reasons'] = errors
+            raise Blocked('native_or_api_cleanup_incomplete')
+        bootstrap = self.report.get('api_bootstrap') or {}
+        cleaned = self.report.get('api_cleanup') or {}
+        protected = cleaned.get('protected_after') or {}
+        self.mark('C1-cleanup', 'PASS', only_known_new_uuid_cleaned=cleaned.get('fixture_removed', False),
+                  protected_preexisting_rows_unchanged=bool(protected) and all(
+                      row.get('all_preexisting_unchanged') and row.get('all_preexisting_present')
+                      for row in protected.values()),
+                  native_logout_confirmed=self.report.get('session_logged_out', False),
+                  bootstrap_api_session_revoked=bootstrap.get('fresh_session_cleaned', False),
+                  cleanup_api_session_revoked=cleaned.get('fresh_session_cleaned', False))
+
+    def execute(self):
+        stage = 'C1-native-network'
+        self.case_phase(stage)
+        try:
+            self.validate_and_install()
+            self.startup()
+            self.public_network_readiness()
+            stage = 'C1-api-empty-fixture'
+            self.case_phase(stage)
+            self.bootstrap_fixture()
+            stage = 'C1-auth'
+            self.case_phase(stage)
+            self.login()
+            stage = 'C1-photo-save'
+            self.case_phase(stage)
+            self.create_and_save()
+            stage = 'C1-force-stop-restore'
+            self.case_phase(stage)
+            self.restore()
+        except Blocked as error:
+            self.mark(stage, 'BLOCKED', reason=str(error))
+        except FixtureError as error:
+            self.mark(stage, 'BLOCKED', reason=str(error))
+        except Exception as error:
+            self.mark(stage, 'FAIL', error_type=type(error).__name__)
+        finally:
+            self.case_phase('C1-cleanup')
+            try:
+                self.record_stop()
+            except Exception:
+                self.report['video_finalization_failed'] = True
+            if self.fixture_api or self.authenticated or self.auth_attempted:
+                try:
+                    self.cleanup()
+                except Blocked as error:
+                    self.mark('C1-cleanup', 'BLOCKED', reason=str(error))
+                except Exception as error:
+                    self.mark('C1-cleanup', 'FAIL', error_type=type(error).__name__)
+            self.report['fixture_may_remain'] = self.fixture_possible
+            native_session_pending = self.auth_attempted and not self.report.get('session_logged_out', False)
+            api_session_pending = False
+            for receipt in [self.report.get('api_bootstrap'), self.report.get('api_cleanup')]:
+                if not isinstance(receipt, dict):
+                    continue
+                verify = receipt.get('normal_login_verify')
+                possible_issue = (isinstance(verify, dict) and verify.get('http') == 200) or (
+                    verify is None and receipt.get('normal_login_start', {}).get('http') == 200)
+                api_session_pending = api_session_pending or receipt.get('session_cleanup_unproven', False) or (
+                    possible_issue and receipt.get('fresh_session_cleaned') is not True)
+            self.report['native_session_may_remain'] = native_session_pending
+            self.report['api_session_may_remain'] = api_session_pending
+            self.report['session_may_remain'] = native_session_pending or api_session_pending
+            self.report['ended_utc'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            try:
+                self.save()
+            finally:
+                self.access.clear()
+                if self.fixture_api:
+                    self.fixture_api.clear_credentials()
+        return all(row['status'] == 'PASS' for row in self.report['cases'])
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--private-dir', required=True)
+    args = parser.parse_args()
+    try:
+        if preflight(os.environ)['status'] == 'BLOCKED':
+            raise Blocked('secure_test_access_missing_or_invalid')
+        private = (ROOT / args.private_dir).resolve()
+        if ROOT not in private.parents:
+            raise Blocked('runner_private_directory_required')
+        probe = NativeAccount(private, os.environ)
+        previous_handlers = {}
+        def interrupted(signum, frame):
+            raise Blocked('native_run_interrupted')
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous_handlers[signum] = signal.signal(signum, interrupted)
+        try:
+            passed = probe.execute()
+        finally:
+            for signum, handler in previous_handlers.items():
+                signal.signal(signum, handler)
+        print('AQER_PHASE1_NATIVE_ACCOUNT_C1_' + ('COLLECTED' if passed else 'INCOMPLETE'))
+        return 0 if passed else 2
+    except Exception:
+        # Do not print exception text, environment, command arguments or traceback.
+        print('AQER_PHASE1_NATIVE_ACCOUNT_REFUSED_OR_INCOMPLETE')
+        return 2
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

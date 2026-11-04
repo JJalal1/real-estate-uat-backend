@@ -1,0 +1,6 @@
+{
+  "algorithm": "Ed25519",
+  "root_public_b64": "JhpJ97jF4RGpskxSodJge5e1JK+usUcGdJGg9K8gInA=",
+  "root_key_id": "0aa9312dfaf25e6f5b5c231ef230aa859caed22a8f464e18b77eb67333250872",
+  "scope": "Root manual reviews for same-job synthetic UAT only; no actual review or acceptance granted"
+}
