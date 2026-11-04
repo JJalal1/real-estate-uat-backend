@@ -371,6 +371,8 @@ class NativeAccount:
         return bool(self.matching(self.nodes(), label))
 
     def wait(self, label, seconds=45):
+        if label == 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.':
+            return self.wait_account_draft_saved(seconds=seconds)
         if label == 'صف العقار': self.c4_prepare_observation_stage('WAIT_BRIEF')
         elif label == 'استخدام البيانات والمتابعة': self.c4_prepare_observation_stage('WAIT_AI_RESPONSE')
         deadline = time.monotonic() + seconds
@@ -378,6 +380,46 @@ class NativeAccount:
             if self.has(label):
                 return
             time.sleep(.6)
+        raise Blocked('expected_native_state_not_observed')
+
+    def wait_account_draft_saved(self, seconds=120):
+        # Explicit Save is delivered once. Observe the persistent server/photo
+        # status as well as the brief toast; never repeat the write or capture
+        # the rent/contact page. Reopen/media verification remains separate.
+        requested = getattr(self, '_account_save_action_delivered', False)
+        self._account_save_action_delivered = False
+        if (requested is not True or self.authenticated is not True
+                or self.recorder is not None or type(seconds) is not int or not 1 <= seconds <= 120):
+            raise Blocked('expected_native_state_not_observed')
+        proof = {'save_action_delivered': True, 'toast_seen': False,
+                 'saved_banner_seen': False, 'saving_seen': False,
+                 'failure_seen': False, 'observations': 0, 'confirmed': False}
+        self.report.setdefault('account_draft_save_confirmations', []).append(proof)
+        deadline, consecutive = time.monotonic() + seconds, 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            seen = {value for row in rows for value in labels(row)}
+            toast = 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' in seen
+            saved = 'حُفظ تقدمك وصورك على حسابك' in seen
+            saving = 'جارٍ حفظ تقدمك على حسابك…' in seen
+            failed = any(value.startswith(('تعذر الحفظ على الحساب.',
+                'تعذر حفظ نسخة الجهاز.', 'تغيرت المسودة على جهاز آخر.',
+                'لم يكتمل الحفظ على الحساب.', 'تغيّر الحساب.')) for value in seen)
+            proof['observations'] += 1
+            for name, value in [('toast_seen', toast), ('saved_banner_seen', saved),
+                                ('saving_seen', saving), ('failure_seen', failed)]:
+                proof[name] = proof[name] or value
+            ready = (toast or saved) and not saving and not failed and \
+                'حفظ مسودة' not in seen and bool(self.matching(rows, 'خيارات المسودة'))
+            consecutive = consecutive + 1 if ready else 0
+            if consecutive >= 2:
+                proof['confirmed'] = True
+                self.save()
+                return
+            if failed:
+                break
+            time.sleep(.6)
+        self.save()
         raise Blocked('expected_native_state_not_observed')
 
     def wait_c1_final_actions(self, seconds=45):
@@ -608,6 +650,8 @@ class NativeAccount:
         raise Blocked('native_logout_control_not_observed')
 
     def tap(self, label, seek=True):
+        if label == 'حفظ مسودة':
+            self._account_save_action_delivered = False
         if label == 'تسجيل الخروج' and seek:
             self.wait_account_logout_control()
             seek = False
@@ -638,6 +682,8 @@ class NativeAccount:
         row = min(unique.values(), key=lambda r: (r['bounds'][2] - r['bounds'][0]) *
                                                  (r['bounds'][3] - r['bounds'][1]))
         self.act('click', row)
+        if label == 'حفظ مسودة' and self.authenticated is True:
+            self._account_save_action_delivered = True
 
     def field(self, label, seek=True):
         rows = self.nodes()

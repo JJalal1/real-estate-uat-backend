@@ -14,6 +14,72 @@ import probe_phase1_native_account as native
 
 
 class NativeAccountSafetyTest(unittest.TestCase):
+    def test_checked_explicit_save_can_observe_persistent_success_after_toast_expired(self):
+        self.probe.authenticated = True
+        menu = self.node('حفظ مسودة', clickable=True)
+        saved = [self.node('حُفظ تقدمك وصورك على حسابك'),
+                 self.node('خيارات المسودة', path='0.2', clickable=True)]
+        self.probe.nodes = Mock(side_effect=[[menu], saved, saved])
+        self.probe.act = Mock()
+        with patch.object(native.time, 'sleep'):
+            self.probe.tap('حفظ مسودة')
+            self.probe.wait('حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.', seconds=120)
+        self.probe.act.assert_called_once_with('click', menu)
+        proof = self.probe.report['account_draft_save_confirmations'][-1]
+        self.assertEqual(proof, {'save_action_delivered': True, 'toast_seen': False,
+            'saved_banner_seen': True, 'saving_seen': False, 'failure_seen': False,
+            'observations': 2, 'confirmed': True})
+        self.assertFalse(self.probe._account_save_action_delivered)
+        self.assertEqual(self.probe.report['frames'], [])
+        self.assertEqual(self.probe.report['videos'], [])
+        self.assertFalse(self.probe.report['c1_accepted'])
+        with self.assertRaises(native.Blocked):
+            self.probe.wait('حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.')
+        self.assertEqual(self.probe.nodes.call_count, 3)
+
+    def test_save_confirmation_rejects_pending_error_menu_and_missing_positive(self):
+        saved = self.node('حُفظ تقدمك وصورك على حسابك')
+        options = self.node('خيارات المسودة', path='0.2')
+        cases = [[saved, options, self.node('جارٍ حفظ تقدمك على حسابك…')],
+                 [saved, options, self.node('حفظ مسودة')], [options], [saved],
+                 [saved, options, self.node('تعذر الحفظ على الحساب. SYNTHETIC_PRIVATE_SENTINEL')]]
+        for rows in cases:
+            with self.subTest(rows=len(rows)):
+                self.probe.authenticated = True
+                self.probe._account_save_action_delivered = True
+                self.probe.nodes = Mock(return_value=rows)
+                with patch.object(native.time, 'monotonic', side_effect=[0, 0, 121]), \
+                     patch.object(native.time, 'sleep'):
+                    with self.assertRaises(native.Blocked):
+                        self.probe.wait_account_draft_saved()
+                proof = self.probe.report['account_draft_save_confirmations'][-1]
+                self.assertFalse(proof['confirmed'])
+                self.assertNotIn('SYNTHETIC_PRIVATE_SENTINEL', json.dumps(proof))
+                self.assertEqual(self.probe.report['frames'], [])
+
+    def test_save_confirmation_needs_two_fresh_positive_observations(self):
+        self.probe.authenticated = True
+        self.probe._account_save_action_delivered = True
+        self.probe.nodes = Mock(return_value=[self.node('حُفظ تقدمك وصورك على حسابك'),
+                                              self.node('خيارات المسودة', path='0.2')])
+        with patch.object(native.time, 'monotonic', side_effect=[0, 0, 121]), \
+             patch.object(native.time, 'sleep'):
+            with self.assertRaises(native.Blocked):
+                self.probe.wait_account_draft_saved()
+        self.assertFalse(self.probe.report['account_draft_save_confirmations'][-1]['confirmed'])
+
+    def test_failed_save_click_and_unrequested_confirmation_do_not_authorize_success(self):
+        self.probe.authenticated = True
+        self.probe.nodes = Mock(return_value=[self.node('حفظ مسودة', clickable=True)])
+        self.probe.act = Mock(side_effect=native.Blocked('native_input_not_delivered'))
+        with self.assertRaises(native.Blocked):
+            self.probe.tap('حفظ مسودة')
+        self.assertFalse(getattr(self.probe, '_account_save_action_delivered', False))
+        self.probe.nodes.reset_mock()
+        with self.assertRaises(native.Blocked):
+            self.probe.wait_account_draft_saved()
+        self.probe.nodes.assert_not_called()
+
     def test_fixed_mode_selected_before_account_input_dispatch(self):
         for op in ('account-click', 'account-set', 'account-scroll', 'account-snapshot', 'account-dismiss-ime'):
             receipt = ['INSTRUMENTATION_RESULT: passed=true',

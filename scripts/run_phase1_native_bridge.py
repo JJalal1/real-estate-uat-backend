@@ -26,7 +26,7 @@ API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 SECRET = 'AQER_PHASE1_TEST_ACCESS_JSON'
 MANIFEST = 'scripts/phase1_bridge/tool_manifest.json'
 HELPER_SOURCE_SHA = 'dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495'
-PAIRED_PROBE_SHA = '8d30c0902efd192a6398265dc65dc5fd7b2b8e1f878ce6a769ad82cd6894d5db'
+PAIRED_PROBE_SHA = '281f1f65f364415a5faac6c4c6eb5369866f085ac39b0619df0b2b7a2e436e6f'
 ROOT_PUBLIC_B64 = 'JhpJ97jF4RGpskxSodJge5e1JK+usUcGdJGg9K8gInA='
 ROOT_KEY_ID = '0aa9312dfaf25e6f5b5c231ef230aa859caed22a8f464e18b77eb67333250872'
 EXPECTED_FILES = tuple(sorted((

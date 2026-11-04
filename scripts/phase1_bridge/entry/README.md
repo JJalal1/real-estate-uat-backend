@@ -27,7 +27,7 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`8d30c0902efd192a6398265dc65dc5fd7b2b8e1f878ce6a769ad82cd6894d5db`
+`281f1f65f364415a5faac6c4c6eb5369866f085ac39b0619df0b2b7a2e436e6f`
 and Java SHA
 `dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
@@ -299,3 +299,20 @@ refusal records only a boolean and never replaces the original seek failure.
 The fixed short-swipe completed counter advances only after checked dispatch.
 No diagnostic image is acceptance evidence or captured after authentication
 transitions; successful seeks retain their original acceptance requirements.
+
+
+The existing C1 save/recovery acceptance remains recorded from runs46-50.
+The mobile and backend Git trees in accepted source50 and source54 are identical.
+Subsequent test-fixture setup failures do not revoke that historical acceptance.
+The remaining native acceptance groups are C4 AI, C2 support/account isolation,
+and final cleanup/session/runtime verification.
+
+Run54 stopped while waiting for the brief explicit-save success toast, before
+recovery or any C4 request. The actual Save outcome was not proved in that run.
+The observer now requires one checked explicit Save dispatch and two fresh
+positive observations of the exact success toast or the persistent server/photo
+saved banner. The app presents that banner only after account synchronization
+and photo upload succeed; saving, error, conflict, open Save menu, or missing
+Draft options refuse confirmation. This read-only wait never repeats the write
+and exports fixed booleans/counts only, not contact fields or tree data. Full
+actual media review, reopen verification, and C4/C2 gates remain unchanged.
