@@ -35,9 +35,11 @@ C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait'
                                 'governorate', 'city', 'specifications_step', 'floor_select',
                                 'bedrooms', 'bathrooms', 'parking_select', 'facade_select',
                                 'photo_select', 'photo_picker_open', 'photo_file_select', 'photo_final_select',
-                                'photo_app_return', 'photo_count_wait', 'photo_capture', 'rent_blank_check', 'draft_save',
+                                'photo_app_return', 'photo_count_wait', 'photo_capture', 'photo_next_dispatch',
+                                'final_actions_wait', 'rent_blank_check', 'draft_save',
                                 'restore_startup', 'restore_specs', 'restore_bedrooms', 'restore_bathrooms',
                                 'restore_photo', 'restore_location', 'restore_title', 'restore_options_wait',
+                                'restore_rent_blank_check',
                                 'logout_account_ready', 'logout_control', 'logout_confirm',
                                 'editor_basics_loaded', 'editor_title_seek', 'editor_basics_return',
                                 'logout_marketplace_wait', 'logout_guest_marketplace', 'logout_guest_account_wait',
@@ -310,6 +312,68 @@ class NativeAccount:
                 return
             time.sleep(.6)
         raise Blocked('expected_native_state_not_observed')
+
+    def wait_c1_final_actions(self, seconds=45):
+        # Step4 may contain contact fields: observations stay in RAM and only
+        # fixed failure facts leave this wait. Recording must already be off.
+        if (self._active_case != 'C1-photo-save' or self.authenticated is not True
+                or self.recorder is not None or type(seconds) is not int or not 1 <= seconds <= 45):
+            raise Blocked('post_photo_next_nonimage_scope_required')
+        known_validation = {
+            'أدخل عدد الأدوار من 1 إلى 50.': 'FLOOR_COUNT_REQUIRED',
+            'أدخل عدد الوحدات في كل دور من 1 إلى 100.': 'UNITS_PER_FLOOR_REQUIRED',
+            'أدخل عدد فتحات المحل من 1 إلى 100.': 'SHOP_OPENINGS_REQUIRED',
+            'أدخل مساحة صحيحة أكبر من صفر.': 'AREA_REQUIRED',
+            'أضف صورًا حقيقية للعقار قبل المتابعة.': 'PHOTO_REQUIRED',
+            'أكمل عدد الأشهر للشرط المحدد (من 1 إلى 24).': 'RENTAL_CONDITION_MONTHS',
+            'اكتب الشرط الخاص أو احذفه.': 'RENTAL_SPECIAL_CONDITION',
+            'أشهر المقدم لا يمكن أن تتجاوز مدة العقد المحددة.': 'RENTAL_ADVANCE_EXCEEDS_TERM',
+            'أدخل رقم الوحدة أو موضعها لتمييزها عن غيرها.': 'UNIT_REQUIRED',
+            'أدخل رقم الدور.': 'FLOOR_REQUIRED',
+            'اختر دورًا من الأرضي إلى السابع.': 'FLOOR_OPTION_REQUIRED',
+            'أدخل عدد غرف النوم.': 'BEDROOMS_REQUIRED',
+            'أدخل عدد الحمامات.': 'BATHROOMS_REQUIRED',
+            'حدد هل يوجد موقف سيارة.': 'PARKING_REQUIRED',
+            'اختر واجهة البناء.': 'FACADE_REQUIRED',
+        }
+        flags = {
+            'step3_observed': '3/4', 'step4_observed': '4/4',
+            'specifications_heading_observed': 'المواصفات',
+            'rent_contact_heading_observed': 'الإيجار والتواصل',
+            'draft_options_control_observed': 'خيارات المسودة',
+            'completed_review_navigation_observed': 'العودة إلى النواقص',
+        }
+        observation = dict.fromkeys(flags, False)
+        observation.update(observations=0, draft_options_control_enabled=False, known_validation_code='UNOBSERVED')
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            visible_labels = set().union(*(labels(row) for row in rows)) if rows else set()
+            observation.update({key: value in visible_labels for key, value in flags.items()})
+            observation['observations'] = min(90, observation['observations'] + 1)
+            observation['draft_options_control_enabled'] = bool(self.matching(rows, 'خيارات المسودة'))
+            validations = {code for text, code in known_validation.items() if text in visible_labels}
+            observation['known_validation_code'] = (next(iter(validations)) if len(validations) == 1
+                else 'MULTIPLE' if validations else 'NONE')
+            if observation['draft_options_control_enabled']:
+                return
+            time.sleep(max(0, min(.6, deadline - time.monotonic())))
+        self.report['c1_post_next_failure'] = observation
+        self.save()
+        raise Blocked('expected_native_state_not_observed')
+
+    def require_c1_monthly_rent_blank(self, point):
+        expected_case = {'before_save': 'C1-photo-save', 'after_reopen': 'C1-force-stop-restore'}
+        if (type(point) is not str or point not in expected_case or self._active_case != expected_case[point]
+                or self.authenticated is not True or self.recorder is not None):
+            raise Blocked('c1_monthly_rent_readback_scope_required')
+        row = self.field('الإيجار الشهري بالريال اليمني *', seek=False)
+        if (type(row) is not dict or row.get('package') != APP or row.get('visible') is not True
+                or row.get('enabled') is not True or row.get('editable') is not True
+                or type(row.get('text')) is not str or row['text'] != ''):
+            raise Blocked('c1_monthly_rent_not_exactly_blank')
+        self.report.setdefault('c1_monthly_rent_blank_checks', {})[point] = True
+        self.save()
 
     def act(self, kind, row, value=None, direction='forward'):
         extra = {'node_path': row['path'], 'node_witness': row['witness']}
@@ -1260,11 +1324,12 @@ class NativeAccount:
         self.journey_stage('photo_capture')
         self.safe_capture('C1-photo-selected')
         self.record_stop(export=True)  # Never record step4's contact fields.
+        self.journey_stage('photo_next_dispatch')
         self.tap('التالي')
-        self.wait('خيارات المسودة')
+        self.journey_stage('final_actions_wait')
+        self.wait_c1_final_actions()
         self.journey_stage('rent_blank_check')
-        if any(v.isdigit() and int(v) > 0 for v in labels(self.field('الإيجار الشهري بالريال اليمني *'))):
-            raise Blocked('incomplete_draft_guard_not_observed')
+        self.require_c1_monthly_rent_blank('before_save')
         self.journey_stage('draft_save')
         self.tap('خيارات المسودة')
         self.tap('حفظ مسودة')
@@ -1285,6 +1350,8 @@ class NativeAccount:
         self.manual_entry(self.title)
         self.journey_stage('restore_options_wait')
         self.wait('خيارات المسودة')
+        self.journey_stage('restore_rent_blank_check')
+        self.require_c1_monthly_rent_blank('after_reopen')
         self.journey_stage('restore_specs')
         self.tap('السابق')
         self.wait('المواصفات')

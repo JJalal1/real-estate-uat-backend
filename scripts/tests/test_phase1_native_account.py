@@ -118,6 +118,177 @@ class NativeAccountSafetyTest(unittest.TestCase):
         for forbidden in ('checkedAction(', 'pointerTap(', 'send(', 'snapshot(root,'):
             self.assertNotIn(forbidden,block)
 
+    def test_actual_java_accessible_description_preserves_native_tooltip_and_deduplicates_exact_text(self):
+        source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        method='private static String accessibleDescription('+source.split('    private static String accessibleDescription(',1)[1].split('\n    }',1)[0]+'\n}'
+        harness='public class AccessibleDescriptionPolicy {\n'+method+'''
+          static class AccessibilityNodeInfo {
+            CharSequence description,tooltip;
+            AccessibilityNodeInfo(CharSequence d,CharSequence t){description=d;tooltip=t;}
+            CharSequence getContentDescription(){return description;}
+            CharSequence getTooltipText(){return tooltip;}
+          }
+          static String plain(CharSequence value){return value==null?"":value.toString();}
+          static void check(CharSequence description,CharSequence tooltip,String expected){
+            if(!expected.equals(accessibleDescription(new AccessibilityNodeInfo(description,tooltip))))
+              throw new AssertionError("accessible description policy");
+          }
+          public static void main(String[] ignored){
+            check(null,null,"");check("", "خيارات المسودة", "خيارات المسودة");
+            check("خيارات المسودة",null,"خيارات المسودة");
+            check("خيارات المسودة","خيارات المسودة","خيارات المسودة");
+            check("button","خيارات المسودة","button\\nخيارات المسودة");
+            check("button","PRIVATE_SENTINEL","button\\nPRIVATE_SENTINEL");
+            check("button\\nother","خيارات المسودة","button\\nother\\nخيارات المسودة");
+            System.out.print("ACCESSIBLE_DESCRIPTION_POLICY_PASS");
+          }
+        }'''
+        with tempfile.TemporaryDirectory() as folder:
+            file=Path(folder)/'AccessibleDescriptionPolicy.java';file.write_text(harness)
+            compiled=subprocess.run(['java','-m','jdk.compiler/com.sun.tools.javac.Main','-d',folder,str(file)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            result=subprocess.run(['java','-cp',folder,'AccessibleDescriptionPolicy'],capture_output=True,text=True,timeout=10)
+            self.assertEqual((result.returncode,result.stdout),(0,'ACCESSIBLE_DESCRIPTION_POLICY_PASS'),result.stderr)
+        witness=source.split('    private static String witness(',1)[1].split('    private static String safeLabel(',1)[0]
+        snapshot=source.split('    private static void snapshot(',1)[1].split('    private static final class Selection',1)[0]
+        self.assertIn('safeLabel(accessibleDescription(node),node.isPassword())',witness)
+        self.assertIn('safeLabel(accessibleDescription(node),node.isPassword())',snapshot)
+        self.assertIn('accessibleDescription(node).equals(accessibleDescription(candidate))',source)
+
+    def test_tooltip_only_native_description_is_an_exact_named_target_without_extra_dispatch(self):
+        row=self.node('',description='خيارات المسودة',clickable=True)
+        self.probe.nodes=Mock(return_value=[row]);self.probe.act=Mock();self.probe.seek=Mock()
+        self.probe.tap('خيارات المسودة')
+        self.probe.act.assert_called_once_with('click',row)
+        self.probe.seek.assert_not_called()
+        self.assertEqual(native.labels(self.node('',description='button\nخيارات المسودة')),{'button','خيارات المسودة'})
+
+    def test_post_next_timeout_reports_only_fixed_nonimage_scene_and_validation_facts(self):
+        self.initial_add_scope();clock=self.stability_clock()
+        cases=[(['3/4','المواصفات','أدخل عدد الحمامات.'],'BATHROOMS_REQUIRED',True,False,False,False),
+               (['4/4','الإيجار والتواصل','العودة إلى النواقص'],'NONE',False,True,True,False),
+               (['3/4','المواصفات','أدخل عدد الحمامات.','أدخل رقم الدور.'],'MULTIPLE',True,False,False,False),
+               (['4/4','الإيجار والتواصل'],'NONE',False,True,False,True)]
+        self.probe.tap,self.probe.act,self.probe.safe_capture,self.probe.record_start=Mock(),Mock(),Mock(),Mock()
+        for captions,code,step3,step4,review,disabled_menu in cases:
+            clock[0]=0
+            rows=[self.node(value,path='0.'+str(i))for i,value in enumerate(captions)]
+            rows.append(dict(self.node(self.access['phones']['broker'],path='0.999',hint='PRIVATE_CONTACT_SENTINEL'),witness='f'*64))
+            if disabled_menu:rows.append(dict(self.node('',description='خيارات المسودة'),enabled=False))
+            self.probe.nodes=Mock(return_value=rows)
+            with self.subTest(code=code,review=review,disabled_menu=disabled_menu),self.assertRaisesRegex(native.Blocked,'^expected_native_state_not_observed$'):
+                self.probe.wait_c1_final_actions(seconds=2)
+            facts=self.probe.report['c1_post_next_failure']
+            self.assertEqual(set(facts),{'observations','step3_observed','step4_observed','specifications_heading_observed',
+                'rent_contact_heading_observed','draft_options_control_observed','draft_options_control_enabled',
+                'completed_review_navigation_observed','known_validation_code'})
+            self.assertEqual((facts['known_validation_code'],facts['step3_observed'],facts['step4_observed'],
+                facts['completed_review_navigation_observed'],facts['draft_options_control_observed']),
+                (code,step3,step4,review,disabled_menu))
+            self.assertFalse(facts['draft_options_control_enabled']);self.assertLessEqual(facts['observations'],90)
+            self.assertEqual(clock[0],2)
+            for secret in (self.access['phones']['broker'],'PRIVATE_CONTACT_SENTINEL','0.999','f'*64):
+                self.assertNotIn(secret,json.dumps(facts))
+        for operation in (self.probe.tap,self.probe.act,self.probe.safe_capture,self.probe.record_start):operation.assert_not_called()
+        self.assertEqual((self.probe.report['frames'],self.probe.report['videos']),([],[]))
+
+    def test_post_next_wait_is_readonly_and_accepts_actual_enabled_tooltip_control(self):
+        self.initial_add_scope();clock=self.stability_clock()
+        self.probe.nodes=Mock(side_effect=[[self.node('3/4')],
+            [self.node('4/4'),self.node('',description='خيارات المسودة',clickable=True)]])
+        self.probe.tap,self.probe.act,self.probe.safe_capture,self.probe.record_start=Mock(),Mock(),Mock(),Mock()
+        self.probe.wait_c1_final_actions(seconds=2)
+        self.assertEqual(self.probe.nodes.call_count,2);self.assertLessEqual(clock[0],2)
+        self.assertNotIn('c1_post_next_failure',self.probe.report)
+        for operation in (self.probe.tap,self.probe.act,self.probe.safe_capture,self.probe.record_start):operation.assert_not_called()
+
+    def test_post_next_wait_rejects_other_scope_or_active_recorder_before_any_observation(self):
+        for case,authenticated,recorder,seconds in [('C1-auth',True,None,2),('C1-photo-save',False,None,2),
+                ('C1-photo-save',True,'official-host-console',2),('C1-photo-save',True,None,0),
+                ('C1-photo-save',True,None,46),('C1-photo-save',True,None,2.0)]:
+            self.probe.case_phase(case);self.probe.authenticated=authenticated;self.probe.recorder=recorder
+            self.probe.nodes=Mock();self.probe.safe_capture=Mock()
+            with self.subTest(case=case,recorder=recorder,seconds=seconds),self.assertRaisesRegex(native.Blocked,'^post_photo_next_nonimage_scope_required$'):
+                self.probe.wait_c1_final_actions(seconds=seconds)
+            self.probe.nodes.assert_not_called();self.probe.safe_capture.assert_not_called()
+            self.assertNotIn('c1_post_next_failure',self.probe.report)
+
+    def test_creation_stops_recorder_before_the_single_post_photo_next_and_final_actions_wait(self):
+        self.initial_add_scope();order=[]
+        self.probe.manual_entry,self.probe.set,self.probe.wait,self.probe.record_start=Mock(),Mock(),Mock(),Mock()
+        self.probe.tap=Mock(side_effect=lambda label:order.append(('tap',label)))
+        self.probe.photo_picker=Mock(side_effect=lambda:order.append(('photo',)))
+        self.probe.safe_capture=Mock(side_effect=lambda name:order.append(('capture',name)))
+        self.probe.record_stop=Mock(side_effect=lambda export:order.append(('stop',export)))
+        self.probe.wait_c1_final_actions=Mock(side_effect=lambda:order.append(('final_wait',)))
+        self.probe.field=Mock(return_value=self.node('',editable=True))
+        original_stage=self.probe.journey_stage
+        def stage(value):order.append(('stage',value));original_stage(value)
+        self.probe.journey_stage=stage
+        self.probe.create_and_save()
+        at=order.index(('stop',True))
+        self.assertEqual(order[at:at+5],[('stop',True),('stage','photo_next_dispatch'),('tap','التالي'),
+            ('stage','final_actions_wait'),('final_wait',)])
+        self.probe.record_stop.assert_called_once_with(export=True)
+        self.probe.wait_c1_final_actions.assert_called_once_with()
+        self.probe.field.assert_called_once_with('الإيجار الشهري بالريال اليمني *',seek=False)
+        self.assertEqual(self.probe.report['c1_monthly_rent_blank_checks'],{'before_save':True})
+        self.assertEqual(self.probe.safe_capture.call_args_list,[unittest.mock.call('C1-photo-selected')])
+
+    def test_c1_monthly_rent_requires_actual_exact_empty_readback_for_each_fixed_scope(self):
+        self.probe.authenticated=True
+        self.probe.field=Mock(return_value=self.node('',editable=True,hint='الإيجار الشهري بالريال اليمني *'))
+        self.probe.tap,self.probe.act,self.probe.safe_capture=Mock(),Mock(),Mock()
+        for point,case in [('before_save','C1-photo-save'),('after_reopen','C1-force-stop-restore')]:
+            self.probe.case_phase(case)
+            self.probe.require_c1_monthly_rent_blank(point)
+        self.assertEqual(self.probe.report['c1_monthly_rent_blank_checks'],{'before_save':True,'after_reopen':True})
+        self.assertEqual(self.probe.field.call_args_list,[
+            unittest.mock.call('الإيجار الشهري بالريال اليمني *',seek=False),
+            unittest.mock.call('الإيجار الشهري بالريال اليمني *',seek=False)])
+        for operation in (self.probe.tap,self.probe.act,self.probe.safe_capture):operation.assert_not_called()
+
+    def test_c1_monthly_rent_rejects_all_nonempty_values_and_missing_editable_proof_without_retaining_data(self):
+        self.initial_add_scope()
+        values=['50000','0','-2','1.2','٥٠٠٠٠','PRIVATE_VALUE_SENTINEL',' ',None,0]
+        rows=[self.node(value,editable=True)for value in values]
+        rows += [self.node('',editable=False),dict(self.node('',editable=True),enabled=False),
+                 dict(self.node('',editable=True),visible=False),self.node('',editable=True,package='OTHER')]
+        for row in rows:
+            self.probe.field=Mock(return_value=row)
+            with self.subTest(text=row.get('text'),editable=row.get('editable')),self.assertRaisesRegex(native.Blocked,'^c1_monthly_rent_not_exactly_blank$'):
+                self.probe.require_c1_monthly_rent_blank('before_save')
+            self.assertNotIn('c1_monthly_rent_blank_checks',self.probe.report)
+            self.assertNotIn('PRIVATE_VALUE_SENTINEL',json.dumps(self.probe.report))
+
+    def test_c1_monthly_rent_scope_and_recorder_guards_precede_any_private_field_read(self):
+        for point,case,authenticated,recorder in [('before_save','C1-auth',True,None),
+                ('after_reopen','C1-photo-save',True,None),('before_save','C1-photo-save',False,None),
+                ('before_save','C1-photo-save',True,'official-host-console'),
+                ('PRIVATE_POINT_SENTINEL','C1-photo-save',True,None)]:
+            self.probe.case_phase(case);self.probe.authenticated=authenticated;self.probe.recorder=recorder
+            self.probe.field=Mock()
+            with self.subTest(point=point,case=case,recorder=recorder),self.assertRaisesRegex(native.Blocked,'^c1_monthly_rent_readback_scope_required$'):
+                self.probe.require_c1_monthly_rent_blank(point)
+            self.probe.field.assert_not_called()
+            self.assertNotIn('c1_monthly_rent_blank_checks',self.probe.report)
+            self.assertNotIn('PRIVATE_POINT_SENTINEL',json.dumps(self.probe.report))
+
+    def test_restore_reads_exact_blank_rent_before_leaving_private_step_or_starting_recording(self):
+        self.probe.case_phase('C1-force-stop-restore');self.probe.authenticated=True;self.stability_clock();order=[]
+        self.probe.adb,self.probe.startup,self.probe.authenticated_account_evidence,self.probe.manual_entry=Mock(),Mock(),Mock(),Mock()
+        self.probe.wait=Mock(side_effect=lambda label,**kw:order.append(('wait',label)))
+        self.probe.tap=Mock(side_effect=lambda label:order.append(('tap',label)))
+        self.probe.field=Mock(side_effect=lambda label,**kw:(order.append(('rent_read',)),self.node('',editable=True))[1])
+        self.probe.record_start=Mock(side_effect=lambda name:order.append(('record',name)))
+        self.probe.require_value,self.probe.seek,self.probe.safe_capture,self.probe.record_stop,self.probe.mark=Mock(),Mock(),Mock(),Mock(),Mock()
+        self.probe.report['videos']=[{},{}]
+        self.probe.restore()
+        at=order.index(('wait','خيارات المسودة'))
+        self.assertEqual(order[at:at+5],[('wait','خيارات المسودة'),('rent_read',),('tap','السابق'),('wait','المواصفات'),('record','C1-restored-facts')])
+        self.probe.field.assert_called_once_with('الإيجار الشهري بالريال اليمني *',seek=False)
+        self.assertEqual(self.probe.report['c1_monthly_rent_blank_checks'],{'after_reopen':True})
+
     def test_java_settle_precedes_original_set_target_binding_without_any_input(self):
         source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
         block=source.split('if("account-set".equals(op)) {',1)[1].split('AccessibilityNodeInfo node=selected(root);',1)[0]
@@ -317,7 +488,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         observe=source.split('stage="account_focus_observe";',1)[1].split('require(field!=null);',1)[0]
         for required in ('fresh.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)','require(candidate.isEditable())',
                          'plain(node.getClassName()).equals(plain(candidate.getClassName()))',
-                         'plain(node.getContentDescription()).equals(plain(candidate.getContentDescription()))',
+                         'accessibleDescription(node).equals(accessibleDescription(candidate))',
                          'boolean sameNode=node.equals(candidate)','if(!sameNode) continue',
                          'focusHintMatches(originalHint,currentHint,candidate.isFocused(),sameNode)',
                          'candidate.getActions()&AccessibilityNodeInfo.ACTION_SET_TEXT'):

@@ -27,9 +27,9 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`2048012739f08554bce1fb0c41ea45a3d3d95b45e005035e0ec2e0bf36d9a411`
+`1ff589d4e3379bb4030dbdc446e9571f0aae9e4a490c108688c5305f50508b7a`
 and Java SHA
-`3b9c1221101408e0552bad0355d724884f21ec558f5b559c471c975b06e4d126`.
+`2f5be1c6f71d79d0f4d856aa2c128c3b4dbf37c0cad01988d03a64cdb5e9464d`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
 source, the exact baseline diff allowlist, original unchanged mobile/backend
 trees, clean tracked paths and pinned public recipient certificate/expiry. No
@@ -86,6 +86,34 @@ receipt. It does not read app storage, pull an APK, inspect credentials or widen
 the adapter's transport allowlist. Capability is checked separately by the real
 adapter. Native probe commands retain the original checked delivery behavior
 and cap subprocess timeout by the active authority's original deadline.
+
+On the pinned Flutter3.27.3 engine, Android API28 and later expose tooltips
+through `AccessibilityNodeInfo.tooltipText` rather than contentDescription.
+The native helper now includes that actual tooltip in its existing description
+field: an empty description uses the tooltip, an identical description stays
+unchanged, and two distinct nonempty strings are joined with one newline.
+The same exact composition binds node witnesses and post-focus identity. This
+keeps tooltip-only controls visible to the existing label and full-tree privacy
+checks without adding a field that those guards could miss. It does not relax
+source identity, geometry, single physical delivery or the original deadline.
+Pinned engine reference:
+https://github.com/flutter-team-archive/engine/blob/e672b006cb34c921db85b8e2f482ed3144a4574b/shell/platform/android/io/flutter/view/AccessibilityBridge.java#L916
+
+Run43 exported its original silent photo clip, then timed out after the sole
+post-recording Next while waiting for the tooltip-only draft-options control.
+Its actual post-Next branch was not captured; save and restore remain unproved.
+The probe therefore retains fixed post-Next stages and a bounded, nonimage
+failure observation consisting only of known screen/validation enums and
+booleans. It never retries Next or exports contact values, raw trees, paths,
+witnesses, screenshots or video from the private final step.
+
+C1 also reads the actual rent EditText while recording is off, immediately
+before save and after reopening the saved draft. Both readbacks require the
+exact empty native text on a visible enabled editable APP node. Only the two
+boolean receipts `before_save` and `after_reopen` are retained. The C1 review
+checkpoint requires that exact pair to be true and binds it to its fresh scene;
+missing, malformed or changed proof refuses. No rent value, contact tree, path
+or witness is exported by this check.
 
 Guest UTC is observed with `date -u +%s%3N`, bracketed by host UTC and monotonic
 time. It must produce exact13-digit milliseconds, a <=2s observation, consistent

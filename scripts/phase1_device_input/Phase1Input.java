@@ -227,9 +227,15 @@ public final class Phase1Input extends Instrumentation {
             || "pinch-in".equals(op) || "pinch-out".equals(op) ? op : "invalid";
     }
     private static String plain(CharSequence value) { return value==null ? "" : value.toString(); }
+    private static String accessibleDescription(AccessibilityNodeInfo node) {
+        String description=plain(node.getContentDescription()),tooltip=plain(node.getTooltipText());
+        if(description.isEmpty()) return tooltip;
+        if(tooltip.isEmpty() || description.equals(tooltip)) return description;
+        return description+"\n"+tooltip;
+    }
     private static String witness(AccessibilityNodeInfo node) throws Exception {
         Rect rect=new Rect(); node.getBoundsInScreen(rect);
-        String raw=plain(node.getPackageName())+"|"+plain(node.getClassName())+"|"+safeLabel(node.getText(),node.isPassword())+"|"+safeLabel(node.getContentDescription(),node.isPassword())+"|"+rect.flattenToString();
+        String raw=plain(node.getPackageName())+"|"+plain(node.getClassName())+"|"+safeLabel(node.getText(),node.isPassword())+"|"+safeLabel(accessibleDescription(node),node.isPassword())+"|"+rect.flattenToString();
         byte[] hash=MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8));
         StringBuilder hex=new StringBuilder(); for(byte b:hash) hex.append(String.format("%02x",b&255)); return hex.toString();
     }
@@ -240,7 +246,7 @@ public final class Phase1Input extends Instrumentation {
         if(depth>40 || nodes.length()>=1200) return;
         Rect r=new Rect(); node.getBoundsInScreen(r);
         JSONObject row=new JSONObject(); row.put("path",path); row.put("class",plain(node.getClassName()));
-        row.put("text",safeLabel(node.getText(),node.isPassword())); row.put("description",safeLabel(node.getContentDescription(),node.isPassword()));
+        row.put("text",safeLabel(node.getText(),node.isPassword())); row.put("description",safeLabel(accessibleDescription(node),node.isPassword()));
         row.put("hint",safeLabel(node.getHintText(),node.isPassword())); row.put("package",plain(node.getPackageName()));
         row.put("bounds",new JSONArray(new int[]{r.left,r.top,r.right,r.bottom})); row.put("witness",witness(node));
         row.put("editable",node.isEditable()); row.put("clickable",node.isClickable()); row.put("scrollable",node.isScrollable());
@@ -390,7 +396,7 @@ public final class Phase1Input extends Instrumentation {
                 require(APP.contentEquals(candidate.getPackageName()) && candidate.isVisibleToUser() && candidate.isEnabled());
                 stage="account_focus_editable_match"; require(candidate.isEditable());
                 stage="account_focus_class_match"; require(plain(node.getClassName()).equals(plain(candidate.getClassName())));
-                stage="account_focus_description_match"; require(plain(node.getContentDescription()).equals(plain(candidate.getContentDescription())));
+                stage="account_focus_description_match"; require(accessibleDescription(node).equals(accessibleDescription(candidate)));
                 stage="account_focus_hint_match";
                 if(!focusHintMatches(originalHint,currentHint,candidate.isFocused(),sameNode)) continue;
                 stage="account_focus_pending";

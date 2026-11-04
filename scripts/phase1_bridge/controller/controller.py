@@ -101,14 +101,16 @@ C1_FAILURE_CODES = frozenset({
     'host_webm_file_invalid', 'host_webm_ebml_invalid', 'host_webm_probe_failed',
     'host_webm_stream_or_duration_invalid', 'tainted_host_video_discarded',
     'host_video_name_already_exists', 'host_record_stop_unconfirmed_abort_ui',
+    'c1_monthly_rent_readback_scope_required', 'c1_monthly_rent_not_exactly_blank',
 })
 C1_FAILURE_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
     'purpose', 'type', 'title', 'location_step', 'location_confirm', 'governorate', 'city',
     'specifications_step', 'floor_select', 'bedrooms', 'bathrooms', 'parking_select', 'facade_select',
     'photo_select', 'photo_picker_open', 'photo_file_select', 'photo_final_select',
-    'photo_app_return', 'photo_count_wait', 'photo_capture', 'rent_blank_check', 'draft_save', 'restore_startup',
+    'photo_app_return', 'photo_count_wait', 'photo_capture', 'photo_next_dispatch', 'final_actions_wait',
+    'rent_blank_check', 'draft_save', 'restore_startup',
     'restore_specs', 'restore_bedrooms', 'restore_bathrooms', 'restore_photo', 'restore_location',
-    'restore_title', 'restore_options_wait', 'editor_basics_loaded', 'editor_title_settle',
+    'restore_title', 'restore_options_wait', 'restore_rent_blank_check', 'editor_basics_loaded', 'editor_title_settle',
     'editor_title_seek', 'editor_basics_return', 'home_wait', 'home_dispatch', 'add_stable_wait', 'add_dispatch'})
 HOME_DIAGNOSTIC_NAMES = frozenset({'C1-before-add-home.png', 'C1-restore-before-add-home.png'})
 HOME_DIAGNOSTIC_SCOPE = 'authenticated_broker_marketplace_before_add'
@@ -509,6 +511,11 @@ class Controller:
         if phase == 'C4':
             state = self._c4_state()
             if cursor == 'C1_REVIEW':
+                checks = p.report.get('c1_monthly_rent_blank_checks')
+                need(type(checks) is dict and set(checks) == {'before_save', 'after_reopen'}
+                     and checks['before_save'] is True and checks['after_reopen'] is True,
+                     'actual_c1_blank_rent_checks_required')
+                bindings['c1_monthly_rent_blank_checks'] = dict(checks)
                 names = self._c1_acceptance_media_names()
                 evidence = self._media(names)
                 frames = {name: self.c4.frame(p, name) for name in ('C1-restored-title.png', 'C1-restored-complete-photo.png')}

@@ -77,11 +77,14 @@ class Probe:
     def login(self):
         self.events.append('login'); self.authenticated = self.auth_attempted = True
         self.mark('C1-auth', 'PASS')
-    def create_and_save(self): self.events.append('create'); self.mark('C1-photo-save', 'PASS')
+    def create_and_save(self):
+        self.events.append('create'); self.mark('C1-photo-save', 'PASS')
+        self.report.setdefault('c1_monthly_rent_blank_checks', {})['before_save'] = True
     def restore(self):
         self.events.append('restore'); self.mark('C1-force-stop-restore', 'PASS')
         self.media('C1-restored-title.png'); self.media('C1-restored-complete-photo.png')
         self.media('C1-create-photo.webm'); self.media('C1-restored-facts.webm')
+        self.report.setdefault('c1_monthly_rent_blank_checks', {})['after_reopen'] = True
     def hold_after_initial_c1(self):
         self.events.append('hold'); self.report['held_after_c1_restore_for_root_review'] = True
     def media(self, name):

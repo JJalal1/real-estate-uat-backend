@@ -83,4 +83,86 @@ class HomeDiagnosticTests(unittest.TestCase):
                          'adb99b63ecba4d39804d3bdaf02e05a9d79f077be6c9d462fcda491ce0be048e')
 
 
+class PostPhotoFailureStageTests(unittest.TestCase):
+    def test_post_photo_stages_survive_failure_without_accepting_arbitrary_stage(self):
+        for stage, expected in [('photo_next_dispatch','photo_next_dispatch'),
+                                ('final_actions_wait','final_actions_wait'),
+                                ('SYNTHETIC_PRIVATE_POST_PHOTO_STAGE',None)]:
+            with self.subTest(stage=stage):
+                base=scaffold.ControllerTests(methodName='test_snapshot_is_read_only_no_general_phase_calls_and_wire_frame_list')
+                base.setUp()
+                try:
+                    controller,probe=base.controller,base.probe
+                    controller.prepare_runtime();controller.prepare_initial_native();controller.bootstrap_fixture()
+                    def fail():
+                        probe.report['native_journey_stages']={'C1-photo-save':stage}
+                        raise RuntimeError('expected_native_state_not_observed')
+                    probe.create_and_save=fail
+                    with self.assertRaisesRegex(RuntimeError,'^expected_native_state_not_observed$'):
+                        controller.initial_c1()
+                    self.assertEqual(probe.report['initial_c1_failure_before_cleanup'],{
+                        'case':'C1-photo-save','code':'expected_native_state_not_observed','stage':expected})
+                    self.assertNotIn('SYNTHETIC_PRIVATE',str(probe.report['initial_c1_failure_before_cleanup']))
+                    self.assertNotIn('restore',probe.events)
+                    with self.assertRaises(module.ControllerRefused):controller.initial_c1()
+                finally:base.tearDown()
+
+    def test_fixed_restore_blank_readback_failure_preserves_case_stage_and_code(self):
+        for code in ['c1_monthly_rent_readback_scope_required','c1_monthly_rent_not_exactly_blank']:
+            with self.subTest(code=code):
+                base=scaffold.ControllerTests(methodName='test_snapshot_is_read_only_no_general_phase_calls_and_wire_frame_list')
+                base.setUp()
+                try:
+                    controller,probe=base.controller,base.probe
+                    controller.prepare_runtime();controller.prepare_initial_native();controller.bootstrap_fixture()
+                    def fail():
+                        probe.report['native_journey_stages']={'C1-force-stop-restore':'restore_rent_blank_check'}
+                        raise RuntimeError(code)
+                    probe.restore=fail
+                    with self.assertRaises(RuntimeError):controller.initial_c1()
+                    self.assertEqual(probe.report['initial_c1_failure_before_cleanup'],{
+                        'case':'C1-force-stop-restore','code':code,'stage':'restore_rent_blank_check'})
+                    self.assertEqual(probe.report['c1_monthly_rent_blank_checks'],{'before_save':True})
+                    self.assertNotIn('hold',probe.events)
+                finally:base.tearDown()
+
+
+class C1BlankRentCheckpointProofTests(unittest.TestCase):
+    def setUp(self):
+        self.base=scaffold.ControllerTests(methodName='test_snapshot_is_read_only_no_general_phase_calls_and_wire_frame_list')
+        self.base.setUp();self.base.initial()
+        self.controller,self.probe=self.base.controller,self.base.probe
+    def tearDown(self):self.base.tearDown()
+
+    def test_c1_checkpoint_binds_only_actual_exact_boolean_check_pair(self):
+        invalid=[None,{}, {'before_save':True}, {'after_reopen':True},
+                 {'before_save':False,'after_reopen':True},
+                 {'before_save':True,'after_reopen':False},
+                 {'before_save':1,'after_reopen':True},
+                 {'before_save':True,'after_reopen':'true'},
+                 {'before_save':True,'after_reopen':True,'raw':'SYNTHETIC_PRIVATE_VALUE'}]
+        for proof in invalid:
+            with self.subTest(proof=proof):
+                self.probe.report['c1_monthly_rent_blank_checks']=proof
+                with self.assertRaisesRegex(module.ControllerRefused,'^actual_c1_blank_rent_checks_required$'):
+                    self.controller.snapshot()
+        proof={'before_save':True,'after_reopen':True}
+        self.probe.report['c1_monthly_rent_blank_checks']=proof
+        snapshot=self.controller.snapshot()
+        actual=snapshot['stage']['bindings']['c1_monthly_rent_blank_checks']
+        self.assertEqual(actual,proof)
+        self.assertIsNot(actual,proof)
+        self.assertEqual(set(actual),{'before_save','after_reopen'})
+        self.assertTrue(all(type(value) is bool for value in actual.values()))
+
+    def test_changed_nonimage_proof_refuses_fresh_scene_without_replaying_native_action(self):
+        snapshot=self.controller.snapshot();signed=self.base.signed(snapshot)
+        events=list(self.probe.events)
+        self.probe.report['c1_monthly_rent_blank_checks']['after_reopen']=False
+        self.assertFalse(self.controller.fresh_scene_matches(signed,snapshot))
+        self.assertEqual(self.probe.events,events)
+        with self.assertRaisesRegex(module.ControllerRefused,'^actual_c1_blank_rent_checks_required$'):
+            self.controller.snapshot()
+
+
 if __name__=='__main__':unittest.main()
