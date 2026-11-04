@@ -442,12 +442,16 @@ class NativeAccount:
         self.report.setdefault('c1_monthly_rent_blank_checks', {})[point] = True
         self.save()
 
-    def act(self, kind, row, value=None, direction='forward'):
+    def act(self, kind, row, value=None, direction='forward', scroll_step=None):
         extra = {'node_path': row['path'], 'node_witness': row['witness']}
+        if scroll_step is not None and (kind != 'scroll' or scroll_step != 'short'):
+            raise Blocked('fixed_native_scroll_step_required')
         if kind == 'set':
             extra['value_b64'] = base64.b64encode(value.encode()).decode()
         if kind == 'scroll':
             extra['direction'] = direction
+            if scroll_step is not None:
+                extra['scroll_step'] = scroll_step
         result = self.instrument('account-' + kind, **extra)
         receipt = account_delivery(result, kind)
         if self.authenticated:
@@ -460,7 +464,7 @@ class NativeAccount:
         self.save()
         time.sleep(.25)
 
-    def scroll(self, direction='forward'):
+    def scroll(self, direction='forward', *, short=False):
         deadline = time.monotonic() + 3
         while True:
             rows = [r for r in self.nodes() if r.get('scrollable') and r.get('enabled')]
@@ -473,7 +477,10 @@ class NativeAccount:
         def area(r):
             a, b, c, d = r['bounds']
             return (c - a) * (d - b)
-        self.act('scroll', max(rows, key=area), direction=direction)
+        if short:
+            self.act('scroll', max(rows, key=area), direction=direction, scroll_step='short')
+        else:
+            self.act('scroll', max(rows, key=area), direction=direction)
 
     def c4_ai_field_scope(self, label):
         state = self.report.get('local_c4_executor')
@@ -525,12 +532,25 @@ class NativeAccount:
         return candidates[0] if candidates else None
 
     def seek(self, label, attempts=12):
+        photo = label == 'صور الإعلان (1/12)'
+        observation = None
+        if photo:
+            observation = {'heading_seen':False,'complete_seen':False,'together_observed':False,
+                           'observations':0,'short_scrolls':0,'normal_scrolls':0}
+            self.report['one_photo_seek_observation'] = observation
         directions = ('backward', 'forward') if (label == 'جهّز الإعلان بالصوت أو المساعد'
             and self.c4_prepare_observation_scope()) else ('forward', 'backward')
         for direction in directions:
             for _ in range(attempts):
                 rows = self.nodes()
                 matched = self.matching(rows, label)
+                complete = self.matching(rows, 'مكتمل') if photo else []
+                if photo:
+                    observation['observations'] += 1
+                    observation['heading_seen'] |= bool(matched)
+                    observation['complete_seen'] |= bool(complete)
+                    observation['together_observed'] = bool(matched and complete)
+                    self.save()
                 if self.c4_ai_field_scope(label):
                     if self.c4_ai_field_in_rows(rows, label) is not None:
                         return rows, matched
@@ -538,9 +558,16 @@ class NativeAccount:
                     continue
                 # The one-photo heading can enter the viewport before its
                 # lower status. Reveal that exact completion status for callers.
-                if matched and (label != 'صور الإعلان (1/12)' or self.matching(rows, 'مكتمل')):
+                if matched and (not photo or complete):
                     return rows, matched
-                self.scroll(direction)
+                if photo and (matched or complete):
+                    # A full-height fling can skip the interval where this
+                    # heading and its lower status are visible together.
+                    observation['short_scrolls'] += 1
+                    self.scroll('forward' if matched else 'backward', short=True)
+                else:
+                    if photo: observation['normal_scrolls'] += 1
+                    self.scroll(direction)
         raise Blocked('named_native_control_not_found')
 
     def wait_account_logout_control(self, seconds=30):

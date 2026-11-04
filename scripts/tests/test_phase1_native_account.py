@@ -127,6 +127,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
                 self.assertEqual(args[args.index('node_path')+1],'0.8')
                 self.assertEqual(args[args.index('node_witness')+1],'a'*64)
                 self.assertEqual(args[args.index('direction')+1],'forward')
+                self.assertEqual(args[args.index('scroll_step')+1],'short')
                 order.append(('physical_scroll',));state['revealed']=True
                 receipt.extend(['INSTRUMENTATION_RESULT: account_action_delivered=true',
                     'INSTRUMENTATION_RESULT: native_pointer_used=true','INSTRUMENTATION_RESULT: native_pointer_events=14'])
@@ -157,10 +158,74 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.probe.scroll,self.probe.safe_capture=Mock(),Mock()
             with self.subTest(case=index),self.assertRaisesRegex(native.Blocked,'^named_native_control_not_found$'):
                 self.probe.seek('صور الإعلان (1/12)')
-            self.assertEqual(self.probe.scroll.call_args_list,
-                [unittest.mock.call('forward')]*12+[unittest.mock.call('backward')]*12)
+            expected=[]
+            for i in range(24):
+                visible=[r for r in snapshots[i%len(snapshots)] if r.get('visible') and r.get('package')==native.APP]
+                has_heading=bool(self.probe.matching(visible,'صور الإعلان (1/12)'))
+                has_complete=bool(self.probe.matching(visible,'مكتمل'))
+                expected.append(unittest.mock.call('forward' if has_heading else 'backward',short=True)
+                    if has_heading or has_complete else unittest.mock.call('forward' if i<12 else 'backward'))
+            self.assertEqual(self.probe.scroll.call_args_list,expected)
             self.assertEqual(self.probe.instrument.call_count,24)
             self.probe.safe_capture.assert_not_called()
+
+    def test_photo_seek_uses_short_observed_scroll_to_avoid_heading_status_fling_oscillation(self):
+        position=[0]
+        def nodes():
+            items=[self.node('صور الإعلان (1/12)',bounds=[280,760-position[0],520,810-position[0]]),
+                   self.node('مكتمل',path='0.9',bounds=[300,1080-position[0],500,1110-position[0]])]
+            return [r for r in items if 110<=r['bounds'][1] and r['bounds'][3]<=830]
+        def scroll(direction='forward',**kwargs):
+            distance=300 if kwargs.get('short') else 900
+            position[0]=min(900,max(0,position[0]+(distance if direction=='forward'else-distance)))
+        self.probe.nodes=Mock(side_effect=nodes);self.probe.scroll=Mock(side_effect=scroll)
+        rows,matched=self.probe.seek('صور الإعلان (1/12)')
+        self.assertTrue(matched);self.assertTrue(self.probe.matching(rows,'مكتمل'))
+        self.probe.scroll.assert_called_once_with('forward',short=True)
+        self.assertEqual(self.probe.report['one_photo_seek_observation'],{
+            'heading_seen':True,'complete_seen':True,'together_observed':True,
+            'observations':2,'short_scrolls':1,'normal_scrolls':0})
+
+    def test_short_scroll_preserves_original_container_binding_physical_mode_and_one_attempt(self):
+        container=self.node('',path='0.8',scrollable=True,bounds=[0,110,540,830])
+        self.probe.nodes=Mock(return_value=[container])
+        self.probe.adb=Mock(return_value='\n'.join([
+            'INSTRUMENTATION_RESULT: op=account-scroll','INSTRUMENTATION_RESULT: passed=true',
+            'INSTRUMENTATION_RESULT: account_action_delivered=true',
+            'INSTRUMENTATION_RESULT: native_pointer_used=true','INSTRUMENTATION_RESULT: native_pointer_events=14',
+            'INSTRUMENTATION_CODE: -1']))
+        self.probe.scroll('backward',short=True)
+        self.probe.adb.assert_called_once();args=self.probe.adb.call_args.args
+        for key,value in [('node_path','0.8'),('node_witness','a'*64),('input_mode','physical_scroll'),
+                          ('scroll_step','short'),('direction','backward')]:
+            self.assertEqual(args[args.index(key)+1],value)
+        self.probe.adb.reset_mock();self.probe.adb.side_effect=native.Blocked('native_input_not_delivered')
+        with self.assertRaises(native.Blocked):self.probe.scroll(short=True)
+        self.probe.adb.assert_called_once()
+
+    def test_actual_java_short_swipe_span_keeps_normal_geometry_and_stays_inside_owned_bounds(self):
+        source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        method='private static float[] scrollVerticalSpan('+source.split('    private static float[] scrollVerticalSpan(',1)[1].split('\n    private int number(',1)[0]
+        harness='public class ScrollSpanPolicy {\n'+method+'''\n
+          static void require(boolean x){if(!x)throw new IllegalStateException();}
+          public static void main(String[] args){
+            float[] full=scrollVerticalSpan(110,830,false,false);
+            require(full[0]==770 && full[1]==170);
+            float[] shortForward=scrollVerticalSpan(110,830,false,true);
+            float[] shortBack=scrollVerticalSpan(110,830,true,true);
+            require(shortForward[0]==570 && shortForward[1]==370);
+            require(shortBack[0]==370 && shortBack[1]==570);
+            require(shortForward[0]<830 && shortForward[1]>110);
+            boolean rejected=false;try{scrollVerticalSpan(0,80,false,true);}catch(IllegalStateException e){rejected=true;}
+            require(rejected);System.out.print("PASS");
+          }
+        }'''
+        with tempfile.TemporaryDirectory() as folder:
+            file=Path(folder)/'ScrollSpanPolicy.java';file.write_text(harness)
+            compiled=subprocess.run(['java','-m','jdk.compiler/com.sun.tools.javac.Main','-d',folder,str(file)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(compiled.returncode,0,compiled.stderr)
+            result=subprocess.run(['java','-cp',folder,'ScrollSpanPolicy'],capture_output=True,text=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout,'PASS')
 
     def test_other_seek_labels_retain_original_matching_without_photo_status_requirement(self):
         for label in ('المواصفات','صور الإعلان (2/12)','مكتمل'):

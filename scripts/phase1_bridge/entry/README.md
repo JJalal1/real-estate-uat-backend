@@ -27,9 +27,9 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`78781a7c97ca69d70df518a6b996848beeee7bf214835945f2493f8a20ab587f`
+`84636720ed579a71e424cb0ded2fd9d03b508baa7856f2b3fffe90074eb0514c`
 and Java SHA
-`aafc36e2a366a7d11f79273437d29b4adc3d76a2855fda727e6034f942b39b0e`.
+`dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
 source, the exact baseline diff allowlist, original unchanged mobile/backend
 trees, clean tracked paths and pinned public recipient certificate/expiry. No
@@ -265,3 +265,17 @@ setter. Only bounded millisecond deltas are recorded. No clock acceptance is
 inferred: the original later full +/-250ms bracket, one setter, bounded original
 deadline, UID restoration and every signed expiry are unchanged. No application
 or authentication code changes.
+
+
+Run52 passed the strict UTC preflight with a +27ms to +57ms observed bracket,
+then saved and reopened the same draft. Restoration stopped while seeking the
+photo heading and completed status together; the safe start PNG places the
+heading at the viewport bottom, and the driver made24 full-height swipes. The
+missing predicate at the final view was not exported, so the actual precise
+cause remains unproved. Full-height flings can oscillate across the interval
+where both anchors coexist. For this exact one-photo seek only, seeing either
+anchor now uses a centered one-third physical swipe toward the other. The
+original fresh node/witness/geometry checks,14 pointer events, attempt bounds,
+same-frame heading+completion requirement and actual photo/video review remain.
+Other labels retain the original full-height gesture. Fixed booleans/counts
+record the heading/status visibility without exporting trees or private fields.

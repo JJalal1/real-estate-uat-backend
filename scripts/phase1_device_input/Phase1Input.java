@@ -329,6 +329,9 @@ public final class Phase1Input extends Instrumentation {
         boolean physicalScroll="physical_scroll".equals(inputMode);
         require(!physicalClickFocus || "account-click".equals(op) || "account-set".equals(op));
         require(!physicalScroll || "account-scroll".equals(op));
+        String scrollStep=args.getString("scroll_step","normal");
+        require("normal".equals(scrollStep) || "short".equals(scrollStep));
+        require(!args.containsKey("scroll_step") || ("account-scroll".equals(op) && physicalScroll));
         if("account-dismiss-ime".equals(op)) { dismissIme(result); return; }
         if("account-snapshot".equals(op)) {
             // Attaching a fresh UiAutomation can trigger Flutter semantics
@@ -365,7 +368,7 @@ public final class Phase1Input extends Instrumentation {
             stage="account_scroll"; int action="backward".equals(args.getString("direction","forward")) ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
             require(node.isScrollable());
             if(!physicalScroll && (node.getActions()&action)!=0) { require(checkedAction(node,action)); result.putBoolean("semantic_action_used",true); }
-            else { stage="account_pointer_swipe"; pointerSwipe(node,"backward".equals(args.getString("direction","forward"))); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
+            else { stage="account_pointer_swipe"; pointerSwipe(node,"backward".equals(args.getString("direction","forward")),"short".equals(scrollStep)); result.putBoolean("native_pointer_used",true); result.putInt("native_pointer_events",events); }
         } else {
             require("account-set".equals(op) && node.isEditable()); stage="account_focus";
             String encoded=args.getString("value_b64",""); require(encoded.length()<=12000 && encoded.matches("[A-Za-z0-9+/=]*"));
@@ -495,15 +498,24 @@ public final class Phase1Input extends Instrumentation {
         send(down,MotionEvent.ACTION_DOWN,new float[]{x},new float[]{y}); SystemClock.sleep(60);
         send(down,MotionEvent.ACTION_UP,new float[]{x},new float[]{y});
     }
-    private void pointerSwipe(AccessibilityNodeInfo node,boolean backward) throws Exception {
+    private void pointerSwipe(AccessibilityNodeInfo node,boolean backward,boolean shortStep) throws Exception {
         String dispatchStage=stage;
         Rect b=pointerBounds(node); stage=dispatchStage;
         stage="pointer_swipe_height"; require(b.height()>80); stage=dispatchStage;
-        float margin=Math.min(60,b.height()/4f);
-        float x=b.exactCenterX(),from=backward?b.top+margin:b.bottom-margin,to=backward?b.bottom-margin:b.top+margin;
+        float[] span=scrollVerticalSpan(b.top,b.bottom,backward,shortStep);
+        float x=b.exactCenterX(),from=span[0],to=span[1];
         long down=SystemClock.uptimeMillis();send(down,MotionEvent.ACTION_DOWN,new float[]{x},new float[]{from});
         for(int i=1;i<=12;i++){SystemClock.sleep(25);send(down,MotionEvent.ACTION_MOVE,new float[]{x},new float[]{from+(to-from)*i/12f});}
         send(down,MotionEvent.ACTION_UP,new float[]{x},new float[]{to});
+    }
+    private static float[] scrollVerticalSpan(int top,int bottom,boolean backward,boolean shortStep) {
+        require(bottom-top>80);
+        float margin=Math.min(60,(bottom-top)/4f);
+        if(shortStep) {
+            float center=top+(bottom-top)/2f,half=(bottom-top-2*margin)/6f;
+            return backward?new float[]{center-half,center+half}:new float[]{center+half,center-half};
+        }
+        return backward?new float[]{top+margin,bottom-margin}:new float[]{bottom-margin,top+margin};
     }
     private int number(String key, int min, int max) {
         int value = Integer.parseInt(args.getString(key, "-1")); require(value >= min && value <= max); return value;
