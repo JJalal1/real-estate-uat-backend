@@ -108,6 +108,8 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::put('/listing-editor-drafts/{key}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'save'])->middleware('throttle:120,1');
     Route::delete('/listing-editor-drafts/{key}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'destroy']);
     Route::post('/listing-editor-drafts/{key}/images/{imageKey}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'upload'])->middleware('throttle:30,1');
+    Route::post('/listing-editor-drafts/{key}/images/{imageKey}/resumable-ticket', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'resumableTicket'])->middleware('throttle:15,1');
+    Route::post('/listing-editor-drafts/{key}/images/{imageKey}/resumable-finalize', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'resumableFinalize'])->middleware('throttle:15,1');
     Route::get('/listing-editor-drafts/{key}/images/{imageKey}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'image']);
     Route::delete('/listing-editor-drafts/{key}/images/{imageKey}', [\App\Http\Controllers\Api\ListingEditorDraftController::class,'removeImage']);
 

@@ -39,6 +39,36 @@ class ListingImageService
         return $path;
     }
 
+    /**
+     * Validate bytes uploaded through a signed private TUS URL before the
+     * draft gains a reference. Never expose an unvalidated original publicly.
+     */
+    public function finalizeResumablePrivate(string $path, string $sha256, int $expectedSize, string $mime): void
+    {
+        $temp = tempnam(sys_get_temp_dir(), 'aqer-image-');
+        if (! is_string($temp)) throw new RuntimeException('Cannot allocate image verification file.');
+        try {
+            $this->storage->downloadPrivateToPath($path, $temp);
+            $length = filesize($temp);
+            if (! is_int($length) || $length !== $expectedSize || $length <= 0
+                || $length > (int) config('listing_media.max_bytes')
+                || hash_file('sha256', $temp) !== $sha256) {
+                throw ValidationException::withMessages(['image'=>['ملف الصورة المستأنف لا يطابق الحجم أو البصمة المطلوبة.']]);
+            }
+            $bytes = file_get_contents($temp);
+            if (! is_string($bytes)) throw new RuntimeException('Image verification failed.');
+            $info = $this->inspect($bytes);
+            if (($info['mime'] ?? '') !== $mime) {
+                throw ValidationException::withMessages(['image'=>['نوع الملف الفعلي لا يطابق تصريح الرفع.']]);
+            }
+            foreach ($this->encode($bytes, $info) as $variant => $encoded) {
+                $this->storage->writePrivate($this->variantPath($path, $variant), $encoded, 'image/jpeg');
+            }
+        } finally {
+            @unlink($temp);
+        }
+    }
+
     public function matches(UploadedFile $file, string $path): bool
     {
         if (preg_match('/-([a-f0-9]{64})\.(?:jpg|png|webp)$/D', $path, $match)) return hash_equals($match[1], hash_file('sha256', $file->getRealPath()));

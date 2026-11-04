@@ -9,4 +9,6 @@ return [
     'max_pixels' => 24000000,
     'max_side' => 16384,
     'max_bytes' => 8 * 1024 * 1024,
+    // Stage #11: signed Supabase TUS + server-side validation, OFF until UAT canary and orphan cleanup.
+    'resumable_uploads_enabled' => env('LISTING_IMAGE_RESUMABLE_ENABLED', false),
 ];

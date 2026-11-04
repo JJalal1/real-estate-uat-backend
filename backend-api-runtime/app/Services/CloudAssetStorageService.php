@@ -41,6 +41,53 @@ class CloudAssetStorageService
     }
 
     /**
+     * Issue a narrow signed upload token for a single private original.
+     * Never return our service key or allow a caller-supplied bucket/path.
+     * The result works with Supabase Storage TUS's x-signature header.
+     */
+    public function createPrivateResumableTicket(string $logicalPath): array
+    {
+        if (! $this->cloudEnabled()) throw new RuntimeException('Cloud storage is not enabled.');
+        if (! preg_match('~^editor-drafts/[0-9]+/[a-f0-9-]{36}/[a-f0-9-]{36}-[a-f0-9]{64}\\.(jpg|png|webp)$~D', $logicalPath)) {
+            throw new RuntimeException('Invalid private upload path.');
+        }
+
+        $objectName = $this->objectPath($logicalPath, true);
+        $response = $this->request()->post(
+            $this->storageBaseUrl().'/object/upload/sign/'.rawurlencode($this->bucket()).'/'.$this->encodePath($objectName),
+            (object) [],
+        );
+        $this->assertRemoteSuccess($response, 'Cannot authorize resumable image.');
+        $remoteUrl = $response->json('url');
+        if (! is_string($remoteUrl) || $remoteUrl === '') throw new RuntimeException('Upload signature missing.');
+        $query = parse_url($remoteUrl, PHP_URL_QUERY);
+        parse_str(is_string($query) ? $query : '', $parameters);
+        $token = $parameters['token'] ?? null;
+        if (! is_string($token) || $token === '') throw new RuntimeException('Upload token missing.');
+
+        $url = parse_url(rtrim((string) config('services.supabase_storage.url'), '/'));
+        $host = $url['host'] ?? '';
+        $scheme = $url['scheme'] ?? '';
+        if ($scheme !== 'https' || ! is_string($host) || $host === '') throw new RuntimeException('Unsafe cloud storage endpoint.');
+        // Direct storage hostname is recommended by the provider. Self-hosted HTTPS
+        // installations retain their configured host instead.
+        if (preg_match('/^([a-z0-9-]+)\\.supabase\\.co$/D', $host, $match)) {
+            $host = $match[1].'.storage.supabase.co';
+        }
+
+        $publishableKey = $this->publicTusKey();
+
+        return [
+            'publishable_key' => $publishableKey,
+            'endpoint' => 'https://'.$host.'/storage/v1/upload/resumable/sign',
+            'bucket' => $this->bucket(),
+            'object_name' => $objectName,
+            'signature' => $token,
+            'chunk_size' => 6 * 1024 * 1024,
+        ];
+    }
+
+    /**
      * Stream an accepted video from PHP's upload temp file to private storage.
      * Unlike storePrivate(), this avoids loading a 50 MiB video into PHP memory.
      */
@@ -277,10 +324,7 @@ class CloudAssetStorageService
                 'Upload-Length' => (string) $total,
                 'Upload-Metadata' => $metadata,
             ];
-            $publishableKey = trim((string) config('services.supabase_storage.publishable_key'));
-            if ($publishableKey === '' || str_starts_with($publishableKey, 'sb_secret_')) {
-                throw new RuntimeException('Signed TUS requires a separate publishable key.');
-            }
+            $publishableKey = $this->publicTusKey();
             $connect = fn (array $headers) => Http::withHeaders(['apikey' => $publishableKey] + $headers)
                 ->connectTimeout(15)->timeout(90)
                 ->withOptions(['allow_redirects' => false]);
@@ -354,6 +398,18 @@ class CloudAssetStorageService
         }
 
         if (! $cleaned) throw new RuntimeException('Signed TUS canary did not clean up.');
+    }
+
+    private function publicTusKey(): string
+    {
+        $key = trim((string) config('services.supabase_storage.publishable_key'));
+        if (str_starts_with($key, 'sb_publishable_')) return $key;
+        $parts = explode('.', $key);
+        $claims = count($parts) === 3
+            ? json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true) : null;
+        // Legacy JWT keys are supported only for the unprivileged anon role.
+        if (is_array($claims) && ($claims['role'] ?? null) === 'anon') return $key;
+        throw new RuntimeException('Signed TUS requires a separate publishable key.');
     }
 
     public function readBytes(string $path, bool $private): string
