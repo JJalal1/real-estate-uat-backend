@@ -108,6 +108,10 @@ jobs:
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check Pillow==12.3.0 cryptography==50.0.2
           npm ci --ignore-scripts --omit=dev --prefix .github/actions/phase1-review
+          if ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
           command -v ffprobe >/dev/null
       - name: Resolve approved locked graph
         working-directory: mobile_app
