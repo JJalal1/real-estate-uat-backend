@@ -183,8 +183,12 @@ class OwnedVmSourceReview(unittest.TestCase):
         self.assertIsNone(receipt['vm_parent_exit_code'])
         self.assertFalse(receipt['owned_process_group_absence_observed'])
 
-    def clock_instance(self):
-        instance = vm.OwnedApi36Vm(self.env)
+    def clock_instance(self, suffix=None):
+        env=self.env
+        if suffix is not None:
+            root=self.root/suffix;root.mkdir()
+            env=dict(self.env,RUNNER_TEMP=str(root))
+        instance = vm.OwnedApi36Vm(env)
         instance.started = True
         instance.receipt['boot_and_CE_ready'] = True
         instance.process = Mock(pid=987654, returncode=None)
@@ -218,8 +222,110 @@ class OwnedVmSourceReview(unittest.TestCase):
         self.assertEqual(calls[-2:],[['unroot'],['shell','id','-u']])
         self.assertEqual(instance.receipt['clock_preparation'],{
             'attempted_once':True,'root_uid_verified':True,'date_setter_exit_zero':True,
-            'default_shell_uid_restored':True,'clock_acceptance_claimed':False,'stage':'complete'})
+            'default_shell_uid_restored':True,
+            'root_request':{'attempted_once':True,'transport':'EXIT_ZERO','stderr':'EMPTY'},
+            'unroot_request':{'attempted_once':True,'transport':'EXIT_ZERO','stderr':'EMPTY'},
+            'clock_acceptance_claimed':False,'stage':'complete'})
         self.assertNotIn('1793754123',str(instance.receipt))
+
+    def test_restart_request_errors_still_require_and_accept_actual_uid_proof_once(self):
+        for operation in ('root','unroot'):
+            for mode,status,stderr in [('nonzero','EXIT_NONZERO','EMPTY'),
+                                       ('stderr','EXIT_ZERO','REPORTED'),
+                                       ('timeout','UNOBSERVED','UNOBSERVED'),
+                                       ('oserror','UNOBSERVED','UNOBSERVED')]:
+                instance=self.clock_instance(operation+'-'+mode)
+                calls,rooted=[],[False]
+                def fake(args,**kwargs):
+                    op=args[3:];calls.append(op)
+                    if op in (['root'],['unroot']):
+                        rooted[0]=op==['root']
+                        if op==[operation]:
+                            if mode=='timeout':raise subprocess.TimeoutExpired(['SYNTHETIC_PRIVATE_COMMAND'],5,output=b'SYNTHETIC_PRIVATE_OUTPUT',stderr=b'SYNTHETIC_PRIVATE_ERROR')
+                            if mode=='oserror':raise OSError('SYNTHETIC_PRIVATE_ERROR')
+                            return subprocess.CompletedProcess(args,1 if mode=='nonzero' else 0,
+                                b'SYNTHETIC_PRIVATE_OUTPUT',b'SYNTHETIC_PRIVATE_ERROR' if mode=='stderr' else b'')
+                    elif op==['shell','id','-u']:
+                        return subprocess.CompletedProcess(args,0,b'0\n' if rooted[0] else b'2000\n',b'')
+                    return subprocess.CompletedProcess(args,0,b'',b'')
+                with self.subTest(operation=operation,mode=mode),patch.object(vm.subprocess,'run',side_effect=fake), \
+                     patch.object(vm.time,'time_ns',return_value=1793754123123456789), \
+                     patch.object(vm.time,'monotonic',return_value=100):
+                    self.assertTrue(instance.prepare_utc_clock(deadline=150))
+                observation=instance.receipt['clock_preparation']
+                self.assertEqual(observation[operation+'_request'],{'attempted_once':True,'transport':status,'stderr':stderr})
+                self.assertTrue(observation['root_uid_verified'])
+                self.assertTrue(observation['date_setter_exit_zero'])
+                self.assertTrue(observation['default_shell_uid_restored'])
+                self.assertFalse(observation['clock_acceptance_claimed'])
+                self.assertEqual(observation['stage'],'complete')
+                self.assertEqual(sum(c==['root'] for c in calls),1)
+                self.assertEqual(sum(c==['unroot'] for c in calls),1)
+                self.assertEqual(sum(c[:2]==['shell','date'] for c in calls),1)
+                self.assertEqual(calls[calls.index([operation])+1],['shell','id','-u'])
+                self.assertNotIn('SYNTHETIC_PRIVATE',str(instance.receipt))
+
+    def test_restart_ack_or_transport_error_never_substitutes_for_missing_uid_state(self):
+        for missing in ('root','unroot'):
+            for mode in ('zero','nonzero','stderr','timeout'):
+                instance=self.clock_instance('missing-'+missing+'-'+mode)
+                calls,phase=[],['root']
+                def fake(args,**kwargs):
+                    op=args[3:];calls.append(op)
+                    if op in (['root'],['unroot']):
+                        phase[0]=op[0]
+                        if op==[missing]:
+                            if mode=='timeout':raise subprocess.TimeoutExpired(['SYNTHETIC_PRIVATE_COMMAND'],5)
+                            return subprocess.CompletedProcess(args,1 if mode=='nonzero' else 0,b'',b'SYNTHETIC_PRIVATE_ERROR' if mode=='stderr' else b'')
+                    if op==['shell','id','-u']:
+                        actual='2000' if phase[0]=='unroot' else '0'
+                        if phase[0]==missing:actual='0' if missing=='unroot' else '2000'
+                        return subprocess.CompletedProcess(args,0,(actual+'\n').encode(),b'')
+                    return subprocess.CompletedProcess(args,0,b'',b'')
+                ticks=iter(100+i*.05 for i in range(5000))
+                expected='owned_clock_root_uid_unverified' if missing=='root' else 'owned_default_shell_uid_unverified'
+                with self.subTest(missing=missing,mode=mode),patch.object(vm.subprocess,'run',side_effect=fake), \
+                     patch.object(vm.time,'time_ns',return_value=1793754123123456789), \
+                     patch.object(vm.time,'monotonic',side_effect=lambda:next(ticks)),patch.object(vm.time,'sleep'):
+                    with self.assertRaisesRegex(vm.VmBlocked,'^'+expected+'$'):
+                        instance.prepare_utc_clock(deadline=150)
+                observation=instance.receipt['clock_preparation']
+                self.assertEqual(sum(c==['root'] for c in calls),1)
+                self.assertEqual(sum(c==['unroot'] for c in calls),1)
+                self.assertEqual(sum(c[:2]==['shell','date'] for c in calls),0 if missing=='root' else 1)
+                self.assertEqual(observation['root_uid_verified'],missing!='root')
+                self.assertEqual(observation['default_shell_uid_restored'],missing!='unroot')
+                self.assertFalse(observation['clock_acceptance_claimed'])
+                key='failure_stage' if missing=='root' else 'restore_failure_stage'
+                self.assertEqual(observation[key],'root_uid_wait' if missing=='root' else 'shell_uid_wait')
+                self.assertNotIn('SYNTHETIC_PRIVATE',str(instance.receipt))
+
+    def test_restart_timeout_uses_remaining_original_budget_and_never_renews_uid_wait(self):
+        instance=self.clock_instance()
+        calls,clock,rooted=[],[100.0],[False]
+        def fake(args,**kwargs):
+            op=args[3:];calls.append((op,kwargs['timeout']))
+            self.assertLessEqual(kwargs['timeout'],110-clock[0])
+            if op in (['root'],['unroot']):
+                rooted[0]=op==['root'];clock[0]+=kwargs['timeout']
+                raise subprocess.TimeoutExpired(['SYNTHETIC_PRIVATE_COMMAND'],kwargs['timeout'])
+            if op==['shell','id','-u']:
+                return subprocess.CompletedProcess(args,0,b'0\n' if rooted[0] else b'2000\n',b'')
+            return subprocess.CompletedProcess(args,0,b'',b'')
+        with patch.object(vm.subprocess,'run',side_effect=fake), \
+             patch.object(vm.time,'time_ns',return_value=1793754123123456789), \
+             patch.object(vm.time,'monotonic',side_effect=lambda:clock[0]),patch.object(vm.time,'sleep'):
+            with self.assertRaisesRegex(vm.VmBlocked,'^owned_default_shell_uid_unverified$'):
+                instance.prepare_utc_clock(deadline=110)
+        self.assertEqual(clock[0],110)
+        self.assertEqual([op for op,timeout in calls],[['root'],['shell','id','-u'],['shell','date','-u','-s','@1793754123.123456789'],['unroot']])
+        observation=instance.receipt['clock_preparation']
+        self.assertEqual(observation['root_request']['transport'],'UNOBSERVED')
+        self.assertEqual(observation['unroot_request']['transport'],'UNOBSERVED')
+        self.assertTrue(observation['root_uid_verified'])
+        self.assertTrue(observation['date_setter_exit_zero'])
+        self.assertFalse(observation['default_shell_uid_restored'])
+        self.assertEqual(observation['restore_failure_stage'],'shell_uid_wait')
 
     def test_clock_preparation_waits_for_actual_uid_without_replaying_mutations(self):
         instance = self.clock_instance()

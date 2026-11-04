@@ -146,8 +146,28 @@ class OwnedApi36Vm:
         deadline = min(deadline, time.monotonic() + 40)
         observation = {'attempted_once': True, 'root_uid_verified': False,
                        'date_setter_exit_zero': False, 'default_shell_uid_restored': False,
+                       'root_request': {'attempted_once': False, 'transport': 'NOT_ATTEMPTED', 'stderr': 'NOT_ATTEMPTED'},
+                       'unroot_request': {'attempted_once': False, 'transport': 'NOT_ATTEMPTED', 'stderr': 'NOT_ATTEMPTED'},
                        'clock_acceptance_claimed': False, 'stage': 'root_request'}
         self.receipt['clock_preparation'] = observation
+        def restart_request(operation):
+            # Restarting adbd may disconnect its own request transport. Its
+            # acknowledgment is not actual UID proof; issue it only once and
+            # always leave verification to the bounded read-only UID poll.
+            receipt = observation[operation + '_request']
+            remaining = min(5, deadline - time.monotonic())
+            if remaining <= 0 or self.process.poll() is not None:
+                return
+            receipt['attempted_once'] = True
+            try:
+                result = subprocess.run([str(self.sdk / 'platform-tools/adb'), '-s',
+                    'emulator-5554', operation], env=self.env, stdin=subprocess.DEVNULL,
+                    capture_output=True, timeout=remaining)
+            except (OSError, subprocess.TimeoutExpired):
+                receipt.update(transport='UNOBSERVED', stderr='UNOBSERVED')
+                return
+            receipt.update(transport='EXIT_ZERO' if result.returncode == 0 else 'EXIT_NONZERO',
+                           stderr='EMPTY' if result.stderr == b'' else 'REPORTED')
         def command(*args, maximum=5):
             remaining = min(maximum, deadline - time.monotonic())
             require(remaining > 0 and self.process.poll() is None,
@@ -178,7 +198,7 @@ class OwnedApi36Vm:
                 time.sleep(max(0, min(.2, until - time.monotonic())))
             raise VmBlocked(failure_code)
         try:
-            command('root')
+            restart_request('root')
             observation['stage'] = 'root_uid_wait'
             wait_uid('0', 'owned_clock_root_uid_unverified')
             observation['root_uid_verified'] = True
@@ -196,7 +216,7 @@ class OwnedApi36Vm:
         finally:
             try:
                 observation['stage'] = 'unroot_request'
-                command('unroot')
+                restart_request('unroot')
                 observation['stage'] = 'shell_uid_wait'
                 wait_uid('2000', 'owned_default_shell_uid_unverified')
                 observation['default_shell_uid_restored'] = True
