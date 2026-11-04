@@ -163,7 +163,18 @@ jobs:
           test "$GITHUB_REF" = refs/heads/work/phase1-native-account-20261103
           test -f phase1-native-account-private/APK_VERIFICATION.json
           test -c /dev/kvm
-          rm -rf mobile_app/build "$RUNNER_TEMP/aqer-native-account-gradle"
+          test "$GRADLE_USER_HOME" = "$RUNNER_TEMP/aqer-native-account-gradle"
+          test ! -L "$GRADLE_USER_HOME"
+          (cd mobile_app/android && ./gradlew --stop --gradle-user-home "$GRADLE_USER_HOME")
+          for cleanup_attempt in 1 2 3; do
+            if rm -rf -- mobile_app/build "$GRADLE_USER_HOME"; then
+              break
+            fi
+            test "$cleanup_attempt" -lt 3
+            sleep 1
+          done
+          test ! -e "$GRADLE_USER_HOME"
+          test ! -e mobile_app/build
           sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
           export ANDROID_USER_HOME="$RUNNER_TEMP/aqer-native-account-android"
           export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
