@@ -493,6 +493,10 @@ def run_native(workspace, env, channels, run_root, tool_sha, guard):
              'owned_vm_clock_preparation_required')
         probe.report['owned_vm_clock_preparation'] = dict(vm.receipt['clock_preparation'])
         probe.save()
+        need(vm.prepare_recording_environment(deadline=deadline) is True,
+             'owned_vm_recording_environment_required')
+        probe.report['owned_vm_recording_environment'] = dict(vm.receipt['recording_environment'])
+        probe.save()
     def close_owned_runtime(*, deadline):
         receipt = runtime_close(vm, deadline=deadline)
         probe.report['owned_vm_lifecycle'] = dict(vm.receipt)

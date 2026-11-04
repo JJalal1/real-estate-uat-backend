@@ -300,6 +300,7 @@ class ConcreteCompositionContract(unittest.TestCase):
                     record['probe'] = self
                 def command(self, args, **kwargs):
                     assert 'clock_preparation_deadline' in record
+                    assert 'recording_environment_deadline' in record
                     record['command'] = kwargs
                     return 'SYNTHETIC'
                 def save(self): pass
@@ -314,6 +315,13 @@ class ConcreteCompositionContract(unittest.TestCase):
                     record['clock_preparation_deadline'] = deadline
                     self.receipt['clock_preparation'] = {'attempted_once': True,
                         'default_shell_uid_restored': True, 'clock_acceptance_claimed': False}
+                    return True
+                def prepare_recording_environment(self, *, deadline):
+                    assert 'clock_preparation_deadline' in record
+                    record['recording_environment_deadline'] = deadline
+                    self.receipt['recording_environment'] = {'attempted_once':True,
+                        'current_android_user0_verified':True,'system_sound_effects_disabled_readback':True,
+                        'actual_recorded_silence_claimed':False,'stage':'complete'}
                     return True
                 def close(self, *, deadline): return {'vm_parent_exit_code': -15, 'owned_process_group_absence_observed': True}
             class Controller:
@@ -359,6 +367,11 @@ class ConcreteCompositionContract(unittest.TestCase):
             self.assertLessEqual(record['boot_seconds'], 20)
             self.assertGreater(record['clock_preparation_deadline'], time.monotonic())
             self.assertFalse(record['probe'].report['owned_vm_clock_preparation']['clock_acceptance_claimed'])
+            self.assertEqual(record['recording_environment_deadline'],record['clock_preparation_deadline'])
+            recording=record['probe'].report['owned_vm_recording_environment']
+            self.assertTrue(recording['current_android_user0_verified'])
+            self.assertTrue(recording['system_sound_effects_disabled_readback'])
+            self.assertFalse(recording['actual_recorded_silence_claimed'])
             self.assertLess(record['command']['timeout'], 20)
             self.assertTrue(record['closed']['all_created_processes_observed_ended'])
 

@@ -393,6 +393,120 @@ class OwnedVmSourceReview(unittest.TestCase):
         self.assertFalse(instance.receipt['clock_preparation']['date_setter_exit_zero'])
         self.assertTrue(instance.receipt['clock_preparation']['default_shell_uid_restored'])
 
+    def recording_instance(self, suffix=None):
+        instance=self.clock_instance(suffix)
+        instance._clock_preparation_used=True
+        instance.receipt['clock_preparation']={'stage':'complete','root_uid_verified':True,
+            'date_setter_exit_zero':True,'default_shell_uid_restored':True,'clock_acceptance_claimed':False}
+        return instance
+
+    def test_recording_environment_once_observes_user0_and_only_disables_its_system_sound_effects(self):
+        instance=self.recording_instance()
+        operations=[]
+        expected=[['shell','id','-u'],['shell','am','get-current-user'],
+                  ['shell','settings','--user','0','put','system','sound_effects_enabled','0'],
+                  ['shell','settings','--user','0','get','system','sound_effects_enabled']]
+        def fake(args,**kwargs):
+            self.assertEqual(args[:3],[str(self.sdk/'platform-tools/adb'),'-s','emulator-5554'])
+            op=args[3:];operations.append(op);self.assertLessEqual(kwargs['timeout'],3)
+            return subprocess.CompletedProcess(args,0,b'2000\n' if op==expected[0] else b'0\n' if op in (expected[1],expected[3]) else b'',b'')
+        with patch.object(vm.subprocess,'run',side_effect=fake),patch.object(vm.time,'monotonic',return_value=100):
+            self.assertTrue(instance.prepare_recording_environment(deadline=150))
+            with self.assertRaises(vm.VmBlocked):instance.prepare_recording_environment(deadline=150)
+        self.assertEqual(operations,expected)
+        self.assertEqual(instance.receipt['recording_environment'],{'attempted_once':True,
+            'current_android_user0_verified':True,'system_sound_effects_disabled_readback':True,
+            'actual_recorded_silence_claimed':False,'stage':'complete'})
+        self.assertFalse(instance.receipt['clock_preparation']['clock_acceptance_claimed'])
+
+    def test_recording_environment_requires_actual_owned_clock_proofs_and_an_existing_deadline(self):
+        variants=['not_started','closed','not_ready','parent_ended','clock_unused','clock_missing',
+                  'clock_incomplete','root_unverified','setter_unverified','shell_unverified','expired','nonfinite']
+        for variant in variants:
+            instance=self.recording_instance(variant)
+            if variant=='not_started':instance.started=False
+            elif variant=='closed':instance.closed=True
+            elif variant=='not_ready':instance.receipt['boot_and_CE_ready']=False
+            elif variant=='parent_ended':instance.process.poll.return_value=0
+            elif variant=='clock_unused':instance._clock_preparation_used=False
+            elif variant=='clock_missing':instance.receipt.pop('clock_preparation')
+            elif variant=='clock_incomplete':instance.receipt['clock_preparation']['stage']='unroot_request'
+            elif variant=='root_unverified':instance.receipt['clock_preparation']['root_uid_verified']=False
+            elif variant=='setter_unverified':instance.receipt['clock_preparation']['date_setter_exit_zero']=False
+            elif variant=='shell_unverified':instance.receipt['clock_preparation']['default_shell_uid_restored']=False
+            deadline=100 if variant=='expired' else float('nan') if variant=='nonfinite' else 150
+            with self.subTest(variant=variant),patch.object(vm.subprocess,'run') as run,patch.object(vm.time,'monotonic',return_value=100):
+                with self.assertRaises(vm.VmBlocked):instance.prepare_recording_environment(deadline=deadline)
+                run.assert_not_called()
+            self.assertNotIn('recording_environment',instance.receipt)
+
+    def test_recording_environment_refuses_wrong_actual_uid_or_current_user_before_any_settings_write(self):
+        for index,(uid,user,expected_stage) in enumerate([('0','0','shell_uid'),('2000','1','current_user'),
+                                                        ('2000','null','current_user'),('2000','','current_user')]):
+            instance=self.recording_instance('scope-'+str(index));operations=[]
+            def fake(args,**kwargs):
+                op=args[3:];operations.append(op)
+                self.assertIn(op,[['shell','id','-u'],['shell','am','get-current-user']])
+                return subprocess.CompletedProcess(args,0,((uid if op==['shell','id','-u'] else user)+'\n').encode(),b'')
+            with self.subTest(uid=uid,user=user),patch.object(vm.subprocess,'run',side_effect=fake),patch.object(vm.time,'monotonic',return_value=100):
+                with self.assertRaises(vm.VmBlocked):instance.prepare_recording_environment(deadline=150)
+            observation=instance.receipt['recording_environment']
+            self.assertEqual(observation['failure_stage'],expected_stage)
+            self.assertFalse(observation['current_android_user0_verified'])
+            self.assertFalse(observation['system_sound_effects_disabled_readback'])
+            self.assertFalse(observation['actual_recorded_silence_claimed'])
+            self.assertEqual(len(operations),1 if expected_stage=='shell_uid' else 2)
+
+    def test_recording_environment_strict_command_failures_never_replay_or_export_private_output(self):
+        stages=['shell_uid','current_user','system_sound_effects_put','system_sound_effects_get']
+        for failed_index,stage in enumerate(stages):
+            for mode in ['nonzero','stderr','timeout','oserror','nonascii','oversized','runtime_lost','wrong_readback']:
+                if mode=='wrong_readback' and failed_index!=3:continue
+                instance=self.recording_instance('failure-'+str(failed_index)+'-'+mode);operations=[]
+                def fake(args,**kwargs):
+                    op=args[3:];operations.append(op)
+                    normal=b'2000\n' if len(operations)==1 else b'0\n' if len(operations) in (2,4) else b''
+                    if len(operations)==failed_index+1:
+                        if mode=='timeout':raise subprocess.TimeoutExpired(['SYNTHETIC_PRIVATE_COMMAND'],3,output=b'SYNTHETIC_PRIVATE_OUTPUT')
+                        if mode=='oserror':raise OSError('SYNTHETIC_PRIVATE_ERROR')
+                        if mode=='runtime_lost':instance.process.poll.return_value=0
+                        output=b'\xff' if mode=='nonascii' else b'X'*4097 if mode=='oversized' else b'SYNTHETIC_PRIVATE_OUTPUT' if mode=='wrong_readback' else normal
+                        return subprocess.CompletedProcess(args,1 if mode=='nonzero' else 0,output,b'SYNTHETIC_PRIVATE_ERROR' if mode=='stderr' else b'')
+                    return subprocess.CompletedProcess(args,0,normal,b'')
+                with self.subTest(stage=stage,mode=mode),patch.object(vm.subprocess,'run',side_effect=fake),patch.object(vm.time,'monotonic',return_value=100):
+                    with self.assertRaises(vm.VmBlocked) as caught:instance.prepare_recording_environment(deadline=150)
+                    before=len(operations)
+                    with self.assertRaises(vm.VmBlocked):instance.prepare_recording_environment(deadline=150)
+                    self.assertEqual(len(operations),before)
+                observation=instance.receipt['recording_environment']
+                self.assertEqual(len(operations),failed_index+1)
+                self.assertEqual(observation['failure_stage'],stage)
+                self.assertFalse(observation['system_sound_effects_disabled_readback'])
+                self.assertFalse(observation['actual_recorded_silence_claimed'])
+                self.assertNotIn('SYNTHETIC_PRIVATE',str(instance.receipt))
+                self.assertNotIn('SYNTHETIC_PRIVATE',str(caught.exception))
+                self.assertLessEqual(sum('put' in op for op in operations),1)
+                self.assertLessEqual(sum('get' in op for op in operations),1)
+
+    def test_recording_environment_deadline_is_shared_across_reads_write_and_readback(self):
+        for seconds in (1,10):
+            instance=self.recording_instance('deadline-'+str(seconds));clock=[100.0];operations=[];timeouts=[]
+            def fake(args,**kwargs):
+                operations.append(args[3:]);timeouts.append(kwargs['timeout'])
+                self.assertLessEqual(kwargs['timeout'],min(3,100+seconds-clock[0]))
+                clock[0]+=kwargs['timeout']
+                output=b'2000\n' if len(operations)==1 else b'0\n' if len(operations) in (2,4) else b''
+                return subprocess.CompletedProcess(args,0,output,b'')
+            with self.subTest(seconds=seconds),patch.object(vm.subprocess,'run',side_effect=fake),patch.object(vm.time,'monotonic',side_effect=lambda:clock[0]):
+                with self.assertRaisesRegex(vm.VmBlocked,'^owned_recording_environment_deadline_or_runtime_lost$'):
+                    instance.prepare_recording_environment(deadline=101 if seconds==1 else 150)
+            self.assertEqual(clock[0],100+seconds)
+            self.assertEqual(timeouts,[1] if seconds==1 else [3,3,3,1])
+            observation=instance.receipt['recording_environment']
+            self.assertFalse(observation['system_sound_effects_disabled_readback'])
+            self.assertFalse(observation['actual_recorded_silence_claimed'])
+            self.assertEqual(observation['failure_stage'],'shell_uid' if seconds==1 else 'system_sound_effects_get')
+
     def test_clock_preparation_requires_live_owned_boot_and_cannot_extend_expired_budget(self):
         instance=self.clock_instance()
         with patch.object(vm.subprocess,'run') as run, patch.object(vm.time,'monotonic',return_value=100):

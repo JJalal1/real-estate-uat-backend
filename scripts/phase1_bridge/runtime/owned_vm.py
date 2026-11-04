@@ -57,6 +57,7 @@ class OwnedApi36Vm:
         self.process = None
         self.started = self.closed = False
         self._clock_preparation_used = False
+        self._recording_environment_used = False
         self.receipt = {'android_api': 36, 'acceleration': 'KVM',
                         'network_modified': False, 'boot_and_CE_ready': False,
                         'vm_parent_exit_code': None, 'owned_process_group_absence_observed': False}
@@ -223,6 +224,65 @@ class OwnedApi36Vm:
             except VmBlocked:
                 observation['restore_failure_stage'] = observation['stage']
                 raise
+        observation['stage'] = 'complete'
+        return True
+
+    def prepare_recording_environment(self, *, deadline):
+        """Disable only owned user0 UI sound effects before APP installation.
+
+        A settings readback is environment configuration, never proof that a
+        future recording is silent. Its exact-zero validators remain separate.
+        """
+        clock = self.receipt.get('clock_preparation')
+        require(not self._recording_environment_used and self.started and not self.closed
+                and self.receipt['boot_and_CE_ready'] is True
+                and self.process is not None and self.process.poll() is None
+                and self._clock_preparation_used and type(clock) is dict
+                and clock.get('stage') == 'complete'
+                and all(clock.get(key) is True for key in
+                    ('root_uid_verified', 'date_setter_exit_zero', 'default_shell_uid_restored')),
+                'fresh_owned_recording_environment_required')
+        require(type(deadline) in (int, float) and math.isfinite(deadline)
+                and deadline > time.monotonic(), 'bounded_recording_environment_required')
+        self._recording_environment_used = True
+        deadline = min(deadline, time.monotonic() + 10)
+        observation = {'attempted_once': True, 'current_android_user0_verified': False,
+                       'system_sound_effects_disabled_readback': False,
+                       'actual_recorded_silence_claimed': False, 'stage': 'shell_uid'}
+        self.receipt['recording_environment'] = observation
+        def command(*args):
+            remaining = min(3, deadline - time.monotonic())
+            require(remaining > 0 and self.process.poll() is None,
+                    'owned_recording_environment_deadline_or_runtime_lost')
+            try:
+                result = subprocess.run([str(self.sdk / 'platform-tools/adb'), '-s',
+                    'emulator-5554', *args], env=self.env, stdin=subprocess.DEVNULL,
+                    capture_output=True, timeout=remaining)
+            except (OSError, subprocess.TimeoutExpired):
+                raise VmBlocked('owned_recording_environment_unobserved') from None
+            require(result.returncode == 0 and result.stderr == b'' and len(result.stdout) <= 4096,
+                    'owned_recording_environment_unobserved')
+            try:
+                value = result.stdout.decode('ascii').strip()
+            except UnicodeError:
+                raise VmBlocked('owned_recording_environment_unobserved') from None
+            require(time.monotonic() < deadline and self.process.poll() is None,
+                    'owned_recording_environment_deadline_or_runtime_lost')
+            return value
+        try:
+            require(command('shell', 'id', '-u') == '2000', 'recording_default_shell_uid_unverified')
+            observation['stage'] = 'current_user'
+            require(command('shell', 'am', 'get-current-user') == '0', 'recording_current_android_user_unverified')
+            observation['current_android_user0_verified'] = True
+            observation['stage'] = 'system_sound_effects_put'
+            command('shell', 'settings', '--user', '0', 'put', 'system', 'sound_effects_enabled', '0')
+            observation['stage'] = 'system_sound_effects_get'
+            require(command('shell', 'settings', '--user', '0', 'get', 'system',
+                            'sound_effects_enabled') == '0', 'recording_sound_effects_readback_unverified')
+            observation['system_sound_effects_disabled_readback'] = True
+        except VmBlocked:
+            observation['failure_stage'] = observation['stage']
+            raise
         observation['stage'] = 'complete'
         return True
 
