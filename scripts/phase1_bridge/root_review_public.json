@@ -1,6 +1,6 @@
 {
   "algorithm": "Ed25519",
-  "root_public_b64": "Mn+u1IrmMJcpvBnUM/N+Tk566NWkM1FUUSYk6d/J3hA=",
-  "root_key_id": "f05ee399314c96ad98a0bb2d07afc9d00951f9abea2f6c0351fcec40e256b442",
+  "root_public_b64": "pbdvvlDb01pk0AC1Kk++MjIFCGMQEcsSn98hmnJfC9I=",
+  "root_key_id": "4d2e6da95a3e98d088aa594cfa14d5c3af771730fda483b437c863411a43dcdd",
   "scope": "Phase1 completion review; generated for this task, public verification only"
 }

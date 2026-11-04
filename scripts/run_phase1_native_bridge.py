@@ -27,8 +27,8 @@ SECRET = 'AQER_PHASE1_TEST_ACCESS_JSON'
 MANIFEST = 'scripts/phase1_bridge/tool_manifest.json'
 HELPER_SOURCE_SHA = 'dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495'
 PAIRED_PROBE_SHA = 'b2a84a16fe3c6b6f39af73cbad2b481868e5e38a938c2068e81e33671e189838'
-ROOT_PUBLIC_B64 = 'Mn+u1IrmMJcpvBnUM/N+Tk566NWkM1FUUSYk6d/J3hA='
-ROOT_KEY_ID = 'f05ee399314c96ad98a0bb2d07afc9d00951f9abea2f6c0351fcec40e256b442'
+ROOT_PUBLIC_B64 = 'pbdvvlDb01pk0AC1Kk++MjIFCGMQEcsSn98hmnJfC9I='
+ROOT_KEY_ID = '4d2e6da95a3e98d088aa594cfa14d5c3af771730fda483b437c863411a43dcdd'
 EXPECTED_FILES = tuple(sorted((
     '.github/actions/phase1-review/README.md',
     '.github/actions/phase1-review/action.yml',
