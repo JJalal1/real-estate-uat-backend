@@ -1101,6 +1101,7 @@ class NativeAccount:
         # The OS picker is outside our self-targeted helper. Use fresh, observed nodes.
         deadline = time.monotonic() + 45
         selected, final_sent, app_returned = False, False, False
+        drawer_sent, downloads_sent = False, False
         while time.monotonic() < deadline:
             target = '/sdcard/phase1-os-picker.xml'
             self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
@@ -1129,14 +1130,42 @@ class NativeAccount:
             if selected and rows and rows[0].get('package') == APP and app_rows and not candidates:
                 app_returned = True
                 break
+            if not rows or rows[0].get('package') not in {
+                    'com.google.android.documentsui', 'com.android.documentsui',
+                    'com.google.android.providers.media.module', 'com.android.providers.media.module'}:
+                time.sleep(.7)
+                continue
             def tap_os(node):
                 found = re.fullmatch(r'\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]', node.get('bounds', ''))
                 if not found:
                     raise Blocked('os_picker_bounds_invalid')
                 a, b, c, d = map(int, found.groups())
+                if c <= a or d <= b:
+                    raise Blocked('os_picker_bounds_invalid')
                 self.adb('shell', 'input', 'tap', (a+c)//2, (b+d)//2)
-            files = [n for n in candidates if self.photo_name in
-                     {n.get('text', ''), n.get('content-desc', '')}]
+            # A visible roots drawer can leave the dimmed file tree mounted.
+            # Select Downloads only within its actual roots_list, never a
+            # toolbar/breadcrumb with the same label. Dispatch each route once.
+            roots = [n for n in candidates if n.get('resource-id', '').rsplit('/', 1)[-1] == 'roots_list']
+            if roots and not selected:
+                if len(roots) == 1 and not downloads_sent:
+                    downloads = [n for n in roots[0].iter('node') if n in candidates
+                                 and n.get('text', '') in {'Downloads', 'التنزيلات'}
+                                 and n.get('enabled') == 'true']
+                    if len(downloads) == 1:
+                        downloads_sent = True
+                        tap_os(downloads[0])
+                time.sleep(.7)
+                continue
+            # AOSP GridPhotoHolder exposes "displayName, size, date" on the
+            # actual photo item and a separate "Preview the file ..." control.
+            # Bind the complete owned filename as the first metadata field;
+            # a substring or preview action is not a file-selection witness.
+            files = [n for n in candidates if n.get('enabled') == 'true'
+                     and n.get('resource-id', '').rsplit('/', 1)[-1] != 'preview_icon'
+                     and (self.photo_name in {n.get('text', ''), n.get('content-desc', '')}
+                          or (n.get('clickable') == 'true' and
+                              n.get('content-desc', '').split(', ', 1)[0] == self.photo_name))]
             if len(files) == 1 and not selected:
                 self.journey_stage('photo_file_select')
                 tap_os(files[0]); selected = True; time.sleep(.6)
@@ -1151,13 +1180,12 @@ class NativeAccount:
                 continue
             if selected:
                 self.journey_stage('photo_app_return')
-            downloads = [n for n in candidates if n.get('text', '') in {'Downloads', 'التنزيلات'}]
-            if len(downloads) == 1 and not selected:
-                tap_os(downloads[0])
-            else:
+            if not selected and not drawer_sent and not downloads_sent:
                 menus = [n for n in candidates if n.get('content-desc', '') in
-                         {'Show roots', 'Open navigation drawer', 'عرض الجذور', 'فتح قائمة التنقل'}]
-                if len(menus) == 1 and not selected:
+                         {'Show roots', 'Open navigation drawer', 'عرض الجذور', 'فتح قائمة التنقل'}
+                         and n.get('enabled') == 'true']
+                if len(menus) == 1:
+                    drawer_sent = True
                     tap_os(menus[0])
             time.sleep(.7)
         if not selected:

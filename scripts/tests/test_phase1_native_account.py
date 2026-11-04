@@ -1362,6 +1362,66 @@ class NativeAccountSafetyTest(unittest.TestCase):
             'exact_fixture_filename_observed': True, 'file_tap_sent_once': True,
             'final_open_sent_once': True, 'app_window_return_observed': True})
 
+    def test_os_picker_selects_complete_grid_filename_metadata_not_preview_or_similar_name(self):
+        package = 'com.android.documentsui'
+        name = self.probe.photo_name
+        xml = ('<hierarchy><node package="' + package + '">' +
+               '<node package="' + package + '" enabled="true" clickable="true" '
+               'content-desc="' + name + ', 12.4 kB, 8:00 AM" bounds="[10,20][90,100]" />' +
+               '<node package="' + package + '" enabled="true" clickable="true" '
+               'resource-id="' + package + ':id/preview_icon" content-desc="Preview the file ' + name +
+               '" bounds="[70,20][90,40]" />' +
+               '<node package="' + package + '" enabled="true" clickable="true" '
+               'content-desc="other-' + name + ', 12.4 kB, 8:00 AM" bounds="[100,20][180,100]" />' +
+               '</node></hierarchy>')
+        frames = iter([xml, '<hierarchy><node package="' + native.APP + '" /></hierarchy>'])
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames)
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        with patch.object(native.time, 'sleep'):
+            self.probe.photo_picker()
+        taps = [c.args[3:] for c in self.probe.adb.call_args_list
+                if c.args[:3] == ('shell', 'input', 'tap')]
+        self.assertEqual(taps, [(50, 60)])
+        self.probe.wait.assert_called_once_with('صور الإعلان (1/12)', seconds=30)
+
+    def test_os_picker_uses_drawer_scoped_downloads_once_before_uncovered_file(self):
+        package = 'com.android.documentsui'
+        menu = '<node package="' + package + '" enabled="true" content-desc="Show roots" bounds="[0,0][20,20]" />'
+        drawer = ('<hierarchy><node package="' + package + '">' + menu +
+                  '<node package="' + package + '" enabled="true" text="Downloads" bounds="[200,0][300,30]" />' +
+                  '<node package="' + package + '" resource-id="' + package + ':id/roots_list">' +
+                  '<node package="' + package + '" enabled="true" text="Downloads" bounds="[10,70][90,110]" />' +
+                  '</node>' + self.picker_xml().removeprefix('<hierarchy>').removesuffix('</hierarchy>') +
+                  '</node></hierarchy>')
+        frames = iter(['<hierarchy>' + menu + '</hierarchy>', drawer, drawer,
+                       self.picker_xml(), '<hierarchy><node package="' + native.APP + '" /></hierarchy>'])
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames)
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        with patch.object(native.time, 'sleep'):
+            self.probe.photo_picker()
+        taps = [c.args[3:] for c in self.probe.adb.call_args_list
+                if c.args[:3] == ('shell', 'input', 'tap')]
+        self.assertEqual(taps, [(10, 10), (50, 90), (20, 20)])
+
+    def test_os_picker_duplicate_grid_files_or_preview_only_never_select(self):
+        package = 'com.android.documentsui'
+        name = self.probe.photo_name
+        for descriptions in [(name + ', 12 kB, today',) * 2, ('Preview the file ' + name,)]:
+            xml = '<hierarchy><node package="' + package + '">' + ''.join(
+                '<node package="' + package + '" enabled="true" clickable="true" content-desc="' +
+                description + '" bounds="[10,10][30,30]" />' for description in descriptions) + '</node></hierarchy>'
+            self.probe.adb = Mock(side_effect=lambda *a, **kw: xml
+                                 if a[:2] == ('exec-out', 'cat') else '')
+            self.probe.tap = Mock()
+            with self.subTest(descriptions=descriptions), patch.object(native.time, 'sleep'), \
+                    patch.object(native.time, 'monotonic', side_effect=[0, 1, 46]):
+                with self.assertRaisesRegex(native.Blocked, '^genuine_os_photo_selection_not_observed$'):
+                    self.probe.photo_picker()
+            self.assertFalse(any(c.args[:3] == ('shell', 'input', 'tap')
+                                 for c in self.probe.adb.call_args_list))
+
     def test_os_picker_missing_app_return_never_opens_native_snapshot_or_repeats_open(self):
         frames = iter([self.picker_xml(), self.picker_xml(include_done=True),
                        self.picker_xml(include_done=True),
