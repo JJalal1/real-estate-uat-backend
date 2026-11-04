@@ -299,8 +299,8 @@ def prepare(probe, state):
     probe.set('صف العقار', BRIEF)
     probe.require_value('صف العقار', BRIEF)
     state['prepared_brief_scene'] = ai_scene(probe)
-    # End before the network request. Request/response and actual proposal
-    # capture receive a separate original120s grant, without refreshing this one.
+    # End before the network request; each subsequent segment uses its own
+    # fresh signed authority without refreshing an existing grant.
     return finish(probe, state, 'REQUEST')
 
 
@@ -317,9 +317,43 @@ def request_prepared(probe, state):
     prepared_brief_context(probe, state)
     probe.tap('جهّز الإعلان')
     probe.wait(APPLY, seconds=120)
+    # Preserve the actual response before any scrolling. This diagnostic is
+    # neither an AI-source assertion nor a visual acceptance decision.
+    state['response_ready_frames'] = ai_capture(probe, 'C1-c4-response-ready')
+    state['response_ready_scene'] = ai_scene(probe)
+    return finish(probe, state, 'RESPONSE_READY')
+
+
+def seek_ai_notice(probe, state):
+    # Short overlapping physical swipes avoid skipping the small notice with
+    # full flings. Inspect the literal fallback too; never relabel it as AI.
+    directions = ('backward',) * 4 + ('forward',) * 8
+    diagnostic = {'observations': 0, 'short_scrolls_completed': 0,
+                  'ai_notice_seen': False, 'literal_fallback_seen': False}
+    state['notice_seek'] = diagnostic
+    for index in range(len(directions) + 1):
+        rows = [row for row in safe_rows(probe) if row.get('visible') is True]
+        diagnostic['observations'] += 1
+        diagnostic['ai_notice_seen'] = any(AI_NOTICE in names(row) for row in rows)
+        diagnostic['literal_fallback_seen'] = any(FALLBACK_NOTICE in names(row) for row in rows)
+        save(probe)
+        need(not diagnostic['literal_fallback_seen'], 'c4_literal_fallback_observed_no_ai_acceptance')
+        if diagnostic['ai_notice_seen']:
+            return
+        if index < len(directions):
+            probe.scroll(directions[index], short=True)
+            diagnostic['short_scrolls_completed'] += 1
+            save(probe)
+    need(False, 'c4_actual_ai_notice_not_observed_after_bounded_short_seek')
+
+
+def collect_response(probe, state):
+    reserve(probe, state, 'collect_response')
+    ensure_session(probe)
+    need(ai_scene(probe) == state.get('response_ready_scene'), 'c4_response_ready_scene_changed')
     # Notice must be observed literally on the real native sheet. This does not
     # inspect a response source field or establish the provider used.
-    probe.seek(AI_NOTICE)
+    seek_ai_notice(probe, state)
     rows = safe_rows(probe)
     need(any(AI_NOTICE in names(r) for r in rows) and
          not any(FALLBACK_NOTICE in names(r) for r in rows),
@@ -493,6 +527,8 @@ def _run_phase(probe, phase):
             return prepare(probe, state)
         if cursor == 'REQUEST':
             return request_prepared(probe, state)
+        if cursor == 'RESPONSE_READY':
+            return collect_response(probe, state)
         if cursor in {'AI_REVIEW', 'APPLY_REVIEW', 'RESTORE_REVIEW'}:
             group = {'AI_REVIEW': 'ai_frames', 'APPLY_REVIEW': 'apply_frames',
                      'RESTORE_REVIEW': 'restore_frames'}[cursor]

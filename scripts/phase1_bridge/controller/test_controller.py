@@ -380,6 +380,23 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(self.dispatcher.calls,[('C4','REQUEST')])
         self.assertEqual(state['cursor'],'AI_REVIEW')
 
+    def test_response_ready_exports_only_original_snapshot_and_requires_fresh_no_flag_authority(self):
+        self.initial();self.root()
+        state=self.controller._c4_state()
+        row=self.probe.media('C1-c4-response-ready.png')
+        state.update(cursor='RESPONSE_READY',response_ready_scene=SHA,
+            response_ready_frames={'C1-c4-response-ready.png':row['sha256']})
+        snapshot=self.controller.snapshot()
+        self.assertEqual(snapshot['stage']['context'],'RESPONSE_READY')
+        self.assertEqual(snapshot['stage']['requested_review_fields'],[])
+        self.assertEqual([x['file'] for x in snapshot['evidence']],['C1-c4-response-ready.png'])
+        self.assertEqual(snapshot['stage']['bindings']['frames'],[{'file':'C1-c4-response-ready.png','sha256':row['sha256']}])
+        with self.assertRaises(module.ControllerRefused):
+            self.controller.advance(self.signed(snapshot,phase_review={}))
+        self.assertEqual(self.dispatcher.calls,[])
+        self.assertTrue(self.controller.advance(self.signed(snapshot)))
+        self.assertEqual(self.dispatcher.calls,[('C4','RESPONSE_READY')])
+
     def test_c2_configuration_requires_fresh_actual_two_proofs_without_refresh(self):
         self.initial(); self.root('C2')
         state = self.controller._c4_state(); state.update(accepted=True, cursor='C4_SAVED_RESTORED_HOLD_FOR_C2')

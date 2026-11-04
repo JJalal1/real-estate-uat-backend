@@ -126,7 +126,7 @@ class C4RequestBoundaryTests(unittest.TestCase):
         self.state = {'cursor':'C1_REVIEW','inflight':None,'uncertain':False,
                       'title':'SYNTHETIC','accepted':False}
 
-    def test_preparation_ends_before_request_then_fresh_segment_captures_actual_proposals(self):
+    def test_each_boundary_preserves_response_before_separate_proposal_scan_without_request_replay(self):
         with patch.object(self.c4, 'safe_rows', return_value=[{'text':self.c4.AI_NOTICE,'visible':True}]), \
              patch.object(self.c4, 'ai_scene', return_value=DIGEST), \
              patch.object(self.c4, 'copy_digest', return_value='b'*64), \
@@ -142,12 +142,59 @@ class C4RequestBoundaryTests(unittest.TestCase):
             self.assertIsNone(self.probe.adapter)
             self.probe.tap.reset_mock()
             result = self.c4.request_prepared(self.probe, self.state)
+            self.assertEqual(result['cursor'],'RESPONSE_READY')
+            self.assertEqual(self.state['response_ready_frames'],{'C1-c4-response-ready.png':DIGEST})
+            self.assertEqual(self.state['response_ready_scene'],DIGEST)
+            self.assertNotIn('ai_frames',self.state)
+            self.probe.seek.assert_not_called()
+            self.probe.scroll.assert_not_called()
+            self.assertIsNone(self.probe.adapter)
+            result = self.c4.collect_response(self.probe,self.state)
         self.probe.tap.assert_called_once_with('جهّز الإعلان')
         self.probe.wait.assert_any_call(self.c4.APPLY,seconds=120)
         self.assertEqual(result['cursor'],'AI_REVIEW')
         self.assertEqual(len(self.state['ai_frames']),7)
         self.assertFalse(self.state['accepted'])
         self.assertIsNone(self.state['inflight'])
+
+    def test_changed_response_scene_refuses_scrolling_and_cannot_replay(self):
+        self.state.update(cursor='RESPONSE_READY',response_ready_scene=DIGEST)
+        with patch.object(self.c4,'ai_scene',return_value='f'*64):
+            with self.assertRaisesRegex(self.c4.C4Blocked,'c4_response_ready_scene_changed'):
+                self.c4.collect_response(self.probe,self.state)
+            with self.assertRaisesRegex(self.c4.C4Blocked,'no_replay'):
+                self.c4.collect_response(self.probe,self.state)
+        self.probe.tap.assert_not_called()
+        self.probe.seek.assert_not_called()
+        self.probe.scroll.assert_not_called()
+
+    def test_short_notice_seek_stops_at_literal_visible_ai_notice(self):
+        rows=[[],[],[{'text':self.c4.AI_NOTICE,'visible':True}]]
+        with patch.object(self.c4,'safe_rows',side_effect=rows):
+            self.c4.seek_ai_notice(self.probe,self.state)
+        self.assertEqual(self.probe.scroll.call_args_list,
+                         [unittest.mock.call('backward',short=True)]*2)
+        self.assertEqual(self.state['notice_seek'],{'observations':3,'short_scrolls_completed':2,
+            'ai_notice_seen':True,'literal_fallback_seen':False})
+
+    def test_literal_fallback_stops_without_scroll_or_ai_acceptance(self):
+        rows=[{'text':self.c4.FALLBACK_NOTICE,'visible':True}]
+        with patch.object(self.c4,'safe_rows',return_value=rows):
+            with self.assertRaisesRegex(self.c4.C4Blocked,'literal_fallback_observed_no_ai_acceptance'):
+                self.c4.seek_ai_notice(self.probe,self.state)
+        self.probe.scroll.assert_not_called()
+        self.assertTrue(self.state['notice_seek']['literal_fallback_seen'])
+        self.assertFalse(self.state['accepted'])
+
+    def test_notice_seek_is_bounded_short_bidirectional_and_ignores_hidden_notice(self):
+        rows=[{'text':self.c4.AI_NOTICE,'visible':False},{'text':'SYNTHETIC_OTHER','visible':True}]
+        with patch.object(self.c4,'safe_rows',return_value=rows):
+            with self.assertRaisesRegex(self.c4.C4Blocked,'bounded_short_seek'):
+                self.c4.seek_ai_notice(self.probe,self.state)
+        self.assertEqual(self.probe.scroll.call_args_list,
+            [unittest.mock.call('backward',short=True)]*4+[unittest.mock.call('forward',short=True)]*8)
+        self.assertEqual(self.state['notice_seek']['observations'],13)
+        self.assertNotIn('SYNTHETIC_OTHER',json.dumps(self.state['notice_seek']))
 
     def test_changed_prepared_scene_refuses_request_and_never_replays_reserved_stage(self):
         self.state.update(cursor='REQUEST',prepared_brief_scene=DIGEST)

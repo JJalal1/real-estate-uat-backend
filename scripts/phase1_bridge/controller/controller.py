@@ -523,6 +523,9 @@ class Controller:
                 frames = {}
                 with self._read_session():
                     self.c4.prepared_brief_context(p, state)
+            elif cursor == 'RESPONSE_READY':
+                frames = state['response_ready_frames']
+                evidence = self._media(list(frames))
             elif cursor in {'AI_REVIEW', 'APPLY_REVIEW', 'RESTORE_REVIEW'}:
                 group = {'AI_REVIEW': 'ai_frames', 'APPLY_REVIEW': 'apply_frames', 'RESTORE_REVIEW': 'restore_frames'}[cursor]
                 frames = state[group]

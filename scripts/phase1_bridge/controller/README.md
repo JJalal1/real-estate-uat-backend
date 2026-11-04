@@ -117,7 +117,7 @@ Add only the following cursor-specific entries:
 | Current cursor/stage | Additional entry |
 |---|---|
 | C4 `C1_REVIEW`, `AI_REVIEW`, `APPLY_REVIEW`, `RESTORE_REVIEW` | `phase_review`: actual complete C4 remote record from `GATE_MAP.md`, including its own same actual `review_completed_utc` |
-| C4 `REQUEST`, `SAVE`, `REOPEN` | None; fresh signed advance, original source guards and observed postconditions still required |
+| C4 `REQUEST`, `RESPONSE_READY`, `SAVE`, `REOPEN` | None; fresh signed advance, original source guards and observed postconditions still required |
 | C2 `CONFIGURE_C2` | `c1_review`, `c4_review`: the two exact original configuration proof schemas plus their actual same `review_completed_utc` |
 | C2 target/observation Root gate | `phase_review`: the exact current C2 record, `executor_cursor`, actual current frame/chain/nonimage bindings and actual review UTC |
 | Other C2 source stage | None; one authorized source stage and its actual original guards/postconditions |
@@ -132,9 +132,16 @@ configuration boundary; old C1/C4 timestamps must not be refreshed automatically
 `C1_REVIEW` now prepares and reads back the exact synthetic brief, then holds at
 `REQUEST` before sending it. The `REQUEST` checkpoint rechecks that exact brief
 and the unchanged safe AI-sheet scene. Its separate fresh signed advance sends
-the request once, waits for the actual response and captures the original AI
-proposal evidence for `AI_REVIEW`. Neither segment renews its original grant or
-extends120s expiry. No request, application or visual acceptance is inferred
+the request once, waits for the actual response, captures one original safe
+AI-sheet PNG, and holds at `RESPONSE_READY` before scrolling. A new signed
+advance rechecks the same response scene and collects the original proposal
+evidence for `AI_REVIEW`. Literal AI/fallback notices are checked with at most
+12 short overlapping physical swipes (4 backward, 8 forward), stopping early
+when observed. A literal fallback blocks AI acceptance. The response snapshot
+is diagnostic evidence and makes no AI-source or acceptance assertion. No
+segment renews its grant or extends120s expiry. Run57 actually reached Apply
+but its account-scroll was clipped to1367ms remaining during the notice seek;
+no AI57 response image or provider outcome was observed. No request, application or visual acceptance is inferred
 from preparation; all four actual visual review gates remain required.
 
 At `AI_REVIEW`, `copy_has_only_supplied_facts` requires every factual statement
