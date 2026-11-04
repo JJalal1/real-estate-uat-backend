@@ -94,9 +94,10 @@ C1_FAILURE_CODES = frozenset({
     'scrollable_native_container_missing', 'named_native_control_not_found',
     'expected_native_state_not_observed', 'native_owned_editor_title_ambiguous',
     'fixed_native_journey_stage_required', 'safe_basic_editor_anchor_not_observed',
+    'native_owned_editor_title_not_stable',
 })
 C1_FAILURE_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
-    'purpose', 'type', 'title', 'restore_options_wait', 'editor_basics_loaded',
+    'purpose', 'type', 'title', 'restore_options_wait', 'editor_basics_loaded', 'editor_title_settle',
     'editor_title_seek', 'editor_basics_return', 'home_wait', 'add_stable_wait', 'add_dispatch'})
 HOME_DIAGNOSTIC_NAMES = frozenset({'C1-before-add-home.png', 'C1-restore-before-add-home.png'})
 HOME_DIAGNOSTIC_SCOPE = 'authenticated_broker_marketplace_before_add'
@@ -791,8 +792,16 @@ class Controller:
             if route['kind'] == 'unpromoted':
                 # The original strict unpromoted cleaner refuses any promotion
                 # and performs exact baseline/readback plus normal revocation.
-                p.fixture_api.cleanup()
-                self._cleanup_receipt = copy.deepcopy(p.fixture_api.last_receipt)
+                try:
+                    p.fixture_api.cleanup()
+                finally:
+                    # Keep the actual bounded API result even when native
+                    # logout is unproven; this never manufactures C1 cleanup.
+                    receipt = p.fixture_api.last_receipt
+                    if type(receipt) is dict and receipt.get('mode') == 'cleanup':
+                        self._cleanup_receipt = copy.deepcopy(receipt)
+                        p.report['api_cleanup'] = copy.deepcopy(receipt)
+                        p.save()
             need(self.fixture_removed_confirmed(), 'actual_cleanup_readback_required')
             if route['kind'] == 'promoted':
                 # session.run returned only after its actual logout200/me401.

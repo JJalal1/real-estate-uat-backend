@@ -35,7 +35,7 @@ C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait'
                                 'logout_account_ready', 'logout_control', 'logout_confirm',
                                 'editor_basics_loaded', 'editor_title_seek', 'editor_basics_return',
                                 'logout_marketplace_wait', 'logout_guest_marketplace', 'logout_guest_account_wait',
-                                'home_wait', 'add_stable_wait', 'add_dispatch'})
+                                'home_wait', 'add_stable_wait', 'add_dispatch', 'editor_title_settle'})
 ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
 ACCOUNT_SCROLL_MODE = 'physical_scroll'
 INPUT_OPS = frozenset({'account-dismiss-ime', 'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
@@ -813,6 +813,37 @@ class NativeAccount:
                 self.scroll('backward')
         raise Blocked('native_basic_editor_purpose_not_observed')
 
+    def wait_stable_owned_title(self, expected_title, deadline):
+        # Read-only settling after one known scroll, never another UI action or
+        # capture retry. A changed identity/route still refuses immediately.
+        self.journey_stage('editor_title_settle')
+        until = min(deadline, time.monotonic() + 15)
+        signature, since, observations = None, None, 0
+        while time.monotonic() < until:
+            rows = self.nodes()
+            if not self.basic_editor_context(rows):
+                raise Blocked('native_basic_editor_context_changed')
+            field = self.visible_editor_title(rows)
+            now = time.monotonic()
+            if field is None:
+                signature, since, observations = None, None, 0
+            else:
+                if field.get('text') != expected_title:
+                    raise Blocked('native_owned_editor_title_mismatch')
+                bounds = field.get('bounds')
+                if not (type(bounds) is list and len(bounds) == 4
+                        and all(type(value) is int for value in bounds)):
+                    raise Blocked('safe_basic_editor_anchor_not_observed')
+                current = (field.get('path'), field.get('witness'), tuple(bounds))
+                if current != signature:
+                    signature, since, observations = current, now, 1
+                else:
+                    observations += 1
+                if observations >= 3 and now - since >= 1:
+                    return
+            time.sleep(max(0, min(.4, until - time.monotonic())))
+        raise Blocked('native_owned_editor_title_not_stable')
+
     def wait_owned_title_editor(self, expected_title, seconds=60):
         self.journey_stage('editor_wait')
         deadline = time.monotonic() + seconds
@@ -845,6 +876,7 @@ class NativeAccount:
                     raise Blocked('native_owned_editor_title_mismatch')
                 if not self.basic_editor_context(rows):
                     raise Blocked('native_basic_editor_context_changed')
+                self.wait_stable_owned_title(expected_title, deadline)
                 self.capture_basic_editor('C1-owned-editor-title', expected_title)
                 self.return_to_basic_editor(deadline, expected_title=expected_title,
                                             loaded_basics_observed=basics_captured)
@@ -1155,7 +1187,8 @@ class NativeAccount:
         if not self.has('تسجيل الخروج'):
             self.tap('حسابي')
         self.journey_stage('logout_control')
-        self.tap('تسجيل الخروج')
+        self.wait('تسجيل الخروج', seconds=30)
+        self.tap('تسجيل الخروج', seek=False)
         self.authenticated = False
         self.journey_stage('logout_marketplace_wait')
         self.wait_guest_marketplace()

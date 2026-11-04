@@ -121,7 +121,7 @@ class FixtureApi:
                             'identity': {'actor_id':28,'account_type':'broker'}}
     def cleanup(self):
         self.calls.append('unpromoted_cleanup')
-        self.last_receipt = {'status': 'PASS', 'fixture_removed': True, 'fresh_session_cleaned': True}
+        self.last_receipt = {'mode': 'cleanup', 'status': 'PASS', 'fixture_removed': True, 'fresh_session_cleaned': True}
     def _call(self, method, path, body=None, token=None):
         self.calls.append((method, path))
         if path == '/auth/whatsapp/verify':
@@ -431,6 +431,17 @@ class ControllerTests(unittest.TestCase):
         before=list(self.probe.fixture_api.calls)
         with self.assertRaises(module.ControllerRefused): self.controller.cleanup_once(deadline=500)
         self.assertEqual(self.probe.fixture_api.calls,before)
+
+    def test_actual_api_cleanup_receipt_survives_unconfirmed_native_logout_without_pass(self):
+        self.initial(); self.cleanup_dependencies(); self.cleanup_scope()
+        self.controller._writers_stopped = True
+        self.controller._native_logout = False
+        self.assertFalse(self.controller.cleanup_once(deadline=500))
+        self.assertEqual(self.probe.report['api_cleanup'], self.probe.fixture_api.last_receipt)
+        self.assertTrue(self.probe.report['api_cleanup']['fresh_session_cleaned'])
+        self.assertTrue(self.controller.fixture_removed_confirmed())
+        self.assertFalse(any(row['id']=='C1-cleanup' and row['status']=='PASS'
+                             for row in self.probe.report['cases']))
 
     def test_promoted_cleanup_pins_and_deletes_property_first_same_helper(self):
         self.initial(); created=self.cleanup_dependencies(); self.cleanup_scope()
