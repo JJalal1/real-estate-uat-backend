@@ -91,6 +91,9 @@ C1_FAILURE_CODES = frozenset({
     'native_basic_editor_context_changed', 'native_basic_editor_purpose_not_observed',
     'deadline_helper_preflight_refused', 'owner_input_authority_refused',
     'instrumentation_completion_uncertain', 'actual_c1_case_pass_required',
+    'scrollable_native_container_missing', 'named_native_control_not_found',
+    'expected_native_state_not_observed', 'native_owned_editor_title_ambiguous',
+    'fixed_native_journey_stage_required', 'safe_basic_editor_anchor_not_observed',
 })
 C1_FAILURE_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait', 'editor_ready',
     'purpose', 'type', 'title', 'restore_options_wait', 'editor_basics_loaded',

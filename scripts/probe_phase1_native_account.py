@@ -789,15 +789,25 @@ class NativeAccount:
         # A basics frame is not a visible title or UUID identity claim.
         self.safe_capture(name)
 
-    def return_to_basic_editor(self, deadline):
+    def return_to_basic_editor(self, deadline, *, expected_title, loaded_basics_observed):
         for attempt in range(7):
             if time.monotonic() >= deadline:
                 break
             rows = self.nodes()
+            field = self.visible_editor_title(rows)
+            if field is not None and field.get('text') != expected_title:
+                raise Blocked('native_owned_editor_title_mismatch')
             if self.basic_editor_loaded(rows):
                 return
             if not self.basic_editor_context(rows):
                 raise Blocked('native_basic_editor_context_changed')
+            # The reviewed loaded-basics frame and exact title already bind
+            # this editor. Its section heading may now be above the viewport
+            # even though all next input targets and the owned title are visible.
+            # Avoid an unnecessary backward gesture in that observed state.
+            if loaded_basics_observed is True and field is not None and all(
+                    self.matching(rows, label) for label in ('للبيع', 'للإيجار', 'شقة')):
+                return
             if attempt < 6:
                 self.journey_stage('editor_basics_return')
                 self.scroll('backward')
@@ -836,7 +846,8 @@ class NativeAccount:
                 if not self.basic_editor_context(rows):
                     raise Blocked('native_basic_editor_context_changed')
                 self.capture_basic_editor('C1-owned-editor-title', expected_title)
-                self.return_to_basic_editor(deadline)
+                self.return_to_basic_editor(deadline, expected_title=expected_title,
+                                            loaded_basics_observed=basics_captured)
                 if not basics_captured:
                     self.capture_basic_editor('C1-basic-editor')
                 self.journey_stage('editor_ready')

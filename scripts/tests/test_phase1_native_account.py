@@ -218,6 +218,46 @@ class NativeAccountSafetyTest(unittest.TestCase):
                          ['C1-basic-editor','C1-owned-editor-title'])
         self.probe.tap.assert_not_called(); self.probe.set.assert_not_called()
 
+    def test_reviewed_basics_and_exact_title_with_visible_input_targets_need_no_return_scroll(self):
+        # Actual API36 viewport: the section heading is above the screen, while
+        # both purpose choices, apartment choice and the owned title are visible.
+        wanted = self.fixture().state['title']
+        target_scene = self.editor_rows(wanted, basics=False) + [
+            self.node(name, path='0.5' + str(i))
+            for i, name in enumerate(('للبيع', 'للإيجار', 'شقة'))]
+        self.probe.nodes = Mock(side_effect=[self.editor_rows(), target_scene, target_scene])
+        self.probe.capture_basic_editor = Mock()
+        def scroll(direction):
+            if direction != 'forward':
+                raise native.Blocked('scrollable_native_container_missing')
+        self.probe.scroll = Mock(side_effect=scroll)
+        self.probe.tap, self.probe.set = Mock(), Mock()
+        self.probe.case_phase('C1-photo-save')
+        self.probe.wait_owned_title_editor(wanted)
+        self.assertEqual([call.args[0] for call in self.probe.scroll.call_args_list], ['forward'])
+        self.assertEqual(self.probe.report['native_journey_stages']['C1-photo-save'], 'editor_ready')
+        self.probe.tap.assert_not_called(); self.probe.set.assert_not_called()
+
+    def test_visible_targets_without_prior_loaded_basics_or_owned_title_still_return(self):
+        wanted = self.fixture().state['title']
+        targets = [self.node(name, path='0.5' + str(i))
+                   for i, name in enumerate(('للبيع', 'للإيجار', 'شقة'))]
+        for observed, title in ((False, wanted), (True, None)):
+            self.probe.nodes = Mock(side_effect=[self.editor_rows(title, basics=False) + targets,
+                                                self.editor_rows()])
+            self.probe.scroll = Mock()
+            self.probe.return_to_basic_editor(native.time.monotonic() + 60,
+                expected_title=wanted, loaded_basics_observed=observed)
+            self.probe.scroll.assert_called_once_with('backward')
+
+    def test_changed_title_during_return_refuses_before_any_gesture(self):
+        self.probe.nodes = Mock(return_value=self.editor_rows('different-owned-title'))
+        self.probe.scroll = Mock()
+        with self.assertRaisesRegex(native.Blocked, '^native_owned_editor_title_mismatch$'):
+            self.probe.return_to_basic_editor(native.time.monotonic() + 60,
+                expected_title=self.fixture().state['title'], loaded_basics_observed=True)
+        self.probe.scroll.assert_not_called()
+
     def test_scrollable_loading_scene_does_not_trigger_premature_scroll(self):
         wanted = self.fixture().state['title']; order = []
         scenes = iter([[self.node('loading', scrollable=True)], self.editor_rows(),
