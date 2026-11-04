@@ -243,9 +243,14 @@ class NativeAccountSafetyTest(unittest.TestCase):
         source=(Path(__file__).resolve().parents[1]/'phase1_device_input/Phase1Input.java').read_text()
         method=source.split('    private static boolean focusHintMatches(',1)[1].split('\n    }',1)[0]
         body='private static boolean focusHintMatches('+method+'\n}'
+        shape=source.split('    private static String focusHintShape(',1)[1].split('\n    }',1)[0]
+        body+='\nprivate static String focusHintShape('+shape+'\n}'
         harness='public class FocusHintPolicy {\n'+body+'''
           private static void check(boolean actual,boolean expected) {
             if(actual!=expected) throw new AssertionError("focus identity policy");
+          }
+          private static void shape(String input,String expected) {
+            if(!expected.equals(focusHintShape(input))) throw new AssertionError("hint shape policy");
           }
           public static void main(String[] ignored) {
             check(focusHintMatches("bedrooms","bedrooms",false,false),true);
@@ -255,6 +260,47 @@ class NativeAccountSafetyTest(unittest.TestCase):
             check(focusHintMatches("bedrooms","bathrooms",true,true),false);
             check(focusHintMatches("","bedrooms",true,true),false);
             check(focusHintMatches("","",false,false),true);
+            check(focusHintMatches("غرف النوم *","غرف النوم *\\nمثال: 3",true,true),true);
+            check(focusHintMatches("الحمامات *","الحمامات *\\nمثال: 2",true,true),true);
+            check(focusHintMatches("غرف النوم *","مثال: 3",true,true),false);
+            check(focusHintMatches("الحمامات *","مثال: 2",true,true),false);
+            check(focusHintMatches("غرف النوم *","مثال: 2",true,true),false);
+            check(focusHintMatches("الحمامات *","مثال: 3",true,true),false);
+            check(focusHintMatches("غرف النوم","مثال: 3",true,true),false);
+            check(focusHintMatches("الحمامات","مثال: 2",true,true),false);
+            check(focusHintMatches("غرف النوم *","مثال: 3",true,false),false);
+            check(focusHintMatches("الحمامات *","مثال: 2",true,false),false);
+            check(focusHintMatches("غرف النوم *","مثال: 3",false,true),false);
+            check(focusHintMatches("الحمامات *","مثال: 2",false,true),false);
+            check(focusHintMatches("غرف النوم *","مثال: ٣",true,true),false);
+            check(focusHintMatches("غرف النوم *","مثال: 3 ",true,true),false);
+            check(focusHintMatches("غرف النوم *","غرف النوم *\\nمثال: 2",true,true),false);
+            check(focusHintMatches("الحمامات *","الحمامات *\\nمثال: 3",true,true),false);
+            check(focusHintMatches("غرف النوم *","غرف النوم *\\nمثال: 3",true,false),false);
+            check(focusHintMatches("الحمامات *","الحمامات *\\nمثال: 2",true,false),false);
+            check(focusHintMatches("غرف النوم *","غرف النوم *\\nمثال: 3",false,true),false);
+            check(focusHintMatches("الحمامات *","الحمامات *\\nمثال: 2",false,true),false);
+            check(focusHintMatches("غرف النوم","غرف النوم\\nمثال: 3",true,true),false);
+            check(focusHintMatches("الحمامات","الحمامات\\nمثال: 2",true,true),false);
+            check(focusHintMatches("غرف النوم *","غرف النوم *\\nمثال: 3 ",true,true),false);
+            check(focusHintMatches("غرف النوم *","غرف النوم *\\r\\nمثال: 3",true,true),false);
+            check(focusHintMatches("غرف النوم *","غرف النوم *\\n\\nمثال: 3",true,true),false);
+            shape("","EMPTY");
+            shape("غرف النوم *","BEDROOMS_LABEL");
+            shape("مثال: 3","BEDROOMS_EXAMPLE");
+            shape("الحمامات *","BATHROOMS_LABEL");
+            shape("مثال: 2","BATHROOMS_EXAMPLE");
+            shape("غرف النوم *, مثال: 3","BEDROOMS_LABEL_AND_EXAMPLE");
+            shape("الحمامات *, مثال: 2","BATHROOMS_LABEL_AND_EXAMPLE");
+            shape("غرف النوم *\\nمثال: 3","BEDROOMS_LABEL_AND_EXAMPLE");
+            shape("الحمامات *\\nمثال: 2","BATHROOMS_LABEL_AND_EXAMPLE");
+            shape("مثال: 3 / غرف النوم *","BEDROOMS_LABEL_AND_EXAMPLE");
+            shape("غرف النوم * / مثال: 2","OTHER");
+            shape("PRIVATE_FIELD_SENTINEL","OTHER");
+            shape("غرف النوم","OTHER");
+            shape("مثال: ٣","OTHER");
+            check(focusHintMatches("غرف النوم *","غرف النوم *, مثال: 3",true,true),false);
+            check(focusHintMatches("الحمامات *","الحمامات *, مثال: 2",true,true),false);
             System.out.print("FOCUS_HINT_POLICY_PASS");
           }
         }'''
@@ -300,6 +346,43 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.adb.assert_called_once()
         for value in ('PRIVATE_FIELD_SENTINEL','PRIVATE_INPUT_SENTINEL','0.999'):
             self.assertNotIn(value,json.dumps(self.probe.report))
+
+    def test_focus_hint_shape_diagnostic_retains_only_paired_fixed_enums(self):
+        known={'EMPTY','BEDROOMS_LABEL','BEDROOMS_EXAMPLE','BATHROOMS_LABEL','BATHROOMS_EXAMPLE',
+               'BEDROOMS_LABEL_AND_EXAMPLE','BATHROOMS_LABEL_AND_EXAMPLE','OTHER'}
+        cases=[('C1-photo-save',value,'OTHER',True) for value in sorted(known)]
+        cases += [('C1-photo-save','OTHER',value,True) for value in sorted(known)]
+        cases += [('C1-photo-save','PRIVATE_FIELD_SENTINEL','BEDROOMS_EXAMPLE',False),
+                  ('C1-photo-save','BEDROOMS_LABEL','PRIVATE_FIELD_SENTINEL',False),
+                  ('C1-photo-save','BEDROOMS_LABEL','',False),
+                  ('C1-auth','BEDROOMS_LABEL','BEDROOMS_EXAMPLE',False)]
+        for case,original,current,wanted in cases:
+            self.probe.case_phase(case);self.probe.report['native_input_failures']=[]
+            self.probe.adb=Mock(return_value='\n'.join([
+                'INSTRUMENTATION_RESULT: op=account-set','INSTRUMENTATION_RESULT: passed=false',
+                'INSTRUMENTATION_RESULT: stage=account_focus_hint_match',
+                'INSTRUMENTATION_RESULT: focus_hint_transition=NONEMPTY_CHANGED',
+                'INSTRUMENTATION_RESULT: focus_source_node_same=true',
+                'INSTRUMENTATION_RESULT: focus_observed_focused=true',
+                'INSTRUMENTATION_RESULT: focus_observation_count=2',
+                'INSTRUMENTATION_RESULT: focus_hint_original_shape='+original,
+                'INSTRUMENTATION_RESULT: focus_hint_current_shape='+current,
+                'INSTRUMENTATION_RESULT: original_hint=PRIVATE_FIELD_SENTINEL',
+                'INSTRUMENTATION_RESULT: current_hint=PRIVATE_FIELD_SENTINEL',
+                'INSTRUMENTATION_CODE: 0']))
+            with self.subTest(case=case,original=original,current=current),self.assertRaises(native.Blocked):
+                self.probe.instrument('account-set')
+            failure=self.probe.report['native_input_failures'][0]
+            observation=failure.get('focus_identity_observation',{})
+            if wanted:
+                self.assertEqual(observation['original_hint_shape'],original)
+                self.assertEqual(observation['current_hint_shape'],current)
+            else:
+                self.assertNotIn('original_hint_shape',observation)
+                self.assertNotIn('current_hint_shape',observation)
+            if case=='C1-auth':self.assertNotIn('focus_identity_observation',failure)
+            self.assertNotIn('PRIVATE_FIELD_SENTINEL',json.dumps(self.probe.report))
+            self.probe.adb.assert_called_once()
 
     def test_invalid_focus_diagnostic_or_auth_case_does_not_export_focus_state(self):
         for case,count,transition in [('C1-photo-save','151','SAME'),('C1-photo-save','1','PRIVATE_SENTINEL'),('C1-auth','1','SAME')]:

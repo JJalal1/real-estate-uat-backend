@@ -381,6 +381,8 @@ public final class Phase1Input extends Instrumentation {
                 String originalHint=plain(node.getHintText()),currentHint=plain(candidate.getHintText());
                 result.putString("focus_hint_transition",originalHint.equals(currentHint) ? "SAME" :
                     currentHint.isEmpty() ? "NONEMPTY_TO_EMPTY" : originalHint.isEmpty() ? "EMPTY_TO_NONEMPTY" : "NONEMPTY_CHANGED");
+                result.putString("focus_hint_original_shape",focusHintShape(originalHint));
+                result.putString("focus_hint_current_shape",focusHintShape(currentHint));
                 result.putBoolean("focus_source_node_same",sameNode);
                 result.putBoolean("focus_observed_focused",candidate.isFocused());
                 result.putInt("focus_observation_count",++focusObservations);
@@ -407,11 +409,26 @@ public final class Phase1Input extends Instrumentation {
         SystemClock.sleep(300); result.putBoolean("account_action_delivered",true);
     }
     private static boolean focusHintMatches(String original,String current,boolean focused,boolean sameNode) {
-        // Flutter may remove its in-field hint when the label floats on focus.
-        // Only the exact same Android source/window node may lose that hint.
-        // A changed nonempty label, different field or unfocused node refuses.
+        // Pinned Flutter3.27.3 retains the InputDecorator label and includes
+        // its focused hint in the merged label with an exact newline join.
+        // Only these two source-backed compositions, or hint removal, belong
+        // to the SAME focused Android source/window node; no substring rule.
         return original.equals(current) ||
-            (sameNode && focused && !original.isEmpty() && current.isEmpty());
+            (sameNode && focused && ((!original.isEmpty() && current.isEmpty()) ||
+                ("غرف النوم *".equals(original) && "غرف النوم *\nمثال: 3".equals(current)) ||
+                ("الحمامات *".equals(original) && "الحمامات *\nمثال: 2".equals(current))));
+    }
+    private static String focusHintShape(String value) {
+        // Diagnostic categories only: no hint contents are returned, and this
+        // classification never decides whether a focus transition is allowed.
+        if(value.isEmpty()) return "EMPTY";
+        if("غرف النوم *".equals(value)) return "BEDROOMS_LABEL";
+        if("مثال: 3".equals(value)) return "BEDROOMS_EXAMPLE";
+        if("الحمامات *".equals(value)) return "BATHROOMS_LABEL";
+        if("مثال: 2".equals(value)) return "BATHROOMS_EXAMPLE";
+        if(value.contains("غرف النوم *") && value.contains("مثال: 3")) return "BEDROOMS_LABEL_AND_EXAMPLE";
+        if(value.contains("الحمامات *") && value.contains("مثال: 2")) return "BATHROOMS_LABEL_AND_EXAMPLE";
+        return "OTHER";
     }
     private Rect pointerBounds(AccessibilityNodeInfo node) throws Exception {
         final long end=SystemClock.uptimeMillis()+1000L;

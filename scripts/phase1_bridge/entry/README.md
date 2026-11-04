@@ -27,9 +27,9 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`47627d475c9fc550a1ad791bd4dd42e1edfc643b579e35af10d9f95ee297c0ab`
+`2048012739f08554bce1fb0c41ea45a3d3d95b45e005035e0ec2e0bf36d9a411`
 and Java SHA
-`f8e60a75489f22fd1c2124f10a414025c155f6a066cdeadd9c8ef30f4f63b50c`.
+`3b9c1221101408e0552bad0355d724884f21ec558f5b559c471c975b06e4d126`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
 source, the exact baseline diff allowlist, original unchanged mobile/backend
 trees, clean tracked paths and pinned public recipient certificate/expiry. No
@@ -168,7 +168,7 @@ mode. A complete source mapping is required before any copying.
 
 ## Focused field identity and OS photo cards
 
-Before the sole focus action, the pointer target is bound twice by exact path and witness. Within the same original15-second focus window, read-only observations follow only the currently focused original Android source/window node; tree-index reflow cannot select a different field. Editable state, class, content description, hint, focus and set-text capability remain checked. The same original node may lose an in-field hint on focus; changed nonempty hints or different nodes never receive text. No focus action is repeated. A failed C1 field may report only fixed hint-transition/identity categories and a bounded observation count, never field values, paths or node identifiers.
+Before the sole focus action, the pointer target is bound twice by exact path and witness. Within the same original 15-second focus window, read-only observations follow only the currently focused original Android source/window node; tree-index reflow cannot select a different field. Editable state, class, content description, hint, focus and set-text capability remain checked. The same original node may lose an in-field hint on focus; other changed nonempty hints (apart from the two exact pinned-framework newline compositions below) or different nodes never receive text. No focus action is repeated. A failed C1 field may report only fixed hint-transition/identity categories and a bounded observation count, never field values, paths or node identifiers.
 
 A photo card handled by the DocumentsUI RecyclerView may be focusable without its own click listener. Such a card is admitted only within the actual document list and with the complete owned filename as the first metadata field. Preview controls, similar names, ambiguous cards and foreign packages remain excluded.
 
@@ -180,6 +180,8 @@ Fresh disposable VM collections use independent workflow run identifiers. Retain
 
 An initial native-format refusal now retains only a fixed allowlisted condition code and bounded audio channel/sample-rate/packet-count metadata. Missing tools, read timeouts, empty/capped/misaligned decoding and nonzero PCM have distinct fixed diagnoses. The original exception, no-export decision and all validation conditions remain unchanged; arbitrary exception text, decoder output and failed media stay private.
 
-Before the single physical account-set focus, readonly idle settling reacquires the APP root. Pointer selection must retain the original Android source node and identical target/window bounds across two cache-cleared observations inside one original1000ms selection deadline. A changed source, witness or geometry refuses before DOWN; no target is adopted and no input is replayed. Postfocus original-node, hint and field checks remain mandatory. Both ffprobe and ffmpeg must be present before native preparation.
+Before the single physical account-set focus, readonly idle settling reacquires the APP root. Pointer selection must retain the original Android source node and identical target/window bounds across two cache-cleared observations inside one original 1000ms selection deadline. A changed source, witness or geometry refuses before DOWN; no target is adopted and no input is replayed. Postfocus original-node, hint and field checks remain mandatory. Both ffprobe and ffmpeg must be present before native preparation.
 
 Owned-VM clock preparation records root/unroot request transport acknowledgments separately from actual daemon UID state. Each restart request is issued once. Bounded readonly UID polling still runs after an unobserved restart ACK; actual root UID0 is mandatory before the single successful date setter, and actual shell UID2000 is mandatory afterward. The original 40-second preparation cap, 10-second UID bounds and later strict clock bracket remain unchanged. No raw restart output is retained.
+
+The unchanged editor supplies explicit labels and examples. Pinned Flutter 3.27.3 InputDecorator visits the visual hint only when focused and merges its Text label with the field label using a newline (input_decorator.dart873–896; semantics.dart5098–5105,5186–5206). On the same focused Android source node only, the helper permits the two exact label-to-label/newline/example transitions for bedrooms and bathrooms. Example-only, comma-joined, swapped, altered, other-source or unfocused variants refuse. Geometry, class, description, deadlines and one-attempt focus remain mandatory. Eight fixed hint-shape categories aid initial editor refusal diagnosis; no raw hints are exported, and diagnostic contains checks never decide acceptance. Earlier raw hint strings were not recorded and are not claimed.

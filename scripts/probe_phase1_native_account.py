@@ -242,6 +242,11 @@ class NativeAccount:
                     and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
                 failures[-1]['focus_identity_observation'] = {'hint_transition':transition,
                     'same_original_android_node':same=='true','focused':focused=='true','observations':int(count)}
+                shapes = {'EMPTY','BEDROOMS_LABEL','BEDROOMS_EXAMPLE','BATHROOMS_LABEL','BATHROOMS_EXAMPLE',
+                          'BEDROOMS_LABEL_AND_EXAMPLE','BATHROOMS_LABEL_AND_EXAMPLE','OTHER'}
+                original, current = result.get('focus_hint_original_shape'), result.get('focus_hint_current_shape')
+                if original in shapes and current in shapes:
+                    failures[-1]['focus_identity_observation'].update(original_hint_shape=original, current_hint_shape=current)
         self.save()
 
     def instrument(self, op, **extras):
