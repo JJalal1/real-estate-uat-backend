@@ -26,6 +26,27 @@ def completion(op, **extras):
 
 
 class OneShotBoundaryTests(unittest.TestCase):
+    def test_exact_short_scroll_extension_is_reserved_once_and_other_extensions_remain_closed(self):
+        calls=[]
+        def driver(op,**extras):
+            calls.append((op,extras));return completion(op,**extras)
+        adapter=OneShotInstrumentAdapter(driver);epoch=adapter.start()
+        extras=dict(NODE,direction='forward',scroll_step='short')
+        adapter.instrument('account-scroll',expected_epoch=epoch,**extras)
+        self.assertEqual(calls,[('account-scroll',extras)])
+        bad=[('account-scroll',dict(NODE,direction='forward',scroll_step=value))
+             for value in ['normal','arbitrary',True,1,None]]
+        bad += [('account-click',dict(NODE,scroll_step='short')),
+                ('account-scroll',dict(extras,input_mode='physical_scroll')),
+                ('account-scroll',dict(extras,deadline_utc_ms='1793754123000'))]
+        for op,values in bad:
+            with self.assertRaisesRegex(AdmissionError,'^unsupported_instrumentation_request$'):
+                adapter.instrument(op,expected_epoch=epoch,**values)
+        self.assertEqual(len(calls),1)
+        self.assertEqual(adapter.metrics['reserved_calls'],1)
+        self.assertEqual(adapter.metrics['checked_calls_completed'],1)
+        self.assertEqual(adapter.metrics['state'],'open')
+
     def test_closed_gate_performs_no_driver_call(self):
         calls = []
         adapter = OneShotInstrumentAdapter(lambda *a, **k: calls.append(True))

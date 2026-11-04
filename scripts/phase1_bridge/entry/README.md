@@ -27,7 +27,7 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`84636720ed579a71e424cb0ded2fd9d03b508baa7856f2b3fffe90074eb0514c`
+`8d30c0902efd192a6398265dc65dc5fd7b2b8e1f878ce6a769ad82cd6894d5db`
 and Java SHA
 `dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
@@ -279,3 +279,23 @@ original fresh node/witness/geometry checks,14 pointer events, attempt bounds,
 same-frame heading+completion requirement and actual photo/video review remain.
 Other labels retain the original full-height gesture. Fixed booleans/counts
 record the heading/status visibility without exporting trees or private fields.
+
+
+Run53 stopped before dispatching its first short swipe: the deployed one-shot
+request schema had not admitted the new fixed scroll_step. Its observation
+retained heading_seen=true, complete_seen=false, observations1, short_scrolls1
+and no native-input failure. A regression now reproduces the exact refusal
+through the actual base nodes/scroll/act/instrument methods, CI wrapper and
+one-shot admission. The narrow schema accepts only scroll_step=short on
+account-scroll, with unchanged node/witness, authority, original signed deadline,
+reservation and checked completion. Other extensions and all mode/deadline
+overrides remain refused before reservation. The integration probe passes for
+both initial SourcePlanLease and Root authority. Native53's failed history is
+retained; its local short-gesture geometry tests were not actual native proof.
+
+A failed initial restored-photo seek additionally attempts one original safe
+editor diagnostic PNG through the existing full privacy/context checks. Capture
+refusal records only a boolean and never replaces the original seek failure.
+The fixed short-swipe completed counter advances only after checked dispatch.
+No diagnostic image is acceptance evidence or captured after authentication
+transitions; successful seeks retain their original acceptance requirements.

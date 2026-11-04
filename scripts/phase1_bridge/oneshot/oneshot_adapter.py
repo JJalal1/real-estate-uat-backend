@@ -145,6 +145,8 @@ def _request_is_supported(op: object, extras: dict) -> bool:
         wanted.add('value_b64')
     elif op == 'account-scroll':
         wanted.add('direction')
+        if 'scroll_step' in extras:
+            wanted.add('scroll_step')
     if set(extras) != wanted:
         return False
     if not (type(extras['node_path']) is str and _NODE_PATH.fullmatch(extras['node_path'])
@@ -153,7 +155,9 @@ def _request_is_supported(op: object, extras: dict) -> bool:
     if op == 'account-set':
         return type(extras['value_b64']) is str and bool(_BASE64.fullmatch(extras['value_b64']))
     if op == 'account-scroll':
-        return type(extras['direction']) is str and extras['direction'] in {'forward', 'backward'}
+        return (type(extras['direction']) is str and extras['direction'] in {'forward', 'backward'}
+                and ('scroll_step' not in extras or
+                     (type(extras['scroll_step']) is str and extras['scroll_step'] == 'short')))
     return True
 
 

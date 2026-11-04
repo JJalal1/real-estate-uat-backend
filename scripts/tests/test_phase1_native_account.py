@@ -184,7 +184,21 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.scroll.assert_called_once_with('forward',short=True)
         self.assertEqual(self.probe.report['one_photo_seek_observation'],{
             'heading_seen':True,'complete_seen':True,'together_observed':True,
-            'observations':2,'short_scrolls':1,'normal_scrolls':0})
+            'observations':2,'short_scrolls':1,'short_scrolls_completed':1,'normal_scrolls':0})
+
+    def test_failed_restore_photo_seek_diagnostic_keeps_original_failure_and_privacy_refusal(self):
+        self.initial_add_scope();self.probe._active_case='C1-force-stop-restore'
+        self.probe.recorder='official-host-console'
+        self.probe.nodes=Mock(return_value=[self.node('صور الإعلان (1/12)')])
+        self.probe.scroll=Mock()
+        for fail in [False,True]:
+            self.probe.safe_capture=Mock(side_effect=native.Blocked('SYNTHETIC_PRIVATE_REFUSAL') if fail else None)
+            with self.assertRaisesRegex(native.Blocked,'^named_native_control_not_found$'):
+                self.probe.seek('صور الإعلان (1/12)',attempts=1)
+            self.probe.safe_capture.assert_called_once_with('C1-photo-seek-diagnostic')
+            self.assertEqual(self.probe.report['one_photo_seek_observation']['diagnostic_png_exported'],not fail)
+            self.assertEqual(self.probe.report['one_photo_seek_observation']['short_scrolls_completed'],2)
+            self.assertNotIn('SYNTHETIC_PRIVATE',json.dumps(self.probe.report))
 
     def test_short_scroll_preserves_original_container_binding_physical_mode_and_one_attempt(self):
         container=self.node('',path='0.8',scrollable=True,bounds=[0,110,540,830])

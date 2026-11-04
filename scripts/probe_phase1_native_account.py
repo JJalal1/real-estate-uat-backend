@@ -536,7 +536,7 @@ class NativeAccount:
         observation = None
         if photo:
             observation = {'heading_seen':False,'complete_seen':False,'together_observed':False,
-                           'observations':0,'short_scrolls':0,'normal_scrolls':0}
+                           'observations':0,'short_scrolls':0,'short_scrolls_completed':0,'normal_scrolls':0}
             self.report['one_photo_seek_observation'] = observation
         directions = ('backward', 'forward') if (label == 'جهّز الإعلان بالصوت أو المساعد'
             and self.c4_prepare_observation_scope()) else ('forward', 'backward')
@@ -565,9 +565,20 @@ class NativeAccount:
                     # heading and its lower status are visible together.
                     observation['short_scrolls'] += 1
                     self.scroll('forward' if matched else 'backward', short=True)
+                    observation['short_scrolls_completed'] += 1
                 else:
                     if photo: observation['normal_scrolls'] += 1
                     self.scroll(direction)
+        if (photo and self._active_case == 'C1-force-stop-restore' and self.authenticated
+                and self.recorder is not None):
+            # A refused restore remains refused. Retain only an independently
+            # privacy-checked safe editor PNG to diagnose its last viewport.
+            try:
+                self.safe_capture('C1-photo-seek-diagnostic')
+                observation['diagnostic_png_exported'] = True
+            except Exception:
+                observation['diagnostic_png_exported'] = False
+            self.save()
         raise Blocked('named_native_control_not_found')
 
     def wait_account_logout_control(self, seconds=30):

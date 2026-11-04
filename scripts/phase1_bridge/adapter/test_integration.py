@@ -171,6 +171,47 @@ PROBE = bridge.make_probe_class(base_class=SyntheticBase, host_capture_mixin=Syn
 
 
 class ProbeTests(unittest.TestCase):
+    def test_real_base_short_scroll_crosses_deployed_bridge_and_one_shot_with_original_authority(self):
+        source=HERE.parents[1]/'probe_phase1_native_account.py'
+        sys.path.insert(0,str(source.parent))
+        spec=importlib.util.spec_from_file_location('_actual_scroll_base_contract',source)
+        actual=importlib.util.module_from_spec(spec);spec.loader.exec_module(actual)
+        container={'path':'0.1','witness':DIGEST,'package':actual.APP,'visible':True,
+                   'enabled':True,'scrollable':True,'bounds':[0,110,540,830]}
+        class ActualScrollBase(SyntheticBase):
+            instrument=actual.NativeAccount.instrument
+            nodes=actual.NativeAccount.nodes
+            act=actual.NativeAccount.act
+            scroll=actual.NativeAccount.scroll
+            def command(self,args,**kwargs):
+                self.calls.append(tuple(str(a)for a in args))
+                op=args[args.index('op')+1]
+                fields={'passed':'true','op':op,'deadline_capable':'true','deadline_enforced':'true'}
+                if op=='account-snapshot':fields['tree_b64']=base64.b64encode(json.dumps([container]).encode()).decode()
+                else:fields.update(account_action_delivered='true',native_pointer_used='true',native_pointer_events='14')
+                return '\n'.join('INSTRUMENTATION_RESULT: '+k+'='+v for k,v in fields.items())+'\nINSTRUMENTATION_CODE: -1'
+        cls=bridge.make_probe_class(base_class=ActualScrollBase,host_capture_mixin=SyntheticHost,
+            validate_access=synthetic_access,secret_name='SYNTHETIC_ACCESS',install_known_roles=install_roles,
+            authority_types=(SyntheticAuthority,SourceAuthority),app=actual.APP,activity=actual.ACTIVITY,helper=actual.HELPER)
+        for authority in [SourceAuthority(),SyntheticAuthority()]:
+            context=Context()
+            if isinstance(authority,SourceAuthority):context.phase,context.cursor='C1','INITIAL_C1'
+            p=cls(None,{},authority_getter=lambda:authority,context_getter=lambda:context,
+                  verify_helper_identity=lambda:True,verify_guest_utc=lambda:True)
+            p.start_session();p.preflight_deadline_helper();p.authenticated=True;p.report['actions']=[]
+            with patch.object(actual.time,'sleep'):
+                p.scroll('forward',short=True)
+            calls=[c for c in p.calls if c[c.index('op')+1]=='account-scroll']
+            self.assertEqual(len(calls),1);call=calls[0]
+            for key,value in [('scroll_step','short'),('input_mode','physical_scroll'),
+                              ('node_path','0.1'),('node_witness',DIGEST)]:
+                self.assertEqual(call[call.index(key)+1],value)
+            self.assertEqual(authority.checked.count('scroll'),1)
+            if authority.authority_kind=='ROOT_VERIFIED':
+                self.assertEqual(call[call.index('deadline_utc_ms')+1],bridge.exact_deadline_ms(authority))
+            self.assertEqual(p.admission_metrics['state'],'open')
+            self.assertEqual(p.report['actions'][0]['native_pointer_events'],14)
+
     def probe(self, authority=None, context=None):
         authority = authority or SyntheticAuthority()
         context = context or Context()
