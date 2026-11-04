@@ -34,7 +34,8 @@ C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait'
                                 'purpose', 'type', 'title', 'restore_options_wait',
                                 'logout_account_ready', 'logout_control', 'logout_confirm',
                                 'editor_basics_loaded', 'editor_title_seek', 'editor_basics_return',
-                                'logout_marketplace_wait', 'logout_guest_marketplace', 'logout_guest_account_wait'})
+                                'logout_marketplace_wait', 'logout_guest_marketplace', 'logout_guest_account_wait',
+                                'home_wait', 'add_stable_wait', 'add_dispatch'})
 ACCOUNT_CLICK_FOCUS_MODE = 'physical_click_focus'
 ACCOUNT_SCROLL_MODE = 'physical_scroll'
 INPUT_OPS = frozenset({'account-snapshot', 'account-click', 'account-set', 'account-scroll'})
@@ -379,6 +380,9 @@ class NativeAccount:
         if not self.authenticated or not re.fullmatch(r'C1-[a-z0-9-]+', name):
             raise Blocked('authentication_capture_refused')
         rows = self.nodes()
+        home_capture = name in {'C1-before-add-home', 'C1-restore-before-add-home'}
+        if home_capture and not self.broker_home_ready(rows):
+            raise Blocked('safe_broker_home_not_observed')
         visible = '\n'.join('\n'.join(labels(r)) for r in rows)
         if any(label in labels(r) for r in rows for label in AUTH_LABELS) or any(
                 secret and secret in visible for secret in self.private_values):
@@ -388,8 +392,11 @@ class NativeAccount:
             raise Blocked('native_frame_invalid')
         name += '.png'
         (self.out / name).write_bytes(data)
-        self.report['frames'].append({'file': name, 'sha256': hashlib.sha256(data).hexdigest(),
-                                       'bytes': len(data), 'authenticated_editor_only': True})
+        receipt = {'file': name, 'sha256': hashlib.sha256(data).hexdigest(),
+                   'bytes': len(data), 'authenticated_editor_only': not home_capture}
+        if home_capture:
+            receipt['capture_scope'] = 'authenticated_broker_marketplace_before_add'
+        self.report['frames'].append(receipt)
         self.save()
 
     def record_start(self, name):
@@ -733,12 +740,108 @@ class NativeAccount:
                 rows = self.nodes()
         raise Blocked('native_owned_editor_title_not_observed')
 
+    def broker_home_ready(self, rows):
+        required = ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…', 'الرئيسية', 'عملي', 'العملاء', 'حسابي')
+        excluded = {'رقم الاتصال *', 'رقم اتصال آخر', 'رقم اتصال آخر (اختياري)',
+                    'الإيجار والتواصل', 'السعر والتواصل'} | AUTH_LABELS
+        return (all(self.matching(rows, label) for label in required)
+                and not any(label in labels(row) for row in rows for label in excluded))
+
+    def initial_home_capture_name(self):
+        names = {'C1-photo-save': 'C1-before-add-home',
+                 'C1-force-stop-restore': 'C1-restore-before-add-home'}
+        if not self.authenticated or self._active_case not in names:
+            raise Blocked('initial_c1_add_scope_required')
+        return names[self._active_case]
+
+    def capture_initial_broker_home(self):
+        # Dedicated override hook for the future official-console capture adapter.
+        name = self.initial_home_capture_name()
+        if any(row.get('file') == name + '.png' for row in self.report['frames']) or (self.out / (name + '.png')).exists():
+            raise Blocked('initial_home_capture_already_exists')
+        self.safe_capture(name)
+
+    def ensure_initial_broker_home(self, seconds=45):
+        self.initial_home_capture_name()  # Scope guard before any observation/input.
+        self.journey_stage('home_wait')
+        deadline = time.monotonic() + seconds
+        opened = False
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            if self.broker_home_ready(rows):
+                return
+            footer = all(self.matching(rows, label) for label in ('الرئيسية', 'عملي', 'العملاء', 'حسابي'))
+            auth = any(label in labels(row) for row in rows for label in AUTH_LABELS)
+            if footer and not auth and not opened:
+                # One normal Home selection; no Home/Add replay after uncertainty.
+                self.tap('الرئيسية', seek=False)
+                opened = True
+            time.sleep(.5)
+        raise Blocked('native_broker_home_not_observed')
+
+    def initial_add_target(self, rows):
+        matched = self.matching(rows, 'إضافة عقار')
+        candidates = [row for row in matched if row.get('clickable')]
+        if not candidates:
+            for item in matched:
+                ancestors = [row for row in rows if row.get('clickable') and item['path'].startswith(row['path'] + '.')]
+                if ancestors:
+                    candidates.append(max(ancestors, key=lambda row: len(row['path'])))
+        if not candidates:
+            candidates = [row for row in matched if row.get('class') == 'android.widget.Button']
+            if len(candidates) > 1:
+                raise Blocked('ambiguous_native_pointer_target')
+        unique = {row['path']: row for row in candidates}
+        if not unique:
+            return None
+        row = min(unique.values(), key=lambda row: (row['bounds'][2] - row['bounds'][0]) *
+                                                   (row['bounds'][3] - row['bounds'][1]))
+        named = [item for item in matched if item['path'] == row['path'] or item['path'].startswith(row['path'] + '.')]
+        signature = (row['path'], row['witness'], tuple(row['bounds']), tuple(sorted(labels(row))),
+                     tuple(sorted((item['path'], item['witness'], tuple(item['bounds']), tuple(sorted(labels(item)))) for item in named)))
+        return row, signature
+
+    def dispatch_stable_initial_add(self, seconds=20):
+        self.initial_home_capture_name()
+        self.journey_stage('add_stable_wait')
+        deadline = time.monotonic() + seconds
+        signature, since, observations = None, None, 0
+        while time.monotonic() < deadline:
+            rows = self.nodes()
+            selected = self.initial_add_target(rows) if self.broker_home_ready(rows) else None
+            now = time.monotonic()
+            if selected is None:
+                signature, since, observations = None, None, 0
+            else:
+                row, current = selected
+                if current != signature:
+                    signature, since, observations = current, now, 1
+                else:
+                    observations += 1
+                if observations >= 3 and now - since >= 2:
+                    # Construct one original expected node lease ONLY now.
+                    # No new observation/adoption occurs between this and act.
+                    lease = {'path': row['path'], 'witness': row['witness']}
+                    self.journey_stage('add_dispatch')
+                    if time.monotonic() >= deadline:
+                        break
+                    self.act('click', lease)
+                    return
+            time.sleep(1)
+        raise Blocked('native_named_add_not_stable')
+
     def manual_entry(self, expected_title, title_editor_required=False):
         if not self.fixture_api or not self.fixture_api.state or not expected_title or \
                 self.fixture_api.state['tag'] not in expected_title:
             raise Blocked('known_new_fixture_required_before_native_entry')
         self.journey_stage('manual_entry')
-        self.tap('إضافة عقار')
+        if self._active_case in {'C1-photo-save', 'C1-force-stop-restore'}:
+            self.ensure_initial_broker_home()
+            self.capture_initial_broker_home()
+            self.dispatch_stable_initial_add()
+        else:
+            # Other executor/Root-reviewed flows retain their original selection.
+            self.tap('إضافة عقار')
         if self.has('تعبئة يدوي'):
             self.tap('تعبئة يدوي')
         elif self.has('تعبئة يدوية'):

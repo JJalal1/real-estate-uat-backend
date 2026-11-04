@@ -321,6 +321,147 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.assertEqual(sum(call.args[0]=='حسابي' for call in self.probe.tap.call_args_list),0 if failure=='home' else 1)
             self.assertNotIn('session_logged_out',self.probe.report)
 
+    def broker_home_rows(self, add=True, **changes):
+        names = ['ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…','الرئيسية','عملي','العملاء','حسابي']
+        rows = [self.node(name,path='0.'+str(i)) for i,name in enumerate(names)]
+        if add:
+            row=self.node('إضافة عقار',path='0.99',clickable=True,description='إضافة عقار')
+            row.update(changes);rows.append(row)
+        return rows
+
+    def initial_add_scope(self):
+        self.probe.authenticated=True
+        self.probe.case_phase('C1-photo-save')
+
+    def stability_clock(self):
+        now=[0.0]
+        mono=patch.object(native.time,'monotonic',side_effect=lambda:now[0])
+        sleep=patch.object(native.time,'sleep',side_effect=lambda seconds:now.__setitem__(0,now[0]+seconds))
+        mono.start();sleep.start();self.addCleanup(mono.stop);self.addCleanup(sleep.stop)
+        return now
+
+    def test_initial_add_requires_three_identical_observations_and_two_seconds_before_one_dispatch(self):
+        self.initial_add_scope();clock=self.stability_clock()
+        self.probe.nodes=Mock(return_value=self.broker_home_rows())
+        self.probe.act=Mock(side_effect=lambda *args:self.assertGreaterEqual(clock[0],2))
+        self.probe.tap=Mock()
+        self.probe.dispatch_stable_initial_add()
+        self.assertEqual(self.probe.nodes.call_count,3)
+        self.probe.act.assert_called_once_with('click',{'path':'0.99','witness':'a'*64})
+        self.probe.tap.assert_not_called()
+        self.assertEqual(self.probe.report['native_journey_stages']['C1-photo-save'],'add_dispatch')
+
+    def test_initial_add_signature_changes_reset_the_whole_preinput_stability_window(self):
+        self.initial_add_scope();clock=self.stability_clock()
+        for change in ({'path':'0.98'},{'witness':'b'*64},{'bounds':[0,0,201,50]}, {'description':'changed label'}):
+            clock[0]=0
+            original=self.broker_home_rows();changed=self.broker_home_rows(**change)
+            self.probe.nodes=Mock(side_effect=[original,changed,changed,changed])
+            self.probe.act=Mock()
+            with self.subTest(change=next(iter(change))):self.probe.dispatch_stable_initial_add()
+            self.assertEqual(self.probe.nodes.call_count,4)
+            self.assertEqual(clock[0],3)
+            self.probe.act.assert_called_once()
+            lease=self.probe.act.call_args.args[1]
+            self.assertEqual(lease['path'],change.get('path','0.99'))
+            self.assertEqual(lease['witness'],change.get('witness','a'*64))
+
+    def test_initial_add_missing_home_or_control_resets_without_navigating_or_input(self):
+        self.initial_add_scope();self.stability_clock()
+        home=self.broker_home_rows()
+        self.probe.nodes=Mock(side_effect=[home,self.broker_home_rows(add=False),home,home,home])
+        self.probe.act,self.probe.tap=Mock(),Mock()
+        self.probe.dispatch_stable_initial_add()
+        self.assertEqual(self.probe.nodes.call_count,5)
+        self.probe.act.assert_called_once();self.probe.tap.assert_not_called()
+
+    def test_initial_add_timed_out_or_wrong_scope_never_dispatches(self):
+        self.initial_add_scope();self.stability_clock()
+        self.probe.nodes=Mock(return_value=self.broker_home_rows())
+        self.probe.act=Mock()
+        with self.assertRaisesRegex(native.Blocked,'^native_named_add_not_stable$'):
+            self.probe.dispatch_stable_initial_add(seconds=2)
+        self.probe.act.assert_not_called()
+        self.probe.case_phase('C1-auth');self.probe.nodes=Mock()
+        with self.assertRaisesRegex(native.Blocked,'^initial_c1_add_scope_required$'):
+            self.probe.dispatch_stable_initial_add()
+        self.probe.nodes.assert_not_called()
+
+    def test_failed_initial_add_dispatch_is_not_retried_or_reselected(self):
+        self.initial_add_scope();self.stability_clock()
+        self.probe.nodes=Mock(return_value=self.broker_home_rows())
+        self.probe.act=Mock(side_effect=native.Blocked('native_input_not_delivered'))
+        with self.assertRaisesRegex(native.Blocked,'^native_input_not_delivered$'):
+            self.probe.dispatch_stable_initial_add()
+        self.assertEqual(self.probe.nodes.call_count,3)
+        self.probe.act.assert_called_once()
+        self.assertEqual(self.probe.report['actions'],[])
+
+    def test_broker_home_wait_opens_home_once_then_observes_without_further_taps(self):
+        self.initial_add_scope();self.stability_clock()
+        footer=self.broker_home_rows(add=False)[2:]
+        self.probe.nodes=Mock(side_effect=[footer,footer,self.broker_home_rows(add=False)])
+        self.probe.tap=Mock();self.probe.safe_capture=Mock()
+        self.probe.ensure_initial_broker_home()
+        self.probe.tap.assert_called_once_with('الرئيسية',seek=False)
+        self.probe.safe_capture.assert_not_called()
+
+    def test_uncertain_home_tap_prevents_add_stability_and_is_never_replayed(self):
+        self.initial_add_scope();self.stability_clock()
+        self.probe.fixture_api=self.fixture()
+        self.probe.nodes=Mock(return_value=self.broker_home_rows(add=False)[2:])
+        self.probe.tap=Mock(side_effect=native.Blocked('native_input_not_delivered'))
+        self.probe.dispatch_stable_initial_add,self.probe.capture_initial_broker_home=Mock(),Mock()
+        with self.assertRaises(native.Blocked):self.probe.manual_entry(self.probe.fixture_api.state['title'])
+        self.probe.tap.assert_called_once_with('الرئيسية',seek=False)
+        self.probe.dispatch_stable_initial_add.assert_not_called()
+        self.probe.capture_initial_broker_home.assert_not_called()
+
+    def test_manual_entry_orders_home_capture_stable_add_before_draft_controls(self):
+        self.initial_add_scope();self.probe.fixture_api=self.fixture();title=self.probe.fixture_api.state['title']
+        order=[]
+        self.probe.ensure_initial_broker_home=Mock(side_effect=lambda:order.append('home'))
+        self.probe.capture_initial_broker_home=Mock(side_effect=lambda:order.append('capture'))
+        self.probe.dispatch_stable_initial_add=Mock(side_effect=lambda:order.append('one-add'))
+        self.probe.has=Mock(return_value=False);self.probe.nodes=Mock(return_value=[self.node('لديك إعلان غير مكتمل')])
+        self.probe.tap=Mock(side_effect=lambda label:order.append(label));self.probe.wait=Mock()
+        self.probe.seek=Mock(return_value=([self.node(title)],[self.node(title)]))
+        self.probe.manual_entry(title)
+        self.assertEqual(order,['home','capture','one-add','مسوداتي',title])
+        self.assertNotIn('إضافة عقار',[call.args[0] for call in self.probe.tap.call_args_list])
+
+    def test_home_diagnostic_refuses_profile_auth_contact_private_values_before_image(self):
+        self.initial_add_scope();self.probe.adb=Mock()
+        for rows in ([self.node('حسابي')],self.broker_home_rows()+[self.node('رقم الاتصال *')],
+                     self.broker_home_rows()+[self.node('رمز التحقق')],
+                     self.broker_home_rows()+[self.node(self.access['phones']['broker'])]):
+            self.probe.nodes=Mock(return_value=rows)
+            with self.subTest(rows=len(rows)),self.assertRaises(native.Blocked):
+                self.probe.capture_initial_broker_home()
+        self.probe.adb.assert_not_called();self.assertEqual(self.probe.report['frames'],[])
+
+    def test_home_diagnostic_receipt_is_truthful_unique_and_case_specific(self):
+        self.initial_add_scope();self.probe.nodes=Mock(return_value=self.broker_home_rows())
+        self.probe.adb=Mock(return_value=b'\x89PNG\r\n\x1a\nSYNTHETIC_TEST_BYTES_ONLY')
+        self.probe.capture_initial_broker_home()
+        row=self.probe.report['frames'][0]
+        self.assertFalse(row['authenticated_editor_only'])
+        self.assertEqual(row['capture_scope'],'authenticated_broker_marketplace_before_add')
+        self.assertEqual(row['file'],'C1-before-add-home.png')
+        with self.assertRaisesRegex(native.Blocked,'^initial_home_capture_already_exists$'):
+            self.probe.capture_initial_broker_home()
+        self.probe.adb.assert_called_once()
+        self.probe.case_phase('C1-force-stop-restore')
+        self.assertEqual(self.probe.initial_home_capture_name(),'C1-restore-before-add-home')
+
+    def test_unloaded_home_never_stabilizes_even_if_add_named_control_is_visible(self):
+        self.initial_add_scope();self.stability_clock()
+        self.probe.nodes=Mock(return_value=[self.node('إضافة عقار',clickable=True)])
+        self.probe.act,self.probe.tap=Mock(),Mock()
+        with self.assertRaisesRegex(native.Blocked,'^native_named_add_not_stable$'):
+            self.probe.dispatch_stable_initial_add(seconds=3)
+        self.probe.act.assert_not_called();self.probe.tap.assert_not_called()
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
