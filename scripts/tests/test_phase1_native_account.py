@@ -1284,16 +1284,20 @@ class NativeAccountSafetyTest(unittest.TestCase):
         return '<hierarchy>' + file + (done if include_done else '') + '</hierarchy>'
 
     def test_os_picker_selects_file_once_then_the_observed_open_action(self):
-        frames = [self.picker_xml(), self.picker_xml(include_done=True)]
+        # A transient empty/IME tree and a delayed repeated Open are not an
+        # APP return. Neither file selection nor final Open may be replayed.
+        frames = iter([self.picker_xml(), self.picker_xml(include_done=True),
+                       '<hierarchy/>', self.picker_xml(include_done=True),
+                       '<hierarchy><node package="' + native.APP + '" text="صور الإعلان (1/12)" /></hierarchy>'])
         taps = []
-        state = {'index': 0}
+        reads = []
 
         def adb(*args, **kwargs):
             if args[:2] == ('exec-out', 'cat'):
-                return frames[state['index']]
+                reads.append(True)
+                return next(frames)
             if args[:3] == ('shell', 'input', 'tap'):
                 taps.append(args[3:])
-                state['index'] = min(1, state['index'] + 1)
             return ''
 
         self.probe.adb = Mock(side_effect=adb)
@@ -1302,7 +1306,45 @@ class NativeAccountSafetyTest(unittest.TestCase):
         with patch.object(native.time, 'sleep'):
             self.probe.photo_picker()
         self.assertEqual(taps, [(20, 20), (100, 200)])
+        self.assertEqual(len(reads), 5)
         self.probe.wait.assert_called_once_with('صور الإعلان (1/12)', seconds=30)
+        self.assertEqual(self.probe.report['os_photo_selection_observation'], {
+            'exact_fixture_filename_observed': True, 'file_tap_sent_once': True,
+            'final_open_sent_once': True, 'app_window_return_observed': True})
+
+    def test_os_picker_missing_app_return_never_opens_native_snapshot_or_repeats_open(self):
+        frames = iter([self.picker_xml(), self.picker_xml(include_done=True),
+                       self.picker_xml(include_done=True),
+                       '<hierarchy><node package="com.example.other"><node package="' +
+                       native.APP + '" text="underlying APP is not foreground" /></node></hierarchy>'])
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames)
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        with patch.object(native.time, 'sleep'), patch.object(native.time, 'monotonic',
+                side_effect=[0, 1, 2, 3, 4, 46]):
+            with self.assertRaisesRegex(native.Blocked, '^genuine_os_picker_return_not_observed$'):
+                self.probe.photo_picker()
+        taps = [c.args[3:] for c in self.probe.adb.call_args_list
+                if c.args[:3] == ('shell', 'input', 'tap')]
+        self.assertEqual(taps, [(20, 20), (100, 200)])
+        self.probe.wait.assert_not_called()
+        self.assertNotIn('os_photo_selection_observation', self.probe.report)
+
+    def test_os_picker_private_app_return_taints_recording_without_export_or_native_read(self):
+        for private in ('رمز التحقق', self.access['phones']['broker'], 'رقم الاتصال *'):
+            frames = iter([self.picker_xml(), '<hierarchy><node package="' + native.APP +
+                           '" text="' + private + '" /></hierarchy>'])
+            self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames)
+                                 if a[:2] == ('exec-out', 'cat') else '')
+            self.probe.tap, self.probe.wait = Mock(), Mock()
+            with self.subTest(private=private), patch.object(native.time, 'sleep'):
+                with self.assertRaisesRegex(native.Blocked, '^private_transition_during_os_picker$'):
+                    self.probe.photo_picker()
+            self.assertTrue(self.probe.record_tainted)
+            self.probe.wait.assert_not_called()
+            self.assertEqual(self.probe.report['frames'], [])
+            self.assertEqual(self.probe.report['videos'], [])
+            self.assertNotIn(private, (self.probe.out / 'report.json').read_text())
 
     def test_os_picker_never_clicks_a_foreign_package_file(self):
         xml = self.picker_xml(include_done=True, package='com.example.untrusted')

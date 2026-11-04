@@ -34,7 +34,8 @@ C1_JOURNEY_STAGES = frozenset({'manual_entry', 'selected_fixture', 'editor_wait'
                                 'purpose', 'type', 'title', 'location_step', 'location_confirm',
                                 'governorate', 'city', 'specifications_step', 'floor_select',
                                 'bedrooms', 'bathrooms', 'parking_select', 'facade_select',
-                                'photo_select', 'photo_capture', 'rent_blank_check', 'draft_save',
+                                'photo_select', 'photo_picker_open', 'photo_file_select', 'photo_final_select',
+                                'photo_app_return', 'photo_count_wait', 'photo_capture', 'rent_blank_check', 'draft_save',
                                 'restore_startup', 'restore_specs', 'restore_bedrooms', 'restore_bathrooms',
                                 'restore_photo', 'restore_location', 'restore_title', 'restore_options_wait',
                                 'logout_account_ready', 'logout_control', 'logout_confirm',
@@ -1066,10 +1067,11 @@ class NativeAccount:
         self.adb('push', path, '/sdcard/Download/' + self.photo_name)
         self.adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
                  '-d', 'file:///sdcard/Download/' + self.photo_name)
+        self.journey_stage('photo_picker_open')
         self.tap('إضافة صور')
         # The OS picker is outside our self-targeted helper. Use fresh, observed nodes.
         deadline = time.monotonic() + 45
-        selected = False
+        selected, final_sent, app_returned = False, False, False
         while time.monotonic() < deadline:
             target = '/sdcard/phase1-os-picker.xml'
             self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
@@ -1082,6 +1084,22 @@ class NativeAccount:
             candidates = [n for n in rows if n.get('package') in
                           {'com.google.android.documentsui', 'com.android.documentsui',
                            'com.google.android.providers.media.module', 'com.android.providers.media.module'}]
+            app_rows = [n for n in rows if n.get('package') == APP]
+            app_labels = {s.strip() for n in app_rows for key in ('text', 'content-desc')
+                          for s in n.get(key, '').splitlines() if s.strip()}
+            private_labels = AUTH_LABELS | {'تسجيل الدخول أو إنشاء حساب', 'رقم الاتصال *',
+                'رقم اتصال آخر', 'رقم اتصال آخر (اختياري)', 'الإيجار والتواصل',
+                'السعر والتواصل', 'الملف الشخصي', 'الأمان والخصوصية', 'تسجيل الخروج'}
+            if app_labels & private_labels or any(value and value in '\n'.join(app_labels)
+                                                 for value in self.private_values):
+                self.record_tainted = True
+                raise Blocked('private_transition_during_os_picker')
+            # Empty/foreign/IME trees do not prove that the picker has closed.
+            # Do not start an APP-only instrumentation connection until the
+            # normal picker has visibly returned to this APP window.
+            if selected and rows and rows[0].get('package') == APP and app_rows and not candidates:
+                app_returned = True
+                break
             def tap_os(node):
                 found = re.fullmatch(r'\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]', node.get('bounds', ''))
                 if not found:
@@ -1091,16 +1109,19 @@ class NativeAccount:
             files = [n for n in candidates if self.photo_name in
                      {n.get('text', ''), n.get('content-desc', '')}]
             if len(files) == 1 and not selected:
+                self.journey_stage('photo_file_select')
                 tap_os(files[0]); selected = True; time.sleep(.6)
                 # Multiple mode may require a visible final Open/Select action.
                 continue
             done = [n for n in candidates if selected and n.get('text', '') in
                     {'OPEN', 'Open', 'SELECT', 'Select', 'فتح', 'اختيار'} and n.get('enabled') == 'true']
-            if len(done) == 1:
+            if len(done) == 1 and not final_sent:
+                self.journey_stage('photo_final_select')
+                final_sent = True  # Never repeat a dispatched final Open.
                 tap_os(done[0]); time.sleep(.6)
-                break
-            if selected and not candidates:
-                break
+                continue
+            if selected:
+                self.journey_stage('photo_app_return')
             downloads = [n for n in candidates if n.get('text', '') in {'Downloads', 'التنزيلات'}]
             if len(downloads) == 1 and not selected:
                 tap_os(downloads[0])
@@ -1112,6 +1133,12 @@ class NativeAccount:
             time.sleep(.7)
         if not selected:
             raise Blocked('genuine_os_photo_selection_not_observed')
+        if not app_returned:
+            raise Blocked('genuine_os_picker_return_not_observed')
+        self.report['os_photo_selection_observation'] = {
+            'exact_fixture_filename_observed': True, 'file_tap_sent_once': True,
+            'final_open_sent_once': final_sent, 'app_window_return_observed': True}
+        self.journey_stage('photo_count_wait')
         self.wait('صور الإعلان (1/12)', seconds=30)
 
     def create_and_save(self):

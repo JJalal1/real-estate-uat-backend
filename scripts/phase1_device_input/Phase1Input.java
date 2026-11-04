@@ -181,7 +181,13 @@ public final class Phase1Input extends Instrumentation {
     private AccessibilityNodeInfo readyRoot(String op) {
         long deadline=SystemClock.uptimeMillis()+5000;
         while(SystemClock.uptimeMillis()<deadline) {
-            if(op.startsWith("account-")) { stage="account_cache_clear"; require(automation.clearCache()); }
+            if(op.startsWith("account-")) {
+                stage="account_cache_clear";
+                // A preceding OS uiautomator dump may still be releasing its
+                // connection. Observe readiness before any account operation;
+                // never read a stale cache or dispatch/replay input here.
+                if(!automation.clearCache()) { SystemClock.sleep(100); continue; }
+            }
             AccessibilityNodeInfo root=automation.getRootInActiveWindow();
             CharSequence rootPackage=root==null ? null : root.getPackageName();
             foreground=foregroundCategory(rootPackage);

@@ -27,9 +27,9 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`7c6c8eecea432e9441eac433c59dceef0db023d3fed423849fd30cdba8694ca2`
+`af3ace2626016dfe334c86d8cff87f6d429af0b78d2486f7c9a5cb80735d9ff9`
 and Java SHA
-`8a2f047fcb42ce1b68765fe15e776a24e895da3b7667d44d8b9ffafa398c5977`.
+`388e357e02c17d10a7d39e9d374fb5d4bc2d8728b55a63da202aa60fff8cc510`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
 source, the exact baseline diff allowlist, original unchanged mobile/backend
 trees, clean tracked paths and pinned public recipient certificate/expiry. No

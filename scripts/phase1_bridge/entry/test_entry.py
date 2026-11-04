@@ -47,7 +47,7 @@ class EntryContracts(unittest.TestCase):
         for path in entry.EXPECTED_FILES:
             self.assertNotIn('private', path.lower()); self.assertNotIn('node_modules', path)
         self.assertEqual(entry.PAIRED_PROBE_SHA,
-            '7c6c8eecea432e9441eac433c59dceef0db023d3fed423849fd30cdba8694ca2')
+            'af3ace2626016dfe334c86d8cff87f6d429af0b78d2486f7c9a5cb80735d9ff9')
         self.assertIn('scripts/phase1_bridge/adapter/test_logout_home.py', entry.EXPECTED_FILES)
         for path in ('adapter/c1_home_capture.py', 'adapter/test_home_capture.py', 'controller/test_home_diagnostic.py',
                      'adapter/c1_basics_capture.py', 'adapter/test_basics_capture.py'):
