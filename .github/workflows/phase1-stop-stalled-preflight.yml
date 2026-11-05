@@ -1,0 +1,69 @@
+name: Stop one stalled native preflight
+on:
+  push:
+    branches: [work/phase1-root-review-20261104]
+    paths: [.github/workflows/phase1-stop-stalled-preflight.yml]
+permissions:
+  actions: write
+jobs:
+  stop-stalled-preflight:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-root-review-20261104' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only the still-stalled preflight before any native session
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import datetime,json,os,urllib.request
+          root='https://api.github.com/repos/JJalal1/real-estate-uat-backend'
+          run_id=42029000368
+          job_id=127250505733
+          def request(path, method='GET'):
+              req=urllib.request.Request(root+path,method=method,
+                  headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],
+                           'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req,timeout=30) as response:
+                  raw=response.read()
+                  return response.status,json.loads(raw) if raw else {}
+          _,run=request('/actions/runs/'+str(run_id))
+          if not (run.get('head_sha')=='37c254ce1357f72c9197743b67acd40343e6350d'
+                  and run.get('head_branch')=='work/phase1-completion-20261105'
+                  and run.get('name')=='Phase1 native account draft recovery'
+                  and run.get('run_attempt')==1 and run.get('status')=='in_progress'):
+              print('NOT_CANCELED_STATE_CHANGED');raise SystemExit(0)
+          _,job=request('/actions/jobs/'+str(job_id))
+          steps=job.get('steps',[])
+          current=[s for s in steps if s.get('number')==9]
+          future=[s for s in steps if s.get('number',0)>=10]
+          if not (job.get('run_id')==run_id and job.get('status')=='in_progress'
+                  and len(current)==1 and current[0].get('name')=='Install pinned collector and checkpoint dependencies'
+                  and current[0].get('status')=='in_progress' and future
+                  and any(s.get('number')==19 and s.get('status')=='pending' for s in future)
+                  and all(s.get('status')=='pending' for s in future)):
+              print('NOT_CANCELED_STATE_CHANGED');raise SystemExit(0)
+          started=datetime.datetime.fromisoformat(current[0]['started_at'].replace('Z','+00:00'))
+          if (datetime.datetime.now(datetime.timezone.utc)-started).total_seconds()<600:
+              print('NOT_CANCELED_NOT_STALLED');raise SystemExit(0)
+          _,artifacts=request('/actions/runs/'+str(run_id)+'/artifacts?per_page=100')
+          if artifacts.get('total_count')!=0:
+              print('NOT_CANCELED_ARTIFACTS_PRESENT');raise SystemExit(0)
+          # Re-read the job immediately before cancellation. Never cancel a
+          # session which progressed beyond the dependency installation step.
+          _,fresh=request('/actions/jobs/'+str(job_id))
+          now_steps=fresh.get('steps',[])
+          now_current=[s for s in now_steps if s.get('number')==9]
+          now_future=[s for s in now_steps if s.get('number',0)>=10]
+          if not (fresh.get('status')=='in_progress' and fresh.get('run_id')==run_id
+                  and len(now_steps)==len(steps)
+                  and len(now_current)==1
+                  and now_current[0].get('name')=='Install pinned collector and checkpoint dependencies'
+                  and now_current[0].get('status')=='in_progress' and now_future
+                  and any(s.get('number')==19 and s.get('status')=='pending' for s in now_future)
+                  and all(s.get('status')=='pending' for s in now_future)):
+              print('NOT_CANCELED_STATE_CHANGED');raise SystemExit(0)
+          status,_=request('/actions/runs/'+str(run_id)+'/cancel','POST')
+          if status!=202:raise SystemExit('CANCELLATION_UNCONFIRMED')
+          print('STALLED_PREFLIGHT_CANCELLATION_REQUESTED')
+          PY
