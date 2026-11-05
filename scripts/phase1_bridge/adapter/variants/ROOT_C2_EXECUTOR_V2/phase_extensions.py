@@ -463,7 +463,10 @@ class C2Executor:
     def _login(self, role):
         self._guest()
         if self.probe.adapter is None:
-            self.probe.startup()  # Relaunch after force-stop; login rechecks guest UI.
+            # A checkpoint closes admission, not the app. Establish startup's
+            # cold-launch contract even when logout left the guest Account open.
+            self.probe.adb('shell', 'am', 'force-stop', roles.APP)
+            self.probe.startup()  # Normal startup; login still rechecks guest UI.
         result = roles.native_login_role(self.probe, role)
         need(result.get('status') == 'PASS_WITHIN_AUTH_UI_SCOPE', 'native_role_login_uncertain')
         if role == 'regular':

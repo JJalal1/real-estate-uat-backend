@@ -545,6 +545,56 @@ class C2EntryTests(unittest.TestCase):
         executor._nonimage_input.assert_not_called()
 
 
+class C2LoginLaunchTests(unittest.TestCase):
+    def setUp(self):
+        fixture = C2EntryTests()
+        fixture.setUp()
+        self.executor, self.probe = fixture.executor(), fixture.probe
+        self.probe.authenticated, self.probe.active_native_role = False, None
+        self.probe.native_auth_uncertain, self.probe.adapter = False, None
+        self.probe.adb, self.probe.startup = Mock(), Mock()
+        patcher = patch.object(c2.roles, 'native_login_role',
+            return_value={'status': 'PASS_WITHIN_AUTH_UI_SCOPE'})
+        self.login = patcher.start(); self.addCleanup(patcher.stop)
+        self.order = Mock()
+        for name, mocked in [('force_stop', self.probe.adb), ('startup', self.probe.startup), ('login', self.login)]:
+            self.order.attach_mock(mocked, name)
+
+    def test_closed_admission_establishes_cold_launch_before_all_four_login_stages(self):
+        for stage, role in [('broker_login_for_submit', 'broker'), ('support_login', 'support'),
+                            ('broker_login_for_reason', 'broker'), ('regular_login', 'regular')]:
+            with self.subTest(stage=stage):
+                self.order.reset_mock()
+                self.executor._execute(stage, True)
+                self.assertEqual(self.order.mock_calls, [
+                    call.force_stop('shell', 'am', 'force-stop', c2.roles.APP),
+                    call.startup(), call.login(self.probe, role)])
+        self.assertEqual(self.executor.regular_cycle, 1)
+
+    def test_live_admission_keeps_existing_app_and_uses_normal_role_login(self):
+        self.probe.adapter = object()
+        self.executor._login('support')
+        self.assertEqual(self.order.mock_calls, [call.login(self.probe, 'support')])
+
+    def test_non_guest_or_uncertain_actor_is_refused_before_any_launch_or_login(self):
+        for change in ({'authenticated': True}, {'active_native_role': 'broker'},
+                       {'native_auth_uncertain': True}, {'recorder': object()}):
+            with self.subTest(change=change):
+                originals = {key: getattr(self.probe, key) for key in change}
+                for key, value in change.items(): setattr(self.probe, key, value)
+                with self.assertRaisesRegex(c2.C2Blocked, 'normal_native_guest'):
+                    self.executor._login('support')
+                for key, value in originals.items(): setattr(self.probe, key, value)
+        self.assertEqual(self.order.mock_calls, [])
+
+    def test_startup_failure_does_not_enter_role_login_or_repeat_launch(self):
+        self.probe.startup.side_effect = RuntimeError('synthetic startup failure')
+        with self.assertRaises(RuntimeError): self.executor._login('support')
+        self.assertEqual(self.order.mock_calls, [
+            call.force_stop('shell', 'am', 'force-stop', c2.roles.APP), call.startup()])
+        self.login.assert_not_called()
+
+
 class SaiSheetFallbackTests(unittest.TestCase):
     def setUp(self):
         fixture = C2EntryTests()

@@ -189,6 +189,13 @@ def c2_sai_sheet_fallback_transform(name, text):
     return text
 
 
+def c2_login_cold_start_transform(name, text):
+    """Establish normal startup preconditions after a closed guest admission."""
+    if name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
+        text = replace_once(text, "    def _login(self, role):\n        self._guest()\n        if self.probe.adapter is None:\n            self.probe.startup()  # Relaunch after force-stop; login rechecks guest UI.\n        result = roles.native_login_role(self.probe, role)\n        need(result.get('status') == 'PASS_WITHIN_AUTH_UI_SCOPE', 'native_role_login_uncertain')\n        if role == 'regular':\n", "    def _login(self, role):\n        self._guest()\n        if self.probe.adapter is None:\n            # A checkpoint closes admission, not the app. Establish startup's\n            # cold-launch contract even when logout left the guest Account open.\n            self.probe.adb('shell', 'am', 'force-stop', roles.APP)\n            self.probe.startup()  # Normal startup; login still rechecks guest UI.\n        result = roles.native_login_role(self.probe, role)\n        need(result.get('status') == 'PASS_WITHIN_AUTH_UI_SCOPE', 'native_role_login_uncertain')\n        if role == 'regular':\n")
+    return text
+
+
 def transform(name, text):
     if name in {'ROOT_C4_EXECUTOR/phase_extensions.py', 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py'}:
         alphabet = ''.join(str(value) for value in range(10)) * 2
@@ -382,6 +389,7 @@ def transform(name, text):
     text = c2_previous_readiness_transform(name, text)
     text = c2_nonimage_click_readiness_transform(name, text)
     text = c2_sai_sheet_fallback_transform(name, text)
+    text = c2_login_cold_start_transform(name, text)
     if name != 'promoted_cleanup.py' and 'reviewed_monotonic' in text:
         raise RuntimeError('legacy_review_clock_remains')
     return text
@@ -422,7 +430,7 @@ def build(source_root, capture_source, destination):
             manifest[name]['previous_utc_variant_sha256'] = PREVIOUS_ROLES_PIN
             manifest[name]['delta'] = 'one_logout_observed_guest_home_then_one_account_guest_gate; broker_retained_home_and_support_named_back_before_normal_logout; bounded_post_auth_account_logout_scroll; fixed_auth_stage_diagnostics'
         if name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
-            manifest[name]['delta'] = 'serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; source_bound_editor_dismissal_barrier_with_decision_button_refusal; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save; source_shaped_scrolled_specs_review; fixed_pre_input_prepare_refusal_proof; actual_UI_contact_policy_before_fixed_native_fixture_contact; private_nonimage_seeking_and_boolean_readback_before_save; fixed_pin_promotion_and_cleanup_reason_before_strict_refusal; source_shaped_list_readiness_and_bounded_control_reveal; regular_account_count_only_logout_witness; completed_cleanup_receipt_persisted_before_session_close; source_scoped_nonimage_click_controls_and_same_stage_popup_menu; bounded_read_only_control_settling_and_unique_enabled_ancestor; source_bound_sai_sheet_dismissal_and_explicit_decision_refusal; bounded_read_only_fallback_settling_and_fixed_boolean_diagnostics'
+            manifest[name]['delta'] = 'serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; source_bound_editor_dismissal_barrier_with_decision_button_refusal; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save; source_shaped_scrolled_specs_review; fixed_pre_input_prepare_refusal_proof; actual_UI_contact_policy_before_fixed_native_fixture_contact; private_nonimage_seeking_and_boolean_readback_before_save; fixed_pin_promotion_and_cleanup_reason_before_strict_refusal; source_shaped_list_readiness_and_bounded_control_reveal; regular_account_count_only_logout_witness; completed_cleanup_receipt_persisted_before_session_close; source_scoped_nonimage_click_controls_and_same_stage_popup_menu; bounded_read_only_control_settling_and_unique_enabled_ancestor; source_bound_sai_sheet_dismissal_and_explicit_decision_refusal; bounded_read_only_fallback_settling_and_fixed_boolean_diagnostics; known_guest_owned_app_stop_before_closed_admission_startup'
         if name == 'promoted_cleanup.py':
             manifest[name]['delta'] = 'actual_default_mine_advertiser_and_detail_owner_contract; original_fixture_identity_and_protected_baseline_guards_preserved'
         if name == 'ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py':
