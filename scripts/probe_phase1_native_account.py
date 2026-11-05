@@ -543,7 +543,7 @@ class NativeAccount:
         state = self.report.get('local_c4_executor')
         metrics = getattr(self, 'admission_metrics', {})
         return (label in {'عنوان الإعلان', 'نص الإعلان'} and type(state) is dict
-                and state.get('inflight') in {'prepare_request', 'edit_reviewed_title'}
+                and state.get('inflight') in {'prepare_request', 'collect_response', 'edit_reviewed_title'}
                 and state.get('uncertain') is False and self._active_case not in C1_CASES
                 and self.authenticated is True and self.recorder is None
                 and not getattr(self, '_host_stop_unconfirmed', False)

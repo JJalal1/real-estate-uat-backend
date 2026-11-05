@@ -783,7 +783,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
     def test_candidate_c4_ai_fields_bind_below_each_header_without_preceding_title_misbinding(self):
         self.c4_prepare_scope();rows=self.c4_ai_candidate_rows()
         self.probe.nodes=Mock(return_value=rows);self.probe.scroll=Mock()
-        for stage in ('prepare_request','edit_reviewed_title'):
+        for stage in ('prepare_request','collect_response','edit_reviewed_title'):
             self.probe.report['local_c4_executor']['inflight']=stage
             self.assertEqual(self.probe.field('عنوان الإعلان'),rows[1])
             self.assertEqual(self.probe.field('نص الإعلان'),rows[3])
