@@ -17,7 +17,7 @@
     "scripts/phase1_bridge/adapter/test_basics_capture.py": "30ae9db68ee580e942a76037826f9331552ec9aac2927418e8f6eb34d7e2fe8c",
     "scripts/phase1_bridge/adapter/test_home_capture.py": "5960c56630f6699d6461ad5ea4bd904792fb571f9acbdb5b054b67080f02b0e8",
     "scripts/phase1_bridge/adapter/test_integration.py": "c9bca242488dddc14e6cc21ac0f2442da9222b71f6bf911d805fcf9f497bb372",
-    "scripts/phase1_bridge/adapter/test_logout_home.py": "9131ff29395f2bbc619d36e37097f680b0bcbd44473110ebaba4569cb6d43d08",
+    "scripts/phase1_bridge/adapter/test_logout_home.py": "4ee43b4215a0a6ce0d8139175edf784222c571a93f1900d614a9dcdb8e755091",
     "scripts/phase1_bridge/adapter/variants/C2_SOURCE_PROPOSAL/c2_native_roles.py": "ba0c77c9ffe66bdae719856215fb03470849277f636513f745aa02e75d42d3aa",
     "scripts/phase1_bridge/adapter/variants/LOCAL_REMAINING_PROPOSAL/local_stage_policy.py": "2a54658205998dbb02f2a0a3f4c59597d348125d0b520402e19ba8ef85527ec2",
     "scripts/phase1_bridge/adapter/variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py": "01aedc9a2387fb7feff572e829bf52142bab2e51bade098d016350cb64f76906",
