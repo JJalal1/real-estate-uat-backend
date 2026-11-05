@@ -1,0 +1,43 @@
+name: Run79 read-only cleanup verification
+on:
+  push:
+    branches: [work/phase1-run79-cleanup-20261105]
+    paths:
+      - .github/workflows/phase1-run79-cleanup.yml
+      - scripts/verify_phase1_run79_cleanup.py
+      - scripts/tests/test_phase1_run79_cleanup.py
+permissions:
+  contents: read
+concurrency:
+  group: phase1-run79-cleanup-verification
+  cancel-in-progress: false
+jobs:
+  verify-cleanup:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-run79-cleanup-20261105' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install pinned Python dependency without Android build
+        run: python3 -m pip install --disable-pip-version-check cryptography==50.0.2
+      - name: Verify the read-only boundary offline
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_run79_cleanup.py' -q
+      - name: Verify original baseline and exact fixture absence
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+          UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+        run: python3 -B scripts/verify_phase1_run79_cleanup.py
+      - name: Upload fixed verification receipt
+        if: ${{ always() && hashFiles('phase1-run79-cleanup/receipt.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-run79-cleanup-${{ github.run_id }}
+          path: phase1-run79-cleanup/receipt.json
+          retention-days: 7
+          if-no-files-found: error
