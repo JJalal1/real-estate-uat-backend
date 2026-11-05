@@ -1500,6 +1500,8 @@ class NativeAccount:
         downloads_signature, downloads_stable_since = None, None
         downloads_stable_observed = False
         root_matches, download_matches, file_matches = 0, 0, 0
+        xml_counts = {'fresh_dump_attempts': 0, 'parse_failures': 0}
+        self.report['os_picker_xml_observation_counts'] = xml_counts
         identity_keys = ('package', 'class', 'resource-id', 'text', 'content-desc',
                          'bounds', 'enabled', 'clickable', 'focusable')
 
@@ -1511,13 +1513,35 @@ class NativeAccount:
 
         while time.monotonic() < deadline:
             target = '/sdcard/phase1-os-picker.xml'
-            self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
-            raw = self.adb('exec-out', 'cat', target)
-            try:
-                rows = list(ET.fromstring(raw).iter('node'))
-            except ET.ParseError:
-                raise Blocked('fresh_os_picker_tree_unavailable') from None
-            self.adb('shell', 'rm', '-f', target)
+            rows = None
+            for parse_attempt in range(3):
+                if time.monotonic() >= deadline:
+                    break
+                # Each read owns a new dump. A malformed/empty response never
+                # authorizes reuse of an older XML file or another input tap.
+                self.adb('shell', 'rm', '-f', target)
+                if time.monotonic() >= deadline:
+                    break
+                xml_counts['fresh_dump_attempts'] += 1
+                self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
+                raw = self.adb('exec-out', 'cat', target)
+                try:
+                    rows = list(ET.fromstring(raw).iter('node'))
+                except ET.ParseError:
+                    xml_counts['parse_failures'] += 1
+                    self.adb('shell', 'rm', '-f', target)
+                    downloads_signature, downloads_stable_since = None, None
+                    if downloads_attempts:
+                        downloads_retry_allowed = False
+                    self.save()
+                    if parse_attempt == 2:
+                        raise Blocked('fresh_os_picker_tree_unavailable') from None
+                    pause(.25)
+                    continue
+                self.adb('shell', 'rm', '-f', target)
+                break
+            if rows is None:
+                break  # The original picker deadline is never renewed.
             observed_at = time.monotonic()
             if observed_at >= deadline:
                 break

@@ -2620,6 +2620,96 @@ class NativeAccountSafetyTest(unittest.TestCase):
             'downloads_navigation_attempts': 0,
             'final_open_sent_once': True, 'app_window_return_observed': True})
 
+    def test_os_picker_retries_only_fresh_empty_or_malformed_xml_without_replaying_file_or_open(self):
+        self.stability_clock()
+        frames = iter(['', '<PRIVATE_XML', self.picker_xml(), '<broken',
+            self.picker_xml(include_done=True), '', self.picker_xml(include_done=True),
+            '<hierarchy><node package="' + native.APP + '" /></hierarchy>'])
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames)
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        self.probe.photo_picker()
+        calls = self.probe.adb.call_args_list
+        self.assertEqual([c.args[3:] for c in calls if c.args[:3] == ('shell', 'input', 'tap')],
+                         [(20, 20), (100, 200)])
+        target = '/sdcard/phase1-os-picker.xml'
+        for index, item in enumerate(calls):
+            if item.args[:3] == ('shell', 'uiautomator', 'dump'):
+                self.assertEqual(calls[index-1].args, ('shell', 'rm', '-f', target))
+            if item.args[:2] == ('exec-out', 'cat'):
+                self.assertEqual(calls[index+1].args, ('shell', 'rm', '-f', target))
+        self.assertEqual(self.probe.report['os_picker_xml_observation_counts'],
+                         {'fresh_dump_attempts': 8, 'parse_failures': 4})
+        self.assertNotIn('PRIVATE_XML', json.dumps(self.probe.report))
+        self.probe.wait.assert_called_once_with('صور الإعلان (1/12)', seconds=30)
+
+    def test_os_picker_three_invalid_fresh_dumps_stop_without_input_or_raw_xml(self):
+        self.stability_clock()
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: '<PRIVATE_XML'
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        with self.assertRaisesRegex(native.Blocked, '^fresh_os_picker_tree_unavailable$'):
+            self.probe.photo_picker()
+        self.assertEqual(self.probe.report['os_picker_xml_observation_counts'],
+                         {'fresh_dump_attempts': 3, 'parse_failures': 3})
+        self.assertEqual(sum(c.args[:2] == ('exec-out', 'cat') for c in self.probe.adb.call_args_list), 3)
+        self.assertFalse(any(c.args[:3] == ('shell', 'input', 'tap') for c in self.probe.adb.call_args_list))
+        self.assertNotIn('PRIVATE_XML', json.dumps(self.probe.report))
+        self.probe.wait.assert_not_called()
+
+    def test_os_picker_parse_retry_cannot_extend_original_deadline(self):
+        clock = self.stability_clock()
+        def adb(*args, **kwargs):
+            if args[:2] == ('exec-out', 'cat'):
+                clock[0] = 45
+                return ''
+            return ''
+        self.probe.adb = Mock(side_effect=adb); self.probe.tap, self.probe.wait = Mock(), Mock()
+        with self.assertRaisesRegex(native.Blocked, '^genuine_os_photo_selection_not_observed$'):
+            self.probe.photo_picker()
+        self.assertEqual(clock[0], 45)
+        self.assertEqual(self.probe.report['os_picker_xml_observation_counts'],
+                         {'fresh_dump_attempts': 1, 'parse_failures': 1})
+        self.assertFalse(any(c.args[:3] == ('shell', 'input', 'tap') for c in self.probe.adb.call_args_list))
+
+    def test_os_picker_dump_cat_or_invalid_cleanup_transport_exception_is_never_retried(self):
+        clock = self.stability_clock()
+        for failure in ('dump', 'cat', 'invalid_cleanup'):
+            with self.subTest(failure=failure):
+                clock[0] = 0
+                removals = []
+                def adb(*args, **kwargs):
+                    if args[:3] == ('shell', 'rm', '-f'):
+                        removals.append(True)
+                        if failure == 'invalid_cleanup' and len(removals) == 2:
+                            raise native.Blocked('device_command_timeout')
+                    if args[:3] == ('shell', 'uiautomator', 'dump') and failure == 'dump':
+                        raise native.Blocked('device_command_timeout')
+                    if args[:2] == ('exec-out', 'cat'):
+                        if failure == 'cat': raise native.Blocked('device_command_timeout')
+                        return '<invalid'
+                    return ''
+                self.probe.adb = Mock(side_effect=adb); self.probe.tap, self.probe.wait = Mock(), Mock()
+                with self.assertRaisesRegex(native.Blocked, '^device_command_timeout$'):
+                    self.probe.photo_picker()
+                self.assertEqual(sum(c.args[:3] == ('shell', 'uiautomator', 'dump')
+                                     for c in self.probe.adb.call_args_list), 1)
+                self.assertFalse(any(c.args[:3] == ('shell', 'input', 'tap') for c in self.probe.adb.call_args_list))
+                self.probe.wait.assert_not_called()
+
+    def test_os_picker_invalid_dump_after_downloads_does_not_authorize_another_navigation_tap(self):
+        clock = self.stability_clock(); drawer = self.picker_drawer_xml()
+        frames = iter([drawer, drawer, '<invalid'])
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames, drawer)
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        with self.assertRaisesRegex(native.Blocked, '^genuine_os_photo_selection_not_observed$'):
+            self.probe.photo_picker()
+        taps = [c.args[3:] for c in self.probe.adb.call_args_list if c.args[:3] == ('shell', 'input', 'tap')]
+        self.assertEqual(taps, [(180, 290)])
+        self.assertEqual(clock[0], 45)
+        self.assertEqual(self.probe.report['os_picker_xml_observation_counts']['parse_failures'], 1)
+
     def test_os_picker_selects_complete_grid_filename_metadata_not_preview_or_similar_name(self):
         package = 'com.android.documentsui'
         name = self.probe.photo_name
