@@ -1,0 +1,44 @@
+name: One-off Run85 exact fixture cleanup
+on:
+  push:
+    branches: [work/phase1-run85-cleanup-20261105]
+    paths:
+      - .github/workflows/phase1-run85-cleanup.yml
+      - scripts/cleanup_phase1_run85_fixture.py
+      - scripts/tests/test_phase1_run85_cleanup.py
+      - scripts/phase1_bridge/adapter/variants/promoted_cleanup.py
+permissions:
+  contents: read
+concurrency:
+  group: phase1-exact-run85-fixture-cleanup
+  cancel-in-progress: false
+jobs:
+  exact-fixture-cleanup:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-run85-cleanup-20261105' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install pinned Python dependency without Android build
+        run: python3 -m pip install --disable-pip-version-check cryptography==50.0.2
+      - name: Validate exact cleanup boundary offline
+        run: python3 -B -m unittest discover -s scripts/tests -p 'test_phase1_run85_cleanup.py' -q
+      - name: Return and remove only the verified Run85 synthetic fixture
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+          UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+        run: python3 -B scripts/cleanup_phase1_run85_fixture.py
+      - name: Upload fixed cleanup receipt
+        if: ${{ always() && hashFiles('phase1-run85-cleanup/receipt.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-run85-cleanup-${{ github.run_id }}
+          path: phase1-run85-cleanup/receipt.json
+          retention-days: 7
+          if-no-files-found: error
