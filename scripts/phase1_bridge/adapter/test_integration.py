@@ -214,6 +214,58 @@ class C4RequestBoundaryTests(unittest.TestCase):
         self.probe.require_value.assert_called_once_with('صف العقار',self.c4.BRIEF)
         self.probe.tap.assert_not_called()
 
+    def _edit_reviewed_title(self, existing_title):
+        self.probe.authenticated = True
+        self.probe.recorder = None
+        self.probe._host_stop_unconfirmed = False
+        self.probe._capture_rows_private.return_value = False
+        rows = [{'text':label, 'visible':True} for label in
+                (self.c4.AI_NOTICE, self.c4.APPLY, 'عنوان الإعلان', 'نص الإعلان')]
+        self.probe.nodes.return_value = rows
+        self.probe._capture_full_rows.return_value = rows
+        self.probe.matching.side_effect = lambda current,label: [
+            row for row in current if row.get('text') == label]
+        actual_title = {'text':existing_title}
+        self.probe.field.return_value = actual_title
+        self.probe.set.side_effect = lambda label,value: actual_title.update(text=value)
+        self.probe.require_value.side_effect = lambda label,expected: self.assertEqual(
+            actual_title['text'], expected)
+        self.state.update(cursor='AI_REVIEW', ai_scene=self.c4.ai_scene(self.probe),
+                          request_copy_sha256='b'*64)
+        review = {'actual_ai_notice':self.c4.AI_NOTICE, 'literal_fallback_notice_visible':False,
+                  'all_selected_fields_and_copy_reviewed':True, 'copy_has_only_supplied_facts':True,
+                  'verified_existing_draft_copy_facts':{},
+                  'selected_fields':{'floor_number':'2','unit_number':'7'},
+                  'all_proposal_cards_visible_in_reviewed_frames':True}
+        def capture(probe,name):
+            self.c4.ai_context(probe)  # Keep the actual strict sheet guard in this test.
+            probe.capture_observed(name)
+            return {name+'.png':DIGEST}
+        with patch.object(self.c4,'ai_capture',side_effect=capture), \
+             patch.object(self.c4,'copy_digest',return_value='b'*64):
+            result = self.c4.edit_title(self.probe,self.state,review)
+        self.assertEqual(result['cursor'],'APPLY_REVIEW')
+        self.assertEqual(len(self.state['apply_frames']),2)
+        self.probe.require_value.assert_called_once_with('عنوان الإعلان',self.state['title'])
+        self.probe.tap.assert_not_called()
+        return self.probe.method_calls
+
+    def test_exact_reviewed_title_is_preserved_without_text_input_or_ime_transition(self):
+        self._edit_reviewed_title(self.state['title'])
+        self.probe.set.assert_not_called()
+        self.probe.adb.assert_not_called()
+        self.probe.wait.assert_not_called()
+
+    def test_changed_reviewed_title_is_set_once_then_footer_observed_before_capture(self):
+        calls = self._edit_reviewed_title('SYNTHETIC_DIFFERENT_TITLE')
+        self.probe.set.assert_called_once_with('عنوان الإعلان',self.state['title'])
+        self.probe.wait.assert_called_once_with(self.c4.APPLY,seconds=5)
+        readback = unittest.mock.call.require_value('عنوان الإعلان',self.state['title'])
+        wait = unittest.mock.call.wait(self.c4.APPLY,seconds=5)
+        capture = unittest.mock.call.capture_observed('C1-c4-edited-title')
+        self.assertLess(calls.index(readback),calls.index(wait))
+        self.assertLess(calls.index(wait),calls.index(capture))
+
 
 class SyntheticAuthority:
     authority_kind = 'ROOT_VERIFIED'

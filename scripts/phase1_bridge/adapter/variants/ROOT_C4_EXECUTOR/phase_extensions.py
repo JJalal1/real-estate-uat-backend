@@ -388,8 +388,13 @@ def edit_title(probe, state, data):
     need(ai_scene(probe) == state['ai_scene'], 'c4_reviewed_ai_scene_changed')
     ai_context(probe)
     # Preserve the original same-draft synthetic title and exact unique tag.
-    probe.set('عنوان الإعلان', state['title'])
+    title_changed = probe.field('عنوان الإعلان').get('text') != state['title']
+    if title_changed:
+        probe.set('عنوان الإعلان', state['title'])
     probe.require_value('عنوان الإعلان', state['title'])
+    if title_changed:
+        # Observe the fixed footer after IME/layout settling; never replay input.
+        probe.wait(APPLY, seconds=5)
     frames = ai_capture(probe, 'C1-c4-edited-title')
     state['reviewed_copy_sha256'] = copy_digest(probe, 'نص الإعلان')
     need(state['reviewed_copy_sha256'] == state['request_copy_sha256'],

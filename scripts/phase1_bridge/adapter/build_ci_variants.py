@@ -76,6 +76,16 @@ def transform(name, text):
         text = replace_once(text, '    probe.wait(APPLY, seconds=120)\n    # Notice must be observed literally on the real native sheet.', "    probe.wait(APPLY, seconds=120)\n    # Preserve the actual response before any scrolling. This diagnostic is\n    # neither an AI-source assertion nor a visual acceptance decision.\n    state['response_ready_frames'] = ai_capture(probe, 'C1-c4-response-ready')\n    state['response_ready_scene'] = ai_scene(probe)\n    return finish(probe, state, 'RESPONSE_READY')\n\n\ndef seek_ai_notice(probe, state):\n    # Short overlapping physical swipes avoid skipping the small notice with\n    # full flings. Inspect the literal fallback too; never relabel it as AI.\n    directions = ('backward',) * 4 + ('forward',) * 8\n    diagnostic = {'observations': 0, 'short_scrolls_completed': 0,\n                  'ai_notice_seen': False, 'literal_fallback_seen': False}\n    state['notice_seek'] = diagnostic\n    for index in range(len(directions) + 1):\n        rows = [row for row in safe_rows(probe) if row.get('visible') is True]\n        diagnostic['observations'] += 1\n        diagnostic['ai_notice_seen'] = any(AI_NOTICE in names(row) for row in rows)\n        diagnostic['literal_fallback_seen'] = any(FALLBACK_NOTICE in names(row) for row in rows)\n        save(probe)\n        need(not diagnostic['literal_fallback_seen'], 'c4_literal_fallback_observed_no_ai_acceptance')\n        if diagnostic['ai_notice_seen']:\n            return\n        if index < len(directions):\n            probe.scroll(directions[index], short=True)\n            diagnostic['short_scrolls_completed'] += 1\n            save(probe)\n    need(False, 'c4_actual_ai_notice_not_observed_after_bounded_short_seek')\n\n\ndef collect_response(probe, state):\n    reserve(probe, state, 'collect_response')\n    ensure_session(probe)\n    need(ai_scene(probe) == state.get('response_ready_scene'), 'c4_response_ready_scene_changed')\n    # Notice must be observed literally on the real native sheet.")
         text = replace_once(text, '    probe.seek(AI_NOTICE)', '    seek_ai_notice(probe, state)')
         text = replace_once(text, "        if cursor == 'REQUEST':\n            return request_prepared(probe, state)\n", "        if cursor == 'REQUEST':\n            return request_prepared(probe, state)\n        if cursor == 'RESPONSE_READY':\n            return collect_response(probe, state)\n")
+        text = replace_once(text,
+            "    probe.set('عنوان الإعلان', state['title'])\n"
+            "    probe.require_value('عنوان الإعلان', state['title'])\n",
+            "    title_changed = probe.field('عنوان الإعلان').get('text') != state['title']\n"
+            "    if title_changed:\n"
+            "        probe.set('عنوان الإعلان', state['title'])\n"
+            "    probe.require_value('عنوان الإعلان', state['title'])\n"
+            "    if title_changed:\n"
+            "        # Observe the fixed footer after IME/layout settling; never replay input.\n"
+            "        probe.wait(APPLY, seconds=5)\n")
     elif name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
         text = replace_once(text, 'import time\n', 'import time\nfrom ci_remote_evidence import fresh_remote_review\n')
         text = replace_once(text,
@@ -201,7 +211,7 @@ def build(source_root, capture_source, destination):
         if name in {'ROOT_C4_EXECUTOR/phase_extensions.py', 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py'}:
             manifest[name]['delta'] = 'equivalent_generated_digit_translation_alphabet'
         if name == 'ROOT_C4_EXECUTOR/phase_extensions.py':
-            manifest[name]['delta'] += '; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts; actual_response_snapshot_boundary_before_bounded_short_notice_seek'
+            manifest[name]['delta'] += '; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts; actual_response_snapshot_boundary_before_bounded_short_notice_seek; preserve_exact_reviewed_title_without_redundant_input; observe_footer_after_changed_title_input'
         if name == 'C2_SOURCE_PROPOSAL/c2_native_roles.py':
             manifest[name]['previous_utc_variant_sha256'] = PREVIOUS_ROLES_PIN
             manifest[name]['delta'] = 'one_logout_observed_guest_home_then_one_account_guest_gate'

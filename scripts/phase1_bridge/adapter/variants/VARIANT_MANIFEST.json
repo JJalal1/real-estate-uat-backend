@@ -3,10 +3,10 @@
   "source_files_unchanged": true,
   "manifest": {
     "ROOT_C4_EXECUTOR/phase_extensions.py": {
-      "sha256": "0a5c9ca9e534852de6a05abbda2e781601d2a059f8104adb5b53f24a9faedf4a",
-      "bytes": 28640,
+      "sha256": "9832c9943e0d83f7e3fc3591b022bd26471caf0f3c6a0b6e31f0fbc8a5437240",
+      "bytes": 28898,
       "original_sha256": "ae28e3fe2f5cb331cdfd40a8c7bc926ca783f91a69359c5b170770cd4f0ad333",
-      "delta": "equivalent_generated_digit_translation_alphabet; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts; actual_response_snapshot_boundary_before_bounded_short_notice_seek"
+      "delta": "equivalent_generated_digit_translation_alphabet; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts; actual_response_snapshot_boundary_before_bounded_short_notice_seek; preserve_exact_reviewed_title_without_redundant_input; observe_footer_after_changed_title_input"
     },
     "ROOT_C2_EXECUTOR_V2/phase_extensions.py": {
       "sha256": "01aedc9a2387fb7feff572e829bf52142bab2e51bade098d016350cb64f76906",
