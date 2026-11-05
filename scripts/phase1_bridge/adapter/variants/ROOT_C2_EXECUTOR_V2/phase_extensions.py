@@ -430,8 +430,15 @@ class C2Executor:
         This avoids inherited act()'s authenticated hash ledger on contact views;
         native and driver authentication state are never changed.
         """
+        controls = {('set', 'الإيجار الشهري بالريال اليمني *'): 'rent',
+                    ('click', 'نسبة مئوية %'): 'sai_mode', ('set', 'نسبة السعي %'): 'sai_rate',
+                    ('click', 'السابق'): 'previous', ('click', 'العودة إلى النواقص'): 'back_gaps',
+                    ('click', 'خيارات المسودة'): 'draft_options', ('click', 'حفظ مسودة'): 'save_draft'}
+        self._diagnostic_operation = {'control': controls.get((kind, label), 'unrecognized'),
+                                      'substage': 'actor_check'}
         self._actor('broker')
         p = self.probe
+        self._diagnostic_operation['substage'] = 'field_lookup'
         if kind == 'set':
             need((label, value) in {('الإيجار الشهري بالريال اليمني *', self.monthly_rent),
                                    ('نسبة السعي %', '0')}, 'nonimage_synthetic_set_allowlist')
@@ -453,12 +460,16 @@ class C2Executor:
             extra['value_b64'] = base64.b64encode(value.encode()).decode()
             if explicit:
                 extra['input_mode'] = 'explicit_pointer'
+        self._diagnostic_operation['substage'] = 'instrument'
         result = p.instrument(op, **extra)
+        self._diagnostic_operation['substage'] = 'delivery_check'
         need(result.get('account_action_delivered') == 'true' and
              (kind != 'set' or result.get('set_text_delivered') == 'true'),
              'nonimage_native_input_not_confirmed')
         if kind == 'set':
+            self._diagnostic_operation['substage'] = 'dismiss_ime'
             p.adb('shell', 'input', 'keyevent', '4')
+        self._diagnostic_operation['substage'] = 'completed'
         p.report['c2_v2_nonimage_input_operations_delivered'] = (
             p.report.get('c2_v2_nonimage_input_operations_delivered', 0) + 1)
         p.report.setdefault('c2_v2_nonimage_input_delivery', []).append({
@@ -619,6 +630,7 @@ class C2Executor:
             self._nonimage_input('set', 'الإيجار الشهري بالريال اليمني *', self.monthly_rent)
             self._nonimage_input('click', 'نسبة مئوية %')
             self._nonimage_input('set', 'نسبة السعي %', '0')
+            self._diagnostic_operation = {'control': 'rent_sai', 'substage': 'preview'}
             self.rent_sai_readback = self._rent_sai_preview()
             p.report['c2_v2_nonimage_rent_sai_preview'] = copy.deepcopy(self.rent_sai_readback)
         elif stage == 'navigate_previous_to_specs':
@@ -758,6 +770,7 @@ class C2Executor:
         # Reserve BEFORE the first possible input/auth/API call. No retry on
         # transport errors, failed postconditions, save failure or timeout.
         self.inflight = True
+        self._diagnostic_operation = {'control': 'stage', 'substage': 'execute'}
         try:
             self._execute(stage, prepared)
             self.cursor += 1
@@ -766,9 +779,26 @@ class C2Executor:
             self.probe.report.setdefault('c2_segmented_execution', []).append(receipt)
             self.probe.save()
             return receipt
-        except Exception:
+        except Exception as error:
             self.failed = True
             self.inflight = False
+            # Fixed categories and own code locations only. Never exception
+            # messages/args, frame locals, raw UI values or contact-view hashes.
+            diagnostic = dict(self._diagnostic_operation)
+            diagnostic['stage'] = stage
+            kind = type(error).__name__
+            diagnostic['exception_type'] = kind if kind in {
+                'C2Blocked', 'Blocked', 'AdmissionError', 'BridgeRefused',
+                'TimeoutError', 'OSError', 'ValueError', 'KeyError', 'TypeError'} else 'OtherException'
+            frames, trace = [], error.__traceback__
+            while trace is not None:
+                code = trace.tb_frame.f_code
+                if code.co_filename == __file__:
+                    frames.append({'file': 'ROOT_C2_EXECUTOR_V2/phase_extensions.py',
+                                   'function': code.co_name, 'line': trace.tb_lineno})
+                trace = trace.tb_next
+            diagnostic['source_frames'] = frames[-8:]
+            self.probe.report['c2_v2_stage_failure'] = diagnostic
             receipt = self._receipt('BLOCKED_NO_REPLAY', failed=stage)
             self.probe.report.setdefault('c2_segmented_execution', []).append(receipt)
             self.probe.save()

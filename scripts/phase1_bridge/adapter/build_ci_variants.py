@@ -47,6 +47,18 @@ def support_case_review_transform(name, text):
     return text
 
 
+def c2_diagnostic_transform(name, text):
+    """Add fixed failure location and native input substages; never replay."""
+    if name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
+        text = replace_once(text, "        self._actor('broker')\n        p = self.probe\n        if kind == 'set':\n", "        controls = {('set', 'الإيجار الشهري بالريال اليمني *'): 'rent',\n                    ('click', 'نسبة مئوية %'): 'sai_mode', ('set', 'نسبة السعي %'): 'sai_rate',\n                    ('click', 'السابق'): 'previous', ('click', 'العودة إلى النواقص'): 'back_gaps',\n                    ('click', 'خيارات المسودة'): 'draft_options', ('click', 'حفظ مسودة'): 'save_draft'}\n        self._diagnostic_operation = {'control': controls.get((kind, label), 'unrecognized'),\n                                      'substage': 'actor_check'}\n        self._actor('broker')\n        p = self.probe\n        self._diagnostic_operation['substage'] = 'field_lookup'\n        if kind == 'set':\n")
+        text = replace_once(text, "        result = p.instrument(op, **extra)\n        need(result.get('account_action_delivered') == 'true' and\n", "        self._diagnostic_operation['substage'] = 'instrument'\n        result = p.instrument(op, **extra)\n        self._diagnostic_operation['substage'] = 'delivery_check'\n        need(result.get('account_action_delivered') == 'true' and\n")
+        text = replace_once(text, "        if kind == 'set':\n            p.adb('shell', 'input', 'keyevent', '4')\n        p.report['c2_v2_nonimage_input_operations_delivered']", "        if kind == 'set':\n            self._diagnostic_operation['substage'] = 'dismiss_ime'\n            p.adb('shell', 'input', 'keyevent', '4')\n        self._diagnostic_operation['substage'] = 'completed'\n        p.report['c2_v2_nonimage_input_operations_delivered']")
+        text = replace_once(text, "            self._nonimage_input('set', 'نسبة السعي %', '0')\n            self.rent_sai_readback = self._rent_sai_preview()", "            self._nonimage_input('set', 'نسبة السعي %', '0')\n            self._diagnostic_operation = {'control': 'rent_sai', 'substage': 'preview'}\n            self.rent_sai_readback = self._rent_sai_preview()")
+        text = replace_once(text, '        self.inflight = True\n        try:\n            self._execute(stage, prepared)', "        self.inflight = True\n        self._diagnostic_operation = {'control': 'stage', 'substage': 'execute'}\n        try:\n            self._execute(stage, prepared)")
+        text = replace_once(text, "        except Exception:\n            self.failed = True\n            self.inflight = False\n            receipt = self._receipt('BLOCKED_NO_REPLAY', failed=stage)", "        except Exception as error:\n            self.failed = True\n            self.inflight = False\n            # Fixed categories and own code locations only. Never exception\n            # messages/args, frame locals, raw UI values or contact-view hashes.\n            diagnostic = dict(self._diagnostic_operation)\n            diagnostic['stage'] = stage\n            kind = type(error).__name__\n            diagnostic['exception_type'] = kind if kind in {\n                'C2Blocked', 'Blocked', 'AdmissionError', 'BridgeRefused',\n                'TimeoutError', 'OSError', 'ValueError', 'KeyError', 'TypeError'} else 'OtherException'\n            frames, trace = [], error.__traceback__\n            while trace is not None:\n                code = trace.tb_frame.f_code\n                if code.co_filename == __file__:\n                    frames.append({'file': 'ROOT_C2_EXECUTOR_V2/phase_extensions.py',\n                                   'function': code.co_name, 'line': trace.tb_lineno})\n                trace = trace.tb_next\n            diagnostic['source_frames'] = frames[-8:]\n            self.probe.report['c2_v2_stage_failure'] = diagnostic\n            receipt = self._receipt('BLOCKED_NO_REPLAY', failed=stage)")
+    return text
+
+
 def transform(name, text):
     if name in {'ROOT_C4_EXECUTOR/phase_extensions.py', 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py'}:
         alphabet = ''.join(str(value) for value in range(10)) * 2
@@ -228,6 +240,7 @@ def transform(name, text):
             "        need(phase in ('C4', 'C2'), 'extension_phase_refused')\n"
             "        need(probe.require_phase_scope(phase) is True, 'active_root_phase_grant_required')")
     text = support_case_review_transform(name, text)
+    text = c2_diagnostic_transform(name, text)
     if name != 'promoted_cleanup.py' and 'reviewed_monotonic' in text:
         raise RuntimeError('legacy_review_clock_remains')
     return text

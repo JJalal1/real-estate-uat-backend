@@ -436,6 +436,8 @@ public final class Phase1Input extends Instrumentation {
             (sameNode && focused && ((!original.isEmpty() && current.isEmpty()) ||
                 ("غرف النوم *".equals(original) && "غرف النوم *\nمثال: 3".equals(current)) ||
                 ("الحمامات *".equals(original) && "الحمامات *\nمثال: 2".equals(current)) ||
+                ("الإيجار الشهري بالريال اليمني *".equals(original) && "الإيجار الشهري بالريال اليمني *\n0".equals(current)) ||
+                ("نسبة السعي %".equals(original) && "نسبة السعي %\n0".equals(current)) ||
                 ("صف العقار".equals(original) && "النوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(current))));
     }
     private static String focusHintShape(String value) {
@@ -449,6 +451,11 @@ public final class Phase1Input extends Instrumentation {
         if("صف العقار".equals(value)) return "AI_BRIEF_LABEL";
         if("النوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(value)) return "AI_BRIEF_HINT";
         if("صف العقار\nالنوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(value)) return "AI_BRIEF_LABEL_AND_HINT";
+        if("الإيجار الشهري بالريال اليمني *".equals(value)) return "MONTHLY_RENT_LABEL";
+        if("الإيجار الشهري بالريال اليمني *\n0".equals(value)) return "MONTHLY_RENT_LABEL_AND_ZERO";
+        if("نسبة السعي %".equals(value)) return "SAI_RATE_LABEL";
+        if("نسبة السعي %\n0".equals(value)) return "SAI_RATE_LABEL_AND_ZERO";
+        if("0".equals(value)) return "ZERO_HINT";
         if(value.contains("غرف النوم *") && value.contains("مثال: 3")) return "BEDROOMS_LABEL_AND_EXAMPLE";
         if(value.contains("الحمامات *") && value.contains("مثال: 2")) return "BATHROOMS_LABEL_AND_EXAMPLE";
         return "OTHER";

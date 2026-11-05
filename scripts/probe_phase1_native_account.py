@@ -294,6 +294,43 @@ class NativeAccount:
         diagnostic['native_input_failure'] = row
         self.save()
 
+    def c2_input_failure(self, op, result, output, reason):
+        executor = getattr(self, '_root_c2_executor_v2', None)
+        context = getattr(executor, '_diagnostic_operation', None)
+        if (getattr(executor, 'probe', None) is not self or
+                getattr(executor, 'inflight', False) is not True or
+                getattr(executor, 'cursor', None) != 2 or
+                self.authenticated is not True or getattr(self, 'recorder', None) is not None or
+                op not in INPUT_OPS or type(context) is not dict or
+                context.get('control') not in {'rent', 'sai_mode', 'sai_rate'} or
+                context.get('substage') not in {'field_lookup', 'instrument', 'dismiss_ime'} or
+                'c2_v2_native_input_failure' in self.report):
+            return
+        row = {
+            'stage': 'complete_rent', 'control': context['control'],
+            'substage': context['substage'], 'op': op,
+            'java_stage': result.get('stage') if result.get('stage') in INPUT_JAVA_STAGES else None,
+            'foreground_category': result.get('foreground_category') if result.get('foreground_category') in FOREGROUND_CATEGORIES else 'UNOBSERVED',
+            'passed_true': result.get('passed') == 'true', 'passed_false': result.get('passed') == 'false',
+            'reason': reason if reason in INPUT_FAILURE_REASONS else 'native_instrumentation_unobserved',
+        }
+        if op == 'account-set':
+            shapes = {'EMPTY', 'MONTHLY_RENT_LABEL', 'MONTHLY_RENT_LABEL_AND_ZERO',
+                      'SAI_RATE_LABEL', 'SAI_RATE_LABEL_AND_ZERO', 'ZERO_HINT', 'OTHER'}
+            for source, target in [('focus_hint_original_shape', 'original_hint_shape'),
+                                   ('focus_hint_current_shape', 'current_hint_shape')]:
+                if result.get(source) in shapes:
+                    row[target] = result[source]
+            for source, target in [('focus_source_node_same', 'same_original_android_node'),
+                                   ('focus_observed_focused', 'focused')]:
+                if result.get(source) in {'true', 'false'}:
+                    row[target] = result[source] == 'true'
+            count = result.get('focus_observation_count', '')
+            if re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150:
+                row['observations'] = int(count)
+        self.report['c2_v2_native_input_failure'] = row
+        self.save()
+
     def input_failure(self, op, result, output, reason):
         if self._active_case not in C1_CASES or op not in INPUT_OPS:
             return
@@ -357,6 +394,7 @@ class NativeAccount:
                 reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
                     else 'native_instrumentation_unobserved'
                 self.c4_prepare_input_failure(op, result, output, reason)
+                self.c2_input_failure(op, result, output, reason)
                 raise
             reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
                 else 'native_instrumentation_unobserved'

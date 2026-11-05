@@ -902,6 +902,94 @@ class C2SupportTransitionTests(unittest.TestCase):
             unittest.mock.call(self.executor.title,seconds=45)])
 
 
+
+class C2FailureDiagnosticTests(unittest.TestCase):
+    def modules(self):
+        def load(name, path):
+            spec = importlib.util.spec_from_file_location(name, path)
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            return module
+        source = HERE.parents[1] / 'probe_phase1_native_account.py'
+        sys.path.insert(0, str(source.parent))
+        return (load('_c2_failure_base', source),
+                load('_c2_failure_executor', HERE / 'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py'))
+
+    def native_probe(self):
+        actual, c2 = self.modules()
+        p = actual.NativeAccount.__new__(actual.NativeAccount)
+        p.report = {}; p.authenticated = True; p.recorder = None; p.save = Mock()
+        p._root_c2_executor_v2 = Mock(probe=p, inflight=True, cursor=2)
+        p._root_c2_executor_v2._diagnostic_operation = {'control': 'rent', 'substage': 'instrument'}
+        return actual, p
+
+    def test_c2_native_failure_records_fixed_focus_shapes_without_private_output(self):
+        actual, p = self.native_probe()
+        p.c2_input_failure('account-set', {
+            'stage': 'account_focus_hint_match', 'foreground_category': 'APP', 'passed': 'false',
+            'focus_hint_original_shape': 'MONTHLY_RENT_LABEL',
+            'focus_hint_current_shape': 'MONTHLY_RENT_LABEL_AND_ZERO',
+            'focus_source_node_same': 'true', 'focus_observed_focused': 'true',
+            'focus_observation_count': '3', 'tree_b64': 'PRIVATE_TOKEN',
+            'message': 'PRIVATE_PHONE'}, 'PRIVATE_OUTPUT', 'native_input_not_delivered')
+        row = p.report['c2_v2_native_input_failure']
+        self.assertEqual(row['java_stage'], 'account_focus_hint_match')
+        self.assertEqual(row['current_hint_shape'], 'MONTHLY_RENT_LABEL_AND_ZERO')
+        self.assertTrue(row['same_original_android_node'])
+        self.assertEqual(row['observations'], 3)
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        p.save.assert_called_once()
+
+    def test_c2_native_failure_ignores_unknown_shapes_and_requires_exact_active_scope(self):
+        actual, p = self.native_probe()
+        result = {'stage': 'PRIVATE_STAGE', 'focus_hint_original_shape': 'PRIVATE_HINT',
+                  'focus_observation_count': '9999', 'foreground_category': 'PRIVATE_PACKAGE'}
+        p._root_c2_executor_v2.cursor = 20
+        p.c2_input_failure('account-set', result, 'PRIVATE_OUTPUT', 'PRIVATE_REASON')
+        self.assertEqual(p.report, {})
+        p._root_c2_executor_v2.cursor = 2
+        p.c2_input_failure('account-set', result, 'PRIVATE_OUTPUT', 'PRIVATE_REASON')
+        row = p.report['c2_v2_native_input_failure']
+        self.assertIsNone(row['java_stage'])
+        self.assertEqual(row['reason'], 'native_instrumentation_unobserved')
+        self.assertNotIn('original_hint_shape', row)
+        self.assertNotIn('observations', row)
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+
+    def test_real_native_receiver_records_c2_failure_before_rethrow(self):
+        actual, p = self.native_probe()
+        p._active_case = None
+        p.c4_prepare_input_failure = Mock()
+        p.adb = Mock(return_value='INSTRUMENTATION_RESULT: passed=false\n'
+                    'INSTRUMENTATION_RESULT: stage=account_focus_hint_match\n'
+                    'INSTRUMENTATION_RESULT: message=PRIVATE_VALUE\nINSTRUMENTATION_CODE: 0')
+        with self.assertRaisesRegex(actual.Blocked, '^native_input_not_delivered$'):
+            p.instrument('account-set', node_path='0.1', node_witness=DIGEST, value_b64='MA==')
+        self.assertEqual(p.report['c2_v2_native_input_failure']['java_stage'], 'account_focus_hint_match')
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        p.adb.assert_called_once()
+
+    def test_complete_rent_failure_keeps_exact_substage_and_latches_without_replay(self):
+        actual, c2 = self.modules()
+        e = c2.C2Executor.__new__(c2.C2Executor)
+        e.cursor = 2; e.failed = e.inflight = False; e.monthly_rent = '50000'
+        e.regular_logout_receipt = None; e.property_id = None
+        p = Mock(report={}, explicit_pointer_mode=False)
+        p.field.return_value = {'path': '0.1', 'witness': DIGEST}
+        p.instrument.side_effect = AdmissionError('PRIVATE_TOKEN PRIVATE_PHONE')
+        e.probe = p; e._prepare = Mock(return_value=True); e._actor = Mock()
+        with self.assertRaisesRegex(c2.C2Blocked, '^c2_stage_uncertain_root_readback_required$'):
+            e.advance()
+        row = p.report['c2_v2_stage_failure']
+        self.assertEqual((row['stage'], row['control'], row['substage']),
+                         ('complete_rent', 'rent', 'instrument'))
+        self.assertEqual(row['exception_type'], 'AdmissionError')
+        self.assertTrue(row['source_frames'])
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        self.assertTrue(e.failed)
+        with self.assertRaisesRegex(c2.C2Blocked, '^c2_uncertain_stage_no_replay$'):
+            e.advance()
+        p.instrument.assert_called_once()
+
 class VariantTests(unittest.TestCase):
     def load(self, relative):
         spec = importlib.util.spec_from_file_location('_synthetic_' + relative.replace('/', '_'),

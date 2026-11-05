@@ -705,6 +705,28 @@ class NativeAccountSafetyTest(unittest.TestCase):
             shape(briefLabel,"AI_BRIEF_LABEL");shape(briefHint,"AI_BRIEF_HINT");
             shape(briefLabel+"\\n"+briefHint,"AI_BRIEF_LABEL_AND_HINT");
             shape(briefLabel+", "+briefHint,"OTHER");
+            String rentLabel="الإيجار الشهري بالريال اليمني *",saiLabel="نسبة السعي %";
+            for(String label:new String[]{rentLabel,saiLabel}) {
+              check(focusHintMatches(label,label+"\\n0",true,true),true);
+              check(focusHintMatches(label,label+"\\n0",true,false),false);
+              check(focusHintMatches(label,label+"\\n0",false,true),false);
+              check(focusHintMatches(label,"0",true,true),false);
+              check(focusHintMatches(label,label+", 0",true,true),false);
+              check(focusHintMatches(label,label+"\\r\\n0",true,true),false);
+              check(focusHintMatches(label,label+"\\n٠",true,true),false);
+              check(focusHintMatches(label,label+"\\n1",true,true),false);
+              check(focusHintMatches(label,label+"\\n0 ",true,true),false);
+              check(focusHintMatches(label,"PRIVATE_FIELD_SENTINEL",true,true),false);
+            }
+            check(focusHintMatches(rentLabel,saiLabel+"\\n0",true,true),false);
+            check(focusHintMatches(saiLabel,rentLabel+"\\n0",true,true),false);
+            check(focusHintMatches("سعر البيع بالريال اليمني *","سعر البيع بالريال اليمني *\\n0",true,true),false);
+            shape(rentLabel,"MONTHLY_RENT_LABEL");
+            shape(rentLabel+"\\n0","MONTHLY_RENT_LABEL_AND_ZERO");
+            shape(saiLabel,"SAI_RATE_LABEL");
+            shape(saiLabel+"\\n0","SAI_RATE_LABEL_AND_ZERO");
+            shape("0","ZERO_HINT");
+            shape(rentLabel+", 0","OTHER");
             System.out.print("FOCUS_HINT_POLICY_PASS");
           }
         }'''
