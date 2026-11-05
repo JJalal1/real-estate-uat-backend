@@ -75,7 +75,8 @@ IME_RETAINED_FIELD_BOOLEAN_KEYS = (
     'ime_same_app_window', 'ime_focus_present', 'ime_focus_same_original',
     'ime_original_refreshed', 'ime_original_window_same', 'ime_original_package_same',
     'ime_original_class_same', 'ime_original_editable', 'ime_original_visible',
-    'ime_original_enabled', 'ime_original_value_preserved')
+    'ime_original_enabled', 'ime_original_value_preserved',
+    'ime_logical_field_rebound', 'ime_logical_field_unique', 'ime_logical_anchor_present')
 
 
 class Blocked(RuntimeError):
@@ -288,7 +289,7 @@ class NativeAccount:
             if (phase in {'BEFORE_KEY', 'AFTER_KEY'} and substage in {
                     'CACHE_CLEAR', 'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
                     'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS',
-                    'ORIGINAL_FIELD_REFRESH', 'ORIGINAL_FIELD_RETAINED'}
+                    'ORIGINAL_FIELD_REFRESH', 'ORIGINAL_FIELD_RETAINED', 'LOGICAL_FIELD_REBIND'}
                     and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
                 observation = {'phase': phase, 'substage': substage, 'observations': int(count)}
                 for source, target, maximum in [('ime_window_count', 'window_count', 33),
@@ -344,7 +345,7 @@ class NativeAccount:
             if (phase in {'BEFORE_KEY', 'AFTER_KEY'} and substage in {
                     'CACHE_CLEAR', 'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
                     'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS',
-                    'ORIGINAL_FIELD_REFRESH', 'ORIGINAL_FIELD_RETAINED'}
+                    'ORIGINAL_FIELD_REFRESH', 'ORIGINAL_FIELD_RETAINED', 'LOGICAL_FIELD_REBIND'}
                     and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
                 observation = {'phase': phase, 'substage': substage, 'observations': int(count)}
                 for source, target, maximum in [('ime_window_count', 'window_count', 33),

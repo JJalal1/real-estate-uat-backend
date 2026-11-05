@@ -1023,6 +1023,20 @@ class C2FailureDiagnosticTests(unittest.TestCase):
                              {'phase': 'AFTER_KEY', 'substage': 'ORIGINAL_FIELD_REFRESH', 'observations': 2})
             self.assertNotIn('PRIVATE', json.dumps(p.report))
 
+    def test_c2_ime_logical_rebind_failure_preserves_fixed_false_and_true_evidence(self):
+        actual, p = self.native_probe()
+        p.c2_input_failure('account-dismiss-ime', {
+            'ime_observation_phase': 'AFTER_KEY', 'ime_observation_substage': 'LOGICAL_FIELD_REBIND',
+            'ime_observation_count': '3', 'ime_original_refreshed': 'false',
+            'ime_logical_field_rebound': 'false', 'ime_logical_field_unique': 'false',
+            'ime_logical_anchor_present': 'true', 'ime_logical_field_value': 'PRIVATE_VALUE',
+            'ime_logical_field_hint': 'PRIVATE_HINT'}, '', 'native_input_not_delivered')
+        self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'], {
+            'phase': 'AFTER_KEY', 'substage': 'LOGICAL_FIELD_REBIND', 'observations': 3,
+            'original_refreshed': False, 'logical_field_rebound': False,
+            'logical_field_unique': False, 'logical_anchor_present': True})
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+
     def test_real_native_receiver_records_c2_failure_before_rethrow(self):
         actual, p = self.native_probe()
         p._active_case = None

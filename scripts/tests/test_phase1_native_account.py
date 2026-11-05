@@ -1024,11 +1024,13 @@ class NativeAccountSafetyTest(unittest.TestCase):
           static class AccessibilityNodeInfo {
             static final int FOCUS_INPUT=1; int id;String pkg=APP;boolean visible=true,enabled=true,editable=true,focused=true;AccessibilityNodeInfo focus;
             int window=3,refreshes;String cls="android.widget.EditText",text="50000";boolean refreshResult=true;long refreshCost;
+            String hint="الإيجار الشهري بالريال اليمني *",description="";List<AccessibilityNodeInfo> children=new ArrayList<>();
             List<AccessibilityNodeInfo> refreshStates=new ArrayList<>();
             AccessibilityNodeInfo(int id){this.id=id;}
             String getPackageName(){return pkg;}boolean isVisibleToUser(){return visible;}boolean isEnabled(){return enabled;}
             boolean isEditable(){return editable;}boolean isFocused(){return focused;}AccessibilityNodeInfo findFocus(int kind){return focus;}
             int getWindowId(){return window;}String getClassName(){return cls;}String getText(){return text;}
+            String getHintText(){return hint;}int getChildCount(){return children.size();}AccessibilityNodeInfo getChild(int index){return children.get(index);}
             boolean refresh(){refreshes++;SystemClock.now+=refreshCost;if(!refreshResult)return false;
               if(!refreshStates.isEmpty()){AccessibilityNodeInfo state=refreshStates.get(Math.min(refreshes-1,refreshStates.size()-1));
                 window=state.window;pkg=state.pkg;cls=state.cls;text=state.text;editable=state.editable;
@@ -1064,10 +1066,12 @@ class NativeAccountSafetyTest(unittest.TestCase):
           }
           static void require(boolean value){if(!value)throw new IllegalStateException();}
           static String plain(CharSequence value){return value==null?"":value.toString();}
+          static String accessibleDescription(AccessibilityNodeInfo node){return node.description;}
           void requireLiveMutation(){if(SystemClock.now>=expires){stage="input_deadline_expired";throw new IllegalStateException();}}
           static void check(boolean value){if(!value)throw new AssertionError("IME policy");}
           static List<AccessibilityWindowInfo> windows(boolean ime,int window,int focus){
-            AccessibilityNodeInfo root=new AccessibilityNodeInfo(1);root.focus=new AccessibilityNodeInfo(focus);root.focus.window=window;
+            AccessibilityNodeInfo root=new AccessibilityNodeInfo(1);root.editable=false;root.focused=false;root.hint="";root.text="";root.cls="android.view.View";root.window=window;
+            root.focus=new AccessibilityNodeInfo(focus);root.focus.window=window;root.children.add(root.focus);
             List<AccessibilityWindowInfo> values=new ArrayList<>();values.add(new AccessibilityWindowInfo(window,1,root));
             if(ime)values.add(new AccessibilityWindowInfo(8,2,null));return values;}
           static ImeReadinessPolicy fresh(){SystemClock.now=0;ImeReadinessPolicy p=new ImeReadinessPolicy();
@@ -1151,12 +1155,12 @@ class NativeAccountSafetyTest(unittest.TestCase):
               original(p).refreshStates.add(retained);p.automation.after.get(0).get(0).root.focus=null;fails(p);
               check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1);
             }
-            p=fresh();original(p).refreshResult=false;p.automation.after.get(0).get(0).root.focus=null;fails(p);
+            p=fresh();original(p).refreshResult=false;original(p).hint="";p.automation.after.get(0).get(0).root.focus=null;fails(p);
             check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
             // Moved focus cannot mask an obsolete original node or altered value.
             for(boolean obsolete:new boolean[]{false,true}){
               p=fresh();p.automation.after=Arrays.asList(windows(false,3,9));
-              if(obsolete)original(p).refreshResult=false;
+              if(obsolete){original(p).refreshResult=false;original(p).hint="";}
               else {AccessibilityNodeInfo changed=new AccessibilityNodeInfo(7);changed.text="PRIVATE_CHANGED_VALUE";
                 original(p).refreshStates.add(changed);}
               fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
@@ -1177,6 +1181,69 @@ class NativeAccountSafetyTest(unittest.TestCase):
             check(p.automation.keys.equals(Arrays.asList(0,1))&&p.stage.equals("input_deadline_expired"));
             p=fresh();original(p).refreshCost=5001;fails(p);
             check(p.automation.keys.equals(Arrays.asList(0,1))&&SystemClock.now==5001);
+            // A rebuilt native node may prove the same exact synthetic logical
+            // field. The two known focused/unfocused hints are source-pinned.
+            for(String label:new String[]{"الإيجار الشهري بالريال اليمني *","نسبة السعي %"}){
+              for(boolean focusedHint:new boolean[]{false,true}){
+                p=fresh();original(p).hint=label+(focusedHint?"\n0":"");
+                original(p).text=label.equals("نسبة السعي %")?"0":"50000";
+                original(p).description="FIXED_DESCRIPTION";original(p).refreshResult=false;
+                p.automation.after=Arrays.asList(windows(false,3,9));
+                AccessibilityNodeInfo replacement=p.automation.after.get(0).get(0).root.focus;
+                replacement.hint=label+(focusedHint?"":"\n0");replacement.text=original(p).text;
+                replacement.description=original(p).description;
+                result=new Bundle();p.dismissIme(result);
+                check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1&&replacement.refreshes==0);
+                check(result.flags.get("ime_dismissed")&&!result.flags.get("ime_original_refreshed"));
+                check(result.flags.get("ime_logical_anchor_present")&&result.flags.get("ime_logical_field_unique")&&result.flags.get("ime_logical_field_rebound"));
+                check(result.flags.get("ime_original_value_preserved")&&!result.flags.get("ime_focus_same_original"));
+              }
+            }
+            // Missing/incomplete fresh trees and temporary field layout settle
+            // read-only within the original bound, with no second Back.
+            for(String fault:new String[]{"missing","incomplete","hidden","disabled","noneditable"}){
+              p=fresh();original(p).refreshResult=false;
+              List<AccessibilityWindowInfo> pending=windows(false,3,9);
+              AccessibilityNodeInfo root=pending.get(0).root,field=root.focus;
+              if(fault.equals("missing"))root.children.clear();
+              if(fault.equals("incomplete"))root.children.add(null);
+              if(fault.equals("hidden"))field.visible=false;
+              if(fault.equals("disabled"))field.enabled=false;
+              if(fault.equals("noneditable"))field.editable=false;
+              p.automation.after=Arrays.asList(pending,windows(false,3,10));
+              result=new Bundle();p.dismissIme(result);
+              check(result.flags.get("ime_logical_field_rebound")&&p.automation.postReads==2&&SystemClock.now==100);
+              check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            }
+            // Full anchored identity, unique field, original window/package and
+            // exact value remain mandatory; neither focus nor value alone bind.
+            for(String fault:new String[]{"duplicate","different_value_duplicate","value","label","hint_suffix","description","class","window","package","no_anchor","placeholder","wrong_before_value"}){
+              p=fresh();original(p).refreshResult=false;p.automation.after=Arrays.asList(windows(false,3,9));
+              AccessibilityNodeInfo root=p.automation.after.get(0).get(0).root,field=root.focus;
+              root.focus=null; // Selection is from the fresh APP tree, not new focus.
+              if(fault.equals("duplicate")||fault.equals("different_value_duplicate")){
+                AccessibilityNodeInfo other=new AccessibilityNodeInfo(10);root.children.add(other);
+                if(fault.equals("different_value_duplicate"))other.text="50001";
+              }
+              if(fault.equals("value"))field.text="50001";
+              if(fault.equals("label"))field.hint="نسبة السعي %";
+              if(fault.equals("hint_suffix"))field.hint+="\nPRIVATE_OTHER_HINT";
+              if(fault.equals("description"))field.description="PRIVATE_OTHER_DESCRIPTION";
+              if(fault.equals("class"))field.cls="OtherWidget";
+              if(fault.equals("window"))field.window=4;
+              if(fault.equals("package"))field.pkg="FOREIGN";
+              if(fault.equals("no_anchor"))original(p).hint="";
+              if(fault.equals("placeholder"))original(p).hint="0";
+              if(fault.equals("wrong_before_value"))original(p).text="50001";
+              fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            }
+            p=fresh();original(p).refreshResult=false;p.automation.after.get(0).get(0).root.children.clear();fails(p);
+            check(SystemClock.now==5000&&p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            p=fresh();p.expires=250;original(p).refreshResult=false;p.automation.after.get(0).get(0).root.children.clear();fails(p);
+            check(SystemClock.now<5000&&p.stage.equals("input_deadline_expired")&&p.automation.keys.equals(Arrays.asList(0,1)));
+            p=fresh();original(p).refreshResult=false;AccessibilityNodeInfo wide=p.automation.after.get(0).get(0).root;
+            for(int i=0;i<1201;i++){AccessibilityNodeInfo empty=new AccessibilityNodeInfo(100+i);empty.hint="";wide.children.add(empty);}fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1)));
             System.out.print("IME_READINESS_POLICY_PASS");
           }
         '''+'\n private static final class ImeObservation'+observation+'\n private void dismissIme(Bundle result)'+dismiss+'\n}'
