@@ -685,7 +685,7 @@ public final class Phase1Input extends Instrumentation {
         result.putBoolean("ime_dismissed",false);
         if(!before.visible) { stage="ime_noop"; return; }
         // Retain the exact original Android source and its value only in RAM.
-        // IME dismissal may release input focus without replacing this field.
+        // IME dismissal may release or move input focus without replacing this field.
         final AccessibilityNodeInfo original=before.focus;
         final String originalClass=plain(original.getClassName()),originalText=plain(original.getText());
         require(original.getWindowId()==before.windowId);
@@ -704,7 +704,12 @@ public final class Phase1Input extends Instrumentation {
                 result.putBoolean("ime_same_app_window",sameWindow);
                 result.putBoolean("ime_focus_present",focusPresent);
                 result.putBoolean("ime_focus_same_original",sameFocus);
-                require(sameWindow && (!focusPresent || sameFocus));
+                require(sameWindow);
+                // Flutter may move input focus when the keyboard disappears.
+                // Focus identity is diagnostic only: retain and refresh the
+                // original field below, never adopt or act on the new focus.
+                if(focusPresent) require(after.focus.getWindowId()==before.windowId &&
+                    after.focus.getPackageName()!=null && APP.contentEquals(after.focus.getPackageName()));
                 imeSubstage="ORIGINAL_FIELD_REFRESH";
                 boolean refreshed=original.refresh();
                 result.putBoolean("ime_original_refreshed",refreshed);

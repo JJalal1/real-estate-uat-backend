@@ -1094,8 +1094,24 @@ class NativeAccountSafetyTest(unittest.TestCase):
             check(p.automation.keys.equals(Arrays.asList(0,1))&&SystemClock.now==5000&&p.imeSubstage.equals("WINDOW_LIST"));
             p=fresh();p.automation.after=Arrays.asList(windows(false,4,7),windows(false,3,7));fails(p);
             check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1&&p.imeSubstage.equals("SAME_WINDOW_FOCUS"));
-            p=fresh();p.automation.after=Arrays.asList(windows(false,3,9),windows(false,3,7));fails(p);
-            check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1);
+            // A different same-APP focus does not replace the original field.
+            for(boolean editable:new boolean[]{false,true}){
+              p=fresh();p.automation.after=Arrays.asList(windows(false,3,9));
+              AccessibilityNodeInfo moved=p.automation.after.get(0).get(0).root.focus;
+              moved.editable=editable;moved.cls=editable?"android.widget.EditText":"android.view.View";
+              result=new Bundle();p.dismissIme(result);
+              check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1);
+              check(result.flags.get("ime_dismissed")&&result.flags.get("ime_focus_present")&&!result.flags.get("ime_focus_same_original"));
+              check(result.flags.get("ime_original_refreshed")&&result.flags.get("ime_original_value_preserved"));
+              check(original(p).refreshes==1&&moved.refreshes==0);
+            }
+            // A focused node from another package/window is never admitted.
+            for(boolean wrongWindow:new boolean[]{false,true}){
+              p=fresh();p.automation.after=Arrays.asList(windows(false,3,9));
+              AccessibilityNodeInfo moved=p.automation.after.get(0).get(0).root.focus;
+              if(wrongWindow)moved.window=4;else moved.pkg="FOREIGN";
+              fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==0);
+            }
             p=fresh();p.expires=250;p.automation.before=Arrays.asList(Collections.emptyList());fails(p);
             check(p.automation.keys.isEmpty()&&p.stage.equals("input_deadline_expired")&&SystemClock.now<5000);
             p=fresh();p.expires=250;p.automation.postCost=300;fails(p);
@@ -1137,6 +1153,14 @@ class NativeAccountSafetyTest(unittest.TestCase):
             }
             p=fresh();original(p).refreshResult=false;p.automation.after.get(0).get(0).root.focus=null;fails(p);
             check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            // Moved focus cannot mask an obsolete original node or altered value.
+            for(boolean obsolete:new boolean[]{false,true}){
+              p=fresh();p.automation.after=Arrays.asList(windows(false,3,9));
+              if(obsolete)original(p).refreshResult=false;
+              else {AccessibilityNodeInfo changed=new AccessibilityNodeInfo(7);changed.text="PRIVATE_CHANGED_VALUE";
+                original(p).refreshStates.add(changed);}
+              fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            }
             // Original-field layout settling is read-only under the existing five-second bound.
             for(String fault:new String[]{"visible","enabled","editable"}){
               p=fresh();AccessibilityNodeInfo pending=new AccessibilityNodeInfo(7);
