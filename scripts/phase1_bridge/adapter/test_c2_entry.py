@@ -123,6 +123,118 @@ class C2EntryTests(unittest.TestCase):
             with self.assertRaises(c2.C2Blocked):
                 executor._review_observation('review_photo_before_save', changed)
 
+    def test_scrolled_photo_scene_preserves_specs_review_and_real_next_navigation(self):
+        executor = self.executor()
+        self.probe.surface = rows('3/4', 'صور الإعلان (1/12)', 'مكتمل', 'إضافة صور', 'السابق', 'التالي')
+        self.assertNotIn('المواصفات', c2._names(self.probe.surface))
+        executor._safe_specs()
+        preview = {'kind': 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'rent_text': '50000', 'sai_rate_text': '0'}
+        executor.rent_sai_readback = preview
+        record = {'evidence_kind': 'SAFE_SPEC_PHOTO_PLUS_NONIMAGE_POLICY_AND_SERIALIZED_IDENTITY',
+            'same_serialized_editor_chain_reviewed': True, 'editor_chain': executor.editor_chain,
+            'original_fixture_receipt_reviewed': True, 'bound_fixture_title_frame': executor.fixture_title_frame,
+            'photo_visually_unchanged': True, 'actual_safe_spec_photo_reviewed': True,
+            'semantic_preview': preview, 'policy_was_visually_reviewed': False}
+        executor._review_observation('review_photo_before_save', record)
+        self.assertEqual(self.probe.events, [])
+        executor._rent_sai_preview = Mock(return_value=preview)
+        def next_step(label):
+            self.assertEqual(label, 'التالي')
+            self.probe.surface = rows('4/4', 'خيارات المسودة', 'إرسال للمراجعة', 'السابق')
+        self.probe.tap = Mock(side_effect=next_step)
+        executor._execute('return_next_step3', True)
+        self.probe.tap.assert_called_once_with('التالي')
+        self.assertEqual(executor.rent_sai_recheck, preview)
+
+    def test_scrolled_specs_refuses_missing_wrong_hidden_foreign_or_private_context(self):
+        executor = self.executor()
+        required = ('3/4', 'صور الإعلان (1/12)', 'مكتمل', 'إضافة صور', 'السابق', 'التالي')
+        for missing in required:
+            with self.subTest(missing=missing):
+                self.probe.surface = rows(*(label for label in required if label != missing))
+                with self.assertRaisesRegex(c2.C2Blocked, 'actual_specification_step_required'):
+                    executor._safe_specs()
+        for extra in ('العودة إلى النواقص', 'رمز التحقق'):
+            self.probe.surface = rows(*required, extra)
+            with self.assertRaises(c2.C2Blocked): executor._safe_specs()
+        for changed in ({'visible': False}, {'enabled': False}, {'package': 'foreign.app'}):
+            self.probe.surface = rows(*required)
+            self.probe.surface[2].update(changed)
+            with self.assertRaises(c2.C2Blocked): executor._safe_specs()
+        self.probe.surface = rows(*required, 'رمز التحقق')
+        self.probe.surface[-1]['visible'] = False
+        with self.assertRaisesRegex(c2.C2Blocked, 'safe_specs_auth_surface_refused'):
+            executor._safe_specs()
+        self.probe.surface = rows(*required)
+        self.probe._capture_rows_private = Mock(return_value=True)
+        with self.assertRaisesRegex(c2.C2Blocked, 'safe_specs_full_tree_privacy_required'):
+            executor._safe_specs()
+
+    def test_legacy_scrolled_specs_requires_its_actual_completed_review_footer(self):
+        executor = self.executor()
+        executor.entry_mode = 'completed_review'
+        self.probe.surface = rows('3/4', 'صور الإعلان (1/12)', 'مكتمل', 'إضافة صور', 'السابق', 'التالي')
+        with self.assertRaises(c2.C2Blocked): executor._safe_specs()
+        self.probe.surface += rows('العودة إلى النواقص')
+        executor._safe_specs()
+
+    def test_pending_prepare_has_fresh_fixed_proof_and_never_executes(self):
+        executor = self.executor()
+        executor.cursor = c2.STAGES.index('review_photo_before_save')
+        executor._prepare = Mock(side_effect=c2.C2Blocked('actual_specification_step_required'))
+        executor._execute = Mock()
+        first = executor.advance()
+        self.assertEqual(first['pending_preparation'], {
+            'attempt': 1, 'stage': 'review_photo_before_save', 'cursor': 4,
+            'preparation_only': True, 'execution_called': False, 'reservation_created': False,
+            'failed': False, 'inflight': False, 'reason': 'actual_specification_step_required'})
+        self.assertEqual(first['pending_preparation'], executor.pending_preparation)
+        self.assertIsNot(first['pending_preparation'], executor.pending_preparation)
+        executor._prepare = Mock(return_value=None)
+        second = executor.advance()
+        self.assertEqual(second['pending_preparation']['attempt'], 2)
+        self.assertEqual(second['pending_preparation']['reason'], 'root_review_not_validated')
+        self.assertEqual(executor.cursor, 4)
+        self.assertFalse(executor.failed or executor.inflight)
+        executor._execute.assert_not_called()
+        executor._prepare = Mock(return_value=True)
+        third = executor.advance()
+        self.assertEqual(third['status'], 'STAGE_COMPLETED')
+        self.assertNotIn('pending_preparation', third)
+        self.assertIsNone(executor.pending_preparation)
+        self.assertEqual(executor.preparation_attempt, 3)
+        executor._execute.assert_called_once()
+
+    def test_prepare_exception_diagnostic_is_constant_and_targets_are_not_resumable(self):
+        executor = self.executor()
+        executor.cursor = c2.STAGES.index('review_photo_before_save')
+        executor._execute = Mock()
+        for error in (ValueError('PRIVATE_VALUE 777888999'), c2.C2Blocked('PRIVATE_TOKEN')):
+            executor._prepare = Mock(side_effect=error)
+            receipt = executor.advance()
+            self.assertEqual(receipt['pending_preparation']['reason'], 'preparation_exception_unclassified')
+            self.assertNotIn('PRIVATE', json.dumps(receipt))
+            self.assertNotIn('777888999', json.dumps(receipt))
+        executor.cursor = c2.STAGES.index('submit_confirm')
+        executor._prepare = Mock(return_value=None)
+        receipt = executor.advance()
+        self.assertFalse(receipt['pending_preparation']['preparation_only'])
+        executor._execute.assert_not_called()
+
+    def test_execution_failure_never_gets_resumable_prepare_proof(self):
+        executor = self.executor()
+        executor.cursor = c2.STAGES.index('review_photo_before_save')
+        executor._prepare = Mock(return_value=True)
+        executor._execute = Mock(side_effect=ValueError('PRIVATE_VALUE'))
+        with self.assertRaisesRegex(c2.C2Blocked, 'c2_stage_uncertain_root_readback_required'):
+            executor.advance()
+        self.assertTrue(executor.failed)
+        self.assertIsNone(executor.pending_preparation)
+        self.assertNotIn('PRIVATE_VALUE', json.dumps(self.probe.report))
+        with self.assertRaisesRegex(c2.C2Blocked, 'c2_uncertain_stage_no_replay'):
+            executor.advance()
+        executor._execute.assert_called_once()
+
     def test_standard_completion_stage_never_invents_a_back_gaps_click_and_save_remains_native(self):
         executor = self.executor()
         preview = {'kind': 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'rent_text': '50000', 'sai_rate_text': '0'}

@@ -509,7 +509,8 @@ def run_phase(probe, phase='C2'):
             result = _c2(probe, module)
             receipt.update({key: result[key] for key in
                 ('status', 'cursor', 'next_stage', 'completed', 'pending', 'failed',
-                 'known_promoted_property_id', 'automatic_replay_allowed') if key in result})
+                 'known_promoted_property_id', 'automatic_replay_allowed',
+                 'pending_preparation') if key in result})
         else:
             executing = True
             module.run_phase(probe, 'C4')

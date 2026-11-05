@@ -398,3 +398,17 @@ combined labels, actual rejection buttons, authentication and submission-sheet
 contexts remain refused. Exact rent/rate checks and the source-shaped fallback
 notice remain mandatory. The separate submission-sheet and support action
 guards are unchanged. Native acceptance still requires actual Root review.
+
+## Fresh review after an observation-only hold
+
+The photo review accepts the current specs or completed-photo section with the
+real editor controls; it does not require a section heading that scrolling has
+moved offscreen. Full-tree privacy, the original fixture and photo, and exact
+rent/SAI observations remain required.
+
+A C2 observation-only review may now return a fixed preparation reason and a new
+checkpoint when its fresh receipt proves that execution was never reserved or
+called. The prior command remains consumed, and the old review/frame cache is
+discarded. Root must inspect the fresh evidence and sign a new sequence. Action
+targets, attempted inputs, uncertain delivery and C4 execution cannot use this
+path. A pending review never counts as a completed stage or Phase1 acceptance.

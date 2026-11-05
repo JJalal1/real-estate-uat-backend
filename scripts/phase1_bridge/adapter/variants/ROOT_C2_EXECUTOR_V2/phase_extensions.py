@@ -42,6 +42,21 @@ def need(ok, code):
         raise C2Blocked(code)
 
 
+PREPARE_REFUSAL_REASONS = frozenset({
+    'root_review_not_validated', 'preparation_exception_unclassified',
+    'known_normal_native_actor_required', 'auth_context_forbids_c2_review',
+    'safe_specs_full_tree_privacy_required', 'safe_specs_auth_surface_refused',
+    'actual_specification_step_required',
+    'safe_photo_plus_serialized_identity_and_nonimage_policy_review_required',
+    'native_promotion_card_review_required', 'native_submission_review_required',
+    'native_support_claim_review_required', 'native_exact_review_case_required',
+    'native_return_review_required', 'broker_exact_reason_not_observed',
+    'regular_prior_frames_nonimage_review_required', 'regular_cache_isolation_review_required',
+    'fresh_normal_regular_logout_control_required', 'only_existing_platform_fallback_sai_allowed',
+    'actual_sai_zero_text_required_hint_is_not_value', 'sai_actual_review_required',
+    'exact_synthetic_reason_readback_required'})
+
+
 # Fixed UI contexts. The dialog title is an explicit anchor only after the
 # preceding exact-fixture action was delivered in this same serialized chain.
 TARGETS = {
@@ -260,6 +275,8 @@ class C2Executor:
         self.monthly_rent, self.role_loader, self.request = monthly_rent, role_loader, request
         self.cursor = 0
         self.failed = self.inflight = False
+        self.preparation_attempt = 0
+        self.pending_preparation = None
         self.reviews = {}
         self.delivered_frames = {}
         self.property_id = None
@@ -573,7 +590,16 @@ class C2Executor:
         self._actor('broker')
         rows = self.probe._capture_full_rows()
         need(not self.probe._capture_rows_private(rows), 'safe_specs_full_tree_privacy_required')
-        need('المواصفات' in _names(rows), 'actual_specification_step_required')
+        names = _names(rows)
+        need(not names & roles.AUTH_LABELS, 'safe_specs_auth_surface_refused')
+        visible = _names([row for row in rows if row.get('package') == roles.APP and
+                          row.get('visible') is True and row.get('enabled') is True])
+        # Seeking the photo moves the section heading above the viewport. The
+        # same source step remains identified by its photo and real footer.
+        photo_step = ({'3/4', 'صور الإعلان (1/12)', 'مكتمل', 'إضافة صور', 'السابق', 'التالي'} <= visible and
+            ((self.entry_mode == 'standard_editor' and 'العودة إلى النواقص' not in visible) or
+             (self.entry_mode == 'completed_review' and 'العودة إلى النواقص' in visible)))
+        need('المواصفات' in names or photo_step, 'actual_specification_step_required')
 
     def _rent_editor_surface(self, rows=None):
         """Observe the declared real editor mode; never change it implicitly."""
@@ -856,12 +882,21 @@ class C2Executor:
         if self.cursor == len(STAGES):
             return self._receipt('COLLECTED_PENDING_ROOT_ACCEPTANCE')
         stage = STAGES[self.cursor]
+        self.pending_preparation = None
+        self.preparation_attempt = getattr(self, 'preparation_attempt', 0) + 1
         try:
             prepared = self._prepare(stage)
-        except Exception:
-            return self._receipt('PENDING_ROOT_REVIEW', pending=stage)
+        except Exception as error:
+            # Only exact source-owned constants leave this preparation boundary.
+            reason = 'preparation_exception_unclassified'
+            if type(error) is C2Blocked:
+                for known in PREPARE_REFUSAL_REASONS:
+                    if error.args == (known,):
+                        reason = known
+                        break
+            return self._preparation_pending(stage, reason)
         if prepared is None:
-            return self._receipt('PENDING_ROOT_REVIEW', pending=stage)
+            return self._preparation_pending(stage, 'root_review_not_validated')
         # Reserve BEFORE the first possible input/auth/API call. No retry on
         # transport errors, failed postconditions, save failure or timeout.
         self.inflight = True
@@ -898,6 +933,17 @@ class C2Executor:
             self.probe.report.setdefault('c2_segmented_execution', []).append(receipt)
             self.probe.save()
             raise C2Blocked('c2_stage_uncertain_root_readback_required') from None
+
+    def _preparation_pending(self, stage, reason):
+        need(not self.failed and not self.inflight and reason in PREPARE_REFUSAL_REASONS,
+             'pre_input_pending_proof_required')
+        self.pending_preparation = {
+            'attempt': self.preparation_attempt, 'stage': stage, 'cursor': self.cursor,
+            'preparation_only': stage in REVIEW_STAGES,
+            'execution_called': False, 'reservation_created': False,
+            'failed': False, 'inflight': False, 'reason': reason}
+        return self._receipt('PENDING_ROOT_REVIEW', pending=stage,
+                             pending_preparation=copy.deepcopy(self.pending_preparation))
 
     def _receipt(self, status, **facts):
         return {'status': status, 'scope': 'LOCAL native C2 segmented executor',

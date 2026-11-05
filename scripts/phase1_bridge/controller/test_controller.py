@@ -691,6 +691,163 @@ class ControllerTests(unittest.TestCase):
         self.probe.rows = [{'text':'changed','visible':True}]
         self.assertFalse(self.controller.fresh_scene_matches(self.signed(snapshot),snapshot))
 
+    def pending_review_setup(self, change=None):
+        for name in (Dispatcher.C1_FILE, Dispatcher.C4_FILE, Dispatcher.STAGE_FILE):
+            (Path(self.folder.name) / name).unlink(missing_ok=True)
+        self.probe = Probe(Path(self.folder.name))
+        self.authority, self.context = Authority(), SimpleNamespace(phase='C1', cursor='INITIAL_C1')
+        self.dispatcher = Dispatcher()
+        reason = 'safe_photo_plus_serialized_identity_and_nonimage_policy_review_required'
+        def capture(probe, c2, executor, stage):
+            index = probe.events.count('safe_capture_only') + 1
+            probe.events.append('safe_capture_only')
+            row = probe.media('C2-' + stage + '-' + str(index) + '.png')
+            return dict(row, node_bindings=self.dispatcher._capture_rows(probe,c2,executor,stage))
+        self.dispatcher._safe_capture = capture
+        c2 = SimpleNamespace(STAGES=('load_roles','complete_rent','review_photo_before_save','cleanup'),
+            TARGETS={}, REVIEW_STAGES={'review_photo_before_save'}, roles=C2.roles,
+            _names=C2._names, PREPARE_REFUSAL_REASONS=frozenset({reason}))
+        self.controller = module.Controller(probe=self.probe, c4=C4, c2=c2, dispatcher=self.dispatcher,
+            fixture_api_class=FixtureApi, public_reference_reader=lambda **kwargs: [{'title':'PUBLISHED_SYNTHETIC'}],
+            boot_runtime=lambda **kwargs: None, close_runtime=self.close,
+            authority_getter=lambda:self.authority, context_getter=lambda:self.context,
+            work_deadline_getter=lambda:5400, monotonic_clock=lambda:self.clock,
+            wait=lambda seconds:None)
+        self.initial(); self.root('C2')
+        self.controller._c4_state().update(accepted=True, cursor='C4_SAVED_RESTORED_HOLD_FOR_C2')
+        executor = Executor(cursor=2)
+        executor.preparation_attempt, executor.pending_preparation, executor.reviews = 0, None, {}
+        executor.rent_sai_readback = {'kind':'NATIVE_NONIMAGE_RENT_SAI_PREVIEW',
+            'fixture_key':KEY,'fixture_tag':TAG,'editor_chain':'C2-V2:'+KEY,
+            'rent_text':'50000','sai_rate_text':'0','fallback_notice':'SYNTHETIC_FALLBACK',
+            'recording_stopped':True,'custom_terms_visible':False,
+            'policy_was_visually_reviewed':False,'persisted_policy_configuration_proved':False}
+        self.probe._root_c2_executor_v2 = executor
+        def pending(probe, phase):
+            self.dispatcher.calls.append((phase, executor.cursor))
+            path = probe.out / self.dispatcher.STAGE_FILE
+            executor.reviews['review_photo_before_save'] = json.loads(path.read_text())
+            path.unlink()  # The dispatcher consumes the exact review before _prepare.
+            executor.preparation_attempt += 1
+            proof = {'attempt':executor.preparation_attempt,'stage':'review_photo_before_save',
+                'cursor':2,'preparation_only':True,'execution_called':False,
+                'reservation_created':False,'failed':False,'inflight':False,'reason':reason}
+            executor.pending_preparation = copy.deepcopy(proof)
+            result = {'requested_phase':'C2','status':'PENDING_ROOT_REVIEW','cursor':2,
+                'pending':'review_photo_before_save','next_stage':'review_photo_before_save',
+                'uncertain':False,'automatic_replay_allowed':False,'phase1_accepted':False,
+                'report_persisted':True,'dispatcher_version':2,'pending_preparation':proof}
+            if change: change(probe, executor, result)
+            return result
+        self.dispatcher.run_phase = pending
+        snapshot = self.controller.snapshot()
+        review = self.signed(snapshot, phase_review={'review_completed_utc':'2026-11-04T12:00:00Z'})
+        return executor, snapshot, review
+
+    def test_proven_readonly_c2_pending_creates_fresh_checkpoint_without_replaying_review(self):
+        executor, old, review = self.pending_review_setup()
+        self.probe._root_c2_v2_last_capture = {'stage':'review_photo_before_save','file':'OLD'}
+        self.assertTrue(self.controller.advance(review))
+        self.assertEqual(executor.cursor, 2)
+        self.assertFalse(self.controller.uncertain())
+        self.assertIsNone(self.controller._snapshot)
+        self.assertNotIn('review_photo_before_save', executor.reviews)
+        self.assertNotIn('review_photo_before_save', self.probe._root_c2_v2_pending_frames)
+        self.assertFalse(hasattr(self.probe, '_root_c2_v2_last_capture'))
+        self.assertFalse(self.controller.fresh_scene_matches(review, old))
+        self.assertEqual(self.dispatcher.calls, [('C2',2)])
+        captures = self.probe.events.count('safe_capture_only')
+        fresh = self.controller.snapshot()
+        self.assertEqual(fresh['cursor'], old['cursor'])
+        self.assertEqual(self.probe.events.count('safe_capture_only'), captures+1)
+        pending = fresh['stage']['bindings']['pending_preparation']
+        self.assertEqual(pending['attempt'], 1)
+        self.assertEqual(pending['reason'], 'safe_photo_plus_serialized_identity_and_nonimage_policy_review_required')
+        self.assertNotEqual(fresh['stage']['bindings']['checkpoint_binding_sha256'],
+                            old['stage']['bindings']['checkpoint_binding_sha256'])
+        self.assertFalse(self.controller.fresh_scene_matches(review, fresh))
+        # Only a new bound review can attempt the same observation stage again.
+        new_review = self.signed(fresh, phase_review={'review_completed_utc':'2026-11-04T12:00:00Z'})
+        self.assertTrue(self.controller.advance(new_review))
+        self.assertEqual(executor.preparation_attempt, 2)
+        self.assertEqual(self.dispatcher.calls, [('C2',2),('C2',2)])
+        self.assertFalse(self.controller.finished())
+
+    def test_readonly_pending_then_new_review_advances_once_and_clears_pending_binding(self):
+        executor, _, review = self.pending_review_setup()
+        self.assertTrue(self.controller.advance(review))
+        fresh = self.controller.snapshot()
+        def completed(probe, phase):
+            self.dispatcher.calls.append((phase, executor.cursor))
+            (probe.out / self.dispatcher.STAGE_FILE).unlink()
+            executor.preparation_attempt += 1
+            executor.pending_preparation = None
+            executor.cursor += 1
+            return {'status':'STAGE_COMPLETED','cursor':executor.cursor}
+        self.dispatcher.run_phase = completed
+        self.assertTrue(self.controller.advance(self.signed(fresh,
+            phase_review={'review_completed_utc':'2026-11-04T12:00:00Z'})))
+        self.assertEqual(executor.cursor, 3)
+        self.assertIsNone(self.controller._c2_pending_preparation)
+        self.assertIsNone(self.controller._snapshot)
+        self.assertFalse(self.controller.uncertain())
+
+    def test_pending_preparation_never_recovers_mutation_uncertainty_or_unproven_receipts(self):
+        faults = [
+            lambda p,e,r:r.pop('pending_preparation'),
+            lambda p,e,r:r.update(status='HELD_LOCAL_REVIEW_REQUIRED'),
+            lambda p,e,r:r.update(uncertain=True),
+            lambda p,e,r:r.update(report_persisted=False),
+            lambda p,e,r:r.update(pending='different_stage'),
+            lambda p,e,r:r.update(completed='review_photo_before_save'),
+            lambda p,e,r:r.update(oneshot_admission_closed_at_boundary=False),
+            lambda p,e,r:setattr(e,'preparation_attempt',0),
+            lambda p,e,r:setattr(e,'preparation_attempt',2),
+            lambda p,e,r:setattr(e,'failed',True),
+            lambda p,e,r:setattr(e,'inflight',True),
+            lambda p,e,r:setattr(e,'cursor',3),
+            lambda p,e,r:setattr(p,'_root_c2_executor_v2',copy.copy(e)),
+            lambda p,e,r:p.admission_metrics.update(state='uncertain'),
+            lambda p,e,r:p.admission_metrics.update(inflight=1),
+            lambda p,e,r:setattr(p,'adapter',object()),
+            lambda p,e,r:setattr(p,'_root_extension_dispatch_v2_save_failed',True),
+            lambda p,e,r:setattr(p,'_root_extension_dispatch_v2_admission_failed',True),
+            lambda p,e,r:setattr(p,'_root_extension_dispatch_v2_latched',{'C2'}),
+            lambda p,e,r:(p.out/self.dispatcher.STAGE_FILE).write_text('{}'),
+        ]
+        for index, fault in enumerate(faults):
+            with self.subTest(fault=index):
+                executor, _, review = self.pending_review_setup(fault)
+                with self.assertRaises(module.ControllerRefused): self.controller.advance(review)
+                self.assertTrue(self.controller._advance_failed)
+                self.assertIsNone(self.controller._c2_pending_preparation)
+                calls = list(self.dispatcher.calls)
+                with self.assertRaises(module.ControllerRefused): self.controller.advance(review)
+                self.assertEqual(self.dispatcher.calls, calls)
+
+    def test_pending_proof_requires_fixed_reason_exact_source_record_and_no_execution(self):
+        for key, value in [('attempt',0),('attempt',True),('cursor',True),('stage','other'),
+                           ('preparation_only',False),('execution_called',True),
+                           ('reservation_created',True),('failed',True),('inflight',True),
+                           ('reason','PRIVATE_UNCLASSIFIED_REASON')]:
+            with self.subTest(key=key,value=value):
+                def changed(probe, executor, result):
+                    result['pending_preparation'][key] = value
+                    executor.pending_preparation = copy.deepcopy(result['pending_preparation'])
+                _, _, review = self.pending_review_setup(changed)
+                with self.assertRaises(module.ControllerRefused): self.controller.advance(review)
+                self.assertIsNone(self.controller._c2_pending_preparation)
+        def mismatch(probe, executor, result):
+            executor.pending_preparation = None
+        _, _, review = self.pending_review_setup(mismatch)
+        with self.assertRaises(module.ControllerRefused): self.controller.advance(review)
+
+    def test_target_preparation_remains_fail_closed_even_with_a_pending_proof(self):
+        _, _, review = self.pending_review_setup()
+        self.controller.c2.TARGETS['review_photo_before_save'] = ('broker','SYNTHETIC','fixture')
+        with self.assertRaises(module.ControllerRefused): self.controller.advance(review)
+        self.assertTrue(self.controller._advance_failed)
+
     def test_api_deadline_is_original_authority_bound_and_revocation_refuses(self):
         self.authority.monotonic_deadline = 77
         with self.controller._api_scope('source'):

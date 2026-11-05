@@ -157,6 +157,7 @@ class Controller:
         self._advance_failed = self._cleanup_used = self._stop_used = False
         self._writers_stopped = self._native_logout = self._removed = False
         self._cleanup_receipt = self._runtime_receipt = self._snapshot = None
+        self._c2_pending_preparation = None
         self._close_used = False
         self._promotion_pin = None
         self._promotion_pin_at = None
@@ -666,6 +667,12 @@ class Controller:
                 self._nonimage_check(phase, stage)
             else:
                 with self._read_session(): self._nonimage_check(phase, stage)
+        if phase == 'C2' and self._c2_pending_preparation is not None:
+            pending = self._c2_pending_preparation
+            executor = getattr(p, '_root_c2_executor_v2', None)
+            need(executor is not None and pending['cursor'] == executor.cursor and
+                 pending['stage'] == stage, 'pending_preparation_current_stage_required')
+            bindings['pending_preparation'] = copy.deepcopy(pending)
         return {'phase': phase, 'cursor': cursor, 'stage_name': stage, 'bindings': bindings, 'evidence': evidence}
 
     @exclusive
@@ -720,6 +727,62 @@ class Controller:
         except BaseException:
             raise ControllerRefused('review_write_unconfirmed_no_retry') from None
 
+    def _pending_c2_preparation(self, result, executor, previous_executor, before, before_attempt, stage):
+        """Accept only this call's source-owned hold before execution reservation.
+
+        The signed command stays consumed. Returning to the owner creates a new
+        checkpoint/challenge; it never repeats this review or an attempted input.
+        """
+        # TARGET preparation can seek a field and scroll. Only the source's
+        # observation-only review stages qualify for a fresh review checkpoint.
+        need(stage in self.c2.REVIEW_STAGES and stage not in self.c2.TARGETS,
+             'observation_only_c2_review_required')
+        need(executor is previous_executor and type(before) is int and executor.cursor == before and
+             type(before_attempt) is int and before_attempt >= 0 and
+             type(getattr(executor, 'preparation_attempt', None)) is int and
+             executor.preparation_attempt == before_attempt + 1 and
+             executor.failed is False and executor.inflight is False,
+             'exact_unexecuted_c2_preparation_required')
+        need(result.get('requested_phase') == 'C2' and result.get('status') == 'PENDING_ROOT_REVIEW' and
+             result.get('cursor') == before and type(result.get('cursor')) is int and
+             result.get('pending') == stage and result.get('next_stage') == stage and
+             result.get('uncertain') is False and result.get('automatic_replay_allowed') is False and
+             result.get('phase1_accepted') is False and result.get('report_persisted') is True and
+             result.get('dispatcher_version') == 2 and 'completed' not in result and 'failed' not in result,
+             'exact_pending_c2_dispatch_receipt_required')
+        proof = result.get('pending_preparation')
+        need(type(proof) is dict and set(proof) == {
+             'attempt', 'stage', 'cursor', 'preparation_only', 'execution_called',
+             'reservation_created', 'failed', 'inflight', 'reason'} and
+             proof == getattr(executor, 'pending_preparation', None) and
+             type(proof['attempt']) is int and proof['attempt'] == executor.preparation_attempt and
+             type(proof['cursor']) is int and proof['cursor'] == before and proof['stage'] == stage and
+             proof['preparation_only'] is True and proof['execution_called'] is False and
+             proof['reservation_created'] is False and proof['failed'] is False and proof['inflight'] is False and
+             proof['reason'] in self.c2.PREPARE_REFUSAL_REASONS,
+             'source_owned_pending_preparation_proof_required')
+        p = self.probe
+        need(p.adapter is None and p.recorder is None and
+             p.admission_metrics.get('state') == 'closed' and
+             p.admission_metrics.get('inflight') == 0 and
+             not getattr(p, '_root_extension_dispatch_v2_save_failed', False) and
+             not getattr(p, '_root_extension_dispatch_v2_admission_failed', False) and
+             'C2' not in getattr(p, '_root_extension_dispatch_v2_latched', set()) and
+             ('oneshot_admission_closed_at_boundary' not in result or
+              result['oneshot_admission_closed_at_boundary'] is True),
+             'pending_preparation_quiescent_boundary_required')
+        review_path = Path(p.out) / self.dispatcher.STAGE_FILE
+        need(not review_path.exists() and not review_path.is_symlink() and
+             type(getattr(executor, 'reviews', None)) is dict and
+             type(getattr(p, '_root_c2_v2_pending_frames', {})) is dict,
+             'pending_preparation_review_consumption_required')
+        executor.reviews.pop(stage, None)
+        getattr(p, '_root_c2_v2_pending_frames', {}).pop(stage, None)
+        latest = getattr(p, '_root_c2_v2_last_capture', None)
+        if type(latest) is dict and latest.get('stage') == stage:
+            del p._root_c2_v2_last_capture
+        self._c2_pending_preparation = copy.deepcopy(proof)
+
     @exclusive
     def advance(self, review):
         need(not self._advance_failed and not self.uncertain(), 'controller_stage_no_replay')
@@ -737,8 +800,8 @@ class Controller:
             # the first Root boundary, not inferred from pre-C1 installation.
             with self._read_session(): self.probe.preflight_deadline_helper()
             self._root_preflight_done = True
-        # Consume before any file, phase, auth, UI or API attempt. Failure never
-        # restores permission to replay even when the original executor held.
+        # Consume before any file, phase, auth, UI or API attempt. Only a proven
+        # pre-execution C2 hold may produce a NEW checkpoint, never a replay.
         self._advance_failed = True
         try:
             for key in wanted - ROOT_KEYS:
@@ -755,9 +818,11 @@ class Controller:
                 self._write_review(self.dispatcher.C2_ENTRY_FILE, review['c2_entry_review'])
             elif 'phase_review' in review:
                 self._write_review(self.dispatcher.STAGE_FILE, review['phase_review'])
-            before = getattr(getattr(self.probe, '_root_c2_executor_v2', None), 'cursor', None)
+            previous_executor = getattr(self.probe, '_root_c2_executor_v2', None)
+            before = getattr(previous_executor, 'cursor', None)
+            before_attempt = getattr(previous_executor, 'preparation_attempt', None)
             with self._api_scope('advance'):
-                self.dispatcher.run_phase(self.probe, phase)
+                result = self.dispatcher.run_phase(self.probe, phase)
             need(not self.uncertain(ignore_controller=True), 'actual_phase_uncertain')
             if phase == 'C4':
                 after = self._c4_state()
@@ -767,8 +832,13 @@ class Controller:
                      and self.probe._root_c2_executor_v2.cursor == 0, 'actual_c2_configuration_required')
             else:
                 executor = self.probe._root_c2_executor_v2
-                need(executor.cursor == before + 1, 'exact_one_c2_stage_required')
-                if stage == 'pin_promotion':
+                pending = type(result) is dict and result.get('status') == 'PENDING_ROOT_REVIEW'
+                if pending:
+                    self._pending_c2_preparation(result, executor, previous_executor, before, before_attempt, stage)
+                else:
+                    need(executor.cursor == before + 1, 'exact_one_c2_stage_required')
+                    self._c2_pending_preparation = None
+                if stage == 'pin_promotion' and not pending:
                     sessions = self.probe.report.get('c2_normal_api_sessions', [])
                     need(sessions and sessions[-1].get('logout_http_200') is True
                          and sessions[-1].get('revoked_token_me_http_401') is True,
