@@ -38,6 +38,8 @@ ALLOWED = {
     'scripts/phase1_bridge/adapter/ci_probe_adapter.py',
     'scripts/phase1_bridge/adapter/ci_remote_evidence.py',
     'scripts/phase1_bridge/adapter/test_basics_capture.py',
+    'scripts/phase1_bridge/adapter/test_c2_entry.py',
+    'scripts/phase1_bridge/adapter/test_c2_entry_dispatch.py',
     'scripts/phase1_bridge/adapter/test_home_capture.py',
     'scripts/phase1_bridge/adapter/test_integration.py',
     'scripts/phase1_bridge/adapter/test_logout_home.py',

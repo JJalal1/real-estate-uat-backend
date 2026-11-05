@@ -65,6 +65,17 @@ class EntryContracts(unittest.TestCase):
             with self.subTest(name=name), self.assertRaisesRegex(entry.EntryBlocked, 'paired_helper'):
                 entry.verify_paired_sources(changed)
 
+    def test_every_manifest_source_is_explicitly_allowed_by_product_guard(self):
+        import ast
+        source = ENTRY.parents[1] / 'scripts/prepare_phase1_native_account.py'
+        tree = ast.parse(source.read_text())
+        allowed = next(ast.literal_eval(node.value) for node in tree.body
+            if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+                and target.id == 'ALLOWED' for target in node.targets))
+        self.assertLessEqual(set(entry.EXPECTED_FILES), allowed)
+        self.assertNotIn('mobile_app/lib/main.dart', allowed)
+        self.assertNotIn('backend-api-runtime/app', allowed)
+
     def test_runtime_channels_are_popped_before_any_child_and_unknown_env_dropped(self):
         original = dict(self.env, GITHUB_TOKEN='SYNTHETIC_TOKEN',
             AQER_PHASE1_TEST_ACCESS_JSON='SYNTHETIC_SECRET_JSON', ACTIONS_RUNTIME_TOKEN='SYNTHETIC_ACTION',
