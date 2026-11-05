@@ -85,6 +85,13 @@ def c2_only_entry_transform(name, text):
     return text
 
 
+def c2_preview_diagnostic_transform(name, text):
+    """Record fixed preview outcomes without retaining raw values or changing guards."""
+    if name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
+        text = replace_once(text, '        names = _names(p.nodes())  # Ephemeral only; no tree/root/node hashes or raw text retained.\n', "        names = _names(p.nodes())  # Ephemeral only; no tree/root/node hashes or raw text retained.\n        def shape(value, expected):\n            # Fixed categories only; these observations never broaden acceptance.\n            if value == expected:\n                return 'EXPECTED'\n            if not value:\n                return 'EMPTY'\n            if re.fullmatch(r'0[.٫]0{1,2}', value):\n                return 'ZERO_DECIMAL'\n            if (re.fullmatch(r'[1-9][0-9]{0,2}(?:[,٬][0-9]{3})+', value) and\n                    value.replace(',', '').replace('٬', '') == expected):\n                return 'GROUPED_EXPECTED'\n            return 'OTHER'\n        p.report['c2_v2_rent_sai_readback_diagnostic'] = {\n            'stage': STAGES[self.cursor], 'fixture_key': self.key,\n            'fixture_tag': self.tag, 'editor_chain': self.editor_chain,\n            'rent_matches_expected': rent == self.monthly_rent,\n            'sai_rate_is_zero': rate == '0',\n            'auth_surface_absent': not bool(names & roles.AUTH_LABELS),\n            'accept_reject_absent': not bool(names & {'قبول', 'رفض'}),\n            'rent_shape': shape(rent, self.monthly_rent), 'rate_shape': shape(rate, '0')}\n")
+    return text
+
+
 def transform(name, text):
     if name in {'ROOT_C4_EXECUTOR/phase_extensions.py', 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py'}:
         alphabet = ''.join(str(value) for value in range(10)) * 2
@@ -268,6 +275,7 @@ def transform(name, text):
     text = support_case_review_transform(name, text)
     text = c2_diagnostic_transform(name, text)
     text = c2_only_entry_transform(name, text)
+    text = c2_preview_diagnostic_transform(name, text)
     if name != 'promoted_cleanup.py' and 'reviewed_monotonic' in text:
         raise RuntimeError('legacy_review_clock_remains')
     return text
@@ -308,7 +316,7 @@ def build(source_root, capture_source, destination):
             manifest[name]['previous_utc_variant_sha256'] = PREVIOUS_ROLES_PIN
             manifest[name]['delta'] = 'one_logout_observed_guest_home_then_one_account_guest_gate; broker_retained_home_and_support_named_back_before_normal_logout'
         if name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
-            manifest[name]['delta'] = 'serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save'
+            manifest[name]['delta'] = 'serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save'
         if name == 'ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py':
             manifest[name]['delta'] = 'separate_case_title_action_and_queue_evidence_bindings; actual_current_C1_title_photo_blank_rent_review_for_C2_entry; distinct_current_fixture_standard_editor_identity'
     # Check the inputs again so this preparation cannot quietly alter originals.

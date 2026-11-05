@@ -2,6 +2,7 @@
 import copy
 from datetime import datetime, timedelta, timezone
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -153,6 +154,82 @@ class C2EntryTests(unittest.TestCase):
         executor._nonimage_input = Mock()
         executor._execute('back_gaps_to_completion', True)
         executor._nonimage_input.assert_called_once_with('click', 'العودة إلى النواقص')
+
+    def preview_executor(self, rent='50000', rate='0', extra=()):
+        executor = self.executor()
+        executor.cursor = c2.STAGES.index('complete_rent')
+        values = {'الإيجار الشهري بالريال اليمني *': rent, 'نسبة السعي %': rate}
+        self.probe.field = Mock(side_effect=lambda label: {'text': values[label]})
+        self.probe.surface = rows('اختيار 0% يفعّل السعي الثابت 5% تلقائيًا.', *extra)
+        return executor
+
+    def test_preview_diagnostic_identifies_each_guard_without_weakening_it(self):
+        cases = [('wrong', '0', (), 'rent_matches_expected'),
+                 ('50000', '1', (), 'sai_rate_is_zero'),
+                 ('50000', '0', ('رمز التحقق',), 'auth_surface_absent'),
+                 ('50000', '0', ('قبول',), 'accept_reject_absent'),
+                 ('50000', '0', ('رفض',), 'accept_reject_absent')]
+        guard_keys = {'rent_matches_expected', 'sai_rate_is_zero',
+                      'auth_surface_absent', 'accept_reject_absent'}
+        for rent, rate, extra, failed in cases:
+            with self.subTest(failed=failed, extra=extra):
+                executor = self.preview_executor(rent, rate, extra)
+                with self.assertRaisesRegex(c2.C2Blocked, '^actual_synthetic_rent_and_sai_zero_text_required$'):
+                    executor._rent_sai_preview()
+                diagnostic = self.probe.report['c2_v2_rent_sai_readback_diagnostic']
+                self.assertEqual({key: diagnostic[key] for key in guard_keys},
+                                 {key: key != failed for key in guard_keys})
+                self.assertEqual(self.probe.field.call_count, 2)
+                self.assertEqual(self.probe.events, [])
+
+    def test_preview_shapes_are_fixed_diagnostics_and_do_not_accept_empty_or_formatted_values(self):
+        cases = [('', '0', 'EMPTY', 'EXPECTED'),
+                 ('50000', '', 'EXPECTED', 'EMPTY'),
+                 ('50000', '0.0', 'EXPECTED', 'ZERO_DECIMAL'),
+                 ('50000', '٠٫٠٠', 'EXPECTED', 'ZERO_DECIMAL'),
+                 ('50,000', '0', 'GROUPED_EXPECTED', 'EXPECTED'),
+                 ('٥٠٬٠٠٠', '0', 'GROUPED_EXPECTED', 'EXPECTED'),
+                 ('50000', 'PRIVATE_VALUE', 'EXPECTED', 'OTHER')]
+        for rent, rate, rent_shape, rate_shape in cases:
+            with self.subTest(rent_shape=rent_shape, rate_shape=rate_shape):
+                executor = self.preview_executor(rent, rate)
+                with self.assertRaises(c2.C2Blocked):
+                    executor._rent_sai_preview()
+                diagnostic = self.probe.report['c2_v2_rent_sai_readback_diagnostic']
+                self.assertEqual((diagnostic['rent_shape'], diagnostic['rate_shape']),
+                                 (rent_shape, rate_shape))
+
+    def test_preview_diagnostic_never_exports_arbitrary_values_contact_rows_or_hashes(self):
+        executor = self.preview_executor('PRIVATE_RENT_777888999', 'PRIVATE_RATE',
+                                         ('PRIVATE_CONTACT_777888999',))
+        with self.assertRaises(c2.C2Blocked):
+            executor._rent_sai_preview()
+        diagnostic = self.probe.report['c2_v2_rent_sai_readback_diagnostic']
+        self.assertEqual(set(diagnostic), {'stage', 'fixture_key', 'fixture_tag', 'editor_chain',
+            'rent_matches_expected', 'sai_rate_is_zero', 'auth_surface_absent',
+            'accept_reject_absent', 'rent_shape', 'rate_shape'})
+        encoded = json.dumps(self.probe.report)
+        for private in ('PRIVATE', '777888999', 'witness', 'sha256', 'hint', 'bounds'):
+            self.assertNotIn(private, encoded)
+        self.assertEqual(diagnostic['rent_shape'], 'OTHER')
+        self.assertEqual(diagnostic['rate_shape'], 'OTHER')
+
+    def test_passing_preview_is_unchanged_and_records_only_current_readback_outcomes(self):
+        executor = self.preview_executor()
+        self.assertEqual(executor._rent_sai_preview(), {
+            'kind': 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'fixture_key': KEY,
+            'fixture_tag': TAG, 'editor_chain': executor.editor_chain,
+            'rent_text': '50000', 'sai_rate_text': '0',
+            'fallback_notice': 'اختيار 0% يفعّل السعي الثابت 5% تلقائيًا.',
+            'recording_stopped': True, 'custom_terms_visible': False,
+            'policy_was_visually_reviewed': False, 'persisted_policy_configuration_proved': False})
+        self.assertEqual(self.probe.report['c2_v2_rent_sai_readback_diagnostic'], {
+            'stage': 'complete_rent', 'fixture_key': KEY, 'fixture_tag': TAG,
+            'editor_chain': executor.editor_chain, 'rent_matches_expected': True,
+            'sai_rate_is_zero': True, 'auth_surface_absent': True,
+            'accept_reject_absent': True, 'rent_shape': 'EXPECTED', 'rate_shape': 'EXPECTED'})
+        self.assertEqual(self.probe.field.call_count, 2)
+        self.assertEqual(self.probe.events, [])
 
 
 if __name__ == '__main__': unittest.main()

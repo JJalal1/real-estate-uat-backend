@@ -516,6 +516,26 @@ class C2Executor:
         rent = policy.digits(p.field('الإيجار الشهري بالريال اليمني *').get('text', ''))
         rate = policy.digits(p.field('نسبة السعي %').get('text', ''))
         names = _names(p.nodes())  # Ephemeral only; no tree/root/node hashes or raw text retained.
+        def shape(value, expected):
+            # Fixed categories only; these observations never broaden acceptance.
+            if value == expected:
+                return 'EXPECTED'
+            if not value:
+                return 'EMPTY'
+            if re.fullmatch(r'0[.٫]0{1,2}', value):
+                return 'ZERO_DECIMAL'
+            if (re.fullmatch(r'[1-9][0-9]{0,2}(?:[,٬][0-9]{3})+', value) and
+                    value.replace(',', '').replace('٬', '') == expected):
+                return 'GROUPED_EXPECTED'
+            return 'OTHER'
+        p.report['c2_v2_rent_sai_readback_diagnostic'] = {
+            'stage': STAGES[self.cursor], 'fixture_key': self.key,
+            'fixture_tag': self.tag, 'editor_chain': self.editor_chain,
+            'rent_matches_expected': rent == self.monthly_rent,
+            'sai_rate_is_zero': rate == '0',
+            'auth_surface_absent': not bool(names & roles.AUTH_LABELS),
+            'accept_reject_absent': not bool(names & {'قبول', 'رفض'}),
+            'rent_shape': shape(rent, self.monthly_rent), 'rate_shape': shape(rate, '0')}
         need(rent == self.monthly_rent and rate == '0' and
              not (names & (roles.AUTH_LABELS | {'قبول', 'رفض'})),
              'actual_synthetic_rent_and_sai_zero_text_required')
