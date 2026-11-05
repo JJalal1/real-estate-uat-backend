@@ -1495,6 +1495,8 @@ class NativeAccount:
         deadline = time.monotonic() + 45
         selected, final_sent, app_returned = False, False, False
         drawer_sent, downloads_sent = False, False
+        downloads_attempts = 0
+        dispatched_downloads_signature, downloads_retry_allowed = None, True
         downloads_signature, downloads_stable_since = None, None
         downloads_stable_observed = False
         root_matches, download_matches, file_matches = 0, 0, 0
@@ -1542,11 +1544,13 @@ class NativeAccount:
                     'com.google.android.documentsui', 'com.android.documentsui',
                     'com.google.android.providers.media.module', 'com.android.providers.media.module'}:
                 downloads_signature, downloads_stable_since = None, None
+                if downloads_attempts:
+                    downloads_retry_allowed = False
                 root_matches, download_matches, file_matches = 0, 0, 0
                 pause(.7)
                 continue
             def tap_os(node, attempt=None):
-                nonlocal drawer_sent, downloads_sent, final_sent
+                nonlocal drawer_sent, downloads_sent, downloads_attempts, final_sent
                 found = re.fullmatch(r'\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]', node.get('bounds', ''))
                 if not found:
                     raise Blocked('os_picker_bounds_invalid')
@@ -1556,13 +1560,17 @@ class NativeAccount:
                 if time.monotonic() >= deadline:
                     return False
                 if attempt == 'drawer': drawer_sent = True
-                elif attempt == 'downloads': downloads_sent = True
+                elif attempt == 'downloads':
+                    downloads_sent = True
+                    downloads_attempts += 1
                 elif attempt == 'final': final_sent = True
                 self.adb('shell', 'input', 'tap', (a+c)//2, (b+d)//2)
                 return True
             # A visible roots drawer can leave the dimmed file tree mounted.
             # Select Downloads only within its actual roots_list, never a
-            # toolbar/breadcrumb with the same label. Dispatch each route once.
+            # toolbar/breadcrumb with the same label. A second folder-navigation
+            # tap requires fresh proof that the first left the SAME drawer open.
+            # File selection and final Open remain single-dispatch operations.
             roots = [n for n in candidates if n.get('resource-id', '').rsplit('/', 1)[-1] == 'roots_list']
             downloads = [n for n in roots[0].iter('node') if n in candidates
                          and n.get('text', '') in {'Downloads', 'التنزيلات'}
@@ -1583,15 +1591,23 @@ class NativeAccount:
             # Counts are diagnostic only; 2 means multiple. Covered file nodes
             # never become actionable while the roots drawer is mounted.
             root_matches, download_matches, file_matches = min(2,len(roots)), min(2,len(downloads)), min(2,len(files))
+            if downloads_attempts and (len(roots) != 1 or len(downloads) != 1):
+                downloads_retry_allowed = False
             if roots and not selected:
-                if len(roots) == 1 and len(downloads) == 1 and not downloads_sent:
+                if len(roots) == 1 and len(downloads) == 1 and downloads_attempts < 2:
                     signature = (identity(rows[0]), identity(roots[0]), identity(downloads[0]))
-                    if signature != downloads_signature:
+                    if downloads_attempts and (not downloads_retry_allowed or
+                            signature != dispatched_downloads_signature):
+                        downloads_retry_allowed = False
+                        downloads_signature, downloads_stable_since = None, None
+                    elif signature != downloads_signature:
                         downloads_signature, downloads_stable_since = signature, observed_at
                     elif observed_at >= downloads_stable_since + .7:
                         downloads_stable_observed = True
                         if not tap_os(downloads[0], 'downloads'):
                             break
+                        dispatched_downloads_signature = signature
+                        downloads_signature, downloads_stable_since = None, None
                 else:
                     downloads_signature, downloads_stable_since = None, None
                 pause(.7)
@@ -1627,6 +1643,7 @@ class NativeAccount:
                 'roots_matches': root_matches, 'scoped_downloads_matches': download_matches,
                 'file_matches': file_matches, 'drawer_attempted': drawer_sent,
                 'downloads_attempted': downloads_sent, 'downloads_stable_observed': downloads_stable_observed,
+                'downloads_navigation_attempts': downloads_attempts,
                 'file_tap_returned': selected, 'final_sent': final_sent, 'app_returned': app_returned}
             self.save()
         if not selected:
@@ -1635,6 +1652,7 @@ class NativeAccount:
             raise Blocked('genuine_os_picker_return_not_observed')
         self.report['os_photo_selection_observation'] = {
             'exact_fixture_filename_observed': True, 'file_tap_sent_once': True,
+            'downloads_navigation_attempts': downloads_attempts,
             'final_open_sent_once': final_sent, 'app_window_return_observed': True}
         self.journey_stage('photo_count_wait')
         self.wait('صور الإعلان (1/12)', seconds=30)
