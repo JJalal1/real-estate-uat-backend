@@ -340,6 +340,24 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(self.controller.fresh_scene_matches(self.signed(snapshot), snapshot))
         self.assertNotIn('read_full_rows', self.probe.events)
 
+    def test_safe_photo_checkpoint_transports_observed_policy_without_extra_data_or_acceptance(self):
+        self.controller.c2 = SimpleNamespace(TARGETS={}, REVIEW_STAGES={'review_photo_before_save'})
+        preview = {'kind':'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'fixture_key':KEY,
+            'fixture_tag':TAG, 'editor_chain':'C2-V2:'+KEY, 'rent_text':'50000',
+            'sai_rate_text':'0', 'fallback_notice':'اختيار 0% يفعّل السعي الثابت 50% تلقائيًا.',
+            'recording_stopped':True, 'custom_terms_visible':False,
+            'policy_was_visually_reviewed':False, 'persisted_policy_configuration_proved':False}
+        self.probe._root_c2_executor_v2 = SimpleNamespace(
+            failed=False, inflight=False, cursor=4,
+            rent_sai_readback=dict(preview, unrelated_private_value='PRIVATE_SENTINEL'))
+        observed = self.controller._observation('C2', 'C2_4_REVIEW_PHOTO_BEFORE_SAVE',
+            'review_photo_before_save', capture=True)
+        self.assertEqual(observed['bindings']['semantic_preview'], preview)
+        self.assertNotIn('PRIVATE_SENTINEL', json.dumps(observed))
+        self.assertEqual(len(observed['evidence']), 1)
+        self.assertEqual(self.dispatcher.calls, [])
+        self.assertNotIn('manual_review_completed', observed['bindings'])
+
     def test_signed_review_is_copied_exactly_one_stage_no_approval_created(self):
         self.initial(); self.root()
         snapshot = self.controller.snapshot()

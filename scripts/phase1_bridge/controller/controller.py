@@ -572,6 +572,14 @@ class Controller:
                     need(current == held['node_bindings'], 'actual_c2_gate_scene_changed')
                 bindings.update(observation_mode='safe_exact_frame_node_bindings', actual_frame_file=held['file'],
                     frame_sha256=held['sha256'], node_bindings=copy.deepcopy(held['node_bindings']))
+                if stage == 'review_photo_before_save':
+                    # Transport the already observed synthetic policy preview
+                    # required by the next review, without a contact-page image.
+                    bindings['semantic_preview'] = {key: executor.rent_sai_readback[key] for key in (
+                        'kind', 'fixture_key', 'fixture_tag', 'editor_chain', 'rent_text',
+                        'sai_rate_text', 'fallback_notice', 'recording_stopped',
+                        'custom_terms_visible', 'policy_was_visually_reviewed',
+                        'persisted_policy_configuration_proved')}
                 evidence = self._media([held['file']])
             elif stage in API_STAGES or stage in LOGIN_STAGES:
                 self._nonimage_check(phase, stage)
