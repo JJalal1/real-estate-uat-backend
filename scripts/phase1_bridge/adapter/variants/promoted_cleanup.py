@@ -222,9 +222,15 @@ class PromotedFixtureCleanup:
             detail, owned = body.get("data"), mine.get(str(candidate))
             require(code == 200 and isinstance(detail, dict) and isinstance(owned, dict),
                     "new_property_read_required")
-            require(owned.get("is_owner") is True and
+            # The default mine-list projection is detailData and has no
+            # is_owner flag. The show route adds that flag separately. Bind
+            # both actual advertiser identities and require show's owner flag.
+            require(owned.get("advertiser", {}).get("id") == ACTOR and
+                    owned.get("is_owner", True) is True and
+                    detail.get("is_owner") is True and
                     detail.get("advertiser", {}).get("id") == ACTOR and
-                    detail.get("id") == candidate, "new_property_ownership_required")
+                    owned.get("id") == candidate and detail.get("id") == candidate,
+                    "new_property_ownership_required")
             title = draft["payload"]["fields"]["title"]
             require(owned.get("title") == title and detail.get("title") == title and
                     self._has_tag(title), "new_property_tag_mismatch")
