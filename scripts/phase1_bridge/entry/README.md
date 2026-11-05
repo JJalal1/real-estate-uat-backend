@@ -31,8 +31,8 @@ Root public key. It requires the final paired probe SHA
 and Java SHA
 `dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
-source, the exact baseline diff allowlist, original unchanged mobile/backend
-trees, clean tracked paths and pinned public recipient certificate/expiry. No
+source, the exact baseline diff allowlist, separately pinned original and reviewed
+mobile trees, unchanged backend tree, clean tracked paths and pinned public recipient certificate/expiry. No
 fixture, native action or source receipt is synthesized. `--github-env` appends
 only the verified public bundle SHA after all checks, through an owned bounded
 file below RUNNER_TEMP with no symlink components.

@@ -881,7 +881,7 @@ class ControllerTests(unittest.TestCase):
         self.authority = Authority('OWNER_CLEANUP')
         self.context.phase,self.context.cursor='C5','OWNER_CLEANUP'
 
-    def cleanup_dependencies(self, *, fail_after_delete=False):
+    def cleanup_dependencies(self, *, fail_after_delete=False, pin_failure=None):
         path = ADAPTER / 'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py'
         spec = importlib.util.spec_from_file_location('_controller_actual_normal_session', path)
         actual = importlib.util.module_from_spec(spec); spec.loader.exec_module(actual)
@@ -892,6 +892,7 @@ class ControllerTests(unittest.TestCase):
                 created.append(self)
             def pin_candidate(self, *, native_writers_stopped):
                 self.events.append('pin')
+                if pin_failure is not None: return pin_failure
                 return {'status':'READY','property_id':77}
             def cleanup(self, *, native_writers_stopped):
                 self.events.append('cleanup')
@@ -901,6 +902,7 @@ class ControllerTests(unittest.TestCase):
                 return {'status':'PASS','known_application_rows_removed':True,'protected_baseline_restored':True}
         self.controller.c2 = SimpleNamespace(**{name:getattr(C2,name) for name in
             ['STAGES','TARGETS','REVIEW_STAGES','roles','_names']}, NormalOwnerSession=actual.NormalOwnerSession,
+            pin_candidate_diagnostic=actual.pin_candidate_diagnostic,
             cleanup_module=SimpleNamespace(PromotedFixtureCleanup=Helper))
         return created
 
@@ -937,6 +939,23 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(deletes,[('DELETE','/properties/77'),('DELETE','/listing-editor-drafts/'+KEY)])
         self.assertNotIn('unpromoted_cleanup',self.probe.fixture_api.calls)
         self.assertTrue(self.probe.fixture_api.logged_out)
+
+    def test_cleanup_pin_failure_preserves_only_fixed_reason_before_session_wrap(self):
+        self.initial()
+        created = self.cleanup_dependencies(pin_failure={
+            'status': 'BLOCKED', 'reason': 'new_property_ownership_required',
+            'payload': 'PRIVATE_BODY', 'token': 'PRIVATE_TOKEN'})
+        self.cleanup_scope(); self.probe.fixture_api.property_id = 77
+        self.controller.stop_writers(deadline=500)
+        with self.assertRaisesRegex(Exception, '^normal_api_work_or_auth_uncertain$'):
+            self.controller.cleanup_once(deadline=500)
+        self.assertEqual(self.probe.report['c2_cleanup_pin_diagnostic'],
+                         {'status': 'BLOCKED', 'reason': 'new_property_ownership_required'})
+        self.assertEqual(created[0].events, ['pin'])
+        self.assertFalse(any(type(row) is tuple and row[0] == 'DELETE'
+                             for row in self.probe.fixture_api.calls))
+        self.assertTrue(self.probe.fixture_api.logged_out)
+        self.assertNotIn('PRIVATE', json.dumps(self.probe.report))
 
     def test_unknown_promoted_delete_never_retries_or_falls_back(self):
         self.initial(); created=self.cleanup_dependencies(fail_after_delete=True); self.cleanup_scope()

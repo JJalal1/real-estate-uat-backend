@@ -1120,6 +1120,39 @@ class C2FailureDiagnosticTests(unittest.TestCase):
             e.advance()
         p.instrument.assert_called_once()
 
+    def test_pin_failure_fixed_reason_survives_wrapped_normal_session_without_payload(self):
+        actual, c2 = self.modules()
+        e = c2.C2Executor.__new__(c2.C2Executor)
+        p = Mock(report={}, adapter=None, private_values=set())
+        p._known_role_memory.resolve.return_value = ('PRIVATE_PHONE', 'PRIVATE_OTP')
+        e.probe = p; e.state = {}; e._guest = Mock(); e.property_id = None
+        logged_out = False
+        def request(method, path, body, token):
+            nonlocal logged_out
+            if path == '/auth/whatsapp/verify': return 200, {'data': {'token': 'PRIVATE_TOKEN'}}
+            if path == '/auth/logout': logged_out = True; return 200, {}
+            if path == '/auth/me':
+                return (401, {}) if logged_out else (200, {'data': {'user': {'id': 28, 'account_type': 'broker'}}})
+            return 200, {}
+        e.request = request
+        receipt = {'status': 'BLOCKED', 'reason': 'new_property_ownership_required',
+                   'payload': 'PRIVATE_BODY', 'token': 'PRIVATE_TOKEN', 'property_id': 'PRIVATE_ID'}
+        with patch.object(c2.cleanup_module, 'PromotedFixtureCleanup') as helper:
+            helper.return_value.pin_candidate.return_value = receipt
+            with self.assertRaisesRegex(c2.C2Blocked, '^normal_api_work_or_auth_uncertain$'):
+                e._execute('pin_promotion', True)
+        self.assertEqual(p.report['c2_pin_promotion_diagnostic'],
+                         {'status': 'BLOCKED', 'reason': 'new_property_ownership_required'})
+        self.assertTrue(logged_out)
+        self.assertTrue(p.report['c2_normal_api_sessions'][0]['revoked_token_me_http_401'])
+        self.assertIsNone(e.property_id)
+        p.save.assert_called_once()
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        for receipt in ({'status': 'PRIVATE_STATUS', 'reason': 'PRIVATE_REASON'},
+                        {'status': {}, 'reason': []}, None):
+            self.assertEqual(c2.pin_candidate_diagnostic(receipt),
+                             {'status': 'UNOBSERVED', 'reason': 'UNOBSERVED'})
+
 class VariantTests(unittest.TestCase):
     def load(self, relative):
         spec = importlib.util.spec_from_file_location('_synthetic_' + relative.replace('/', '_'),

@@ -6,7 +6,7 @@ import 'ebroker_widgets.dart';
 
 class PropertyCardGallery extends StatefulWidget {
   const PropertyCardGallery({this.imageUrl, this.imageUrls = const [], this.height = 190,
-    this.overlay, this.priceBadge, this.isSpotlight = false, this.propertyType, super.key});
+    this.overlay, this.priceBadge, this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, super.key});
   final String? imageUrl;
   final String? propertyType;
   final List<String> imageUrls;
@@ -14,6 +14,7 @@ class PropertyCardGallery extends StatefulWidget {
   final Widget? overlay;
   final Widget? priceBadge;
   final bool isSpotlight;
+  final bool authenticatedImages;
   @override
   State<PropertyCardGallery> createState() => _PropertyCardGalleryState();
 }
@@ -40,12 +41,12 @@ class _PropertyCardGalleryState extends State<PropertyCardGallery> {
     final urls = _urls;
     final pixels = (size.maxWidth * MediaQuery.devicePixelRatioOf(context)).round().clamp(128, 1080).toInt();
     return SizedBox(height: widget.height, child: Stack(fit: StackFit.expand, children: [
-      if (urls.length < 2) AppPropertyMedia(imageUrl: urls.isEmpty ? null : urls.first, height: widget.height, cacheWidth: pixels, propertyType: widget.propertyType)
+      if (urls.length < 2) AppPropertyMedia(imageUrl: urls.isEmpty ? null : urls.first, authenticated: widget.authenticatedImages, height: widget.height, cacheWidth: pixels, propertyType: widget.propertyType)
       else PageView.builder(key: const ValueKey('property-card-gallery'), controller: _controller,
         itemCount: urls.length, allowImplicitScrolling: false,
         onPageChanged: (index) => setState(() => _index = index),
         itemBuilder: (_, index) => Semantics(label: 'صورة العقار ${index + 1} من ${urls.length}', image: true,
-          child: AppPropertyMedia(imageUrl: urls[index], height: widget.height, cacheWidth: pixels, propertyType: widget.propertyType))),
+          child: AppPropertyMedia(imageUrl: urls[index], authenticated: widget.authenticatedImages, height: widget.height, cacheWidth: pixels, propertyType: widget.propertyType))),
       if (urls.length > 1) PositionedDirectional(bottom: widget.priceBadge == null ? 8 : null,
         top: widget.priceBadge == null ? null : 8, start: 8, end: widget.priceBadge == null ? 8 : null, child: IgnorePointer(child: Row(
         mainAxisAlignment: MainAxisAlignment.center, children: [

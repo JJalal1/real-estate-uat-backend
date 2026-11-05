@@ -983,6 +983,8 @@ class Controller:
             # Hold SAME helper through final pin and its sole deletion attempt.
             self._promoted_cleanup_helper = helper
             pin = helper.pin_candidate(native_writers_stopped=True)
+            p.report['c2_cleanup_pin_diagnostic'] = self.c2.pin_candidate_diagnostic(pin)
+            p.save()
             need(pin.get('status') == 'READY' and pin.get('property_id') == property_id,
                  'cleanup_strict_original_pair_pin_failed')
             self._cleanup_receipt = helper.cleanup(native_writers_stopped=True)

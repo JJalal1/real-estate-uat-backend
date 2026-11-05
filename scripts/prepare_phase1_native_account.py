@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard the unchanged release and privately package native account evidence."""
+"""Guard reviewed product trees and privately package native account evidence."""
 import argparse
 import hashlib
 import json
@@ -15,7 +15,8 @@ import prepare_phase1_close as close
 ROOT = Path(__file__).resolve().parents[1]
 BASE = '694348c354f230f898dfca42fc8130dd461ce5ff'
 REF = 'refs/heads/work/phase1-completion-20261105'
-MOBILE_TREE = 'ef562ae410023046b4abee283f09707051a0e7b6'
+BASE_MOBILE_TREE = 'ef562ae410023046b4abee283f09707051a0e7b6'
+MOBILE_TREE = '024db728944157ce50c10b4dce90a8ef6f7b72bf'
 BACKEND_TREE = 'b569691cd06df69a2181291f43b419a46400f244'
 VERSION_BASE = 1466
 API = close.API
@@ -23,6 +24,11 @@ PRIVATE = ROOT / 'phase1-native-account-private'
 EVIDENCE = ROOT / 'phase1-native-account-evidence'
 EXPORT = ROOT / 'phase1-native-account-encrypted'
 ALLOWED = {
+    'mobile_app/lib/core/widgets/app_components.dart',
+    'mobile_app/lib/core/widgets/ebroker_property_card.dart',
+    'mobile_app/lib/core/widgets/property_card_gallery.dart',
+    'mobile_app/lib/features/properties/presentation/my_listings_screen.dart',
+    'mobile_app/test/private_listing_card_photo_test.dart',
     '.github/actions/phase1-review/README.md',
     '.github/actions/phase1-review/action.yml',
     '.github/actions/phase1-review/index.js',
@@ -39,6 +45,7 @@ ALLOWED = {
     'scripts/phase1_bridge/adapter/ci_remote_evidence.py',
     'scripts/phase1_bridge/adapter/test_basics_capture.py',
     'scripts/phase1_bridge/adapter/test_c2_entry.py',
+    'scripts/phase1_bridge/adapter/test_promoted_cleanup.py',
     'scripts/phase1_bridge/adapter/test_c2_entry_dispatch.py',
     'scripts/phase1_bridge/adapter/test_home_capture.py',
     'scripts/phase1_bridge/adapter/test_integration.py',
@@ -123,10 +130,11 @@ def guard(env):
     changes = set(text(['git', 'diff', '--name-only', BASE, 'HEAD']).splitlines())
     if not changes or changes - ALLOWED:
         raise RuntimeError('native_account_source_scope_mismatch')
-    for component, expected in [('mobile_app', MOBILE_TREE), ('backend-api-runtime', BACKEND_TREE)]:
+    for component, expected, baseline in [('mobile_app', MOBILE_TREE, BASE_MOBILE_TREE),
+                                           ('backend-api-runtime', BACKEND_TREE, BACKEND_TREE)]:
         if text(['git', 'rev-parse', 'HEAD:' + component]) != expected:
             raise RuntimeError('native_account_product_component_changed')
-        if text(['git', 'rev-parse', BASE + ':' + component]) != expected:
+        if text(['git', 'rev-parse', BASE + ':' + component]) != baseline:
             raise RuntimeError('native_account_base_component_changed')
     text(['git', 'diff', '--exit-code', 'HEAD', '--', *sorted(ALLOWED),
           'mobile_app/lib', 'mobile_app/android', 'mobile_app/assets', 'mobile_app/pubspec.yaml',
@@ -139,9 +147,10 @@ def guard(env):
             'ci_run_id': env['GITHUB_RUN_ID'], 'ci_run_number': int(env['GITHUB_RUN_NUMBER']),
             'version_code': VERSION_BASE + int(env['GITHUB_RUN_NUMBER']),
             'product_trees': {'mobile_app': MOBILE_TREE, 'backend-api-runtime': BACKEND_TREE},
+            'product_base_trees': {'mobile_app': BASE_MOBILE_TREE, 'backend-api-runtime': BACKEND_TREE},
             'recipient_sha256': close.RECIPIENT_SHA256,
             'phase1_accepted': False, 'native_acceptance_tested_in_this_job': False,
-            'scope': 'unchanged UAT release for actual native account journey'}
+            'scope': 'reviewed mobile UAT release with unchanged backend for actual native account journey'}
 
 
 def prepare(env):

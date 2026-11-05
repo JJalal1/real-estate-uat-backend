@@ -9,10 +9,10 @@
       "delta": "equivalent_generated_digit_translation_alphabet; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts; actual_response_snapshot_boundary_before_bounded_short_notice_seek; preserve_exact_reviewed_title_without_redundant_input; observe_footer_after_changed_title_input"
     },
     "ROOT_C2_EXECUTOR_V2/phase_extensions.py": {
-      "sha256": "baeed08ef67b006a3589a42de6f6541e7cfc79bf0b7c2200fe1af1449b9f12da",
-      "bytes": 65597,
+      "sha256": "71c579ea515899580bca7807fb3ca26b30ffabcfa7abb5799bdf66f154525f50",
+      "bytes": 67598,
       "original_sha256": "27a567dbb175140c50a0de705385e56ea5ab4817714d165f06b94cfb8d2159b8",
-      "delta": "serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; source_bound_editor_dismissal_barrier_with_decision_button_refusal; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save; source_shaped_scrolled_specs_review; fixed_pre_input_prepare_refusal_proof; actual_UI_contact_policy_before_fixed_native_fixture_contact; private_nonimage_seeking_and_boolean_readback_before_save"
+      "delta": "serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; source_bound_editor_dismissal_barrier_with_decision_button_refusal; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save; source_shaped_scrolled_specs_review; fixed_pre_input_prepare_refusal_proof; actual_UI_contact_policy_before_fixed_native_fixture_contact; private_nonimage_seeking_and_boolean_readback_before_save; fixed_pin_promotion_and_cleanup_reason_before_strict_refusal"
     },
     "ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py": {
       "sha256": "96bd01d0672dc1ed79decc4da16781ee583f24a32c8dcb0d1345f16d00e33cc4",
@@ -34,9 +34,10 @@
       "delta": "one_logout_observed_guest_home_then_one_account_guest_gate; broker_retained_home_and_support_named_back_before_normal_logout"
     },
     "promoted_cleanup.py": {
-      "sha256": "4a7752b29cc8b1417e5d82ab94c9113e3687b6b6e37ba995847e387f5d262f67",
-      "bytes": 17185,
-      "original_sha256": "4a7752b29cc8b1417e5d82ab94c9113e3687b6b6e37ba995847e387f5d262f67"
+      "sha256": "ec54c936f226b9c3cb5a27e914eced199ff6ee5a59b91a8dcfc14997a40f2a9b",
+      "bytes": 17597,
+      "original_sha256": "4a7752b29cc8b1417e5d82ab94c9113e3687b6b6e37ba995847e387f5d262f67",
+      "delta": "actual_default_mine_advertiser_and_detail_owner_contract; original_fixture_identity_and_protected_baseline_guards_preserved"
     },
     "runtime/host_console_capture.py": {
       "sha256": "2ec10b2659ea3f073c47d02c1800cd49b35b58e51ce8430517af74a1ecadcafa",

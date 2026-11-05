@@ -195,6 +195,33 @@ class NormalOwnerSession:
         return result
 
 
+PIN_DIAGNOSTIC_REASONS = frozenset({
+    'native_writers_not_stopped', 'candidate_already_pinned_or_attempted',
+    'expected_normal_actor_required', 'api_adapter_shape', 'api_response_shape',
+    'original_draft_read_required', 'original_draft_identity_required', 'original_draft_shape_required',
+    'new_promoted_property_required', 'pinned_property_substitution_refused',
+    'protected_snapshot_read_required', 'protected_snapshot_row_shape', 'property_identity_shape',
+    'draft_identity_shape', 'protected_snapshot_identity_shape', 'protected_snapshot_page_bound',
+    'preexisting_state_changed', 'unknown_extra_or_missing_state', 'draft_changed_during_preflight',
+    'new_property_read_required', 'new_property_ownership_required', 'new_property_tag_mismatch',
+    'new_property_not_deletable', 'property_changed_during_preflight', 'new_property_images_shape',
+    'transport_or_runtime_C2Blocked', 'transport_or_runtime_ControllerRefused',
+    'transport_or_runtime_AdmissionError', 'transport_or_runtime_TimeoutError',
+    'transport_or_runtime_ConnectionError', 'transport_or_runtime_OSError',
+    'transport_or_runtime_RuntimeError', 'transport_or_runtime_ValueError',
+    'transport_or_runtime_TypeError', 'transport_or_runtime_KeyError',
+})
+
+
+def pin_candidate_diagnostic(receipt):
+    """Persist only fixed pin outcomes before session wrapping hides the cause."""
+    receipt = receipt if type(receipt) is dict else {}
+    status, reason = receipt.get('status'), receipt.get('reason')
+    return {'status': status if type(status) is str and status in {'READY', 'BLOCKED'} else 'UNOBSERVED',
+            'reason': reason if type(reason) is str and reason in PIN_DIAGNOSTIC_REASONS else
+                      'NONE' if status == 'READY' else 'UNOBSERVED'}
+
+
 STAGES = (
     'load_roles', 'open_rent', 'complete_rent', 'navigate_previous_to_specs',
     'review_photo_before_save', 'return_next_step3', 'back_gaps_to_completion', 'full_save',
@@ -917,6 +944,8 @@ class C2Executor:
             def pin(api):
                 helper = cleanup_module.PromotedFixtureCleanup(api, self.state)
                 result = helper.pin_candidate(native_writers_stopped=True)
+                p.report['c2_pin_promotion_diagnostic'] = pin_candidate_diagnostic(result)
+                p.save()
                 need(result.get('status') == 'READY', 'strict_original_promoted_pair_pin_failed')
                 return result
             self.property_id = self._api(pin)['property_id']
@@ -980,6 +1009,8 @@ class C2Executor:
                 # Keep the SAME helper for pin and the sole cleanup attempt.
                 self.cleanup_helper = cleanup_module.PromotedFixtureCleanup(api, self.state)
                 pin = self.cleanup_helper.pin_candidate(native_writers_stopped=True)
+                p.report['c2_cleanup_pin_diagnostic'] = pin_candidate_diagnostic(pin)
+                p.save()
                 need(pin.get('status') == 'READY' and pin.get('property_id') == self.property_id,
                      'final_known_property_pin_failed')
                 receipt = self.cleanup_helper.cleanup(native_writers_stopped=True)

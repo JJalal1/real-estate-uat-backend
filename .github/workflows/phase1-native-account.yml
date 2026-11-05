@@ -58,7 +58,7 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
-      - name: Guard exact unchanged product components
+      - name: Guard exact reviewed mobile and unchanged backend components
         run: python3 -B scripts/prepare_phase1_native_account.py --source-only
       - name: Run only native collector safety tests
         run: |
@@ -79,7 +79,7 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
-      - name: Guard exact unchanged mobile and backend components
+      - name: Guard exact reviewed mobile and unchanged backend components
         run: |
           python3 -B scripts/prepare_phase1_native_account.py --source-only
           printf 'GRADLE_USER_HOME=%s\n' "$RUNNER_TEMP/aqer-native-account-gradle" >> "$GITHUB_ENV"
@@ -141,6 +141,9 @@ jobs:
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
           flutter pub get --enforce-lockfile
           git diff --exit-code -- pubspec.yaml
+      - name: Verify authenticated own-listing photo regression
+        working-directory: mobile_app
+        run: flutter test test/private_listing_card_photo_test.dart
       - name: Restore only public Gradle dependency archives
         id: gradle-deps
         continue-on-error: true
@@ -149,8 +152,8 @@ jobs:
           path: |
             ${{ env.GRADLE_USER_HOME }}/caches/modules-2
             ${{ env.GRADLE_USER_HOME }}/wrapper/dists
-          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ef562ae410023046b4abee283f09707051a0e7b6-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
-      - name: Build unchanged release for actual account journey
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-024db728944157ce50c10b4dce90a8ef6f7b72bf-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Build reviewed release for actual account journey
         working-directory: mobile_app
         env:
           AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'

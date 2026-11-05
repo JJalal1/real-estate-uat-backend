@@ -71,27 +71,53 @@ class NativeAccountBuildSafetyTest(unittest.TestCase):
                 'AQER_PHASE1_NATIVE_ACCOUNT': 'true', 'GITHUB_SHA': 'a' * 40,
                 'SOURCE_COMMIT': 'a' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_NUMBER': '1'}
 
-    def fake_git(self, changed=None, wrong_component=None):
+    def fake_git(self, changed=None, wrong_component=None, wrong_base_component=None):
         def text(argv):
             if argv == ['git', 'rev-parse', 'HEAD']:
                 return 'a' * 40
             if argv[:3] == ['git', 'diff', '--name-only']:
                 return changed if changed is not None else 'scripts/probe_phase1_native_account.py'
             if argv[:2] == ['git', 'rev-parse']:
-                component = argv[-1].split(':')[-1]
-                if component == wrong_component:
+                revision, component = argv[-1].split(':', 1)
+                if ((revision == 'HEAD' and component == wrong_component) or
+                        (revision == build.BASE and component == wrong_base_component)):
                     return 'b' * 40
-                return {'mobile_app': build.MOBILE_TREE, 'backend-api-runtime': build.BACKEND_TREE}[component]
+                mobile = build.MOBILE_TREE if revision == 'HEAD' else build.BASE_MOBILE_TREE
+                return {'mobile_app': mobile, 'backend-api-runtime': build.BACKEND_TREE}[component]
             return ''
         return text
 
     def test_source_guard_rejects_product_or_unreviewed_scope_changes(self):
         for kwargs, message in [({'changed': 'mobile_app/lib/main.dart'}, 'scope'),
                                 ({'wrong_component': 'mobile_app'}, 'component'),
-                                ({'wrong_component': 'backend-api-runtime'}, 'component')]:
+                                ({'wrong_component': 'backend-api-runtime'}, 'component'),
+                                ({'wrong_base_component': 'mobile_app'}, 'base_component'),
+                                ({'wrong_base_component': 'backend-api-runtime'}, 'base_component')]:
             with self.subTest(kwargs=kwargs), patch.object(build, 'text', self.fake_git(**kwargs)):
                 with self.assertRaisesRegex(RuntimeError, message):
                     build.guard(self.environment())
+
+    def test_exact_reviewed_mobile_fix_keeps_distinct_base_and_unchanged_backend_pins(self):
+        reviewed_paths = {
+            'mobile_app/lib/core/widgets/app_components.dart',
+            'mobile_app/lib/core/widgets/ebroker_property_card.dart',
+            'mobile_app/lib/core/widgets/property_card_gallery.dart',
+            'mobile_app/lib/features/properties/presentation/my_listings_screen.dart',
+            'mobile_app/test/private_listing_card_photo_test.dart',
+        }
+        self.assertEqual({path for path in build.ALLOWED if path.startswith('mobile_app/')}, reviewed_paths)
+        reviewed_tree = 'c' * 40
+        with patch.object(build, 'MOBILE_TREE', reviewed_tree), \
+                patch.object(build, 'text', self.fake_git(changed='\n'.join(sorted(reviewed_paths)))), \
+                patch.object(build, 'digest', return_value=build.close.RECIPIENT_SHA256), \
+                patch.object(build, 'run'):
+            receipt = build.guard(self.environment())
+        self.assertEqual(receipt['product_trees']['mobile_app'], reviewed_tree)
+        self.assertEqual(receipt['product_base_trees']['mobile_app'], build.BASE_MOBILE_TREE)
+        self.assertNotEqual(receipt['product_trees']['mobile_app'], receipt['product_base_trees']['mobile_app'])
+        self.assertEqual(receipt['product_trees']['backend-api-runtime'], build.BACKEND_TREE)
+        self.assertEqual(receipt['product_base_trees']['backend-api-runtime'], build.BACKEND_TREE)
+        self.assertIn('unchanged backend', receipt['scope'])
 
     def test_context_guard_rejects_other_branch_or_mismatched_source(self):
         for replacement in [{'GITHUB_REF': 'refs/heads/main'}, {'SOURCE_COMMIT': 'b' * 40},
