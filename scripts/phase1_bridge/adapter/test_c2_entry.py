@@ -355,6 +355,7 @@ class C2EntryTests(unittest.TestCase):
         for label in ('قبول', 'رفض'):
             with self.subTest(label=label):
                 executor = self.preview_executor(extra=(label,))
+                executor.cursor = c2.STAGES.index('submit_confirm')
                 with self.assertRaisesRegex(c2.C2Blocked, 'only_existing_platform_fallback_sai_allowed'):
                     executor._fallback(self.probe.surface)
         self.assertTrue(all(target[1] not in {'قبول', 'رفض', 'قبول ونشر', 'رفض نهائي وحظر'}
@@ -542,6 +543,165 @@ class C2EntryTests(unittest.TestCase):
         with self.assertRaisesRegex(c2.C2Blocked, 'reviewed_contact_changed_before_explicit_save'):
             executor._execute('full_save', True)
         executor._nonimage_input.assert_not_called()
+
+
+class SaiSheetFallbackTests(unittest.TestCase):
+    def setUp(self):
+        fixture = C2EntryTests()
+        fixture.setUp()
+        self.executor, self.probe = fixture.executor(), fixture.probe
+        self.executor.cursor = c2.STAGES.index('submit_sai_setup')
+        self.executor.inflight = True
+        self.clock = 0
+        for name, fn in [('monotonic', lambda: self.clock), ('sleep', self.sleep)]:
+            patcher = patch.object(c2.time, name, fn)
+            patcher.start(); self.addCleanup(patcher.stop)
+        for name in ('field', 'seek', 'scroll', 'act', 'instrument'):
+            setattr(self.probe, name, Mock(side_effect=AssertionError('fallback must only observe')))
+
+    def sleep(self, seconds): self.clock += seconds
+
+    def sheet(self, *, value='0', dismissal=True, notice='اختيار 0% يفعّل السعي الثابت 20% تلقائيًا.'):
+        result = rows('تحديد السعي قبل إرسال الإعلان', 'نسبة مئوية %', 'نسبة السعي %',
+                      'العودة بدون إرسال', 'تأكيد السعي والمتابعة')
+        for i, row in enumerate(result):
+            row.update(path='0.' + str(i+1), bounds=[20, 100+i*60, 370, 150+i*60], editable=False)
+        result[2].update(text=value, description='نسبة السعي %', hint='0', editable=True,
+                         **{'class': 'android.widget.EditText'})
+        if notice is not None:
+            result += rows(notice)
+            result[-1].update(path='0.8', editable=False)
+        if dismissal:
+            result.append(dict(text='', description='رفض', hint='', path='0.9',
+                package=c2.roles.APP, visible=True, enabled=True, editable=False,
+                clickable=True, witness='d'*64, bounds=[180, 40, 228, 88],
+                **{'class': 'android.view.View'}))
+        return result
+
+    def test_real_zero_fallback_allows_only_source_drag_handle_in_setup_and_confirmation(self):
+        for stage, inflight in [('submit_sai_setup', True), ('submit_confirm', False), ('submit_confirm', True)]:
+            for dismissal in (False, True):
+                with self.subTest(stage=stage, inflight=inflight, dismissal=dismissal):
+                    self.executor.cursor, self.executor.inflight = c2.STAGES.index(stage), inflight
+                    self.executor._fallback(self.sheet(dismissal=dismissal))
+                    d = self.probe.report['c2_v2_sai_sheet_fallback_diagnostic']
+                    self.assertEqual((d['state'], d['rate_shape'], d['visible_anchor_count']), ('READY', 'ZERO', 5))
+                    self.assertEqual(d['source_dismissal_count'], int(dismissal))
+                    self.assertFalse(d['hashes_recorded'])
+        self.probe.field.assert_not_called(); self.probe.seek.assert_not_called()
+        self.probe.act.assert_not_called(); self.probe.instrument.assert_not_called()
+
+    def test_arabic_zero_is_actual_text_not_only_the_hint(self):
+        self.executor._fallback(self.sheet(value='٠'))
+        for value in ('', '7', '0.0', 'PRIVATE_VALUE'):
+            with self.subTest(value=value):
+                self.probe.nodes = Mock(return_value=self.sheet(value=value))
+                with self.assertRaisesRegex(c2.C2Blocked, 'fallback_not_ready'):
+                    self.executor._fallback(self.sheet(value=value))
+                self.assertNotEqual(self.probe.report['c2_v2_sai_sheet_fallback_diagnostic']['rate_shape'], 'ZERO')
+                self.assertNotIn('PRIVATE_VALUE', json.dumps(self.probe.report))
+
+    def test_real_custom_decisions_and_invalid_dismissal_shapes_refuse_without_waiting(self):
+        for change in ({'class': 'android.widget.Button'}, {'editable': True}, {'editable': None},
+                       {'class': 'android.widget.EditText'}, {'package': 'foreign.app'},
+                       {'visible': False}, {'enabled': False}, {'description': 'رفض\nPRIVATE_LABEL'},
+                       {'text': 'قبول'}, {'class': 'unknown'}):
+            with self.subTest(change=change):
+                observed = self.sheet(); observed[-1].update(change)
+                with self.assertRaisesRegex(c2.C2Blocked, 'only_existing_platform_fallback'):
+                    self.executor._fallback(observed, settle=True)
+                self.assertEqual(self.clock, 0)
+                self.assertNotIn('PRIVATE_LABEL', json.dumps(self.probe.report))
+        for label in ('قبول', 'رفض'):
+            with self.assertRaisesRegex(c2.C2Blocked, 'only_existing_platform_fallback'):
+                self.executor._fallback(self.sheet(dismissal=False) + rows(label), settle=True)
+
+    def test_multiple_dismissals_or_actual_fields_are_never_collapsed(self):
+        observed = self.sheet()
+        observed.append(dict(observed[-1], path='0.10'))
+        with self.assertRaisesRegex(c2.C2Blocked, 'only_existing_platform_fallback'):
+            self.executor._fallback(observed, settle=True)
+        observed = self.sheet()
+        observed.append(dict(observed[2], path='0.11'))
+        with self.assertRaisesRegex(c2.C2Blocked, 'unique_actual_sai_sheet'):
+            self.executor._fallback(observed, settle=True)
+        self.assertEqual(self.clock, 0)
+
+    def test_exact_numeric_notice_is_required_and_two_different_notices_are_ambiguous(self):
+        for notice in (None, 'اختيار 0 يفعّل السعي الثابت 20% تلقائيًا.',
+                       'اختيار 0% يفعّل السعي الثابت 20% تلقائيًا. PRIVATE_SUFFIX',
+                       'اختيار 0% يفعّل السعي الثابت غير محدد% تلقائيًا.'):
+            with self.subTest(notice=notice), self.assertRaisesRegex(c2.C2Blocked, 'fallback_not_ready'):
+                self.executor._fallback(self.sheet(notice=notice))
+        with self.assertRaisesRegex(c2.C2Blocked, 'unique_actual_sai_sheet'):
+            self.executor._fallback(self.sheet() + rows('اختيار 0% يفعّل السعي الثابت 15% تلقائيًا.'))
+        self.assertNotIn('PRIVATE_SUFFIX', json.dumps(self.probe.report))
+
+    def test_all_five_real_sheet_anchors_are_required(self):
+        for index in range(5):
+            with self.subTest(index=index):
+                observed = self.sheet(); observed.pop(index)
+                with self.assertRaisesRegex(c2.C2Blocked, 'fallback_not_ready'):
+                    self.executor._fallback(observed)
+                self.assertEqual(self.probe.report['c2_v2_sai_sheet_fallback_diagnostic']['visible_anchor_count'], 4)
+
+    def test_bounded_post_ime_settlement_only_reads_fresh_observations(self):
+        before = self.sheet(notice=None)
+        after = self.sheet()
+        self.probe.nodes = Mock(side_effect=[before, after])
+        self.executor._fallback(before, settle=True)
+        self.assertEqual(self.clock, .5)
+        self.assertEqual(self.probe.nodes.call_count, 2)
+        self.assertEqual(self.probe.report['c2_v2_sai_sheet_fallback_diagnostic']['observations'], 3)
+        self.probe.seek.assert_not_called(); self.probe.scroll.assert_not_called()
+        self.probe.field.assert_not_called(); self.probe.act.assert_not_called()
+
+    def test_missing_notice_expires_at_eight_seconds_without_input(self):
+        observed = self.sheet(notice=None)
+        self.probe.nodes = Mock(return_value=observed)
+        with self.assertRaisesRegex(c2.C2Blocked, 'fallback_not_ready'):
+            self.executor._fallback(observed, settle=True)
+        self.assertEqual(self.clock, 8)
+        self.probe.act.assert_not_called(); self.probe.instrument.assert_not_called()
+
+    def test_separate_label_uses_same_snapshot_unique_editable_field(self):
+        observed = self.sheet()
+        observed[2].update(text='نسبة السعي %', description='', hint='', editable=False,
+                           **{'class': 'android.widget.TextView'})
+        observed.append(dict(observed[2], text='0', path='0.12', editable=True,
+                             **{'class': 'android.widget.EditText'}))
+        self.executor._fallback(observed)
+        self.probe.field.assert_not_called(); self.probe.seek.assert_not_called()
+
+    def test_stage17_is_one_readonly_validation_and_never_enters_settling(self):
+        self.executor.cursor, self.executor.inflight = c2.STAGES.index('submit_confirm'), False
+        self.probe.nodes = Mock(side_effect=AssertionError('already supplied fresh rows'))
+        self.executor._fallback(self.sheet())
+        with self.assertRaisesRegex(c2.C2Blocked, 'reserved_sai_sheet_context'):
+            self.executor._fallback(self.sheet(), settle=True)
+        with self.assertRaisesRegex(c2.C2Blocked, 'fallback_not_ready'):
+            self.executor._fallback(self.sheet(notice=None))
+        self.probe.nodes.assert_not_called(); self.assertEqual(self.clock, 0)
+
+    def test_wrong_context_auth_or_actor_refuses_before_settlement(self):
+        self.executor.inflight = False
+        with self.assertRaisesRegex(c2.C2Blocked, 'reserved_sai_sheet_context'):
+            self.executor._fallback(self.sheet())
+        self.executor.inflight = True
+        with self.assertRaisesRegex(c2.C2Blocked, 'auth_surface'):
+            self.executor._fallback(self.sheet() + rows('رمز التحقق'), settle=True)
+        self.probe.active_native_role = 'support'
+        with self.assertRaisesRegex(c2.C2Blocked, 'known_normal_native_actor'):
+            self.executor._fallback(self.sheet(), settle=True)
+        self.assertEqual(self.clock, 0)
+
+    def test_setup_input_is_not_repeated_while_notice_settles(self):
+        self.probe.set = Mock()
+        self.probe.nodes = Mock(side_effect=[self.sheet(notice=None), self.sheet()])
+        self.executor._execute('submit_sai_setup', True)
+        self.assertEqual([e for e in self.probe.events if e[0] == 'tap'], [('tap', 'نسبة مئوية %')])
+        self.probe.set.assert_called_once_with('نسبة السعي %', '0')
+        self.assertEqual(self.probe.nodes.call_count, 2)
 
 
 class NonimageClickReadinessTests(unittest.TestCase):

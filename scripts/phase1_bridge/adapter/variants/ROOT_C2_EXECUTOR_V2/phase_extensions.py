@@ -496,13 +496,68 @@ class C2Executor:
                 'revoked_token_me_http_401': session.me_401, 'token_persisted': False,
                 'native_ui_logout_is_not_server_token_revocation_proof': True})
 
-    def _fallback(self, rows):
-        names = _names(rows)
-        need('قبول' not in names and 'رفض' not in names and
-             any(text.startswith('اختيار 0% يفعّل السعي الثابت ') for text in names),
-             'only_existing_platform_fallback_sai_allowed')
-        need(policy.digits(self.probe.field('نسبة السعي %').get('text', '')) == '0',
-             'actual_sai_zero_text_required_hint_is_not_value')
+    def _fallback(self, rows, *, settle=False):
+        """Read the actual SAI sheet; never seek, input, or accept custom terms."""
+        stage = STAGES[self.cursor]
+        need(not self.failed and ((stage == 'submit_sai_setup' and self.inflight) or
+             stage == 'submit_confirm') and (not settle or stage == 'submit_sai_setup'),
+             'reserved_sai_sheet_context_required')
+        anchors = {'تحديد السعي قبل إرسال الإعلان', 'نسبة مئوية %', 'نسبة السعي %',
+                   'العودة بدون إرسال', 'تأكيد السعي والمتابعة'}
+        deadline, observations = time.monotonic() + (8 if settle else 0), 0
+        while True:
+            self._actor('broker')
+            visible = [row for row in rows if row.get('package') == roles.APP and
+                       row.get('visible') is True and row.get('enabled') is True]
+            names = _names(visible)
+            accepts = [row for row in rows if 'قبول' in policy.names(row)]
+            dismissals = [row for row in rows if 'رفض' in policy.names(row)]
+            # The app enables Flutter's sheet drag handle. Its standalone
+            # Arabic dismiss semantic is a View, not the custom Reject Button.
+            safe_dismissals = [row for row in dismissals if policy.names(row) == {'رفض'} and
+                row.get('class') == 'android.view.View' and row.get('editable') is False and
+                row.get('package') == roles.APP and row.get('visible') is True and row.get('enabled') is True]
+            notices = {text for text in names if re.fullmatch(
+                r'اختيار 0% يفعّل السعي الثابت [0-9]+% تلقائيًا\.', text)}
+            labelled = [row for row in visible if 'نسبة السعي %' in policy.names(row)]
+            fields = [row for row in labelled if row.get('editable') is True]
+            if not fields and len(labelled) == 1:
+                # Same separate-label contract as Probe.field, on this snapshot
+                # only. No implicit seek is permitted during Root preparation.
+                box = labelled[0].get('bounds')
+                if isinstance(box, list) and len(box) == 4 and all(type(v) is int for v in box):
+                    fields = [row for row in visible if row.get('editable') is True and
+                        isinstance(row.get('bounds'), list) and len(row['bounds']) == 4 and
+                        all(type(v) is int for v in row['bounds']) and
+                        abs(row['bounds'][1] - box[1]) <= 150 and
+                        min(box[2], row['bounds'][2]) > max(box[0], row['bounds'][0])]
+            value = policy.digits(fields[0].get('text', '')) if len(fields) == 1 else None
+            observations += 1
+            diagnostic = {'stage': stage, 'observations': observations,
+                'accept_label_count': len(accepts), 'reject_label_count': len(dismissals),
+                'source_dismissal_count': len(safe_dismissals), 'visible_anchor_count': len(anchors & names),
+                'fallback_notice_count': len(notices), 'rate_field_count': len(fields),
+                'rate_shape': 'MISSING' if value is None else 'ZERO' if value == '0' else 'EMPTY' if not value else 'OTHER',
+                'state': 'OBSERVING', 'hashes_recorded': False}
+            self.probe.report['c2_v2_sai_sheet_fallback_diagnostic'] = diagnostic
+            if _names(rows) & roles.AUTH_LABELS:
+                diagnostic['state'] = 'AUTH_REFUSED'
+                raise C2Blocked('sai_sheet_auth_surface_refused')
+            if accepts or len(safe_dismissals) != len(dismissals) or len(dismissals) > 1:
+                diagnostic['state'] = 'DECISION_OR_AMBIGUOUS_DISMISSAL_REFUSED'
+                raise C2Blocked('only_existing_platform_fallback_sai_allowed')
+            if len(fields) > 1 or (not fields and len(labelled) > 1) or len(notices) > 1:
+                diagnostic['state'] = 'AMBIGUOUS_SHEET_REFUSED'
+                raise C2Blocked('unique_actual_sai_sheet_required')
+            if anchors <= names and len(notices) == 1 and value == '0':
+                diagnostic['state'] = 'READY'
+                return
+            diagnostic['state'] = ('SHEET_PENDING' if not anchors <= names else
+                                   'NOTICE_PENDING' if not notices else 'RATE_NOT_ZERO')
+            if not settle or time.monotonic() >= deadline:
+                raise C2Blocked('actual_sai_sheet_fallback_not_ready')
+            time.sleep(max(0, min(.25, deadline - time.monotonic())))
+            rows = self.probe.nodes()
 
     def _nonimage_click_control(self, label):
         """Observe a source-owned control before one input, with no private receipts."""
@@ -1232,7 +1287,7 @@ class C2Executor:
                 self._wait_return_queue()
         elif stage == 'submit_sai_setup':
             self._actor('broker'); p.wait('تحديد السعي قبل إرسال الإعلان')
-            p.tap('نسبة مئوية %'); p.set('نسبة السعي %', '0'); self._fallback(p.nodes())
+            p.tap('نسبة مئوية %'); p.set('نسبة السعي %', '0'); self._fallback(p.nodes(), settle=True)
         elif stage == 'fill_return_reason':
             self._actor('support'); p.wait('إرجاع الإعلان للتصحيح')
             p.set('اكتب للمعلن تحديداً ما الذي يجب تعديله.', self.reason)
