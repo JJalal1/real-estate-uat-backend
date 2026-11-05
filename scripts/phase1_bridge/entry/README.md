@@ -383,3 +383,18 @@ The subsequent 44-stage support/return/account-isolation journey and its exact
 fixture cleanup, normal logout and process termination checks remain required.
 This entry change removes repeat AI setup; it does not close C2 or Phase1 before
 those actual outcomes and Root reviews are complete.
+
+## Editor route dismissal is not a SAI decision
+
+Run73 read back the exact synthetic rent and zero SAI rate, with no authentication
+surface, but the global acceptance-label guard also matched the editor route
+barrier. The pinned `/add-property` route is a dismissible CustomTransitionPage;
+Flutter3.27.3 localizes its dismissal barrier as `رفض`. The restored editor
+remains in that route. Its generic Android View is distinct from a decision button.
+
+The C2 preview now requires the actual declared editor controls and permits only
+that standalone, noneditable, visible APP View label. Acceptance controls,
+combined labels, actual rejection buttons, authentication and submission-sheet
+contexts remain refused. Exact rent/rate checks and the source-shaped fallback
+notice remain mandatory. The separate submission-sheet and support action
+guards are unchanged. Native acceptance still requires actual Root review.

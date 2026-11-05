@@ -515,7 +515,21 @@ class C2Executor:
         p = self.probe
         rent = policy.digits(p.field('الإيجار الشهري بالريال اليمني *').get('text', ''))
         rate = policy.digits(p.field('نسبة السعي %').get('text', ''))
-        names = _names(p.nodes())  # Ephemeral only; no tree/root/node hashes or raw text retained.
+        rows = p.nodes()  # Ephemeral only; no tree/root/node hashes or raw text retained.
+        names = _names(rows)
+        # The real /add-property route is a dismissible CustomTransitionPage.
+        # Flutter's Arabic modal barrier is labelled "رفض" and has onTap, but
+        # no button/text-field semantics. It is not a business rejection button.
+        # Never classify a combined parent label or an actionable Button as this
+        # barrier; the declared editor anchors below must also remain present.
+        dismissals = [row for row in rows if 'رفض' in policy.names(row)]
+        route_dismissal_only = all(
+            policy.names(row) == {'رفض'} and row.get('class') == 'android.view.View' and
+            row.get('editable') is False and row.get('package') == roles.APP and
+            row.get('visible') is True for row in dismissals)
+        custom_sai_sheet_absent = not bool(names & {
+            'تحديد السعي قبل إرسال الإعلان', 'إرسال الإعلان للمراجعة؟',
+            'العودة بدون إرسال', 'تأكيد السعي والمتابعة'})
         def shape(value, expected):
             # Fixed categories only; these observations never broaden acceptance.
             if value == expected:
@@ -535,10 +549,14 @@ class C2Executor:
             'sai_rate_is_zero': rate == '0',
             'auth_surface_absent': not bool(names & roles.AUTH_LABELS),
             'accept_reject_absent': not bool(names & {'قبول', 'رفض'}),
+            'route_dismissal_only': route_dismissal_only,
+            'custom_sai_sheet_absent': custom_sai_sheet_absent,
             'rent_shape': shape(rent, self.monthly_rent), 'rate_shape': shape(rate, '0')}
         need(rent == self.monthly_rent and rate == '0' and
-             not (names & (roles.AUTH_LABELS | {'قبول', 'رفض'})),
+             not (names & (roles.AUTH_LABELS | {'قبول'})) and
+             route_dismissal_only and custom_sai_sheet_absent,
              'actual_synthetic_rent_and_sai_zero_text_required')
+        self._rent_editor_surface(rows)
         notices = [text for text in names if re.fullmatch(
             r'اختيار 0% يفعّل السعي الثابت [0-9]+% تلقائيًا\.', text)]
         need(len(notices) == 1, 'actual_source_shaped_platform_fallback_notice_required')
@@ -557,10 +575,10 @@ class C2Executor:
         need(not self.probe._capture_rows_private(rows), 'safe_specs_full_tree_privacy_required')
         need('المواصفات' in _names(rows), 'actual_specification_step_required')
 
-    def _rent_editor_surface(self):
+    def _rent_editor_surface(self, rows=None):
         """Observe the declared real editor mode; never change it implicitly."""
         self._actor('broker')
-        names = _names(self.probe.nodes())
+        names = _names(self.probe.nodes() if rows is None else rows)
         need(not names & roles.AUTH_LABELS, 'rent_editor_auth_surface_refused')
         if self.entry_mode == 'standard_editor':
             need({'خيارات المسودة', 'إرسال للمراجعة', 'السابق'} <= names and

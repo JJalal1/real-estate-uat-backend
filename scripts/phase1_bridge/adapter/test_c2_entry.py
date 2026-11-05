@@ -160,8 +160,88 @@ class C2EntryTests(unittest.TestCase):
         executor.cursor = c2.STAGES.index('complete_rent')
         values = {'الإيجار الشهري بالريال اليمني *': rent, 'نسبة السعي %': rate}
         self.probe.field = Mock(side_effect=lambda label: {'text': values[label]})
-        self.probe.surface = rows('اختيار 0% يفعّل السعي الثابت 5% تلقائيًا.', *extra)
+        self.probe.surface = rows('خيارات المسودة', 'إرسال للمراجعة', 'السابق',
+                                  'اختيار 0% يفعّل السعي الثابت 5% تلقائيًا.', *extra)
         return executor
+
+    def dismissal_row(self, **changes):
+        # Flutter ModalBarrier: standalone Arabic dismiss label, generic View,
+        # onTap/onDismiss actions; it is clickable but has no button semantics.
+        return dict(text='', description='رفض', hint='', path='0.1',
+                    package=c2.roles.APP, visible=True, enabled=True,
+                    editable=False, clickable=True, focused=False,
+                    actions=16 | 1048576, **changes)
+
+    def test_editor_route_dismissal_is_not_a_custom_sai_decision(self):
+        executor = self.preview_executor()
+        dismissal = self.dismissal_row()
+        dismissal['class'] = 'android.view.View'
+        self.probe.surface.append(dismissal)
+        result = executor._rent_sai_preview()
+        self.assertEqual((result['rent_text'], result['sai_rate_text']), ('50000', '0'))
+        self.assertFalse(result['custom_terms_visible'])
+        diagnostic = self.probe.report['c2_v2_rent_sai_readback_diagnostic']
+        self.assertFalse(diagnostic['accept_reject_absent'])
+        self.assertTrue(diagnostic['route_dismissal_only'])
+        self.assertTrue(diagnostic['custom_sai_sheet_absent'])
+        self.assertEqual(self.probe.events, [])
+
+    def test_editor_dismissal_exception_rejects_decision_nodes_and_combined_labels(self):
+        for change in ({'class': 'android.widget.Button'},
+                       {'class': 'android.widget.EditText', 'editable': True},
+                       {'class': 'android.view.View', 'editable': True},
+                       {'class': 'android.view.View', 'editable': None},
+                       {'class': 'android.view.View', 'description': 'رفض\nPRIVATE_CONTACT'},
+                       {'class': 'android.view.View', 'text': 'PRIVATE_PARENT'},
+                       {'class': 'unknown'},
+                       {'class': 'android.view.View', 'package': 'foreign.app'},
+                       {'class': 'android.view.View', 'visible': False}):
+            with self.subTest(change=change):
+                executor = self.preview_executor()
+                dismissal = self.dismissal_row()
+                dismissal.update(change)
+                self.probe.surface.append(dismissal)
+                with self.assertRaisesRegex(c2.C2Blocked, 'actual_synthetic_rent_and_sai_zero_text_required'):
+                    executor._rent_sai_preview()
+                diagnostic = self.probe.report['c2_v2_rent_sai_readback_diagnostic']
+                self.assertFalse(diagnostic['route_dismissal_only'])
+                self.assertNotIn('PRIVATE', json.dumps(self.probe.report))
+
+    def test_editor_dismissal_never_admits_acceptance_auth_or_submission_sheet(self):
+        for label in ('قبول', 'رمز التحقق', 'تحديد السعي قبل إرسال الإعلان',
+                      'إرسال الإعلان للمراجعة؟', 'العودة بدون إرسال', 'تأكيد السعي والمتابعة'):
+            with self.subTest(label=label):
+                executor = self.preview_executor(extra=(label,))
+                dismissal = self.dismissal_row()
+                dismissal['class'] = 'android.view.View'
+                self.probe.surface.append(dismissal)
+                with self.assertRaisesRegex(c2.C2Blocked, 'actual_synthetic_rent_and_sai_zero_text_required'):
+                    executor._rent_sai_preview()
+                self.assertEqual(self.probe.events, [])
+
+    def test_editor_dismissal_requires_actual_declared_editor_footer(self):
+        for missing in ('خيارات المسودة', 'إرسال للمراجعة', 'السابق'):
+            with self.subTest(missing=missing):
+                executor = self.preview_executor()
+                self.probe.surface = [row for row in self.probe.surface if row['text'] != missing]
+                dismissal = self.dismissal_row()
+                dismissal['class'] = 'android.view.View'
+                self.probe.surface.append(dismissal)
+                with self.assertRaisesRegex(c2.C2Blocked, 'actual_standard_editor_step4_required'):
+                    executor._rent_sai_preview()
+        executor = self.preview_executor()
+        executor.entry_mode = 'completed_review'
+        with self.assertRaisesRegex(c2.C2Blocked, 'actual_completed_review_editor_required'):
+            executor._rent_sai_preview()
+
+    def test_submit_fallback_keeps_its_separate_acceptance_protection(self):
+        for label in ('قبول', 'رفض'):
+            with self.subTest(label=label):
+                executor = self.preview_executor(extra=(label,))
+                with self.assertRaisesRegex(c2.C2Blocked, 'only_existing_platform_fallback_sai_allowed'):
+                    executor._fallback(self.probe.surface)
+        self.assertTrue(all(target[1] not in {'قبول', 'رفض', 'قبول ونشر', 'رفض نهائي وحظر'}
+                            for target in c2.TARGETS.values()))
 
     def test_preview_diagnostic_identifies_each_guard_without_weakening_it(self):
         cases = [('wrong', '0', (), 'rent_matches_expected'),
@@ -207,7 +287,8 @@ class C2EntryTests(unittest.TestCase):
         diagnostic = self.probe.report['c2_v2_rent_sai_readback_diagnostic']
         self.assertEqual(set(diagnostic), {'stage', 'fixture_key', 'fixture_tag', 'editor_chain',
             'rent_matches_expected', 'sai_rate_is_zero', 'auth_surface_absent',
-            'accept_reject_absent', 'rent_shape', 'rate_shape'})
+            'accept_reject_absent', 'route_dismissal_only', 'custom_sai_sheet_absent',
+            'rent_shape', 'rate_shape'})
         encoded = json.dumps(self.probe.report)
         for private in ('PRIVATE', '777888999', 'witness', 'sha256', 'hint', 'bounds'):
             self.assertNotIn(private, encoded)
@@ -227,7 +308,8 @@ class C2EntryTests(unittest.TestCase):
             'stage': 'complete_rent', 'fixture_key': KEY, 'fixture_tag': TAG,
             'editor_chain': executor.editor_chain, 'rent_matches_expected': True,
             'sai_rate_is_zero': True, 'auth_surface_absent': True,
-            'accept_reject_absent': True, 'rent_shape': 'EXPECTED', 'rate_shape': 'EXPECTED'})
+            'accept_reject_absent': True, 'route_dismissal_only': True,
+            'custom_sai_sheet_absent': True, 'rent_shape': 'EXPECTED', 'rate_shape': 'EXPECTED'})
         self.assertEqual(self.probe.field.call_count, 2)
         self.assertEqual(self.probe.events, [])
 

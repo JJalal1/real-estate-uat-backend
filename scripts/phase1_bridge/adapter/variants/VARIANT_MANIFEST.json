@@ -9,10 +9,10 @@
       "delta": "equivalent_generated_digit_translation_alphabet; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts; actual_response_snapshot_boundary_before_bounded_short_notice_seek; preserve_exact_reviewed_title_without_redundant_input; observe_footer_after_changed_title_input"
     },
     "ROOT_C2_EXECUTOR_V2/phase_extensions.py": {
-      "sha256": "d788b36a72dc31d57b4c5cda87982b0b6e0ea0f1da72db2eef4a476220f8a357",
-      "bytes": 53363,
+      "sha256": "0338fd80c96908d54b8732861f2c50a810f13f73381912e34591e33e16588e51",
+      "bytes": 54649,
       "original_sha256": "27a567dbb175140c50a0de705385e56ea5ab4817714d165f06b94cfb8d2159b8",
-      "delta": "serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save"
+      "delta": "serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; source_bound_editor_dismissal_barrier_with_decision_button_refusal; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save"
     },
     "ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py": {
       "sha256": "309f69d2939342684f870b68b3dee2a216c07e836de07a4951640a4307a53516",

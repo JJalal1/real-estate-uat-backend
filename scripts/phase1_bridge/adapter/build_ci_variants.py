@@ -92,6 +92,15 @@ def c2_preview_diagnostic_transform(name, text):
     return text
 
 
+def c2_preview_barrier_transform(name, text):
+    """Distinguish the source-backed editor dismissal barrier from decision buttons."""
+    if name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
+        text = replace_once(text, "        rent = policy.digits(p.field('الإيجار الشهري بالريال اليمني *').get('text', ''))\n        rate = policy.digits(p.field('نسبة السعي %').get('text', ''))\n        names = _names(p.nodes())  # Ephemeral only; no tree/root/node hashes or raw text retained.\n        def shape(value, expected):\n            # Fixed categories only; these observations never broaden acceptance.\n", '        rent = policy.digits(p.field(\'الإيجار الشهري بالريال اليمني *\').get(\'text\', \'\'))\n        rate = policy.digits(p.field(\'نسبة السعي %\').get(\'text\', \'\'))\n        rows = p.nodes()  # Ephemeral only; no tree/root/node hashes or raw text retained.\n        names = _names(rows)\n        # The real /add-property route is a dismissible CustomTransitionPage.\n        # Flutter\'s Arabic modal barrier is labelled "رفض" and has onTap, but\n        # no button/text-field semantics. It is not a business rejection button.\n        # Never classify a combined parent label or an actionable Button as this\n        # barrier; the declared editor anchors below must also remain present.\n        dismissals = [row for row in rows if \'رفض\' in policy.names(row)]\n        route_dismissal_only = all(\n            policy.names(row) == {\'رفض\'} and row.get(\'class\') == \'android.view.View\' and\n            row.get(\'editable\') is False and row.get(\'package\') == roles.APP and\n            row.get(\'visible\') is True for row in dismissals)\n        custom_sai_sheet_absent = not bool(names & {\n            \'تحديد السعي قبل إرسال الإعلان\', \'إرسال الإعلان للمراجعة؟\',\n            \'العودة بدون إرسال\', \'تأكيد السعي والمتابعة\'})\n        def shape(value, expected):\n            # Fixed categories only; these observations never broaden acceptance.\n')
+        text = replace_once(text, "            'auth_surface_absent': not bool(names & roles.AUTH_LABELS),\n            'accept_reject_absent': not bool(names & {'قبول', 'رفض'}),\n            'rent_shape': shape(rent, self.monthly_rent), 'rate_shape': shape(rate, '0')}\n        need(rent == self.monthly_rent and rate == '0' and\n             not (names & (roles.AUTH_LABELS | {'قبول', 'رفض'})),\n             'actual_synthetic_rent_and_sai_zero_text_required')\n        notices = [text for text in names if re.fullmatch(\n            r'اختيار 0% يفعّل السعي الثابت [0-9]+% تلقائيًا\\.', text)]\n", "            'auth_surface_absent': not bool(names & roles.AUTH_LABELS),\n            'accept_reject_absent': not bool(names & {'قبول', 'رفض'}),\n            'route_dismissal_only': route_dismissal_only,\n            'custom_sai_sheet_absent': custom_sai_sheet_absent,\n            'rent_shape': shape(rent, self.monthly_rent), 'rate_shape': shape(rate, '0')}\n        need(rent == self.monthly_rent and rate == '0' and\n             not (names & (roles.AUTH_LABELS | {'قبول'})) and\n             route_dismissal_only and custom_sai_sheet_absent,\n             'actual_synthetic_rent_and_sai_zero_text_required')\n        self._rent_editor_surface(rows)\n        notices = [text for text in names if re.fullmatch(\n            r'اختيار 0% يفعّل السعي الثابت [0-9]+% تلقائيًا\\.', text)]\n")
+        text = replace_once(text, '        need(\'المواصفات\' in _names(rows), \'actual_specification_step_required\')\n\n    def _rent_editor_surface(self):\n        """Observe the declared real editor mode; never change it implicitly."""\n        self._actor(\'broker\')\n        names = _names(self.probe.nodes())\n        need(not names & roles.AUTH_LABELS, \'rent_editor_auth_surface_refused\')\n        if self.entry_mode == \'standard_editor\':\n', '        need(\'المواصفات\' in _names(rows), \'actual_specification_step_required\')\n\n    def _rent_editor_surface(self, rows=None):\n        """Observe the declared real editor mode; never change it implicitly."""\n        self._actor(\'broker\')\n        names = _names(self.probe.nodes() if rows is None else rows)\n        need(not names & roles.AUTH_LABELS, \'rent_editor_auth_surface_refused\')\n        if self.entry_mode == \'standard_editor\':\n')
+    return text
+
+
 def transform(name, text):
     if name in {'ROOT_C4_EXECUTOR/phase_extensions.py', 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py'}:
         alphabet = ''.join(str(value) for value in range(10)) * 2
@@ -276,6 +285,7 @@ def transform(name, text):
     text = c2_diagnostic_transform(name, text)
     text = c2_only_entry_transform(name, text)
     text = c2_preview_diagnostic_transform(name, text)
+    text = c2_preview_barrier_transform(name, text)
     if name != 'promoted_cleanup.py' and 'reviewed_monotonic' in text:
         raise RuntimeError('legacy_review_clock_remains')
     return text
@@ -316,7 +326,7 @@ def build(source_root, capture_source, destination):
             manifest[name]['previous_utc_variant_sha256'] = PREVIOUS_ROLES_PIN
             manifest[name]['delta'] = 'one_logout_observed_guest_home_then_one_account_guest_gate; broker_retained_home_and_support_named_back_before_normal_logout'
         if name == 'ROOT_C2_EXECUTOR_V2/phase_extensions.py':
-            manifest[name]['delta'] = 'serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save'
+            manifest[name]['delta'] = 'serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; fixed_preview_guard_booleans_and_value_shapes; source_bound_editor_dismissal_barrier_with_decision_button_refusal; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save'
         if name == 'ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py':
             manifest[name]['delta'] = 'separate_case_title_action_and_queue_evidence_bindings; actual_current_C1_title_photo_blank_rent_review_for_C2_entry; distinct_current_fixture_standard_editor_identity'
     # Check the inputs again so this preparation cannot quietly alter originals.
