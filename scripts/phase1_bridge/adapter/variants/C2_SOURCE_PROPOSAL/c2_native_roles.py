@@ -109,7 +109,8 @@ def _safe_role_failure(error):
     # Never relay arbitrary controller exceptions, phone values or API bodies.
     safe = {'fresh_guest_account_gate_required', 'post_auth_account_not_observed',
             'expected_native_role_not_observed', 'native_guest_logout_state_not_observed',
-            'native_guest_marketplace_not_observed'}
+            'native_guest_marketplace_not_observed', 'retained_broker_home_not_observed',
+            'support_queue_before_logout_required', 'support_shell_before_logout_required'}
     return str(error) if isinstance(error, RouteBlocked) and str(error) in safe \
         else 'controller_operation_blocked'
 
@@ -232,6 +233,34 @@ def native_logout_role(probe):
                'authentication_captures': False, 'auth_hashes_recorded': False,
                'server_token_revocation_verified': False}
     try:
+        if role == 'broker':
+            # MyListings is a standalone route without the Account footer.
+            # Relaunch its already retained session, as in C1 logout; never
+            # reset storage, guess Back navigation, or enter credentials.
+            if probe.adapter is not None:
+                probe.stop_session('C2_broker_logout_retained_home')
+            probe.adb('shell', 'am', 'force-stop', APP)
+            probe.startup()
+            names = _visible_app_names(probe.nodes())
+            need(ROLE_NAV['broker'] <= names and not names & AUTH_LABELS
+                 and 'تسجيل الدخول أو إنشاء حساب' not in names,
+                 'retained_broker_home_not_observed')
+            receipt['retained_broker_home_observed'] = True
+        elif role == 'support':
+            names = _visible_app_names(probe.nodes())
+            if not ROLE_NAV['support'] <= names:
+                # The task opens this queue with context.push; its standard
+                # AppBar Back is Arabic Material's observed named control.
+                need({'تحقيق الإعلانات', 'طلبات التحقيق', 'رجوع'} <= names
+                     and not names & AUTH_LABELS,
+                     'support_queue_before_logout_required')
+                probe.tap('رجوع', seek=False)
+                probe.wait('لوحة الدعم', seconds=15)
+                names = _visible_app_names(probe.nodes())
+            need(ROLE_NAV['support'] <= names and not names & AUTH_LABELS
+                 and 'تسجيل الدخول أو إنشاء حساب' not in names,
+                 'support_shell_before_logout_required')
+            receipt['support_shell_before_logout_observed'] = True
         probe.tap('حسابي', seek=False)
         probe.tap('تسجيل الخروج')
         deadline = time.monotonic() + 90

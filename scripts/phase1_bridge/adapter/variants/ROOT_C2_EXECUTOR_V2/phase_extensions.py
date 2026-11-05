@@ -50,7 +50,7 @@ TARGETS = {
     'submit_confirm': ('broker', 'تأكيد السعي والمتابعة', 'تحديد السعي قبل إرسال الإعلان'),
     'support_claim': ('support', 'استلام', 'task'),
     'support_open': ('support', 'متابعة التحقيق', 'fixture'),
-    'return_open': ('support', 'إرجاع للتصحيح', 'fixture'),
+    'return_open': ('support', 'إرجاع للتصحيح', 'تحقيق الإعلان'),
     'return_confirm': ('support', 'تأكيد', 'إرجاع الإعلان للتصحيح'),
 }
 policy.ACTION_SPEC.update({name: (value[0], value[1]) for name, value in TARGETS.items()})
@@ -81,6 +81,11 @@ def _reviewed_dialog_node(rows, stage, anchor, record, preceding_frame):
          record.get('preceding_exact_fixture_frame_sha256') == preceding_frame and
          record.get('same_exact_tagged_item_and_button_visually_verified') is True,
          'actual_fixture_dialog_chain_review_required')
+    return _reviewed_anchor_action_node(rows, stage, anchor, record)
+
+
+def _reviewed_anchor_action_node(rows, stage, anchor, record):
+    """Revalidate one actual visible anchor/action pair, without fixture claims."""
     eligible = [row for row in rows if row.get('package') == roles.APP and
                 row.get('visible') and row.get('enabled')]
     indexed = {row.get('path'): row for row in eligible}
@@ -233,6 +238,10 @@ class C2Executor:
         self.regular_cycle = 0
         self.regular_frames = {}
         self.regular_account_witness = self.regular_logout_receipt = None
+        self.case_review_frame = None
+        self.case_header_binding = None
+        self.return_confirmation_frame = None
+        self.return_queue_transition = None
 
     def __repr__(self):
         return '<C2Executor LOCAL segmented; no acceptance>'
@@ -286,7 +295,15 @@ class C2Executor:
                             'تحقق نشر إعلان: ' + self.title if anchor == 'task' else anchor)
                 rows = self.probe.nodes()
                 try:
-                    if anchor in ('fixture', 'task'):
+                    if stage == 'return_open':
+                        need(record.get('same_serialized_support_case_chain_reviewed') is True and
+                             record.get('serialized_case_binding') == self._case_binding() and
+                             record.get('fixture_title_visible_in_action_frame') is False and
+                             record.get('title_path') == self.case_header_binding['path'] and
+                             record.get('title_witness') == self.case_header_binding['witness'],
+                             'actual_separate_case_title_and_return_action_review_required')
+                        node = _reviewed_anchor_action_node(rows, stage, anchor, record)
+                    elif anchor in ('fixture', 'task'):
                         node = policy.reviewed_action_node(rows, stage, expected, self.tag, record,
                             native_role=role, auth_uncertain=False)
                     else:
@@ -305,6 +322,56 @@ class C2Executor:
             self._review_observation(stage, record)
             return record
         return True
+
+    def _case_header(self):
+        self._actor('support')
+        rows = [row for row in self.probe.nodes() if row.get('package') == roles.APP and
+                row.get('visible') and row.get('enabled') and 'تحقيق الإعلان' in policy.names(row)]
+        leaves = [row for row in rows if not any(other['path'].startswith(row['path'] + '.')
+                                                for other in rows)]
+        need(len(leaves) == 1 and policy.sha(leaves[0].get('witness')),
+             'unique_same_support_case_header_required')
+        return {key: leaves[0][key] for key in ('path', 'witness', 'bounds')}
+
+    def _case_binding(self):
+        need(type(self.case_review_frame) is dict and
+             set(self.case_review_frame) == {'file', 'sha256'} and
+             policy.sha(self.case_review_frame['sha256']) and
+             type(self.case_header_binding) is dict and
+             policy.sha(self.delivered_frames.get('support_open')),
+             'actual_reviewed_case_identity_required')
+        return {'kind': 'SERIALIZED_SUPPORT_CASE_IDENTITY', 'fixture_key': self.key,
+                'fixture_tag': self.tag, 'exact_fixture_title': self.title,
+                'property_id': self.property_id,
+                'case_title_review_frame': copy.deepcopy(self.case_review_frame),
+                'case_header_binding': copy.deepcopy(self.case_header_binding),
+                'case_open_frame_sha256': self.delivered_frames['support_open'],
+                'title_to_action_transition_scope': 'SOURCE_SCOPED_SCROLL_WITH_SAME_CASE_HEADER'}
+
+    def _return_queue_observed(self):
+        self._actor('support')
+        names = _names(self.probe.nodes())
+        return ({'تحقيق الإعلانات', 'طلبات التحقيق'} <= names and
+                bool(names & {'لا توجد طلبات معلقة', 'بانتظار الاستلام', 'تم الاستلام - قيد التحقيق'}) and
+                not names & (roles.AUTH_LABELS | {'جارٍ تحميل طلبات التحقيق...', 'إرجاع الإعلان للتصحيح'}) and
+                not any(self.tag in name for name in names))
+
+    def _wait_return_queue(self):
+        # The source pops the case only after the awaited return request succeeds.
+        # The default queue excludes returned cases; do not require their title there.
+        deadline = time.monotonic() + 45
+        while time.monotonic() < deadline:
+            if self._return_queue_observed():
+                self.return_queue_transition = {
+                    'kind': 'RETURN_QUEUE_TRANSITION_PENDING_BROKER_REASON',
+                    'serialized_case_binding': self._case_binding(),
+                    'return_confirmation_frame': copy.deepcopy(self.return_confirmation_frame),
+                    'exact_reason': self.reason, 'investigation_queue_observed': True,
+                    'exact_fixture_absent_from_visible_queue': True,
+                    'return_dialog_closed': True, 'exact_returned_state_proved': False}
+                return
+            time.sleep(.4)
+        need(False, 'source_confirmed_return_queue_not_observed')
 
     def _logout(self):
         result = roles.native_logout_role(self.probe)
@@ -481,11 +548,15 @@ class C2Executor:
                  record.get('own_task_owner_observed') is True and self.title in names,
                  'native_support_claim_review_required')
         elif stage == 'review_case':
-            need(self.title in names and 'إرجاع للتصحيح' in names and
+            need(self.title in names and 'تحقيق الإعلان' in names and
                  record.get('exact_own_case_title_observed') is True,
                  'native_exact_review_case_required')
         elif stage == 'review_returned':
-            need(record.get('native_return_confirmed') is True and
+            need(self.return_queue_transition is not None and self._return_queue_observed() and
+                 record.get('return_queue_transition') == self.return_queue_transition and
+                 record.get('return_queue_transition_reviewed') is True and
+                 record.get('exact_outcome_deferred_to_broker_reason') is True and
+                 record.get('native_return_confirmed') is False and
                  record.get('publication_or_rejection_executed') is False and
                  record.get('exact_reason') == self.reason, 'native_return_review_required')
         elif stage == 'review_broker_reason':
@@ -568,6 +639,18 @@ class C2Executor:
             need(self._rent_sai_preview() == self.rent_sai_readback,
                  'rent_sai_changed_immediately_before_completion')
             self._nonimage_input('click', 'العودة إلى النواقص'); p.wait('خيارات المسودة')
+        elif stage == 'review_case':
+            # Root first accepts the exact case title at the top. The return
+            # control is below evidence/history; reveal it without clicking.
+            self.case_review_frame = {'file': prepared['actual_frame_file'],
+                                      'sha256': prepared['frame_sha256']}
+            self.case_header_binding = self._case_header()
+            self._case_binding()
+            self._actor('support')
+            p.seek('إرجاع للتصحيح')
+            need(self._case_header() == self.case_header_binding and
+                 {'تحقيق الإعلان', 'إرجاع للتصحيح'} <= _names(p.nodes()),
+                 'same_case_return_action_not_observed')
         elif stage in REVIEW_STAGES:
             pass  # Fresh evidence was checked before reservation; no input here.
         elif stage == 'full_save':
@@ -623,6 +706,18 @@ class C2Executor:
             # input, NOT proof of the separate unbuilt final-root card extension.
             p.act('click', node)
             self.delivered_frames[stage] = record['frame_sha256']
+            if stage == 'support_claim':
+                # Inbox claim normally opens the investigation queue after reload.
+                p.wait('تحقيق الإعلانات', seconds=45)
+                p.seek(self.title)
+                p.wait('تم الاستلام - قيد التحقيق', seconds=45)
+            elif stage == 'support_open':
+                p.wait('تحقيق الإعلان', seconds=45)
+                p.wait(self.title, seconds=45)
+            elif stage == 'return_confirm':
+                self.return_confirmation_frame = {'file': record['actual_frame_file'],
+                                                  'sha256': record['frame_sha256']}
+                self._wait_return_queue()
         elif stage == 'submit_sai_setup':
             self._actor('broker'); p.wait('تحديد السعي قبل إرسال الإعلان')
             p.tap('نسبة مئوية %'); p.set('نسبة السعي %', '0'); self._fallback(p.nodes())

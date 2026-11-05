@@ -470,10 +470,51 @@ class Controller:
             need(executor._regular_account_semantics() == executor.regular_account_witness,
                  'actual_regular_nonimage_witness_changed')
             return
+        if stage in {'navigate_previous_to_specs', 'back_gaps_to_completion'}:
+            executor._actor('broker')
+            previous = {'navigate_previous_to_specs':'complete_rent',
+                        'back_gaps_to_completion':'return_next_step3'}[stage]
+            receipts = p.report.get('c2_segmented_execution', [])
+            last = receipts[-1] if type(receipts) is list and receipts else None
+            preview = executor.rent_sai_readback
+            need(type(last) is dict and last.get('status') == 'STAGE_COMPLETED'
+                 and last.get('completed') == previous and last.get('next_stage') == stage
+                 and last.get('cursor') == executor.cursor
+                 and type(preview) is dict
+                 and preview.get('kind') == 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW'
+                 and type(preview.get('fallback_notice')) is str
+                 and bool(preview['fallback_notice'])
+                 and preview.get('recording_stopped') is True
+                 and (stage != 'back_gaps_to_completion' or executor.rent_sai_recheck == preview),
+                 'immediately_preceding_rent_sai_readback_required')
+            # The preceding stage ended with actual rate/fallback readback.
+            # Rent may now be above the viewport; observations must never seek.
+            rows = p.nodes()
+            names = self.c2._names(rows)
+            control = 'السابق' if stage == 'navigate_previous_to_specs' else 'العودة إلى النواقص'
+            need({'نسبة السعي %', preview['fallback_notice'], 'العودة إلى النواقص'} <= names
+                 and any(row.get('enabled') is True for row in p.matching(rows, control))
+                 and not names & self.c2.roles.AUTH_LABELS,
+                 'actual_reviewed_rent_navigation_surface_required')
+            return
+        if stage == 'full_save':
+            executor._actor('broker')
+            # Returning to completion hides already completed rent/SAI inputs.
+            # Bind their preceding serialized recheck, then observe this page.
+            preview = executor.rent_sai_readback
+            need(type(preview) is dict and bool(preview)
+                 and executor.rent_sai_recheck == preview,
+                 'same_actual_preview_required_before_completion_save')
+            names = self.c2._names(p.nodes())
+            need({'أكمل الناقص فقط', 'خيارات المسودة'} <= names
+                 and not names & self.c2.roles.AUTH_LABELS,
+                 'actual_completion_save_surface_required')
+            return
         if stage in NONIMAGE_RENT:
             executor._actor('broker')
             if stage == 'complete_rent':
-                need(not str(p.field('الإيجار الشهري بالريال اليمني *').get('text', '')).strip(),
+                value = p.field('الإيجار الشهري بالريال اليمني *', seek=False).get('text')
+                need(type(value) is str and not value.strip(),
                      'actual_blank_rent_required')
             else:
                 need(executor._rent_sai_preview() == executor.rent_sai_readback,

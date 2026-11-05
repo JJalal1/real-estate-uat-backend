@@ -340,6 +340,107 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(self.controller.fresh_scene_matches(self.signed(snapshot), snapshot))
         self.assertNotIn('read_full_rows', self.probe.events)
 
+    def _completion_save_checkpoint(self):
+        preview = {'kind':'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'fixture_key':KEY,
+                   'fixture_tag':TAG, 'editor_chain':'C2-V2:'+KEY,
+                   'rent_text':'50000', 'sai_rate_text':'0'}
+        def forbidden(*args, **kwargs):
+            raise AssertionError('completion checkpoint must not read hidden rent/SAI inputs')
+        self.probe.field = forbidden
+        self.probe.scroll = forbidden
+        self.probe._root_c2_executor_v2 = SimpleNamespace(
+            failed=False, inflight=False, rent_sai_readback=preview,
+            rent_sai_recheck=dict(preview), _rent_sai_preview=forbidden,
+            _actor=lambda role: self.probe.events.append('actor_'+role))
+        self.probe.rows = [{'text':label,'visible':True} for label in
+                           ('أكمل الناقص فقط','خيارات المسودة')]
+        return self.probe._root_c2_executor_v2
+
+    def test_completion_save_checkpoint_uses_serialized_preview_and_actual_surface_without_hidden_inputs(self):
+        self._completion_save_checkpoint()
+        observed = self.controller._observation('C2','C2_7_FULL_SAVE','full_save',capture=True)
+        self.assertEqual(observed['evidence'],[])
+        self.assertEqual(observed['bindings'],{'observation_mode':'nonimage_stage_predicates'})
+        self.assertEqual(self.probe.events,['actor_broker','read_nodes'])
+
+    def test_completion_save_checkpoint_refuses_missing_or_changed_preview(self):
+        for readback,recheck in [(None,None),({},{}),({'rent_text':'50000'},None),
+                                  ({'rent_text':'50000'},{'rent_text':'50001'})]:
+            with self.subTest(readback=readback,recheck=recheck):
+                executor=self._completion_save_checkpoint()
+                executor.rent_sai_readback,executor.rent_sai_recheck=readback,recheck
+                with self.assertRaisesRegex(module.ControllerRefused,'same_actual_preview_required'):
+                    self.controller._nonimage_check('C2','full_save')
+
+    def test_completion_save_checkpoint_refuses_missing_surface_or_auth_context(self):
+        for labels in [(),('أكمل الناقص فقط',),('خيارات المسودة',),
+                       ('أكمل الناقص فقط','خيارات المسودة','AUTH_SYNTHETIC')]:
+            with self.subTest(labels=labels):
+                self._completion_save_checkpoint()
+                self.probe.rows=[{'text':label,'visible':True} for label in labels]
+                with self.assertRaisesRegex(module.ControllerRefused,'actual_completion_save_surface_required'):
+                    self.controller._nonimage_check('C2','full_save')
+
+    def _rent_navigation_checkpoint(self, stage):
+        executor = self._completion_save_checkpoint()
+        executor.rent_sai_readback.update(fallback_notice='SYNTHETIC_FALLBACK',recording_stopped=True)
+        executor.rent_sai_recheck=dict(executor.rent_sai_readback)
+        executor.cursor = 3 if stage == 'navigate_previous_to_specs' else 6
+        previous = 'complete_rent' if executor.cursor == 3 else 'return_next_step3'
+        self.probe.report['c2_segmented_execution']=[{'status':'STAGE_COMPLETED',
+            'completed':previous,'cursor':executor.cursor,'next_stage':stage}]
+        self.probe.rows=[{'text':label,'visible':True,'enabled':True} for label in
+                        ('نسبة السعي %','SYNTHETIC_FALLBACK','السابق','العودة إلى النواقص')]
+        return executor
+
+    def test_rent_navigation_checkpoint_binds_previous_actual_readback_without_seeking_hidden_rent(self):
+        for stage in ('navigate_previous_to_specs','back_gaps_to_completion'):
+            with self.subTest(stage=stage):
+                self._rent_navigation_checkpoint(stage)
+                self.probe.events.clear()
+                observed=self.controller._observation('C2','SYNTHETIC_CURSOR',stage,capture=True)
+                self.assertEqual(self.probe.events,['actor_broker','read_nodes'])
+                self.assertEqual(observed['evidence'],[])
+                self.assertEqual(observed['bindings'],{'observation_mode':'nonimage_stage_predicates'})
+
+    def test_rent_navigation_checkpoint_refuses_wrong_predecessor_cursor_or_changed_recheck(self):
+        for fault in ('missing_receipt','wrong_predecessor','wrong_cursor','wrong_next_stage','changed_recheck','missing_preview'):
+            with self.subTest(fault=fault):
+                executor=self._rent_navigation_checkpoint('back_gaps_to_completion')
+                receipt=self.probe.report['c2_segmented_execution'][-1]
+                if fault=='missing_receipt':self.probe.report['c2_segmented_execution']=[]
+                elif fault=='wrong_predecessor':receipt['completed']='complete_rent'
+                elif fault=='wrong_cursor':receipt['cursor']=3
+                elif fault=='wrong_next_stage':receipt['next_stage']='full_save'
+                elif fault=='changed_recheck':executor.rent_sai_recheck['rent_text']='50001'
+                else:executor.rent_sai_readback=None
+                with self.assertRaisesRegex(module.ControllerRefused,'immediately_preceding_rent_sai_readback_required'):
+                    self.controller._nonimage_check('C2','back_gaps_to_completion')
+
+    def test_rent_navigation_checkpoint_refuses_wrong_surface_disabled_control_or_auth(self):
+        for fault in ('missing_rate','missing_fallback','missing_back','disabled_previous','auth'):
+            with self.subTest(fault=fault):
+                self._rent_navigation_checkpoint('navigate_previous_to_specs')
+                removed={'missing_rate':'نسبة السعي %','missing_fallback':'SYNTHETIC_FALLBACK',
+                         'missing_back':'العودة إلى النواقص'}.get(fault)
+                if removed:self.probe.rows=[r for r in self.probe.rows if r['text']!=removed]
+                elif fault=='disabled_previous':
+                    next(r for r in self.probe.rows if r['text']=='السابق')['enabled']=False
+                else:self.probe.rows.append({'text':'AUTH_SYNTHETIC','visible':True})
+                with self.assertRaisesRegex(module.ControllerRefused,'actual_reviewed_rent_navigation_surface_required'):
+                    self.controller._nonimage_check('C2','navigate_previous_to_specs')
+
+    def test_complete_rent_checkpoint_reads_visible_blank_field_with_seek_disabled(self):
+        self._completion_save_checkpoint()
+        calls=[]
+        def field(label, *, seek):
+            calls.append((label,seek))
+            self.assertIs(seek,False)
+            return {'text':''}
+        self.probe.field=field
+        self.controller._nonimage_check('C2','complete_rent')
+        self.assertEqual(calls,[('الإيجار الشهري بالريال اليمني *',False)])
+
     def test_safe_photo_checkpoint_transports_observed_policy_without_extra_data_or_acceptance(self):
         self.controller.c2 = SimpleNamespace(TARGETS={}, REVIEW_STAGES={'review_photo_before_save'})
         preview = {'kind':'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'fixture_key':KEY,

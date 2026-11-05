@@ -49,7 +49,10 @@ STAGE_KEYS = frozenset({'executor_cursor', 'actual_frame_file', 'kind', 'context
     'same_serialized_editor_chain_reviewed', 'original_fixture_receipt_reviewed',
     'bound_c4_title_frame', 'photo_visually_unchanged', 'actual_safe_spec_photo_reviewed',
     'semantic_preview', 'policy_was_visually_reviewed', 'safe_surface_frames',
-    'regular_cycle', 'nonimage_role_witness'})
+    'regular_cycle', 'nonimage_role_witness', 'same_serialized_support_case_chain_reviewed',
+    'serialized_case_binding', 'fixture_title_visible_in_action_frame',
+    'return_queue_transition', 'return_queue_transition_reviewed',
+    'exact_outcome_deferred_to_broker_reason'})
 
 C1_KEYS = C1_KEYS | {'review_completed_utc'}
 C4_KEYS = C4_KEYS | {'review_completed_utc'}
@@ -226,6 +229,11 @@ def _capture_rows(probe, module, executor, stage):
         need('صور الإعلان (1/12)' in names and 'مكتمل' in names,
              'CAPTURE_HELD_SAFE_SPEC_PHOTO_NOT_OBSERVED')
         title_text, action_text = None, None
+    elif stage == 'review_returned':
+        need(executor.return_queue_transition is not None and executor._return_queue_observed(),
+             'CAPTURE_HELD_RETURN_QUEUE_TRANSITION_NOT_OBSERVED')
+        title_text, action_text = 'تحقيق الإعلانات', None
+        need(title_text in names, 'CAPTURE_HELD_RETURN_QUEUE_ANCHOR_NOT_OBSERVED')
     elif stage in module.TARGETS:
         _, action_text, anchor = module.TARGETS[stage]
         title_text = (executor.title if anchor == 'fixture' else
@@ -255,6 +263,13 @@ def _capture_rows(probe, module, executor, stage):
             'prior_c4_tagged_title_frame': {'file': 'C1-c4-restored-final-title.png',
                                            'sha256': executor.c4['restored_frame_sha256']},
             'fixture_title_visible_in_this_spec_frame': False}
+    if stage == 'return_open':
+        need(executor._case_header() == executor.case_header_binding,
+             'CAPTURE_HELD_REVIEWED_CASE_HEADER_CHANGED')
+        bindings['serialized_case_binding'] = executor._case_binding()
+        bindings['fixture_title_visible_in_action_frame'] = False
+    elif stage == 'review_returned':
+        bindings['return_queue_transition'] = executor.return_queue_transition
     return bindings
 
 

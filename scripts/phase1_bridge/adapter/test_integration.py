@@ -763,6 +763,145 @@ class OsPickerDiagnosticTests(unittest.TestCase):
             self.assertNotIn('native_silent_audio_tracks',p.report)
 
 
+class C2SupportTransitionTests(unittest.TestCase):
+    def setUp(self):
+        def load(name):
+            spec=importlib.util.spec_from_file_location('_support_'+name,
+                HERE/'variants/ROOT_C2_EXECUTOR_V2'/name)
+            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+            return module
+        self.c2,self.dispatch=load('phase_extensions.py'),load('root_extension_dispatch.py')
+        self.executor=self.c2.C2Executor.__new__(self.c2.C2Executor)
+        e=self.executor
+        e.key,e.tag,e.title='synthetic-key','AQER-C1-'+'a'*12,'SYNTHETIC AQER-C1-'+'a'*12
+        e.property_id=123;e.reason='تصحيح اختبار اصطناعي فقط '+e.tag
+        e.case_review_frame=e.case_header_binding=e.return_confirmation_frame=e.return_queue_transition=None
+        e.delivered_frames={'support_open':'a'*64};e.reviews={}
+        self.probe=Mock(authenticated=True,active_native_role='support',native_auth_uncertain=False,
+                        recorder=None,_host_stop_unconfirmed=False)
+        self.probe._capture_rows_private.return_value=False
+        e.probe=self.probe
+        self.rows=[]
+        self.probe.nodes.side_effect=lambda:self.rows
+        self.probe._capture_full_rows.side_effect=lambda:self.rows
+        self.probe.seek.side_effect=lambda label:self.action_view()
+        self.title_view()
+
+    def row(self,path,text,bounds,clickable=False):
+        return {'path':path,'witness':hashlib.sha256(path.encode()).hexdigest(),
+                'text':text,'package':self.c2.roles.APP,'visible':True,'enabled':True,
+                'bounds':bounds,'clickable':clickable,
+                'class':'android.widget.Button' if clickable else 'android.view.View'}
+
+    def view(self,*labels):
+        self.rows=[self.row('0','',[0,0,540,960])]
+        self.rows += [self.row('0.'+str(i+1),label,[10,10+i*80,520,60+i*80],
+                               label=='إرجاع للتصحيح') for i,label in enumerate(labels)]
+
+    def title_view(self):self.view('تحقيق الإعلان',self.executor.title)
+    def action_view(self):self.view('تحقيق الإعلان','إرجاع للتصحيح','قبول ونشر','رفض نهائي وحظر')
+    def queue_view(self):self.view('تحقيق الإعلانات','طلبات التحقيق','لا توجد طلبات معلقة')
+
+    def record(self,stage,**extra):
+        e=self.executor
+        return dict(kind='ROOT_ACTUAL_FRAME_REVIEW',context=stage,privacy_checked=True,
+            manual_review_completed=True,fixture_key=e.key,fixture_tag=e.tag,exact_fixture_title=e.title,
+            actual_frame_file='C2-'+stage+'-1.png',frame_sha256='b'*64,
+            review_completed_utc=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),**extra)
+
+    def accept_title(self):
+        record=self.record('review_case',exact_own_case_title_observed=True)
+        self.executor._review_observation('review_case',record)
+        self.executor._execute('review_case',record)
+        return record
+
+    def action_record(self):
+        bindings=self.dispatch._capture_rows(self.probe,self.c2,self.executor,'return_open')
+        title,button=bindings['title_candidates'][0],bindings['button_candidates'][0]
+        return self.record('return_open',root_witness=bindings['root']['witness'],
+            title_path=title['path'],title_witness=title['witness'],button_path=button['path'],
+            button_witness=button['witness'],same_serialized_support_case_chain_reviewed=True,
+            serialized_case_binding=bindings['serialized_case_binding'],
+            fixture_title_visible_in_action_frame=False)
+
+    def test_exact_title_review_then_scoped_scroll_keeps_separate_frame_identity(self):
+        record=self.accept_title()
+        self.probe.seek.assert_called_once_with('إرجاع للتصحيح')
+        self.probe.act.assert_not_called()
+        self.assertNotIn(self.executor.title,self.c2._names(self.rows))
+        self.assertEqual(self.executor._case_binding()['case_title_review_frame'],
+                         {'file':record['actual_frame_file'],'sha256':record['frame_sha256']})
+
+    def test_lower_action_review_binds_prior_title_and_never_requires_title_in_same_frame(self):
+        self.accept_title();record=self.action_record()
+        self.assertNotIn('same_exact_tagged_item_and_button_visually_verified',record)
+        self.executor.reviews['return_open']=record
+        prepared=self.executor._prepare('return_open')
+        self.assertEqual(prepared[1]['text'],'إرجاع للتصحيح')
+        self.executor._execute('return_open',prepared)
+        self.probe.act.assert_called_once_with('click',prepared[1])
+
+    def test_changed_case_binding_or_publish_button_cannot_authorize_return(self):
+        self.accept_title();record=self.action_record()
+        for change in ({'serialized_case_binding':{}}, {'fixture_title_visible_in_action_frame':True},
+                       {'button_path':'0.3','button_witness':self.rows[3]['witness']}):
+            self.executor.reviews['return_open']=dict(record,**change)
+            self.assertIsNone(self.executor._prepare('return_open'))
+        self.probe.act.assert_not_called()
+
+    def test_case_action_capture_without_accepted_exact_title_is_refused(self):
+        self.action_view()
+        with self.assertRaises(self.dispatch.Hold):
+            self.dispatch._capture_rows(self.probe,self.c2,self.executor,'return_open')
+
+    def test_changed_case_header_or_private_full_tree_refuses_action_capture(self):
+        self.accept_title()
+        self.rows[1]['witness']='f'*64
+        with self.assertRaisesRegex(self.dispatch.Hold,'REVIEWED_CASE_HEADER_CHANGED'):
+            self.dispatch._capture_rows(self.probe,self.c2,self.executor,'return_open')
+        self.action_view();self.probe._capture_rows_private.return_value=True
+        with self.assertRaisesRegex(self.dispatch.Hold,'PRIVATE_CONTEXT'):
+            self.dispatch._capture_rows(self.probe,self.c2,self.executor,'return_open')
+
+    def test_successful_return_uses_actual_queue_and_defers_exact_outcome(self):
+        self.accept_title();record=self.record('return_confirm')
+        self.view('إرجاع الإعلان للتصحيح',self.executor.reason,'تأكيد')
+        self.probe.act.side_effect=lambda *a:self.queue_view()
+        self.executor._execute('return_confirm',(record,{'text':'تأكيد'}))
+        self.assertNotIn(self.executor.title,self.c2._names(self.rows))
+        bindings=self.dispatch._capture_rows(self.probe,self.c2,self.executor,'review_returned')
+        transition=bindings['return_queue_transition']
+        self.assertFalse(transition['exact_returned_state_proved'])
+        self.assertEqual(transition['return_confirmation_frame']['sha256'],record['frame_sha256'])
+        review=self.record('review_returned',return_queue_transition=transition,
+            return_queue_transition_reviewed=True,exact_outcome_deferred_to_broker_reason=True,
+            native_return_confirmed=False,publication_or_rejection_executed=False,
+            exact_reason=self.executor.reason)
+        self.executor._review_observation('review_returned',review)
+        for change in ({'native_return_confirmed':True},{'publication_or_rejection_executed':True},
+                       {'exact_outcome_deferred_to_broker_reason':False}):
+            with self.assertRaises(self.c2.C2Blocked):
+                self.executor._review_observation('review_returned',dict(review,**change))
+        self.probe.act.assert_called_once()
+
+    def test_loading_dialog_or_still_visible_fixture_is_not_return_completion(self):
+        for extra in ('جارٍ تحميل طلبات التحقيق...','إرجاع الإعلان للتصحيح',self.executor.title):
+            self.view('تحقيق الإعلانات','طلبات التحقيق','لا توجد طلبات معلقة',extra)
+            self.assertFalse(self.executor._return_queue_observed())
+
+    def test_claim_and_open_wait_for_source_confirmed_destinations(self):
+        record=self.record('support_claim')
+        self.executor._execute('support_claim',(record,{'text':'استلام'}))
+        self.probe.wait.assert_any_call('تحقيق الإعلانات',seconds=45)
+        self.probe.seek.assert_called_once_with(self.executor.title)
+        self.probe.wait.assert_any_call('تم الاستلام - قيد التحقيق',seconds=45)
+        self.probe.wait.reset_mock()
+        self.executor._execute('support_open',(self.record('support_open'),{'text':'متابعة التحقيق'}))
+        self.assertEqual(self.probe.wait.call_args_list,[
+            unittest.mock.call('تحقيق الإعلان',seconds=45),
+            unittest.mock.call(self.executor.title,seconds=45)])
+
+
 class VariantTests(unittest.TestCase):
     def load(self, relative):
         spec = importlib.util.spec_from_file_location('_synthetic_' + relative.replace('/', '_'),
