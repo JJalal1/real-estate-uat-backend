@@ -544,7 +544,7 @@ class C2EntryTests(unittest.TestCase):
         executor._nonimage_input.assert_not_called()
 
 
-class NonimagePreviousReadinessTests(unittest.TestCase):
+class NonimageClickReadinessTests(unittest.TestCase):
     def setUp(self):
         fixture = C2EntryTests()
         fixture.setUp()
@@ -579,7 +579,7 @@ class NonimagePreviousReadinessTests(unittest.TestCase):
         self.snapshots(self.surface(self.node(clickable=False)))
         self.click()
         self.probe.instrument.assert_called_once_with('account-click', node_path='0.4', node_witness='c'*64)
-        self.assertEqual(self.probe.report['c2_v2_previous_control_readiness']['state'], 'direct_ready')
+        self.assertEqual(self.probe.report['c2_v2_nonimage_click_readiness']['previous']['state'], 'direct_ready')
         self.assertEqual(self.probe.report['c2_v2_nonimage_input_operations_delivered'], 1)
         self.probe.act.assert_not_called(); self.probe.scroll.assert_not_called()
 
@@ -589,7 +589,7 @@ class NonimagePreviousReadinessTests(unittest.TestCase):
         self.snapshots(self.surface(), self.surface(self.node(enabled=False)), self.surface(parent, leaf))
         self.click()
         self.probe.instrument.assert_called_once_with('account-click', node_path='0.4', node_witness='c'*64)
-        diagnostic = self.probe.report['c2_v2_previous_control_readiness']
+        diagnostic = self.probe.report['c2_v2_nonimage_click_readiness']['previous']
         self.assertEqual((diagnostic['observations'], diagnostic['state']), (3, 'ancestor_ready'))
         self.assertFalse(diagnostic['hashes_recorded'])
         self.assertEqual(set(diagnostic), {'observations', 'visible_label_paths', 'enabled_exact_label_paths',
@@ -603,7 +603,7 @@ class NonimagePreviousReadinessTests(unittest.TestCase):
                 self.snapshots(self.surface(self.node(**fields), self.node(path='0.5', **fields)))
                 with self.assertRaisesRegex(c2.C2Blocked, 'exact_normal_control'): self.click()
                 self.assertEqual(self.probe.nodes.call_count, 1)
-                self.assertEqual(self.probe.report['c2_v2_previous_control_readiness']['state'], 'ambiguous')
+                self.assertEqual(self.probe.report['c2_v2_nonimage_click_readiness']['previous']['state'], 'ambiguous')
         self.probe.instrument.assert_not_called()
 
     def test_invalid_ancestors_never_become_pointer_targets(self):
@@ -616,7 +616,7 @@ class NonimagePreviousReadinessTests(unittest.TestCase):
                 self.clock = 0
                 parent = self.node('', **{'class': 'android.view.View', **changes})
                 self.snapshots(self.surface(parent, leaf))
-                with self.assertRaisesRegex(c2.C2Blocked, 'previous_control_not_ready'): self.click()
+                with self.assertRaisesRegex(c2.C2Blocked, 'nonimage_click_control_not_ready'): self.click()
                 self.assertEqual(self.clock, 15)
         self.probe.instrument.assert_not_called()
         self.probe.act.assert_not_called(); self.probe.scroll.assert_not_called()
@@ -626,7 +626,7 @@ class NonimagePreviousReadinessTests(unittest.TestCase):
         disabled = self.node('', path='0.4.1', enabled=False, clickable=False)
         leaf = self.node(path='0.4.1.1', clickable=False, **{'class': 'android.widget.TextView'})
         self.snapshots(self.surface(outer, disabled, leaf))
-        with self.assertRaisesRegex(c2.C2Blocked, 'previous_control_not_ready'): self.click()
+        with self.assertRaisesRegex(c2.C2Blocked, 'nonimage_click_control_not_ready'): self.click()
         self.probe.instrument.assert_not_called()
 
     def test_composite_label_and_wrong_editor_footer_cannot_authorize_click(self):
@@ -635,7 +635,7 @@ class NonimagePreviousReadinessTests(unittest.TestCase):
             with self.subTest(observed=observed):
                 self.clock = 0
                 self.snapshots(observed)
-                with self.assertRaisesRegex(c2.C2Blocked, 'previous_control_not_ready'): self.click()
+                with self.assertRaisesRegex(c2.C2Blocked, 'nonimage_click_control_not_ready'): self.click()
         self.probe.instrument.assert_not_called()
 
     def test_auth_surface_or_wrong_reserved_stage_blocks_before_input(self):
@@ -652,6 +652,116 @@ class NonimagePreviousReadinessTests(unittest.TestCase):
         self.probe.instrument.assert_called_once()
         self.assertEqual(self.probe.nodes.call_count, 1)
         self.assertNotIn('c2_v2_nonimage_input_operations_delivered', self.probe.report)
+
+    def footer(self, mode='standard_editor', *, target='خيارات المسودة'):
+        primary = 'إرسال للمراجعة' if mode == 'standard_editor' else 'معاينة الإعلان'
+        return [self.node(label, path='0.' + str(i)) for i, label in
+                enumerate(('السابق', primary), 1)] + [self.node(target)]
+
+    def popup(self, target, *, nested=True):
+        other = 'حفظ مسودة' if target == 'معاينة' else 'معاينة'
+        result = [self.node(other, path='0.8')]
+        if nested:
+            return result + [self.node('', path='0.7', **{'class': 'android.view.View'}),
+                self.node(target, path='0.7.1', clickable=False, **{'class': 'android.view.View'})]
+        return result + [self.node(target, path='0.7')]
+
+    def test_delayed_nested_preview_uses_delivered_menu_and_does_not_require_obscured_footer(self):
+        self.executor.cursor = c2.STAGES.index('complete_rent')
+        self.snapshots(self.footer())
+        self.executor._nonimage_input('click', 'خيارات المسودة')
+        self.assertEqual(self.clock, .25)
+        self.snapshots(self.footer(), [self.node('حفظ مسودة')], self.popup('معاينة'))
+        self.executor._nonimage_input('click', 'معاينة')
+        self.assertEqual(self.probe.instrument.call_args_list, [
+            call('account-click', node_path='0.4', node_witness='c'*64),
+            call('account-click', node_path='0.7', node_witness='c'*64)])
+        preview = self.probe.report['c2_v2_nonimage_click_readiness']['validation_preview']
+        self.assertEqual((preview['observations'], preview['state']), (3, 'ancestor_ready'))
+        self.assertIsNone(self.executor._nonimage_draft_menu_stage)
+        self.probe.act.assert_not_called(); self.probe.scroll.assert_not_called()
+
+    def test_delayed_save_popup_supports_both_source_completion_modes(self):
+        for mode in ('standard_editor', 'completed_review'):
+            with self.subTest(mode=mode):
+                self.executor.cursor = c2.STAGES.index('full_save')
+                self.executor.entry_mode = mode
+                self.probe.instrument.reset_mock()
+                self.snapshots(self.footer(mode))
+                self.executor._nonimage_input('click', 'خيارات المسودة')
+                self.snapshots([], self.popup('حفظ مسودة'))
+                self.executor._nonimage_input('click', 'حفظ مسودة')
+                self.assertEqual(self.probe.instrument.call_args_list, [
+                    call('account-click', node_path='0.4', node_witness='c'*64),
+                    call('account-click', node_path='0.7', node_witness='c'*64)])
+                self.assertIsNone(self.executor._nonimage_draft_menu_stage)
+
+    def test_sai_and_completed_return_use_their_own_source_surfaces(self):
+        for label, stage, mode, observed in [
+            ('نسبة مئوية %', 'complete_rent', 'standard_editor',
+             self.footer() + [self.node('نسبة مئوية %', path='0.7')]),
+            ('نسبة مئوية %', 'complete_rent', 'completed_review',
+             [self.node('العودة إلى النواقص'), self.node('نسبة مئوية %', path='0.7')]),
+            ('العودة إلى النواقص', 'back_gaps_to_completion', 'completed_review',
+             [self.node('العودة إلى النواقص', path='0.7')]),
+        ]:
+            with self.subTest(label=label, mode=mode):
+                self.executor.cursor, self.executor.entry_mode = c2.STAGES.index(stage), mode
+                self.probe.instrument.reset_mock()
+                self.snapshots([], observed)
+                self.executor._nonimage_input('click', label)
+                self.probe.instrument.assert_called_once_with('account-click', node_path='0.7', node_witness='c'*64)
+
+    def test_popup_items_require_current_stage_delivered_opening_and_both_exact_labels(self):
+        for label, stage in [('معاينة', 'complete_rent'), ('حفظ مسودة', 'full_save')]:
+            with self.subTest(label=label):
+                self.executor.cursor = c2.STAGES.index(stage)
+                self.snapshots(self.popup(label))
+                for opening in (None, self.executor.cursor - 1):
+                    self.executor._nonimage_draft_menu_stage = opening
+                    with self.assertRaisesRegex(c2.C2Blocked, 'same_stage_delivered_draft_menu'):
+                        self.executor._nonimage_input('click', label)
+                self.executor._nonimage_draft_menu_stage = self.executor.cursor
+                self.clock = 0
+                self.snapshots([self.node(label)])
+                with self.assertRaisesRegex(c2.C2Blocked, 'click_control_not_ready'):
+                    self.executor._nonimage_input('click', label)
+        self.probe.instrument.assert_not_called()
+
+    def test_popup_ambiguity_fails_immediately_without_selecting_smallest_target(self):
+        self.executor.cursor = c2.STAGES.index('complete_rent')
+        self.executor._nonimage_draft_menu_stage = self.executor.cursor
+        self.snapshots(self.popup('معاينة', nested=False) + [self.node('معاينة', path='0.9')])
+        with self.assertRaisesRegex(c2.C2Blocked, 'exact_normal_control'):
+            self.executor._nonimage_input('click', 'معاينة')
+        self.assertEqual(self.probe.nodes.call_count, 1)
+        self.assertEqual(self.clock, 0)
+        self.probe.instrument.assert_not_called()
+
+    def test_uncertain_menu_action_consumes_opening_and_cannot_repeat_input(self):
+        self.executor.cursor = c2.STAGES.index('full_save')
+        self.executor._nonimage_draft_menu_stage = self.executor.cursor
+        self.snapshots(self.popup('حفظ مسودة'))
+        self.probe.instrument.side_effect = TimeoutError('synthetic receiver timeout')
+        with self.assertRaises(TimeoutError): self.executor._nonimage_input('click', 'حفظ مسودة')
+        with self.assertRaisesRegex(c2.C2Blocked, 'same_stage_delivered_draft_menu'):
+            self.executor._nonimage_input('click', 'حفظ مسودة')
+        self.probe.instrument.assert_called_once()
+        self.assertNotIn('c2_v2_nonimage_input_operations_delivered', self.probe.report)
+
+    def test_controls_reject_wrong_stage_or_completion_mode_before_observation(self):
+        cases = [('حفظ مسودة', 'complete_rent', 'standard_editor'),
+                 ('معاينة', 'full_save', 'standard_editor'),
+                 ('نسبة مئوية %', 'full_save', 'standard_editor'),
+                 ('خيارات المسودة', 'navigate_previous_to_specs', 'standard_editor'),
+                 ('العودة إلى النواقص', 'back_gaps_to_completion', 'standard_editor'),
+                 ('خيارات المسودة', 'complete_rent', 'completed_review')]
+        self.probe.nodes = Mock()
+        for label, stage, mode in cases:
+            with self.subTest(label=label, stage=stage, mode=mode):
+                self.executor.cursor, self.executor.entry_mode = c2.STAGES.index(stage), mode
+                with self.assertRaises(c2.C2Blocked): self.executor._nonimage_input('click', label)
+        self.probe.nodes.assert_not_called(); self.probe.instrument.assert_not_called()
 
 
 if __name__ == '__main__': unittest.main()

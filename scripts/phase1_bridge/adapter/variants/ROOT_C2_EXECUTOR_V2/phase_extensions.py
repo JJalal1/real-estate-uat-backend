@@ -504,11 +504,26 @@ class C2Executor:
         need(policy.digits(self.probe.field('نسبة السعي %').get('text', '')) == '0',
              'actual_sai_zero_text_required_hint_is_not_value')
 
-    def _nonimage_previous_control(self):
-        """Settle the source footer before one input; keep all node data in memory."""
-        need(self.cursor == STAGES.index('navigate_previous_to_specs') and self.inflight and
-             not self.failed and self.rent_sai_readback is not None,
-             'previous_reserved_editor_stage_required')
+    def _nonimage_click_control(self, label):
+        """Observe a source-owned control before one input, with no private receipts."""
+        allowed = {'نسبة مئوية %': {'complete_rent'}, 'السابق': {'navigate_previous_to_specs'},
+                   'العودة إلى النواقص': {'back_gaps_to_completion'},
+                   'خيارات المسودة': {'complete_rent', 'full_save'},
+                   'معاينة': {'complete_rent'}, 'حفظ مسودة': {'full_save'}}
+        stage = STAGES[self.cursor]
+        need(label in allowed and stage in allowed[label] and self.inflight and not self.failed,
+             'nonimage_reserved_editor_stage_required')
+        need(self.entry_mode in {'standard_editor', 'completed_review'}, 'nonimage_editor_mode_required')
+        if label == 'السابق':
+            need(self.rent_sai_readback is not None, 'previous_actual_preview_required')
+        if label == 'العودة إلى النواقص':
+            need(self.entry_mode == 'completed_review', 'nonimage_completed_review_required')
+        if stage == 'complete_rent' and label in {'خيارات المسودة', 'معاينة'}:
+            need(self.entry_mode == 'standard_editor', 'nonimage_standard_validation_required')
+        menu_item = label in {'معاينة', 'حفظ مسودة'}
+        if menu_item:
+            need(getattr(self, '_nonimage_draft_menu_stage', None) == self.cursor,
+                 'same_stage_delivered_draft_menu_required')
         p, deadline, observations = self.probe, time.monotonic() + 15, 0
         def bounded(row):
             b = row.get('bounds')
@@ -517,10 +532,10 @@ class C2Executor:
         while time.monotonic() < deadline:
             self._actor('broker')
             rows = p.nodes()
-            need(not _names(rows) & roles.AUTH_LABELS, 'previous_auth_surface_refused')
+            need(not _names(rows) & roles.AUTH_LABELS, 'nonimage_click_auth_surface_refused')
             visible = [r for r in rows if r.get('package') == roles.APP and r.get('visible') is True]
-            named = {r['path']: r for r in visible if 'السابق' in policy.names(r)}
-            exact = [r for r in named.values() if policy.names(r) == {'السابق'}]
+            named = {r['path']: r for r in visible if label in policy.names(r)}
+            exact = [r for r in named.values() if policy.names(r) == {label}]
             enabled = [r for r in exact if r.get('enabled') is True]
             direct = {r['path']: r for r in enabled if r.get('clickable') or
                       r.get('class') == 'android.widget.Button'}
@@ -530,7 +545,8 @@ class C2Executor:
                           'direct_control_paths': len(direct), 'ancestor_control_paths': 0,
                           'state': 'absent' if not named else 'disabled_or_nonactionable',
                           'hashes_recorded': False}
-            p.report['c2_v2_previous_control_readiness'] = diagnostic
+            p.report.setdefault('c2_v2_nonimage_click_readiness', {})[
+                self._diagnostic_operation['control']] = diagnostic
             if len(direct) > 1 or (not direct and len(named) > 1):
                 diagnostic['state'] = 'ambiguous'
                 raise C2Blocked('nonimage_exact_normal_control_required')
@@ -547,22 +563,31 @@ class C2Executor:
                     diagnostic['ancestor_control_paths'] = 1
                     if (parent.get('enabled') is True and parent.get('clickable') and
                         not parent.get('editable') and not parent.get('scrollable') and
-                        '.' in parent['path'] and policy.names(parent) <= {'السابق'} and
+                        '.' in parent['path'] and policy.names(parent) <= {label} and
                         bounded(parent) and bounded(leaf) and
                         parent['bounds'][0] <= leaf['bounds'][0] < leaf['bounds'][2] <= parent['bounds'][2] and
                         parent['bounds'][1] <= leaf['bounds'][1] < leaf['bounds'][3] <= parent['bounds'][3]):
                         row = parent
             names = _names(visible)
-            footer = (({'خيارات المسودة', 'إرسال للمراجعة', 'السابق'} <= names and
-                       'العودة إلى النواقص' not in names) if self.entry_mode == 'standard_editor' else
-                      self.entry_mode == 'completed_review' and 'العودة إلى النواقص' in names)
-            if row is not None and footer and bounded(row) and not row.get('editable') and not row.get('scrollable'):
+            if menu_item:
+                # PopupRoute may hide the underlying editor semantics.
+                surface = {'معاينة', 'حفظ مسودة'} <= names
+            elif self.entry_mode == 'standard_editor':
+                surface = ({'خيارات المسودة', 'إرسال للمراجعة', 'السابق'} <= names and
+                           'العودة إلى النواقص' not in names)
+            elif stage == 'full_save':
+                surface = {'خيارات المسودة', 'معاينة الإعلان', 'السابق'} <= names
+            else:
+                surface = 'العودة إلى النواقص' in names
+            if not menu_item:
+                surface = surface and not names & {'معاينة', 'حفظ مسودة'}
+            if row is not None and surface and bounded(row) and not row.get('editable') and not row.get('scrollable'):
                 diagnostic['state'] = 'direct_ready' if direct else 'ancestor_ready'
                 return row
-            if not footer:
-                diagnostic['state'] = 'editor_footer_pending'
+            if not surface:
+                diagnostic['state'] = 'source_surface_pending'
             time.sleep(max(0, min(.25, deadline - time.monotonic())))
-        raise C2Blocked('nonimage_previous_control_not_ready')
+        raise C2Blocked('nonimage_click_control_not_ready')
 
     def _nonimage_input(self, kind, label, value=None):
         """Existing normal receiver, synthetic allowlist, no persisted hashes.
@@ -593,15 +618,7 @@ class C2Executor:
             need(kind == 'click' and label in {'نسبة مئوية %', 'السابق', 'العودة إلى النواقص',
                                               'خيارات المسودة', 'حفظ مسودة', 'معاينة'},
                  'nonimage_click_allowlist')
-            if label == 'السابق':
-                row = self._nonimage_previous_control()
-            else:
-                matches = [row for row in p.matching(p.nodes(), label)
-                           if row.get('visible') and row.get('enabled') and
-                           (row.get('clickable') or row.get('class') == 'android.widget.Button')]
-                need(len({row.get('path') for row in matches}) == 1,
-                     'nonimage_exact_normal_control_required')
-                row = matches[0]
+            row = self._nonimage_click_control(label)
         extra = {'node_path': row['path'], 'node_witness': row['witness']}
         explicit = getattr(p, 'explicit_pointer_mode', False)
         op = 'account-pointer-click' if kind == 'click' and explicit else 'account-' + kind
@@ -610,11 +627,19 @@ class C2Executor:
             if explicit:
                 extra['input_mode'] = 'explicit_pointer'
         self._diagnostic_operation['substage'] = 'instrument'
+        if kind == 'click' and label in {'معاينة', 'حفظ مسودة'}:
+            # Consume the delivered opening before input; an uncertain menu
+            # action cannot reuse it. The executor also latches stage failure.
+            self._nonimage_draft_menu_stage = None
         result = p.instrument(op, **extra)
         self._diagnostic_operation['substage'] = 'delivery_check'
         need(result.get('account_action_delivered') == 'true' and
              (kind != 'set' or result.get('set_text_delivered') == 'true'),
              'nonimage_native_input_not_confirmed')
+        if kind == 'click':
+            if label == 'خيارات المسودة':
+                self._nonimage_draft_menu_stage = self.cursor
+            time.sleep(.25)  # Ordinary Probe.act's post-delivery settlement.
         if kind == 'set':
             self._diagnostic_operation['substage'] = 'dismiss_ime'
             p.adb('shell', 'input', 'keyevent', '4')
