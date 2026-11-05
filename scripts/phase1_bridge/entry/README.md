@@ -364,3 +364,22 @@ failure diagnosable while preserving all product, source, account and review gat
 Initial C1 creates the fixture needed by the existing C4/C2 flow; its execution
 does not reopen the previously accepted C1 product criterion. No Phase 1 closure
 is claimed before the actual C4/C2 evidence and final cleanup are reviewed.
+
+## C2-only completion after independent C4 acceptance
+
+The current production entry explicitly selects `c2_only`. Actual C4
+application, save and recovery were independently accepted in runs67 and68;
+remaining C2 execution no longer depends on another AI response. A C2-only run
+makes no current-run C4 acceptance claim and creates no C4 executor state.
+
+The same native C1 setup supplies a fresh saved/restored fixture. At
+`CONFIGURE_C2_FROM_C1`, Root supplies separate `c1_review` and `c2_entry_review`
+records for its actual UUID, tagged title, restored completed photo and blank
+rent. Both C1 PASS receipts, the restored-editor hold, fresh review timestamps,
+and actual current title/photo file hashes are required before standard-editor
+C2 configuration. Prior-run C4 records cannot stand in for this fixture proof.
+
+The subsequent 44-stage support/return/account-isolation journey and its exact
+fixture cleanup, normal logout and process termination checks remain required.
+This entry change removes repeat AI setup; it does not close C2 or Phase1 before
+those actual outcomes and Root reviews are complete.

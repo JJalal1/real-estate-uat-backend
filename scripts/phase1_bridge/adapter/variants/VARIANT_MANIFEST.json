@@ -9,16 +9,16 @@
       "delta": "equivalent_generated_digit_translation_alphabet; separate_exact_brief_REQUEST_checkpoint_before_AI_request; copy_grounded_in_message_and_verified_same_draft_facts; actual_response_snapshot_boundary_before_bounded_short_notice_seek; preserve_exact_reviewed_title_without_redundant_input; observe_footer_after_changed_title_input"
     },
     "ROOT_C2_EXECUTOR_V2/phase_extensions.py": {
-      "sha256": "8464b7353610ec83d002e7dc608acb1d790f22b4a3c811a002057d2f084c27f2",
-      "bytes": 48271,
+      "sha256": "c3c3c20103d24e4eb84be8e47280e78d2e1461339cd2fb6ad1dae8eef795c5e6",
+      "bytes": 52260,
       "original_sha256": "27a567dbb175140c50a0de705385e56ea5ab4817714d165f06b94cfb8d2159b8",
-      "delta": "serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics"
+      "delta": "serialized_support_case_title_to_action_and_truthful_return_queue; fixed_nonimage_rent_sai_operation_diagnostics; actual_current_C1_native_entry_without_current_C4_state; verified_standard_editor_and_normal_full_save"
     },
     "ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py": {
-      "sha256": "bbfe7f902ee7c859260f07f99d6bab1091bbff011c75f0b7f9e97fede08c2d03",
-      "bytes": 26891,
+      "sha256": "309f69d2939342684f870b68b3dee2a216c07e836de07a4951640a4307a53516",
+      "bytes": 31403,
       "original_sha256": "612d92003702e39cc071815bb4b0ace564eaaeed679bc44cb693defec1e3d79f",
-      "delta": "separate_case_title_action_and_queue_evidence_bindings"
+      "delta": "separate_case_title_action_and_queue_evidence_bindings; actual_current_C1_title_photo_blank_rent_review_for_C2_entry; distinct_current_fixture_standard_editor_identity"
     },
     "LOCAL_REMAINING_PROPOSAL/local_stage_policy.py": {
       "sha256": "2a54658205998dbb02f2a0a3f4c59597d348125d0b520402e19ba8ef85527ec2",

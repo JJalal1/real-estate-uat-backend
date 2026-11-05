@@ -129,11 +129,14 @@ class Controller:
                  public_reference_reader, boot_runtime, close_runtime,
                  authority_getter, context_getter, work_deadline_getter,
                  monotonic_clock=time.monotonic, wait=time.sleep,
-                 api_transport=None, app='com.aqer.yemen.uat'):
+                 api_transport=None, app='com.aqer.yemen.uat', entry_mode='c4_then_c2'):
         callbacks = (public_reference_reader, boot_runtime, close_runtime, authority_getter,
                      context_getter, work_deadline_getter, monotonic_clock, wait)
         need(all(callable(f) for f in callbacks), 'controller_callbacks_required')
         self.probe, self.c4, self.c2, self.dispatcher = probe, c4, c2, dispatcher
+        need(entry_mode in {'c4_then_c2', 'c2_only'}, 'fixed_controller_entry_mode_required')
+        self._entry_mode = entry_mode
+        probe._root_c2_entry_mode = entry_mode
         self._reference, self._boot, self._close = public_reference_reader, boot_runtime, close_runtime
         self._authority, self._context = authority_getter, context_getter
         self._work_deadline, self._mono, self._wait = work_deadline_getter, monotonic_clock, wait
@@ -164,6 +167,11 @@ class Controller:
         probe.report['limitations'] = [
             'C4/C2 require actual Root media review and original executor postconditions',
             'API36 KVM functional evidence, not a physical handset/performance claim']
+        if entry_mode == 'c2_only':
+            probe.report['scope'] = 'Same-job native C1 fixture preparation with signed C2 continuation only'
+            probe.report['c2_entry_mode'] = 'standard_editor'
+            probe.report['current_run_c4_executed'] = False
+            probe.report['limitations'][0] = 'C2 requires actual current fixture and stage reviews; prior C4 acceptance is separate'
         # Exact same module identity as the installed RAM KnownRoleMemory.
         probe._root_extension_dispatch_v2_modules = {'C4': c4, 'C2': c2}
 
@@ -382,16 +390,35 @@ class Controller:
         return result
 
     def _position(self):
-        c4 = self._c4_state()
-        if c4.get('accepted') is not True:
-            return 'C4', c4['cursor'], c4['cursor']
+        if self._entry_mode == 'c2_only':
+            self._c1_entry_checks()
+        else:
+            c4 = self._c4_state()
+            if c4.get('accepted') is not True:
+                return 'C4', c4['cursor'], c4['cursor']
         executor = getattr(self.probe, '_root_c2_executor_v2', None)
         if executor is None:
+            if self._entry_mode == 'c2_only':
+                return 'C2', 'CONFIGURE_C2_FROM_C1', 'CONFIGURE_C2_FROM_C1'
             return 'C2', 'CONFIGURE_C2', 'CONFIGURE_C2'
         need(type(executor.cursor) is int and 0 <= executor.cursor <= len(self.c2.STAGES), 'c2_cursor_invalid')
         if executor.cursor == len(self.c2.STAGES): return 'C2', 'C2_COLLECTED', 'C2_COLLECTED'
         stage = self.c2.STAGES[executor.cursor]
         return 'C2', 'C2_' + str(executor.cursor) + '_' + stage.upper(), stage
+
+    def _c1_entry_checks(self):
+        p = self.probe
+        need(self._initial_used and p.report.get('held_after_c1_restore_for_root_review') is True
+             and self.c4.KEY not in p.report, 'actual_c1_only_entry_required')
+        cases = p.report.get('cases', [])
+        need(all(any(row.get('id') == name and row.get('status') == 'PASS' for row in cases)
+                 for name in ('C1-photo-save', 'C1-force-stop-restore')),
+             'actual_c1_fixture_cases_required')
+        checks = p.report.get('c1_monthly_rent_blank_checks')
+        need(type(checks) is dict and set(checks) == {'before_save', 'after_reopen'}
+             and checks['before_save'] is True and checks['after_reopen'] is True,
+             'actual_c1_blank_rent_checks_required')
+        return dict(checks)
 
     def _media(self, names):
         p, result = self.probe, []
@@ -491,8 +518,10 @@ class Controller:
             # Rent may now be above the viewport; observations must never seek.
             rows = p.nodes()
             names = self.c2._names(rows)
-            control = 'السابق' if stage == 'navigate_previous_to_specs' else 'العودة إلى النواقص'
-            need({'نسبة السعي %', preview['fallback_notice'], 'العودة إلى النواقص'} <= names
+            standard = getattr(executor, 'entry_mode', None) == 'standard_editor'
+            mode_control = 'خيارات المسودة' if standard else 'العودة إلى النواقص'
+            control = 'السابق' if stage == 'navigate_previous_to_specs' else mode_control
+            need({'نسبة السعي %', preview['fallback_notice'], mode_control} <= names
                  and any(row.get('enabled') is True for row in p.matching(rows, control))
                  and not names & self.c2.roles.AUTH_LABELS,
                  'actual_reviewed_rent_navigation_surface_required')
@@ -506,7 +535,10 @@ class Controller:
                  and executor.rent_sai_recheck == preview,
                  'same_actual_preview_required_before_completion_save')
             names = self.c2._names(p.nodes())
-            need({'أكمل الناقص فقط', 'خيارات المسودة'} <= names
+            expected = ({'خيارات المسودة', 'إرسال للمراجعة', 'نسبة السعي %', preview['fallback_notice']}
+                        if getattr(executor, 'entry_mode', None) == 'standard_editor'
+                        else {'أكمل الناقص فقط', 'خيارات المسودة'})
+            need(expected <= names
                  and not names & self.c2.roles.AUTH_LABELS,
                  'actual_completion_save_surface_required')
             return
@@ -587,6 +619,14 @@ class Controller:
             else:
                 with self._read_session(): bindings['safe_scene_sha256'] = self._safe_scene()
                 bindings['observation_mode'] = 'safe_full_tree_scene_digest'
+        elif stage == 'CONFIGURE_C2_FROM_C1':
+            bindings['c1_monthly_rent_blank_checks'] = self._c1_entry_checks()
+            bindings['entry_mode'] = 'standard_editor'
+            evidence = self._media(['C1-photo-selected.png', 'C1-restored-title.png',
+                                    'C1-restored-complete-photo.png'])
+            bindings['configuration_frames'] = [{'file': row['file'], 'sha256': row['sha256']} for row in evidence]
+            with self._read_session(): bindings['safe_scene_sha256'] = self._safe_scene()
+            bindings['observation_mode'] = 'safe_full_tree_scene_digest'
         elif stage == 'CONFIGURE_C2':
             evidence = self._media(['C1-restored-title.png', 'C1-c4-restored-final-title.png'])
             bindings['configuration_frames'] = [{'file': row['file'], 'sha256': row['sha256']} for row in evidence]
@@ -637,6 +677,7 @@ class Controller:
         bindings = dict(observed['bindings'], checkpoint_binding_sha256=binding)
         required = sorted(C4_EXTRA[cursor]) if phase == 'C4' and cursor in C4_EXTRA else []
         if stage == 'CONFIGURE_C2': required = ['c1_review', 'c4_review']
+        elif stage == 'CONFIGURE_C2_FROM_C1': required = ['c1_review', 'c2_entry_review']
         result = {'phase': phase, 'cursor': cursor, 'stage': {'executor_cursor': cursor,
             'context': stage, 'bindings': bindings, 'requested_review_fields': required,
             'report_scope': 'Actual safe evidence; no Root review or acceptance created'}, 'evidence': observed['evidence']}
@@ -659,7 +700,10 @@ class Controller:
             return False
 
     def _write_review(self, filename, value):
-        need(filename in set(C4_FILES.values()) | {self.dispatcher.C1_FILE, self.dispatcher.C4_FILE, self.dispatcher.STAGE_FILE},
+        allowed = set(C4_FILES.values()) | {self.dispatcher.C1_FILE, self.dispatcher.C4_FILE, self.dispatcher.STAGE_FILE}
+        entry_file = getattr(self.dispatcher, 'C2_ENTRY_FILE', None)
+        if type(entry_file) is str: allowed.add(entry_file)
+        need(filename in allowed,
              'fixed_review_filename_required')
         data = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
         need(0 < len(data) <= 16384 and not any(alias.encode() in data for alias in self.private_aliases()),
@@ -685,6 +729,7 @@ class Controller:
         wanted = set(ROOT_KEYS)
         if phase == 'C4' and cursor in C4_EXTRA: wanted.add('phase_review')
         elif stage == 'CONFIGURE_C2': wanted.update({'c1_review', 'c4_review'})
+        elif stage == 'CONFIGURE_C2_FROM_C1': wanted.update({'c1_review', 'c2_entry_review'})
         elif stage in self.c2.TARGETS or stage in self.c2.REVIEW_STAGES: wanted.add('phase_review')
         need(set(review) == wanted, 'exact_signed_stage_review_schema_required')
         if not self._root_preflight_done:
@@ -705,6 +750,9 @@ class Controller:
             elif stage == 'CONFIGURE_C2':
                 self._write_review(self.dispatcher.C1_FILE, review['c1_review'])
                 self._write_review(self.dispatcher.C4_FILE, review['c4_review'])
+            elif stage == 'CONFIGURE_C2_FROM_C1':
+                self._write_review(self.dispatcher.C1_FILE, review['c1_review'])
+                self._write_review(self.dispatcher.C2_ENTRY_FILE, review['c2_entry_review'])
             elif 'phase_review' in review:
                 self._write_review(self.dispatcher.STAGE_FILE, review['phase_review'])
             before = getattr(getattr(self.probe, '_root_c2_executor_v2', None), 'cursor', None)
@@ -714,7 +762,7 @@ class Controller:
             if phase == 'C4':
                 after = self._c4_state()
                 need(after['cursor'] != cursor and not after.get('held_error'), 'actual_c4_stage_not_advanced')
-            elif stage == 'CONFIGURE_C2':
+            elif stage in {'CONFIGURE_C2', 'CONFIGURE_C2_FROM_C1'}:
                 need(getattr(self.probe, '_root_c2_executor_v2', None) is not None
                      and self.probe._root_c2_executor_v2.cursor == 0, 'actual_c2_configuration_required')
             else:
@@ -924,8 +972,11 @@ class Controller:
             self._snapshot = None
             # Only controller-owned legacy review controls are removed. Actual
             # report/media/proofs and the separate signed consume ledger remain.
-            for name in sorted(set(C4_FILES.values()) | {
-                    self.dispatcher.C1_FILE, self.dispatcher.C4_FILE, self.dispatcher.STAGE_FILE}):
+            review_files = set(C4_FILES.values()) | {
+                self.dispatcher.C1_FILE, self.dispatcher.C4_FILE, self.dispatcher.STAGE_FILE}
+            entry_file = getattr(self.dispatcher, 'C2_ENTRY_FILE', None)
+            if type(entry_file) is str: review_files.add(entry_file)
+            for name in sorted(review_files):
                 path = Path(self.probe.out) / name
                 try: info = path.lstat()
                 except FileNotFoundError: continue

@@ -201,12 +201,41 @@ REVIEW_STAGES = frozenset({'review_photo_before_save', 'review_promotion', 'revi
 
 class C2Executor:
     def __init__(self, probe, original_state, c1_review, c4_review, *,
-                 role_loader=None, request=None, monthly_rent='50000'):
+                 role_loader=None, request=None, monthly_rent='50000', entry_review=None):
         # Validation is source-only and reads only parent-provided objects.
         state = copy.deepcopy(original_state)
         policy.RemainingLocalFence(state, c1_review)
         title = c1_review['native_title']
-        need(c4_review.get('manual_review_completed') is True and
+        if entry_review is not None:
+            # C2 may start from this run's actual C1 restoration. Historical C4
+            # acceptance belongs to Root's separate report, never this fixture.
+            need(c4_review is None and isinstance(entry_review, dict) and
+                 set(entry_review) == {'kind', 'phase', 'privacy_checked', 'manual_review_completed',
+                    'fixture_key', 'fixture_tag', 'restored_title', 'monthly_rent_still_blank',
+                    'property_id', 'same_unpromoted_uuid_verified', 'restored_editor_step',
+                    'restored_frame_sha256', 'restored_photo_frame_sha256', 'entry_mode',
+                    'current_fixture_visually_verified', 'review_completed_utc'} and
+                 entry_review.get('kind') == 'ROOT_ACTUAL_FRAME_REVIEW' and
+                 entry_review.get('phase') == 'C2' and entry_review.get('privacy_checked') is True and
+                 entry_review.get('manual_review_completed') is True and
+                 entry_review.get('current_fixture_visually_verified') is True and
+                 entry_review.get('entry_mode') == 'standard_editor' and
+                 entry_review.get('fixture_key') == state['key'] and
+                 entry_review.get('fixture_tag') == state['tag'] and
+                 entry_review.get('restored_title') == title and
+                 entry_review.get('monthly_rent_still_blank') is True and
+                 entry_review.get('property_id') is None and
+                 entry_review.get('same_unpromoted_uuid_verified') is True and
+                 type(entry_review.get('restored_editor_step')) is int and
+                 entry_review['restored_editor_step'] == 0 and
+                 entry_review.get('restored_frame_sha256') == c1_review['restored_frame_sha256'] and
+                 policy.sha(entry_review.get('restored_photo_frame_sha256')) and
+                 fresh_remote_review(entry_review), 'actual_current_c1_fixture_entry_review_required')
+            self.entry_mode = 'standard_editor'
+            self.fixture_title_frame = {'file': 'C1-restored-title.png',
+                                        'sha256': entry_review['restored_frame_sha256']}
+        else:
+            need(isinstance(c4_review, dict) and c4_review.get('manual_review_completed') is True and
              c4_review.get('c4_accepted') is True and
              c4_review.get('fixture_key') == state['key'] and
              c4_review.get('fixture_tag') == state['tag'] and
@@ -217,11 +246,15 @@ class C2Executor:
              type(c4_review.get('restored_editor_step')) is int and
              c4_review['restored_editor_step'] == 0 and
              policy.sha(c4_review.get('restored_frame_sha256')),
-             'actual_c4_same_unpromoted_restored_review_required')
+                 'actual_c4_same_unpromoted_restored_review_required')
+            self.entry_mode = 'completed_review'
+            self.fixture_title_frame = {'file': 'C1-c4-restored-final-title.png',
+                                        'sha256': c4_review['restored_frame_sha256']}
         need(monthly_rent == '50000',
              'synthetic_monthly_rent_shape')
         self.probe, self.state, self.c1 = probe, state, copy.deepcopy(c1_review)
         self.c4 = copy.deepcopy(c4_review)
+        self.entry_review = copy.deepcopy(entry_review)
         self.key, self.tag, self.title = state['key'], state['tag'], title
         self.reason = 'تصحيح اختبار اصطناعي فقط ' + self.tag
         self.monthly_rent, self.role_loader, self.request = monthly_rent, role_loader, request
@@ -504,6 +537,20 @@ class C2Executor:
         need(not self.probe._capture_rows_private(rows), 'safe_specs_full_tree_privacy_required')
         need('المواصفات' in _names(rows), 'actual_specification_step_required')
 
+    def _rent_editor_surface(self):
+        """Observe the declared real editor mode; never change it implicitly."""
+        self._actor('broker')
+        names = _names(self.probe.nodes())
+        need(not names & roles.AUTH_LABELS, 'rent_editor_auth_surface_refused')
+        if self.entry_mode == 'standard_editor':
+            need({'خيارات المسودة', 'إرسال للمراجعة', 'السابق'} <= names and
+                 'العودة إلى النواقص' not in names,
+                 'actual_standard_editor_step4_required')
+        else:
+            need(self.entry_mode == 'completed_review' and 'العودة إلى النواقص' in names,
+                 'actual_completed_review_editor_required')
+        return True
+
     def register_regular_frame(self, stage, receipt):
         allowed = {'regular_marketplace', 'regular_messages', 'regular_listing_gate'}
         need(stage in allowed and stage.removeprefix('regular_') in self.regular_surfaces and
@@ -530,14 +577,16 @@ class C2Executor:
         need(not (names & roles.AUTH_LABELS), 'auth_context_forbids_c2_review')
         if stage == 'review_photo_before_save':
             self._safe_specs()
+            title_key = ('bound_fixture_title_frame' if self.entry_mode == 'standard_editor'
+                         else 'bound_c4_title_frame')
+            other_title_key = ('bound_c4_title_frame' if self.entry_mode == 'standard_editor'
+                               else 'bound_fixture_title_frame')
             need('صور الإعلان (1/12)' in names and 'مكتمل' in names and
                  record.get('evidence_kind') == 'SAFE_SPEC_PHOTO_PLUS_NONIMAGE_POLICY_AND_SERIALIZED_IDENTITY' and
                  record.get('same_serialized_editor_chain_reviewed') is True and
                  record.get('editor_chain') == self.editor_chain and
                  record.get('original_fixture_receipt_reviewed') is True and
-                 record.get('bound_c4_title_frame') == {
-                    'file': 'C1-c4-restored-final-title.png',
-                    'sha256': self.c4['restored_frame_sha256']} and
+                 record.get(title_key) == self.fixture_title_frame and other_title_key not in record and
                  record.get('photo_visually_unchanged') is True and
                  record.get('actual_safe_spec_photo_reviewed') is True and
                  record.get('semantic_preview') == self.rent_sai_readback and
@@ -622,9 +671,9 @@ class C2Executor:
             for label in ('تم تحديد موقع العقار على الخريطة', 'المواصفات', 'الإيجار الشهري بالريال اليمني *'):
                 p.tap('التالي'); p.wait(label)
             field = p.field('الإيجار الشهري بالريال اليمني *')
-            need(isinstance(field.get('text'), str) and not field['text'].strip() and
-                 'العودة إلى النواقص' in _names(p.nodes()),
-                 'same_blank_rent_completed_review_mode_required')
+            need(isinstance(field.get('text'), str) and not field['text'].strip(),
+                 'same_blank_rent_editor_required')
+            self._rent_editor_surface()
         elif stage == 'complete_rent':
             self._actor('broker')
             self._nonimage_input('set', 'الإيجار الشهري بالريال اليمني *', self.monthly_rent)
@@ -641,16 +690,24 @@ class C2Executor:
         elif stage == 'return_next_step3':
             self._safe_specs(); p.tap('التالي'); p.wait('الإيجار الشهري بالريال اليمني *')
             self.rent_sai_recheck = self._rent_sai_preview()
-            need(self.rent_sai_recheck == self.rent_sai_readback and
-                 'العودة إلى النواقص' in _names(p.nodes()),
+            need(self.rent_sai_recheck == self.rent_sai_readback,
                  'rent_sai_changed_after_safe_photo_review')
+            self._rent_editor_surface()
             p.report['c2_v2_nonimage_rent_sai_recheck'] = copy.deepcopy(self.rent_sai_recheck)
         elif stage == 'back_gaps_to_completion':
             need(self.rent_sai_recheck == self.rent_sai_readback is not None,
                  'same_actual_rent_sai_recheck_required')
             need(self._rent_sai_preview() == self.rent_sai_readback,
                  'rent_sai_changed_immediately_before_completion')
-            self._nonimage_input('click', 'العودة إلى النواقص'); p.wait('خيارات المسودة')
+            if self.entry_mode == 'standard_editor':
+                # Standard step4 already exposes the normal explicit save menu.
+                # No completion-mode transition or synthetic click is claimed.
+                self._rent_editor_surface()
+                p.report['c2_v2_completion_transition'] = {
+                    'entry_mode': self.entry_mode, 'native_input_delivered': False,
+                    'outcome': 'not_required_standard_editor_save_surface_observed'}
+            else:
+                self._nonimage_input('click', 'العودة إلى النواقص'); p.wait('خيارات المسودة')
         elif stage == 'review_case':
             # Root first accepts the exact case title at the top. The return
             # control is below evidence/history; reveal it without clicking.
@@ -808,7 +865,7 @@ class C2Executor:
         return {'status': status, 'scope': 'LOCAL native C2 segmented executor',
                 'cursor': self.cursor, 'next_stage': STAGES[self.cursor] if self.cursor < len(STAGES) else None,
                 'phase1_accepted': False, 'automatic_replay_allowed': False,
-                'executor_version': 2,
+                'executor_version': 2, 'editor_entry_mode': getattr(self, 'entry_mode', None),
                 'regular_native_logout_confirmed': bool(self.regular_logout_receipt and
                     self.regular_logout_receipt.get('status') == 'PASS_WITHIN_LOGOUT_UI_SCOPE'),
                 'known_promoted_property_id': self.property_id,

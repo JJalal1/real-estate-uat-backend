@@ -293,3 +293,26 @@ unknown Home metadata, duplicates, direct `_media` refusal and exact `_media`
 source preservation. The sole new deployment test file is
 `controller/test_home_diagnostic.py`. Runtime source tests use the existing
 controller test scaffold; final `adapter/` layout is supported.
+
+## Current C2-only entry from the restored C1 fixture
+
+The production entry selects `entry_mode='c2_only'`. The controller then exposes
+`CONFIGURE_C2_FROM_C1`, requiring distinct `c1_review` and `c2_entry_review`
+records. The default `c4_then_c2` controller path remains available unchanged.
+
+This entry requires the current fixture's actual C1 save/restore PASS results,
+blank-rent checks, restored-editor hold, and fresh Root review of the same UUID,
+tagged title and completed photo. The dispatcher binds the current
+`C1-restored-title.png` and `C1-restored-complete-photo.png` bytes and recorded
+hashes. The new fixed review file is `C2_V2_ROOT_ENTRY_REVIEW.json`.
+
+C2 enters the standard editor directly. No synthetic C4 state or current-run
+C4 acceptance is created; any current C4 executor state refuses this entry.
+The safe photo checkpoint binds `bound_fixture_title_frame` to the current C1
+title through `prior_fixture_tagged_title_frame`; the legacy path retains its
+C4-specific bindings. All 44 C2 stages, actual support return, broker reason,
+role isolation, Root reviews and final cleanup requirements remain in force.
+
+The independently reviewed C4 results from runs67 and68 remain historical
+acceptance evidence. They are not represented as C4 work in a C2-only run, and
+they do not substitute for that run's current C1 fixture or C2 evidence.

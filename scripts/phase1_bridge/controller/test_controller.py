@@ -1,5 +1,6 @@
 """Focused synthetic composition tests; no native/API/Root acceptance evidence."""
 from datetime import datetime, timezone
+import copy
 import hashlib
 import importlib.util
 import json
@@ -194,6 +195,22 @@ class Dispatcher:
         return dict(row, node_bindings=self._capture_rows(p, c2, executor, stage))
 
 
+class C2OnlyDispatcher(Dispatcher):
+    C2_ENTRY_FILE = 'C2_ENTRY.json'
+
+    def run_phase(self, p, phase):
+        if phase != 'C2' or 'local_c4_executor' in p.report:
+            raise AssertionError('C2-only continuation must not execute or fabricate C4')
+        if not hasattr(p, '_root_c2_executor_v2'):
+            self.calls.append((phase, 'CONFIGURE_C2_FROM_C1'))
+            self.entry_records = {name: json.loads((p.out / name).read_text())
+                                  for name in (self.C1_FILE, self.C2_ENTRY_FILE)}
+            p._root_c2_executor_v2 = Executor()
+        else:
+            self.calls.append((phase, p._root_c2_executor_v2.cursor))
+            p._root_c2_executor_v2.cursor += 1
+
+
 class ControllerTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory(prefix='offline-controller-', dir=HERE)
@@ -230,6 +247,140 @@ class ControllerTests(unittest.TestCase):
     def signed(self, snapshot, **extra):
         return {'review_completed_utc': '2026-11-04T12:00:00Z',
             'checkpoint_binding_sha256': snapshot['stage']['bindings']['checkpoint_binding_sha256'], **extra}
+
+    def c2_only_initial(self):
+        self.dispatcher = C2OnlyDispatcher()
+        self.controller = module.Controller(probe=self.probe, c4=C4, c2=C2, dispatcher=self.dispatcher,
+            fixture_api_class=FixtureApi, public_reference_reader=lambda **kwargs: [{'title': 'PUBLISHED_SYNTHETIC'}],
+            boot_runtime=lambda **kwargs: self.runtime_calls.append(('boot', kwargs)), close_runtime=self.close,
+            authority_getter=lambda: self.authority, context_getter=lambda: self.context,
+            work_deadline_getter=lambda: 5400, monotonic_clock=lambda: self.clock,
+            wait=lambda seconds: setattr(self, 'clock', self.clock+seconds), entry_mode='c2_only')
+        original_create = self.probe.create_and_save
+        def create():
+            original_create()
+            self.probe.media('C1-photo-selected.png')
+        self.probe.create_and_save = create
+        def no_c4_state():
+            raise AssertionError('C2-only path must not initialize C4')
+        self.controller._c4_state = no_c4_state
+        self.initial()
+        self.root('C2')
+
+    def c2_entry_reviews(self):
+        stamp = '2026-11-04T12:00:00Z'
+        return ({'review_completed_utc': stamp, 'fixture_key': KEY, 'fixture_tag': TAG,
+                 'native_title': self.probe.title, 'c1_accepted': True},
+                {'review_completed_utc': stamp, 'fixture_key': KEY, 'fixture_tag': TAG,
+                 'entry_mode': 'standard_editor'})
+
+    def test_c2_only_entry_binds_three_actual_c1_frames_and_never_creates_c4(self):
+        self.c2_only_initial()
+        snapshot = self.controller.snapshot()
+        self.assertEqual((snapshot['phase'], snapshot['cursor']), ('C2', 'CONFIGURE_C2_FROM_C1'))
+        self.assertEqual(snapshot['stage']['context'], 'CONFIGURE_C2_FROM_C1')
+        self.assertEqual(snapshot['stage']['requested_review_fields'], ['c1_review', 'c2_entry_review'])
+        wanted = ['C1-photo-selected.png', 'C1-restored-complete-photo.png', 'C1-restored-title.png']
+        self.assertEqual([row['file'] for row in snapshot['evidence']], wanted)
+        bindings = snapshot['stage']['bindings']
+        self.assertEqual(bindings['entry_mode'], 'standard_editor')
+        self.assertEqual(bindings['c1_monthly_rent_blank_checks'], {'before_save': True, 'after_reopen': True})
+        self.assertEqual(bindings['configuration_frames'], [
+            {'file': row['file'], 'sha256': row['sha256']} for row in snapshot['evidence']])
+        self.assertTrue(self.controller.fresh_scene_matches(self.signed(snapshot), snapshot))
+        self.assertNotIn('local_c4_executor', self.probe.report)
+        self.assertEqual(self.dispatcher.calls, [])
+
+    def test_c2_only_entry_refuses_missing_c1_hold_cases_blank_checks_and_existing_c4(self):
+        self.c2_only_initial()
+        original = copy.deepcopy(self.probe.report)
+        mutations = [
+            lambda r: r.pop('held_after_c1_restore_for_root_review'),
+            lambda r: r['cases'].clear(),
+            lambda r: r.__setitem__('cases', [x for x in r['cases'] if x['id'] != 'C1-force-stop-restore']),
+            lambda r: r.pop('c1_monthly_rent_blank_checks'),
+            lambda r: r['c1_monthly_rent_blank_checks'].__setitem__('after_reopen', False),
+            lambda r: r['c1_monthly_rent_blank_checks'].__setitem__('before_save', 1),
+            lambda r: r['c1_monthly_rent_blank_checks'].__setitem__('unverified_extra', True),
+            lambda r: r.__setitem__('local_c4_executor', {'accepted': True}),
+        ]
+        for index, mutate in enumerate(mutations):
+            with self.subTest(index=index):
+                self.probe.report = copy.deepcopy(original)
+                mutate(self.probe.report)
+                with self.assertRaises(module.ControllerRefused): self.controller.snapshot()
+                self.assertEqual(self.dispatcher.calls, [])
+        self.probe.report = original
+
+    def test_c2_only_entry_refuses_missing_or_changed_original_photo_before_dispatch(self):
+        self.c2_only_initial()
+        original = copy.deepcopy(self.probe.report['frames'])
+        for name in ('C1-photo-selected.png', 'C1-restored-complete-photo.png', 'C1-restored-title.png'):
+            with self.subTest(name=name):
+                self.probe.report['frames'] = [row for row in original if row['file'] != name]
+                with self.assertRaises(module.ControllerRefused): self.controller.snapshot()
+        self.probe.report['frames'] = original
+        snapshot = self.controller.snapshot()
+        (self.probe.out / 'C1-photo-selected.png').write_bytes(b'CHANGED_SYNTHETIC_IMAGE')
+        self.assertFalse(self.controller.fresh_scene_matches(self.signed(snapshot), snapshot))
+        c1, entry = self.c2_entry_reviews()
+        with self.assertRaises(module.ControllerRefused):
+            self.controller.advance(self.signed(snapshot, c1_review=c1, c2_entry_review=entry))
+        self.assertEqual(self.dispatcher.calls, [])
+        self.assertFalse((self.probe.out / self.dispatcher.C2_ENTRY_FILE).exists())
+
+    def test_c2_only_entry_requires_exact_review_schema_and_copies_current_proofs(self):
+        self.c2_only_initial()
+        snapshot = self.controller.snapshot()
+        c1, entry = self.c2_entry_reviews()
+        for extras in ({}, {'c1_review': c1}, {'c1_review': c1, 'c4_review': entry},
+                       {'c1_review': c1, 'c2_entry_review': entry, 'phase_review': {}},
+                       {'c1_review': c1, 'c2_entry_review': entry, 'c4_review': entry}):
+            with self.subTest(keys=sorted(extras)):
+                with self.assertRaises(module.ControllerRefused): self.controller.advance(self.signed(snapshot, **extras))
+                self.assertEqual(self.dispatcher.calls, [])
+        self.assertTrue(self.controller.advance(self.signed(snapshot, c1_review=c1, c2_entry_review=entry)))
+        self.assertEqual(self.dispatcher.calls, [('C2', 'CONFIGURE_C2_FROM_C1')])
+        self.assertEqual(self.dispatcher.entry_records,
+                         {self.dispatcher.C1_FILE: c1, self.dispatcher.C2_ENTRY_FILE: entry})
+        self.assertFalse((self.probe.out / self.dispatcher.C4_FILE).exists())
+        self.assertNotIn('local_c4_executor', self.probe.report)
+        self.assertEqual(self.probe._root_c2_executor_v2.cursor, 0)
+        self.assertEqual(self.probe.events.count('actual_helper_utc_preflight'), 3)
+        next_snapshot = self.controller.snapshot()
+        self.assertEqual((next_snapshot['phase'], next_snapshot['cursor']), ('C2', 'C2_0_LOAD_ROLES'))
+        self.assertEqual(next_snapshot['stage']['requested_review_fields'], [])
+        self.assertTrue(self.controller.advance(self.signed(next_snapshot)))
+        self.assertEqual(self.probe._root_c2_executor_v2.cursor, 1)
+        self.assertNotIn('local_c4_executor', self.probe.report)
+
+    def test_c2_only_entry_refuses_stale_c1_review_without_refresh_or_dispatch(self):
+        self.c2_only_initial()
+        snapshot = self.controller.snapshot()
+        c1, entry = self.c2_entry_reviews()
+        c1['review_completed_utc'] = '2026-11-04T11:00:00Z'
+        with self.assertRaises(module.ControllerRefused):
+            self.controller.advance(self.signed(snapshot, c1_review=c1, c2_entry_review=entry))
+        self.assertEqual(c1['review_completed_utc'], '2026-11-04T11:00:00Z')
+        self.assertEqual(self.dispatcher.calls, [])
+        self.assertTrue(self.controller.uncertain())
+        self.assertNotIn('local_c4_executor', self.probe.report)
+
+    def test_c2_only_entry_configuration_must_stop_at_cursor_zero_and_cannot_replay(self):
+        self.c2_only_initial()
+        snapshot = self.controller.snapshot()
+        c1, entry = self.c2_entry_reviews()
+        def skip_configuration(p, phase):
+            self.dispatcher.calls.append((phase, 'INVALID_SKIPPED_STAGE'))
+            p._root_c2_executor_v2 = Executor(cursor=1)
+        self.dispatcher.run_phase = skip_configuration
+        with self.assertRaises(module.ControllerRefused):
+            self.controller.advance(self.signed(snapshot, c1_review=c1, c2_entry_review=entry))
+        self.assertTrue(self.controller.uncertain())
+        with self.assertRaises(module.ControllerRefused):
+            self.controller.advance(self.signed(snapshot, c1_review=c1, c2_entry_review=entry))
+        self.assertEqual(self.dispatcher.calls, [('C2', 'INVALID_SKIPPED_STAGE')])
+        self.assertNotIn('local_c4_executor', self.probe.report)
 
     def test_boot_is_vm_only_and_public_network_precedes_single_fixture_seed(self):
         self.controller.prepare_runtime()

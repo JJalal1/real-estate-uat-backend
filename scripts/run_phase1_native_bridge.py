@@ -73,6 +73,8 @@ EXPECTED_FILES = tuple(sorted((
     'scripts/phase1_bridge/adapter/ci_remote_evidence.py',
     'scripts/phase1_bridge/adapter/build_ci_variants.py',
     'scripts/phase1_bridge/adapter/test_integration.py',
+    'scripts/phase1_bridge/adapter/test_c2_entry.py',
+    'scripts/phase1_bridge/adapter/test_c2_entry_dispatch.py',
     'scripts/phase1_bridge/adapter/test_logout_home.py',
     'scripts/phase1_bridge/adapter/test_home_capture.py',
     'scripts/phase1_bridge/adapter/test_basics_capture.py',
@@ -510,7 +512,7 @@ def run_native(workspace, env, channels, run_root, tool_sha, guard):
         fixture_api_class=m['base'].FixtureApi, public_reference_reader=m['base'].read_public_reference,
         boot_runtime=boot, close_runtime=close_owned_runtime,
         authority_getter=authority, context_getter=context,
-        work_deadline_getter=lambda: holder['owner'].work_deadline)
+        work_deadline_getter=lambda: holder['owner'].work_deadline, entry_mode='c2_only')
     job_key = m['review_protocol'].JobEphemeralKey()
     underlying = m['checkpoint_packager'].CheckpointPackager(root=run_root, evidence_root=probe.out,
         identity={'repo': REPO, 'run_id': env['GITHUB_RUN_ID'], 'run_attempt': int(env['GITHUB_RUN_ATTEMPT']),
@@ -544,7 +546,8 @@ def offline_tests(workspace):
         ('oneshot', 'test_oneshot_adapter'), ('controller', 'test_bounded_api'),
         ('controller', 'test_controller'), ('runtime', 'test_owned_vm_review'), ('entry', 'test_entry'),
         ('adapter', 'test_logout_home'), ('adapter', 'test_home_capture'),
-        ('controller', 'test_home_diagnostic'), ('adapter', 'test_basics_capture')]
+        ('controller', 'test_home_diagnostic'), ('adapter', 'test_basics_capture'),
+        ('adapter', 'test_c2_entry'), ('adapter', 'test_c2_entry_dispatch')]
     suite = unittest.TestSuite()
     for _, name in tests:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromName(name))

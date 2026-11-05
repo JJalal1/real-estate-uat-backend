@@ -1098,7 +1098,7 @@ class VariantTests(unittest.TestCase):
             policy_text = (output / 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py').read_text()
             self.assertIn('fresh_remote_review(review, now_utc=now_utc)', policy_text)
             c2_text = (output / 'ROOT_C2_EXECUTOR_V2/phase_extensions.py').read_text()
-            self.assertEqual(c2_text.count('fresh_remote_review('), 2)
+            self.assertEqual(c2_text.count('fresh_remote_review('), 3)
             dispatch = (output / 'ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py').read_text()
             self.assertIn('root_review_utc_expired', dispatch)
             self.assertIn("'frame_sha256', 'review_completed_utc'", dispatch)
