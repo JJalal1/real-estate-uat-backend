@@ -20,6 +20,8 @@ TAG = 'AQER-C1-123456789abc'
 TITLE = 'اختبار استعادة المسودة ' + TAG
 TITLE_SHA = 'a' * 64
 PHOTO_SHA = 'b' * 64
+CONTACT_PROOF = dict.fromkeys(('native_contact_readback_matches_fixture', 'contact_policy_valid',
+                               'optional_contact_empty', 'contact_policy_observed_in_ui'), True)
 
 
 def rows(*labels):
@@ -128,7 +130,7 @@ class C2EntryTests(unittest.TestCase):
         self.probe.surface = rows('3/4', 'صور الإعلان (1/12)', 'مكتمل', 'إضافة صور', 'السابق', 'التالي')
         self.assertNotIn('المواصفات', c2._names(self.probe.surface))
         executor._safe_specs()
-        preview = {'kind': 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'rent_text': '50000', 'sai_rate_text': '0'}
+        preview = {'kind': 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'rent_text': '50000', 'sai_rate_text': '0', **CONTACT_PROOF}
         executor.rent_sai_readback = preview
         record = {'evidence_kind': 'SAFE_SPEC_PHOTO_PLUS_NONIMAGE_POLICY_AND_SERIALIZED_IDENTITY',
             'same_serialized_editor_chain_reviewed': True, 'editor_chain': executor.editor_chain,
@@ -237,9 +239,10 @@ class C2EntryTests(unittest.TestCase):
 
     def test_standard_completion_stage_never_invents_a_back_gaps_click_and_save_remains_native(self):
         executor = self.executor()
-        preview = {'kind': 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'rent_text': '50000', 'sai_rate_text': '0'}
+        preview = {'kind': 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW', 'rent_text': '50000', 'sai_rate_text': '0', **CONTACT_PROOF}
         executor.rent_sai_readback = executor.rent_sai_recheck = preview
         executor._rent_sai_preview = Mock(return_value=preview)
+        executor._contact_readback = Mock(return_value=dict(CONTACT_PROOF))
         executor._nonimage_input = Mock()
         executor._execute('back_gaps_to_completion', True)
         executor._nonimage_input.assert_not_called()
@@ -272,6 +275,8 @@ class C2EntryTests(unittest.TestCase):
         executor.cursor = c2.STAGES.index('complete_rent')
         values = {'الإيجار الشهري بالريال اليمني *': rent, 'نسبة السعي %': rate}
         self.probe.field = Mock(side_effect=lambda label: {'text': values[label]})
+        executor._nonimage_field = self.probe.field
+        executor._contact_readback = Mock(return_value=dict(CONTACT_PROOF))
         self.probe.surface = rows('خيارات المسودة', 'إرسال للمراجعة', 'السابق',
                                   'اختيار 0% يفعّل السعي الثابت 5% تلقائيًا.', *extra)
         return executor
@@ -415,7 +420,8 @@ class C2EntryTests(unittest.TestCase):
             'rent_text': '50000', 'sai_rate_text': '0',
             'fallback_notice': 'اختيار 0% يفعّل السعي الثابت 5% تلقائيًا.',
             'recording_stopped': True, 'custom_terms_visible': False,
-            'policy_was_visually_reviewed': False, 'persisted_policy_configuration_proved': False})
+            'policy_was_visually_reviewed': False, 'persisted_policy_configuration_proved': False,
+            **CONTACT_PROOF})
         self.assertEqual(self.probe.report['c2_v2_rent_sai_readback_diagnostic'], {
             'stage': 'complete_rent', 'fixture_key': KEY, 'fixture_tag': TAG,
             'editor_chain': executor.editor_chain, 'rent_matches_expected': True,
@@ -424,6 +430,118 @@ class C2EntryTests(unittest.TestCase):
             'custom_sai_sheet_absent': True, 'rent_shape': 'EXPECTED', 'rate_shape': 'EXPECTED'})
         self.assertEqual(self.probe.field.call_count, 2)
         self.assertEqual(self.probe.events, [])
+
+    def contact_executor(self, original='PRIVATE_INVALID_DEFAULT', alternate=''):
+        executor = self.executor()
+        values = {'رقم الاتصال *': original, 'رقم اتصال آخر (اختياري)': alternate}
+        executor._nonimage_field = Mock(side_effect=lambda label: {'text': values[label]})
+        def native(kind, label, value=None):
+            if kind == 'set': values[label] = value
+        executor._nonimage_input = Mock(side_effect=native)
+        self.probe.surface += rows('أدخل رقم جوال يمني من 9 أرقام يبدأ بـ 70، 71، 73، 77، 78.')
+        return executor, values
+
+    def test_contact_uses_actual_local_validation_policy_before_fixed_native_set(self):
+        executor, values = self.contact_executor()
+        policy_rows = list(self.probe.surface)
+        self.probe.nodes = Mock(side_effect=[policy_rows, rows('معاينة'), policy_rows])
+        executor._complete_fixture_contact()
+        self.assertEqual(executor._nonimage_input.call_args_list, [
+            call('click', 'خيارات المسودة'), call('click', 'معاينة'),
+            call('set', 'رقم الاتصال *', executor.fixture_contact)])
+        self.assertEqual(executor._contact_readback(), CONTACT_PROOF)
+        self.assertIn(executor.fixture_contact, self.probe.private_values)
+        self.assertEqual(executor.contact_policy_prefixes, frozenset(('70', '71', '73', '77', '78')))
+        self.assertEqual(self.probe.report, {})
+
+    def test_contact_readback_precedes_rent_sai_so_checkpoint_keeps_policy_viewport(self):
+        executor = self.preview_executor()
+        observed = []
+        executor._contact_readback.side_effect = lambda: (observed.append('contact') or dict(CONTACT_PROOF))
+        self.probe.field.side_effect = lambda label: (observed.append(label) or
+            {'text': '50000' if label == 'الإيجار الشهري بالريال اليمني *' else '0'})
+        result = executor._rent_sai_preview()
+        self.assertEqual(observed, ['contact', 'الإيجار الشهري بالريال اليمني *', 'نسبة السعي %'])
+        self.assertTrue(all(result[key] for key in CONTACT_PROOF))
+
+    def test_contact_refuses_valid_default_nonempty_alternate_or_unapproved_prefix_before_set(self):
+        for original, alternate in [('710000001', ''), ('PRIVATE_INVALID_DEFAULT', 'PRIVATE_ALTERNATE')]:
+            executor, _ = self.contact_executor(original, alternate)
+            with self.assertRaisesRegex(c2.C2Blocked, 'actual_invalid_default_contact'):
+                executor._complete_fixture_contact()
+            executor._nonimage_input.assert_not_called()
+        for text in ('أدخل رقم جوال يمني من 9 أرقام يبدأ بـ 70، 71.',
+                     'أدخل رقم جوال يمني من 9 أرقام يبدأ بـ 77، 77.'):
+            executor, _ = self.contact_executor()
+            self.probe.surface = rows('خيارات المسودة', 'إرسال للمراجعة', 'السابق', text)
+            with self.assertRaisesRegex(c2.C2Blocked, 'fixture_contact_prefix_not_in_loaded_policy'):
+                executor._complete_fixture_contact()
+            self.assertEqual(executor._nonimage_input.call_count, 2)
+            self.assertIsNone(executor.contact_policy_prefixes)
+        executor, _ = self.contact_executor()
+        self.probe.surface += rows('أدخل رقم جوال يمني من 9 أرقام يبدأ بـ 77.')
+        with self.assertRaisesRegex(c2.C2Blocked, 'unique_loaded_contact_policy_required'):
+            executor._complete_fixture_contact()
+
+    def test_contact_readback_rejects_any_drift_without_exporting_values(self):
+        for phone, alternate, prefixes in [('PRIVATE_CONTACT', '', frozenset({'77'})),
+             ('770000028', 'PRIVATE_ALTERNATE', frozenset({'77'})),
+             ('770000028', '', None), ('770000028', '', frozenset({'71'})),
+             ('٧٧٠٠٠٠٠٢٨', '', frozenset({'77'}))]:
+            executor, _ = self.contact_executor(phone, alternate)
+            executor.contact_policy_prefixes = prefixes
+            with self.assertRaises(c2.C2Blocked): executor._contact_readback()
+            self.assertEqual(self.probe.report, {})
+            executor._nonimage_input.assert_not_called()
+        self.assertEqual(c2.C2Executor._normalize_contact(' (+967) ٧٧٠-٠٠٠-٠٢٨ '), '770000028')
+
+    def test_contact_native_delivery_is_count_only_and_policy_gated(self):
+        executor = self.executor()
+        executor._nonimage_field = Mock(return_value={'path': '0.5', 'witness': 'f'*64})
+        self.probe.instrument = Mock(return_value={'account_action_delivered': 'true',
+            'set_text_delivered': 'true', 'semantic_action_used': 'true'})
+        self.probe.adb = Mock()
+        with self.assertRaisesRegex(c2.C2Blocked, 'observed_listing_contact_policy_required'):
+            executor._nonimage_input('set', 'رقم الاتصال *', executor.fixture_contact)
+        self.probe.instrument.assert_not_called()
+        executor.contact_policy_prefixes = frozenset({'77'})
+        executor._nonimage_input('set', 'رقم الاتصال *', executor.fixture_contact)
+        self.assertEqual(self.probe.report, {'c2_v2_nonimage_input_operations_delivered': 1})
+        self.probe.adb.assert_called_once_with('shell', 'input', 'keyevent', '4')
+        self.assertNotIn(executor.fixture_contact, json.dumps(self.probe.report))
+
+    def test_nonimage_seeking_uses_actual_scroll_receiver_without_persisted_hash(self):
+        executor = self.executor()
+        scroll = dict(path='0.1', witness='f'*64, package=c2.roles.APP, visible=True,
+                      enabled=True, scrollable=True, bounds=[0, 100, 600, 900])
+        field = dict(path='0.2', witness='e'*64, package=c2.roles.APP, visible=True,
+                     enabled=True, editable=True, text='PRIVATE_CONTACT', hint='رقم الاتصال *')
+        self.probe.nodes = Mock(side_effect=[[scroll], [scroll, field]])
+        self.probe.matching = lambda value, label: [r for r in value if label in c2.policy.names(r)]
+        self.probe.field = Mock(return_value=field)
+        self.probe.instrument = Mock(return_value={'account_action_delivered': 'true',
+                                                 'semantic_action_used': 'true'})
+        self.assertIs(executor._nonimage_field('رقم الاتصال *'), field)
+        self.probe.instrument.assert_called_once_with('account-scroll', node_path='0.1',
+                                                      node_witness='f'*64, direction='forward')
+        self.probe.field.assert_called_once_with('رقم الاتصال *', seek=False)
+        self.assertEqual(self.probe.report, {'c2_v2_nonimage_input_operations_delivered': 1})
+        for raw in ('PRIVATE', 'witness', 'f'*64, '0.1', 'bounds'):
+            self.assertNotIn(raw, json.dumps(self.probe.report))
+
+    def test_final_save_requires_fresh_valid_contact_and_reviewed_boolean_proof(self):
+        executor, values = self.contact_executor('770000028')
+        executor.contact_policy_prefixes = frozenset({'77'})
+        executor.rent_sai_readback = executor.rent_sai_recheck = dict(CONTACT_PROOF)
+        values['رقم اتصال آخر (اختياري)'] = 'PRIVATE_DRIFT'
+        with self.assertRaisesRegex(c2.C2Blocked, 'actual_valid_fixture_contact_required'):
+            executor._execute('full_save', True)
+        executor._nonimage_input.assert_not_called()
+        values['رقم اتصال آخر (اختياري)'] = ''
+        executor.rent_sai_readback.pop('contact_policy_observed_in_ui')
+        with self.assertRaisesRegex(c2.C2Blocked, 'reviewed_contact_changed_before_explicit_save'):
+            executor._execute('full_save', True)
+        executor._nonimage_input.assert_not_called()
 
 
 if __name__ == '__main__': unittest.main()

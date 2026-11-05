@@ -412,3 +412,16 @@ called. The prior command remains consumed, and the old review/frame cache is
 discarded. Root must inspect the fresh evidence and sign a new sequence. Action
 targets, attempted inputs, uncertain delivery and C4 execution cannot use this
 path. A pending review never counts as a completed stage or Phase1 acceptance.
+
+## Synthetic listing contact before full save
+
+The normal test account's authentication phone does not satisfy the listing-only
+mobile-number shape. The editor therefore retained recovery data instead of
+creating a property when its contact validation first ran at full save.
+
+C2 sets a separate fixed synthetic listing contact through the ordinary native
+field. It first observes the source-shaped local validation error and confirms
+the configured prefix. Contact values remain in private runtime memory; scrolling
+and input record only counts, and the reviewed preview contains only validity
+booleans. Exact contact readback, current policy validity and an empty optional
+contact are required again before saving. No calls or messages are sent.

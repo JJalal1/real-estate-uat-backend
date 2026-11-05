@@ -657,11 +657,15 @@ class Controller:
                 if stage == 'review_photo_before_save':
                     # Transport the already observed synthetic policy preview
                     # required by the next review, without a contact-page image.
-                    bindings['semantic_preview'] = {key: executor.rent_sai_readback[key] for key in (
+                    preview_keys = (
                         'kind', 'fixture_key', 'fixture_tag', 'editor_chain', 'rent_text',
                         'sai_rate_text', 'fallback_notice', 'recording_stopped',
                         'custom_terms_visible', 'policy_was_visually_reviewed',
-                        'persisted_policy_configuration_proved')}
+                        'persisted_policy_configuration_proved')
+                    if getattr(executor, 'entry_mode', None) == 'standard_editor':
+                        preview_keys += ('native_contact_readback_matches_fixture', 'contact_policy_valid',
+                            'optional_contact_empty', 'contact_policy_observed_in_ui')
+                    bindings['semantic_preview'] = {key: executor.rent_sai_readback[key] for key in preview_keys}
                 evidence = self._media([held['file']])
             elif stage in API_STAGES or stage in LOGIN_STAGES:
                 self._nonimage_check(phase, stage)

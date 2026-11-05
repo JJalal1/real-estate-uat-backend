@@ -308,17 +308,24 @@ class NativeAccount:
     def c2_input_failure(self, op, result, output, reason):
         executor = getattr(self, '_root_c2_executor_v2', None)
         context = getattr(executor, '_diagnostic_operation', None)
+        cursor = getattr(executor, 'cursor', None)
+        stage = {2: 'complete_rent', 5: 'return_next_step3',
+                 6: 'back_gaps_to_completion', 7: 'full_save'}.get(cursor)
+        scoped_context = type(context) is dict and (
+            (cursor == 2 and context.get('control') in {
+                'rent', 'sai_mode', 'sai_rate', 'fixture_contact', 'validation_preview', 'draft_options'} and
+             context.get('substage') in {'field_lookup', 'instrument', 'dismiss_ime',
+                                         'contact_policy_observation', 'contact_readback'}) or
+            (cursor in {5, 6, 7} and context.get('control') == 'fixture_contact' and
+             context.get('substage') == 'contact_readback'))
         if (getattr(executor, 'probe', None) is not self or
                 getattr(executor, 'inflight', False) is not True or
-                getattr(executor, 'cursor', None) != 2 or
                 self.authenticated is not True or getattr(self, 'recorder', None) is not None or
-                op not in INPUT_OPS or type(context) is not dict or
-                context.get('control') not in {'rent', 'sai_mode', 'sai_rate'} or
-                context.get('substage') not in {'field_lookup', 'instrument', 'dismiss_ime'} or
+                op not in INPUT_OPS or not scoped_context or
                 'c2_v2_native_input_failure' in self.report):
             return
         row = {
-            'stage': 'complete_rent', 'control': context['control'],
+            'stage': stage, 'control': context['control'],
             'substage': context['substage'], 'op': op,
             'java_stage': result.get('stage') if result.get('stage') in INPUT_JAVA_STAGES else None,
             'foreground_category': result.get('foreground_category') if result.get('foreground_category') in FOREGROUND_CATEGORIES else 'UNOBSERVED',

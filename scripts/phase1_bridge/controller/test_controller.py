@@ -598,9 +598,11 @@ class ControllerTests(unittest.TestCase):
             'fixture_tag':TAG, 'editor_chain':'C2-V2:'+KEY, 'rent_text':'50000',
             'sai_rate_text':'0', 'fallback_notice':'اختيار 0% يفعّل السعي الثابت 50% تلقائيًا.',
             'recording_stopped':True, 'custom_terms_visible':False,
-            'policy_was_visually_reviewed':False, 'persisted_policy_configuration_proved':False}
+            'policy_was_visually_reviewed':False, 'persisted_policy_configuration_proved':False,
+            'native_contact_readback_matches_fixture':True, 'contact_policy_valid':True,
+            'optional_contact_empty':True, 'contact_policy_observed_in_ui':True}
         self.probe._root_c2_executor_v2 = SimpleNamespace(
-            failed=False, inflight=False, cursor=4,
+            failed=False, inflight=False, cursor=4, entry_mode='standard_editor',
             rent_sai_readback=dict(preview, unrelated_private_value='PRIVATE_SENTINEL'))
         observed = self.controller._observation('C2', 'C2_4_REVIEW_PHOTO_BEFORE_SAVE',
             'review_photo_before_save', capture=True)
@@ -716,12 +718,15 @@ class ControllerTests(unittest.TestCase):
         self.initial(); self.root('C2')
         self.controller._c4_state().update(accepted=True, cursor='C4_SAVED_RESTORED_HOLD_FOR_C2')
         executor = Executor(cursor=2)
+        executor.entry_mode = 'standard_editor'
         executor.preparation_attempt, executor.pending_preparation, executor.reviews = 0, None, {}
         executor.rent_sai_readback = {'kind':'NATIVE_NONIMAGE_RENT_SAI_PREVIEW',
             'fixture_key':KEY,'fixture_tag':TAG,'editor_chain':'C2-V2:'+KEY,
             'rent_text':'50000','sai_rate_text':'0','fallback_notice':'SYNTHETIC_FALLBACK',
             'recording_stopped':True,'custom_terms_visible':False,
-            'policy_was_visually_reviewed':False,'persisted_policy_configuration_proved':False}
+            'policy_was_visually_reviewed':False,'persisted_policy_configuration_proved':False,
+            'native_contact_readback_matches_fixture':True,'contact_policy_valid':True,
+            'optional_contact_empty':True,'contact_policy_observed_in_ui':True}
         self.probe._root_c2_executor_v2 = executor
         def pending(probe, phase):
             self.dispatcher.calls.append((phase, executor.cursor))

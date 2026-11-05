@@ -955,6 +955,52 @@ class C2FailureDiagnosticTests(unittest.TestCase):
         self.assertNotIn('observations', row)
         self.assertNotIn('PRIVATE', json.dumps(p.report))
 
+    def test_c2_contact_failure_keeps_only_fixed_context_without_contact_payload(self):
+        for control, substage, op in (
+                ('fixture_contact', 'instrument', 'account-set'),
+                ('fixture_contact', 'dismiss_ime', 'account-dismiss-ime'),
+                ('fixture_contact', 'contact_policy_observation', 'account-snapshot'),
+                ('fixture_contact', 'contact_readback', 'account-scroll'),
+                ('validation_preview', 'instrument', 'account-click'),
+                ('draft_options', 'instrument', 'account-click')):
+            with self.subTest(control=control, substage=substage):
+                actual, p = self.native_probe()
+                p._root_c2_executor_v2._diagnostic_operation = {'control': control, 'substage': substage}
+                p.c2_input_failure(op, {
+                    'stage': 'account_focus_hint_match', 'passed': 'false',
+                    'focus_hint_original_shape': 'PRIVATE_CONTACT_HINT',
+                    'contact': 'PRIVATE_CONTACT', 'prefixes': 'PRIVATE_PREFIX',
+                    'message': 'PRIVATE_VALIDATION_ERROR', 'tree_b64': 'PRIVATE_TREE',
+                    'node_witness': 'PRIVATE_HASH'}, 'PRIVATE_OUTPUT', 'native_input_not_delivered')
+                row = p.report['c2_v2_native_input_failure']
+                self.assertEqual((row['stage'], row['control'], row['substage'], row['op']),
+                                 ('complete_rent', control, substage, op))
+                self.assertNotIn('PRIVATE', json.dumps(p.report))
+                p.save.assert_called_once()
+
+    def test_c2_contact_readback_failure_requires_exact_later_stage_and_active_scope(self):
+        for cursor, stage in ((5, 'return_next_step3'), (6, 'back_gaps_to_completion'), (7, 'full_save')):
+            actual, p = self.native_probe()
+            p._root_c2_executor_v2.cursor = cursor
+            p._root_c2_executor_v2._diagnostic_operation = {
+                'control': 'fixture_contact', 'substage': 'contact_readback'}
+            p.c2_input_failure('account-scroll', {'stage': 'account_scroll'}, '', 'native_input_not_delivered')
+            self.assertEqual(p.report['c2_v2_native_input_failure']['stage'], stage)
+        for change in ('other_cursor', 'late_set', 'late_preview', 'not_inflight', 'unauthenticated', 'recording'):
+            actual, p = self.native_probe()
+            e = p._root_c2_executor_v2
+            e.cursor = 7
+            e._diagnostic_operation = {'control': 'fixture_contact', 'substage': 'contact_readback'}
+            if change == 'other_cursor': e.cursor = 8
+            elif change == 'late_set': e._diagnostic_operation['substage'] = 'instrument'
+            elif change == 'late_preview': e._diagnostic_operation['control'] = 'validation_preview'
+            elif change == 'not_inflight': e.inflight = False
+            elif change == 'unauthenticated': p.authenticated = False
+            else: p.recorder = object()
+            p.c2_input_failure('account-snapshot', {}, 'PRIVATE_OUTPUT', 'native_input_not_delivered')
+            self.assertEqual(p.report, {}, change)
+            p.save.assert_not_called()
+
     def test_c2_ime_failure_retains_only_fixed_phase_substage_and_bounded_counts(self):
         actual, p = self.native_probe()
         p._root_c2_executor_v2._diagnostic_operation = {'control': 'sai_rate', 'substage': 'dismiss_ime'}
@@ -1054,6 +1100,8 @@ class C2FailureDiagnosticTests(unittest.TestCase):
         actual, c2 = self.modules()
         e = c2.C2Executor.__new__(c2.C2Executor)
         e.cursor = 2; e.failed = e.inflight = False; e.monthly_rent = '50000'
+        e.fixture_contact = '770000028'
+        e._nonimage_field = Mock(return_value={'path': '0.1', 'witness': DIGEST})
         e.regular_logout_receipt = None; e.property_id = None
         p = Mock(report={}, explicit_pointer_mode=False)
         p.field.return_value = {'path': '0.1', 'witness': DIGEST}

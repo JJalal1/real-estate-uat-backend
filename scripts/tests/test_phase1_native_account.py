@@ -721,6 +721,13 @@ class NativeAccountSafetyTest(unittest.TestCase):
             check(focusHintMatches(rentLabel,saiLabel+"\\n0",true,true),false);
             check(focusHintMatches(saiLabel,rentLabel+"\\n0",true,true),false);
             check(focusHintMatches("سعر البيع بالريال اليمني *","سعر البيع بالريال اليمني *\\n0",true,true),false);
+            String contactLabel="رقم الاتصال *";
+            check(focusHintMatches(contactLabel,contactLabel,true,true),true);
+            check(focusHintMatches(contactLabel,"",true,true),true);
+            check(focusHintMatches(contactLabel,"",true,false),false);
+            check(focusHintMatches(contactLabel,contactLabel+"\\n0",true,true),false);
+            check(focusHintMatches(contactLabel,contactLabel+"\\nرقم جوال يمني من 9 أرقام",true,true),false);
+            check(focusHintMatches(contactLabel,"رقم واتساب",true,true),false);
             shape(rentLabel,"MONTHLY_RENT_LABEL");
             shape(rentLabel+"\\n0","MONTHLY_RENT_LABEL_AND_ZERO");
             shape(saiLabel,"SAI_RATE_LABEL");
@@ -1198,6 +1205,31 @@ class NativeAccountSafetyTest(unittest.TestCase):
                 check(result.flags.get("ime_logical_anchor_present")&&result.flags.get("ime_logical_field_unique")&&result.flags.get("ime_logical_field_rebound"));
                 check(result.flags.get("ime_original_value_preserved")&&!result.flags.get("ime_focus_same_original"));
               }
+            }
+            // Only the fixed synthetic listing contact may be rebound. Its
+            // source has no hintText; helperText is not a guessed placeholder.
+            p=fresh();original(p).hint="رقم الاتصال *";original(p).text="770000028";
+            original(p).refreshResult=false;p.automation.after=Arrays.asList(windows(false,3,9));
+            AccessibilityNodeInfo contact=p.automation.after.get(0).get(0).root.focus;
+            contact.hint="رقم الاتصال *";contact.text="770000028";
+            result=new Bundle();p.dismissIme(result);
+            check(result.flags.get("ime_dismissed")&&result.flags.get("ime_logical_field_rebound"));
+            check(!result.flags.get("ime_original_refreshed")&&result.flags.get("ime_original_value_preserved"));
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&contact.refreshes==0);
+            for(String fault:new String[]{"auth_label","other_contact_value","changed_value","zero_hint","helper_hint","blank_anchor","duplicate"}){
+              p=fresh();original(p).hint="رقم الاتصال *";original(p).text="770000028";original(p).refreshResult=false;
+              p.automation.after=Arrays.asList(windows(false,3,9));
+              AccessibilityNodeInfo root=p.automation.after.get(0).get(0).root,field=root.focus;
+              field.hint="رقم الاتصال *";field.text="770000028";
+              if(fault.equals("auth_label"))original(p).hint=field.hint="رقم واتساب";
+              if(fault.equals("other_contact_value"))original(p).text=field.text="770000029";
+              if(fault.equals("changed_value"))field.text="770000029";
+              if(fault.equals("zero_hint"))original(p).hint=field.hint="رقم الاتصال *\n0";
+              if(fault.equals("helper_hint"))field.hint+="\nرقم جوال يمني من 9 أرقام";
+              if(fault.equals("blank_anchor"))original(p).hint="";
+              if(fault.equals("duplicate")){AccessibilityNodeInfo other=new AccessibilityNodeInfo(10);
+                other.hint=field.hint;other.text=field.text;root.children.add(other);}
+              fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
             }
             // Missing/incomplete fresh trees and temporary field layout settle
             // read-only within the original bound, with no second Back.

@@ -285,6 +285,10 @@ class C2Executor:
         self.regular_surfaces = set()
         self.editor_chain = 'C2-V2:' + self.key
         self.rent_sai_readback = self.rent_sai_recheck = None
+        self.contact_policy_prefixes = None
+        # UAT listing contact only; never changes the account/OTP identity.
+        self.fixture_contact = '770000028'
+        self.probe.private_values.add(self.fixture_contact)
         self.regular_cycle = 0
         self.regular_frames = {}
         self.regular_account_witness = self.regular_logout_receipt = None
@@ -482,6 +486,7 @@ class C2Executor:
         """
         controls = {('set', 'الإيجار الشهري بالريال اليمني *'): 'rent',
                     ('click', 'نسبة مئوية %'): 'sai_mode', ('set', 'نسبة السعي %'): 'sai_rate',
+                    ('set', 'رقم الاتصال *'): 'fixture_contact', ('click', 'معاينة'): 'validation_preview',
                     ('click', 'السابق'): 'previous', ('click', 'العودة إلى النواقص'): 'back_gaps',
                     ('click', 'خيارات المسودة'): 'draft_options', ('click', 'حفظ مسودة'): 'save_draft'}
         self._diagnostic_operation = {'control': controls.get((kind, label), 'unrecognized'),
@@ -491,11 +496,15 @@ class C2Executor:
         self._diagnostic_operation['substage'] = 'field_lookup'
         if kind == 'set':
             need((label, value) in {('الإيجار الشهري بالريال اليمني *', self.monthly_rent),
-                                   ('نسبة السعي %', '0')}, 'nonimage_synthetic_set_allowlist')
-            row = p.field(label)
+                                   ('نسبة السعي %', '0'), ('رقم الاتصال *', self.fixture_contact)},
+                 'nonimage_synthetic_set_allowlist')
+            if label == 'رقم الاتصال *':
+                need(self.entry_mode == 'standard_editor' and self.contact_policy_prefixes is not None and
+                     '77' in self.contact_policy_prefixes, 'observed_listing_contact_policy_required')
+            row = self._nonimage_field(label)
         else:
             need(kind == 'click' and label in {'نسبة مئوية %', 'السابق', 'العودة إلى النواقص',
-                                              'خيارات المسودة', 'حفظ مسودة'},
+                                              'خيارات المسودة', 'حفظ مسودة', 'معاينة'},
                  'nonimage_click_allowlist')
             matches = [row for row in p.matching(p.nodes(), label)
                        if row.get('visible') and row.get('enabled') and
@@ -522,16 +531,118 @@ class C2Executor:
         self._diagnostic_operation['substage'] = 'completed'
         p.report['c2_v2_nonimage_input_operations_delivered'] = (
             p.report.get('c2_v2_nonimage_input_operations_delivered', 0) + 1)
+        if label == 'رقم الاتصال *':
+            return  # Contact deliveries retain only the count, never field metadata.
         p.report.setdefault('c2_v2_nonimage_input_delivery', []).append({
             'kind': kind, 'allowlisted_control': label, 'hashes_recorded': False,
             **{key: result[key] for key in ('native_pointer_used', 'native_pointer_events',
                 'semantic_action_used', 'account_action_delivered', 'set_text_delivered') if key in result}})
 
+    def _nonimage_field(self, label):
+        """Seek only fixed step4 fields without inherited act() hash receipts."""
+        need(label in {'الإيجار الشهري بالريال اليمني *', 'نسبة السعي %',
+                       'رقم الاتصال *', 'رقم اتصال آخر (اختياري)'}, 'nonimage_field_allowlist')
+        self._actor('broker')
+        p = self.probe
+        directions = (('backward', 'forward') if label in
+                      {'الإيجار الشهري بالريال اليمني *', 'نسبة السعي %'} else ('forward', 'backward'))
+        for direction in directions:
+            for attempt in range(13):
+                rows = p.nodes()
+                need(not _names(rows) & roles.AUTH_LABELS, 'contact_auth_surface_refused')
+                if p.matching(rows, label):
+                    row = p.field(label, seek=False)
+                    need(row.get('package') == roles.APP and row.get('visible') is True and
+                         row.get('enabled') is True and row.get('editable') is True and
+                         isinstance(row.get('text'), str), 'actual_nonimage_field_required')
+                    return row
+                if attempt == 12:
+                    break
+                scrolls = [row for row in rows if row.get('package') == roles.APP and
+                           row.get('visible') is True and row.get('enabled') is True and row.get('scrollable')]
+                need(bool(scrolls), 'nonimage_scroll_container_required')
+                row = max(scrolls, key=lambda r: (r['bounds'][2]-r['bounds'][0]) *
+                                                  (r['bounds'][3]-r['bounds'][1]))
+                result = p.instrument('account-scroll', node_path=row['path'],
+                                      node_witness=row['witness'], direction=direction)
+                need(result.get('account_action_delivered') == 'true' and
+                     ((result.get('native_pointer_used') == 'true' and
+                       result.get('semantic_action_used') != 'true' and result.get('native_pointer_events') == '14') or
+                      (result.get('semantic_action_used') == 'true' and result.get('native_pointer_used') != 'true')),
+                     'nonimage_scroll_delivery_required')
+                p.report['c2_v2_nonimage_input_operations_delivered'] = (
+                    p.report.get('c2_v2_nonimage_input_operations_delivered', 0) + 1)
+        raise C2Blocked('actual_nonimage_field_not_found')
+
+    @staticmethod
+    def _normalize_contact(value):
+        # Exact ListingContactPolicy.normalize; no values leave this call chain.
+        value = value.strip().translate(str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789'))
+        value = re.sub(r'[\s()\-]', '', value)
+        return value[4:] if value.startswith('+967') else value[5:] if value.startswith('00967') else value
+
+    def _complete_fixture_contact(self):
+        self._actor('broker')
+        self._diagnostic_operation = {'control': 'fixture_contact', 'substage': 'contact_policy_observation'}
+        need(self.entry_mode == 'standard_editor' and self.state['actor_id'] == 28 and
+             self.contact_policy_prefixes is None, 'fixed_contact_fixture_scope_required')
+        original = self._normalize_contact(self._nonimage_field('رقم الاتصال *')['text'])
+        alternate = self._normalize_contact(self._nonimage_field('رقم اتصال آخر (اختياري)')['text'])
+        # Invalid shape guarantees _preview returns with validation before any
+        # sheet, save, submit or API call; do not infer the loaded prefix policy.
+        need(re.fullmatch(r'7[0-9]{8}', original) is None and not alternate,
+             'actual_invalid_default_contact_and_empty_alternate_required')
+        self._rent_editor_surface()
+        self._nonimage_input('click', 'خيارات المسودة')
+        self._nonimage_input('click', 'معاينة')
+        self._diagnostic_operation = {'control': 'fixture_contact', 'substage': 'contact_policy_observation'}
+        deadline = time.monotonic() + 15
+        prefixes = None
+        while time.monotonic() < deadline:
+            rows = self.probe.nodes()
+            names = _names(rows)
+            need(not names & roles.AUTH_LABELS, 'contact_auth_surface_refused')
+            need('معاينة قبل الإرسال' not in names, 'validation_only_preview_required')
+            if not {'خيارات المسودة', 'إرسال للمراجعة', 'السابق'} <= names:
+                time.sleep(.25)
+                continue  # Read-only settling while the popup closes.
+            self._rent_editor_surface(rows)
+            messages = {match.group(1) for name in names if (match := re.fullmatch(
+                r'أدخل رقم جوال يمني من 9 أرقام يبدأ بـ (7[0-9](?:، 7[0-9]){0,9})\.', name))}
+            need(len(messages) <= 1, 'unique_loaded_contact_policy_required')
+            if messages:
+                values = next(iter(messages)).split('، ')
+                need(len(set(values)) == len(values) and '77' in values,
+                     'fixture_contact_prefix_not_in_loaded_policy')
+                prefixes = frozenset(values)
+                break
+            time.sleep(.25)
+        need(prefixes is not None, 'actual_contact_policy_validation_message_required')
+        self.contact_policy_prefixes = prefixes
+        self._nonimage_input('set', 'رقم الاتصال *', self.fixture_contact)
+
+    def _contact_readback(self):
+        self._actor('broker')
+        self._diagnostic_operation = {'control': 'fixture_contact', 'substage': 'contact_readback'}
+        need(self.entry_mode == 'standard_editor' and isinstance(self.contact_policy_prefixes, frozenset) and
+             '77' in self.contact_policy_prefixes, 'observed_listing_contact_policy_required')
+        actual = self._nonimage_field('رقم الاتصال *')['text']
+        normalized = self._normalize_contact(actual)
+        alternate = self._normalize_contact(self._nonimage_field('رقم اتصال آخر (اختياري)')['text'])
+        proof = {'native_contact_readback_matches_fixture': actual == self.fixture_contact,
+                 'contact_policy_valid': bool(re.fullmatch(r'7[0-9]{8}', normalized)) and
+                     normalized[:2] in self.contact_policy_prefixes,
+                 'optional_contact_empty': not alternate, 'contact_policy_observed_in_ui': True}
+        need(all(proof.values()), 'actual_valid_fixture_contact_required')
+        return proof
+
     def _rent_sai_preview(self):
         self._actor('broker')
         p = self.probe
-        rent = policy.digits(p.field('الإيجار الشهري بالريال اليمني *').get('text', ''))
-        rate = policy.digits(p.field('نسبة السعي %').get('text', ''))
+        contact = self._contact_readback() if self.entry_mode == 'standard_editor' else {}
+        self._diagnostic_operation = {'control': 'rent_sai', 'substage': 'preview'}
+        rent = policy.digits(self._nonimage_field('الإيجار الشهري بالريال اليمني *').get('text', ''))
+        rate = policy.digits(self._nonimage_field('نسبة السعي %').get('text', ''))
         rows = p.nodes()  # Ephemeral only; no tree/root/node hashes or raw text retained.
         names = _names(rows)
         # The real /add-property route is a dismissible CustomTransitionPage.
@@ -584,7 +695,7 @@ class C2Executor:
                 'rent_text': rent, 'sai_rate_text': rate, 'fallback_notice': notices[0],
                 'recording_stopped': True, 'custom_terms_visible': False,
                 'policy_was_visually_reviewed': False,
-                'persisted_policy_configuration_proved': False}
+                'persisted_policy_configuration_proved': False, **contact}
 
     def _safe_specs(self):
         self._actor('broker')
@@ -743,6 +854,8 @@ class C2Executor:
             self._nonimage_input('set', 'الإيجار الشهري بالريال اليمني *', self.monthly_rent)
             self._nonimage_input('click', 'نسبة مئوية %')
             self._nonimage_input('set', 'نسبة السعي %', '0')
+            if self.entry_mode == 'standard_editor':
+                self._complete_fixture_contact()
             self._diagnostic_operation = {'control': 'rent_sai', 'substage': 'preview'}
             self.rent_sai_readback = self._rent_sai_preview()
             p.report['c2_v2_nonimage_rent_sai_preview'] = copy.deepcopy(self.rent_sai_readback)
@@ -790,6 +903,9 @@ class C2Executor:
             self._actor('broker')
             need(self.rent_sai_recheck == self.rent_sai_readback is not None,
                  'same_actual_preview_required_before_explicit_save')
+            if self.entry_mode == 'standard_editor':
+                need(all(self.rent_sai_readback.get(key) is value for key, value in
+                         self._contact_readback().items()), 'reviewed_contact_changed_before_explicit_save')
             self._nonimage_input('click', 'خيارات المسودة')
             self._nonimage_input('click', 'حفظ مسودة'); p.wait('عقاراتي', seconds=120)
         elif stage in ('broker_logout_for_pin', 'broker_logout', 'support_logout',

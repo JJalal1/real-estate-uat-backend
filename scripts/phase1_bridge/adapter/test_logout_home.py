@@ -12,7 +12,7 @@ sys.path.insert(0, str(HERE))
 ROLE_PATH = 'C2_SOURCE_PROPOSAL/c2_native_roles.py'
 PREVIOUS_UNCHANGED = {
     'variants/ROOT_C4_EXECUTOR/phase_extensions.py': '9832c9943e0d83f7e3fc3591b022bd26471caf0f3c6a0b6e31f0fbc8a5437240',
-    'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py': '23bb340c63f2d003632efc1b1bce7a2cfed68cc43224a9c565c1e5209b84eef0',
+    'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py': 'baeed08ef67b006a3589a42de6f6541e7cfc79bf0b7c2200fe1af1449b9f12da',
     'variants/ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py': '96bd01d0672dc1ed79decc4da16781ee583f24a32c8dcb0d1345f16d00e33cc4',
     'variants/LOCAL_REMAINING_PROPOSAL/local_stage_policy.py': '2a54658205998dbb02f2a0a3f4c59597d348125d0b520402e19ba8ef85527ec2',
     'variants/promoted_cleanup.py': '4a7752b29cc8b1417e5d82ab94c9113e3687b6b6e37ba995847e387f5d262f67',

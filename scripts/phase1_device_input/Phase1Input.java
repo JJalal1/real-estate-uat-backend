@@ -605,6 +605,8 @@ public final class Phase1Input extends Instrumentation {
         }
     }
     private static String imeSyntheticLabel(String hint) {
+        // The listing contact field has a label and helperText, but no hintText.
+        if("رقم الاتصال *".equals(hint)) return hint;
         for(String label:new String[]{"الإيجار الشهري بالريال اليمني *","نسبة السعي %"})
             if(label.equals(hint) || (label+"\n0").equals(hint)) return label;
         return "";
@@ -713,7 +715,8 @@ public final class Phase1Input extends Instrumentation {
         final String originalDescription=accessibleDescription(original);
         final String logicalLabel=imeSyntheticLabel(plain(original.getHintText()));
         final boolean logicalAnchor=("الإيجار الشهري بالريال اليمني *".equals(logicalLabel) && "50000".equals(originalText)) ||
-            ("نسبة السعي %".equals(logicalLabel) && "0".equals(originalText));
+            ("نسبة السعي %".equals(logicalLabel) && "0".equals(originalText)) ||
+            ("رقم الاتصال *".equals(logicalLabel) && "770000028".equals(originalText));
         result.putBoolean("ime_logical_anchor_present",logicalAnchor);
         result.putBoolean("ime_logical_field_unique",false);
         result.putBoolean("ime_logical_field_rebound",false);
@@ -750,8 +753,8 @@ public final class Phase1Input extends Instrumentation {
                     originalObsolete=true;
                     imeSubstage="LOGICAL_FIELD_REBIND";
                     // Flutter may replace a semantics node during IME reflow.
-                    // Observe ONLY these two exact synthetic C2 fields. Never
-                    // re-identify an auth/contact field or send replacement input.
+                    // Observe ONLY these exact synthetic C2 values/labels. Never
+                    // re-identify an auth field, arbitrary contact value, or send replacement input.
                     require(logicalAnchor);
                     List<AccessibilityNodeInfo> matches=new ArrayList<>();
                     boolean complete=findImeLogicalField(after.root,logicalLabel,originalDescription,
