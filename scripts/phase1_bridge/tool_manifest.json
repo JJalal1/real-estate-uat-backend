@@ -7,7 +7,7 @@
     ".github/actions/phase1-review/package.json": "4f66c132f4670d54b61b1fabe78cec99a9eb5bd4cab898d94d583d749ee89519",
     ".github/actions/phase1-review/test_index.js": "d654bbaad69fc93c3a34c6ebbdb3ef9987a9bdaf8c872823e5fb3e5dfaa27cb4",
     ".github/phase1-close-recipient.pem": "d89fadfb4b63fec9e4aedf2d3a4edde876250b0cc9b99014fbbf71cc870799aa",
-    ".github/workflows/phase1-native-account.yml": "9274380aa08a01892e94e3e37eadc72852f3feb34cd92793748dffa367559727",
+    ".github/workflows/phase1-native-account.yml": "98a573632f252bbc7fe34d1128200b1248171613a64d754d87835f991fc570a0",
     "scripts/phase1_bridge/adapter/README.md": "a2b5d06c394de90a9dfde7387b75e0d223e24eca05f345d99bdddd604de869f4",
     "scripts/phase1_bridge/adapter/build_ci_variants.py": "afeff7582b159a4378b7f06a354e957ac58b0f40e1530629828e60a58405cfdd",
     "scripts/phase1_bridge/adapter/c1_basics_capture.py": "f9045eaaf8553df43d31cb8b6f2437600ad13425e672d65ec4819df7a30ea164",

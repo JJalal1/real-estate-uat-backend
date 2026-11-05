@@ -104,6 +104,7 @@ jobs:
         with:
           node-version: '24'
       - name: Install pinned collector and checkpoint dependencies
+        timeout-minutes: 8
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check Pillow==12.3.0 cryptography==50.0.2
