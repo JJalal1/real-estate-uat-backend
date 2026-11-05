@@ -12,10 +12,13 @@ import 'support/owner_ux_fixtures.dart';
 const _origin = 'https://real-estate-uat-api-frankfurt.onrender.com';
 const _foreignOrigin = 'https://foreign-image.example';
 
-PropertyDetails _listing({int images = 1, String origin = _origin, String status = 'draft'}) =>
+PropertyDetails _listing({int images = 1, String origin = _origin, String status = 'draft',
+    String? reviewStatus, String? reviewReason, bool canSubmit = false, bool canEdit = true}) =>
     PropertyDetails.fromJson({
       'id': 97, 'title': 'إعلان اختبار الصورة الخاصة', 'type': 'apartment',
-      'purpose': 'rent', 'status': status, 'review_status': status == 'published' ? 'approved' : 'draft',
+      'purpose': 'rent', 'status': status,
+      'review_status': reviewStatus ?? (status == 'published' ? 'approved' : 'draft'),
+      'last_review_reason': reviewReason, 'can_submit': canSubmit, 'can_edit': canEdit,
       'price': 50000, 'currency': 'YER', 'address': 'عنوان اختبار',
       'bedrooms': 3, 'bathrooms': 2,
       'images': [for (var index = 0; index < images; index++) {
@@ -101,4 +104,89 @@ void main() {
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });
+
+  for (final returned in [false, true]) {
+    testWidgets('authorized ${returned ? 'returned' : 'draft'} card exposes submission and retains edit menu', (tester) async {
+      const reason = 'صحح بيانات الإعلان التجريبي قبل إعادة الإرسال.';
+      final listing = _listing(images: 0, canSubmit: true,
+        reviewStatus: returned ? 'returned_for_correction' : 'draft',
+        reviewReason: returned ? reason : null);
+      final action = returned ? 'إعادة الإرسال' : 'إرسال للمراجعة';
+      final edit = returned ? 'تصحيح الإعلان' : 'إكمال الإعلان';
+      final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
+        myListingsProvider.overrideWith((ref) async => [listing]),
+      ]);
+      await pumpUx(tester, scope, const MyListingsScreen());
+      await tester.ensureVisible(find.text(action));
+      await uxFrames(tester);
+      // The authorized next action is reachable without opening the card menu.
+      expect(find.text(action).hitTestable(), findsOneWidget);
+      expect(find.text(listing.title).hitTestable(), findsOneWidget);
+      if (returned) {
+        expect(find.text('ملاحظة فريق المراجعة').hitTestable(), findsOneWidget);
+        expect(find.text(reason).hitTestable(), findsOneWidget);
+      }
+      expect(find.text(edit), findsNothing);
+      await tester.tap(find.text(action));
+      await uxFrames(tester);
+      expect(find.text(returned ? 'إعادة إرسال الإعلان؟' : 'إرسال الإعلان للمراجعة؟'), findsOneWidget);
+      // Keep this test before SAI confirmation/API submission.
+      await tester.tap(find.text('إلغاء'));
+      await uxFrames(tester);
+      await tester.tap(find.byTooltip('خيارات البطاقة'));
+      await uxFrames(tester);
+      expect(find.text(edit), findsOneWidget);
+      expect(find.text('عرض'), findsOneWidget);
+      expect(find.text('حذف'), findsOneWidget);
+      expect(find.descendant(of: find.byType(PopupMenuItem<int>),
+        matching: find.text(action)), findsNothing);
+      expect(tester.takeException(), isNull);
+      await closeUx(tester);
+    });
+  }
+
+  for (final reviewStatus in ['draft', 'returned_for_correction']) {
+    testWidgets('$reviewStatus card does not expose submission without backend permission', (tester) async {
+      final edit = reviewStatus == 'draft' ? 'إكمال الإعلان' : 'تصحيح الإعلان';
+      final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
+        myListingsProvider.overrideWith((ref) async => [
+          _listing(images: 0, reviewStatus: reviewStatus, canSubmit: false),
+        ]),
+      ]);
+      await pumpUx(tester, scope, const MyListingsScreen());
+      await tester.ensureVisible(find.text(edit));
+      await uxFrames(tester);
+      expect(find.text(edit).hitTestable(), findsOneWidget);
+      expect(find.text('إرسال للمراجعة'), findsNothing);
+      expect(find.text('إعادة الإرسال'), findsNothing);
+      await tester.tap(find.byTooltip('خيارات البطاقة'));
+      await uxFrames(tester);
+      expect(find.text('إرسال للمراجعة'), findsNothing);
+      expect(find.text('إعادة الإرسال'), findsNothing);
+      expect(find.text('عرض'), findsOneWidget);
+      expect(find.text('حذف'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await closeUx(tester);
+    });
+  }
+
+  for (final reviewStatus in ['submitted', 'under_review']) {
+    testWidgets('$reviewStatus card remains noneditable while pending review', (tester) async {
+      final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
+        myListingsProvider.overrideWith((ref) async => [
+          _listing(images: 0, reviewStatus: reviewStatus, canSubmit: false, canEdit: false),
+        ]),
+      ]);
+      await pumpUx(tester, scope, const MyListingsScreen());
+      await tester.ensureVisible(find.text('عرض'));
+      await uxFrames(tester);
+      expect(find.text('عرض').hitTestable(), findsOneWidget);
+      for (final label in ['إرسال للمراجعة', 'إعادة الإرسال', 'إكمال الإعلان', 'تصحيح الإعلان', 'تعديل', 'حذف']) {
+        expect(find.text(label), findsNothing);
+      }
+      expect(find.byTooltip('خيارات البطاقة'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await closeUx(tester);
+    });
+  }
 }

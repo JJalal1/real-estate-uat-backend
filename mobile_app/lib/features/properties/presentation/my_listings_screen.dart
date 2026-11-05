@@ -596,6 +596,7 @@ class _ListingCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
             child: EbrokerCardActions(actions: [
+              if (onSubmit != null) EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'إعادة الإرسال' : 'إرسال للمراجعة', onSubmit, icon: Icons.send_outlined),
               if (onEdit != null && ['draft', 'returned_for_correction'].contains(property.reviewStatus))
                 EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'تصحيح الإعلان' : 'إكمال الإعلان', onEdit, icon: Icons.edit_outlined),
               if (onAttest != null) EbrokerCardAction('إقرار السعي', onAttest, icon: Icons.verified_user_outlined),
@@ -609,7 +610,6 @@ class _ListingCard extends StatelessWidget {
               ],
               if (property.availabilityStatus == 'available' && property.status == 'published') EbrokerCardAction('مشاركة', onShare, icon: Icons.share_outlined),
               if (onEdit != null && !['draft', 'returned_for_correction'].contains(property.reviewStatus)) EbrokerCardAction('تعديل', onEdit, icon: Icons.edit_outlined),
-              if (onSubmit != null) EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'إعادة الإرسال' : 'إرسال للمراجعة', onSubmit, icon: Icons.send_outlined),
               if (onDelete != null) EbrokerCardAction('حذف', onDelete, icon: Icons.delete_outline),
             ]),
           ),
