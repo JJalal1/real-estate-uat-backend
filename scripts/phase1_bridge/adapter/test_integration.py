@@ -995,6 +995,34 @@ class C2FailureDiagnosticTests(unittest.TestCase):
         self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'],
                          {'phase': 'BEFORE_KEY', 'substage': 'WINDOW_ENTRY', 'observations': 2})
 
+    def test_c2_ime_retained_field_diagnostic_accepts_only_fixed_true_false_strings(self):
+        actual, p = self.native_probe()
+        fixed = {key: ('true' if index % 2 else 'false')
+                 for index, key in enumerate(actual.IME_RETAINED_FIELD_BOOLEAN_KEYS)}
+        p.c2_input_failure('account-dismiss-ime', dict(fixed,
+            ime_observation_phase='AFTER_KEY', ime_observation_substage='ORIGINAL_FIELD_RETAINED',
+            ime_observation_count='4', original_text='PRIVATE_TEXT',
+            original_class='PRIVATE_CLASS', arbitrary_flag='true'),
+            'PRIVATE_OUTPUT', 'native_input_not_delivered')
+        observation = p.report['c2_v2_native_input_failure']['ime_observation']
+        for key, value in fixed.items():
+            self.assertIs(observation[key.removeprefix('ime_')], value == 'true')
+        self.assertEqual(set(observation), {'phase', 'substage', 'observations'} |
+                         {key.removeprefix('ime_') for key in fixed})
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+
+    def test_c2_ime_retained_field_diagnostic_rejects_other_values_and_preserves_bounds(self):
+        for value in (True, False, 1, 0, None, 'TRUE', 'False', 'PRIVATE', {}, []):
+            actual, p = self.native_probe()
+            result = {key: value for key in actual.IME_RETAINED_FIELD_BOOLEAN_KEYS}
+            result.update(ime_observation_phase='AFTER_KEY',
+                          ime_observation_substage='ORIGINAL_FIELD_REFRESH',
+                          ime_observation_count='2', ime_window_count='99')
+            p.c2_input_failure('account-dismiss-ime', result, '', 'native_input_not_delivered')
+            self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'],
+                             {'phase': 'AFTER_KEY', 'substage': 'ORIGINAL_FIELD_REFRESH', 'observations': 2})
+            self.assertNotIn('PRIVATE', json.dumps(p.report))
+
     def test_real_native_receiver_records_c2_failure_before_rethrow(self):
         actual, p = self.native_probe()
         p._active_case = None

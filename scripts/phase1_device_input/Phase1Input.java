@@ -684,6 +684,11 @@ public final class Phase1Input extends Instrumentation {
         result.putBoolean("ime_was_visible",before.visible);
         result.putBoolean("ime_dismissed",false);
         if(!before.visible) { stage="ime_noop"; return; }
+        // Retain the exact original Android source and its value only in RAM.
+        // IME dismissal may release input focus without replacing this field.
+        final AccessibilityNodeInfo original=before.focus;
+        final String originalClass=plain(original.getClassName()),originalText=plain(original.getText());
+        require(original.getWindowId()==before.windowId);
         // No general Back navigation: the fresh APP + visible IME + focused
         // editable field above are mandatory before this fixed key sequence.
         stage="ime_back_down"; sendImeKey(KeyEvent.ACTION_DOWN,false);
@@ -694,9 +699,37 @@ public final class Phase1Input extends Instrumentation {
             ImeObservation after=observeImeUntil(end);
             if(!after.visible) {
                 imeSubstage="SAME_WINDOW_FOCUS";
-                require(after.windowId==before.windowId && after.focus!=null && after.focus.equals(before.focus)
-                    && after.focus.isFocused() && after.focus.isEditable() && after.focus.isVisibleToUser() && after.focus.isEnabled());
-                result.putBoolean("ime_dismissed",true); return;
+                boolean sameWindow=after.windowId==before.windowId,focusPresent=after.focus!=null;
+                boolean sameFocus=focusPresent && after.focus.equals(original);
+                result.putBoolean("ime_same_app_window",sameWindow);
+                result.putBoolean("ime_focus_present",focusPresent);
+                result.putBoolean("ime_focus_same_original",sameFocus);
+                require(sameWindow && (!focusPresent || sameFocus));
+                imeSubstage="ORIGINAL_FIELD_REFRESH";
+                boolean refreshed=original.refresh();
+                result.putBoolean("ime_original_refreshed",refreshed);
+                requireLiveMutation();
+                // A false refresh identifies an obsolete node; never search for
+                // a replacement or adopt a similarly labelled new field.
+                require(refreshed);
+                if(SystemClock.elapsedRealtime()>=end) break;
+                imeSubstage="ORIGINAL_FIELD_RETAINED";
+                boolean fieldWindow=original.getWindowId()==before.windowId;
+                boolean fieldPackage=original.getPackageName()!=null && APP.contentEquals(original.getPackageName());
+                boolean fieldClass=originalClass.equals(plain(original.getClassName()));
+                boolean fieldEditable=original.isEditable(),fieldVisible=original.isVisibleToUser(),fieldEnabled=original.isEnabled();
+                boolean valuePreserved=originalText.equals(plain(original.getText()));
+                result.putBoolean("ime_original_window_same",fieldWindow);
+                result.putBoolean("ime_original_package_same",fieldPackage);
+                result.putBoolean("ime_original_class_same",fieldClass);
+                result.putBoolean("ime_original_editable",fieldEditable);
+                result.putBoolean("ime_original_visible",fieldVisible);
+                result.putBoolean("ime_original_enabled",fieldEnabled);
+                result.putBoolean("ime_original_value_preserved",valuePreserved);
+                require(fieldWindow && fieldPackage && fieldClass && valuePreserved);
+                if(fieldEditable && fieldVisible && fieldEnabled) {
+                    result.putBoolean("ime_dismissed",true); return;
+                }
             }
             SystemClock.sleep(Math.max(0L,Math.min(100L,end-SystemClock.elapsedRealtime())));
         }

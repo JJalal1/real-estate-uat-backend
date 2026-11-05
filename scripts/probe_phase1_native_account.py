@@ -71,6 +71,11 @@ INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_inp
 INPUT_FAILURE_REASONS = frozenset({'native_input_not_delivered', 'ambiguous_native_input_receipt',
                                   'device_command_timeout', 'device_command_failed',
                                   'native_instrumentation_unobserved'})
+IME_RETAINED_FIELD_BOOLEAN_KEYS = (
+    'ime_same_app_window', 'ime_focus_present', 'ime_focus_same_original',
+    'ime_original_refreshed', 'ime_original_window_same', 'ime_original_package_same',
+    'ime_original_class_same', 'ime_original_editable', 'ime_original_visible',
+    'ime_original_enabled', 'ime_original_value_preserved')
 
 
 class Blocked(RuntimeError):
@@ -282,7 +287,8 @@ class NativeAccount:
             count = result.get('ime_observation_count', '')
             if (phase in {'BEFORE_KEY', 'AFTER_KEY'} and substage in {
                     'CACHE_CLEAR', 'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
-                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS'}
+                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS',
+                    'ORIGINAL_FIELD_REFRESH', 'ORIGINAL_FIELD_RETAINED'}
                     and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
                 observation = {'phase': phase, 'substage': substage, 'observations': int(count)}
                 for source, target, maximum in [('ime_window_count', 'window_count', 33),
@@ -290,6 +296,10 @@ class NativeAccount:
                     value = result.get(source, '')
                     if re.fullmatch(r'[0-9]{1,2}', value) and 0 <= int(value) <= maximum:
                         observation[target] = int(value)
+                for source in IME_RETAINED_FIELD_BOOLEAN_KEYS:
+                    value = result.get(source)
+                    if type(value) is str and value in {'true', 'false'}:
+                        observation[source.removeprefix('ime_')] = value == 'true'
                 row['ime_observation'] = observation
         diagnostic['native_input_failure'] = row
         self.save()
@@ -333,7 +343,8 @@ class NativeAccount:
             count = result.get('ime_observation_count', '')
             if (phase in {'BEFORE_KEY', 'AFTER_KEY'} and substage in {
                     'CACHE_CLEAR', 'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
-                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS'}
+                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS',
+                    'ORIGINAL_FIELD_REFRESH', 'ORIGINAL_FIELD_RETAINED'}
                     and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
                 observation = {'phase': phase, 'substage': substage, 'observations': int(count)}
                 for source, target, maximum in [('ime_window_count', 'window_count', 33),
@@ -341,6 +352,10 @@ class NativeAccount:
                     value = result.get(source, '')
                     if re.fullmatch(r'[0-9]{1,2}', value) and 0 <= int(value) <= maximum:
                         observation[target] = int(value)
+                for source in IME_RETAINED_FIELD_BOOLEAN_KEYS:
+                    value = result.get(source)
+                    if type(value) is str and value in {'true', 'false'}:
+                        observation[source.removeprefix('ime_')] = value == 'true'
                 row['ime_observation'] = observation
         self.report['c2_v2_native_input_failure'] = row
         self.save()
