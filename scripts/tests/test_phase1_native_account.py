@@ -1042,13 +1042,17 @@ class NativeAccountSafetyTest(unittest.TestCase):
           static class Bundle {Map<String,Boolean> flags=new HashMap<>();void putBoolean(String key,boolean value){flags.put(key,value);}}
           class Automation {
             int flags,sets,preReads,postReads,missingFlagReads;long preCost,postCost;boolean failDown;
+            int cacheClears,failedCacheClears;boolean cacheWindows;List<AccessibilityWindowInfo> cachedWindows;
             List<Integer> keys=new ArrayList<>();List<List<AccessibilityWindowInfo>> before=new ArrayList<>(),after=new ArrayList<>();
+            boolean clearCache(){cacheClears++;if(failedCacheClears-->0)return false;cachedWindows=null;return true;}
             AccessibilityServiceInfo getServiceInfo(){AccessibilityServiceInfo info=new AccessibilityServiceInfo();
               info.flags=sets>0&&missingFlagReads-->0?0:flags;return info;}
             void setServiceInfo(AccessibilityServiceInfo info){sets++;flags=info.flags;}
-            List<AccessibilityWindowInfo> getWindows(){boolean post=keys.size()>=2;int index=post?postReads++:preReads++;
+            List<AccessibilityWindowInfo> getWindows(){if(cacheWindows&&cachedWindows!=null)return cachedWindows;
+              boolean post=keys.size()>=2;int index=post?postReads++:preReads++;
               SystemClock.now+=post?postCost:preCost;List<List<AccessibilityWindowInfo>> values=post?after:before;
-              return values.get(Math.min(index,values.size()-1));}
+              List<AccessibilityWindowInfo> result=values.get(Math.min(index,values.size()-1));
+              if(cacheWindows)cachedWindows=result;return result;}
             boolean injectInputEvent(KeyEvent event,boolean sync){keys.add(event.action);return !(failDown&&event.action==0);}
           }
           static void require(boolean value){if(!value)throw new IllegalStateException();}
@@ -1095,6 +1099,17 @@ class NativeAccountSafetyTest(unittest.TestCase):
             List<AccessibilityWindowInfo> focus=windows(true,3,7);focus.get(0).root.focus.editable=false;bad.add(focus);
             for(List<AccessibilityWindowInfo> values:bad){p=fresh();p.automation.before=Arrays.asList(values);fails(p);check(p.automation.keys.isEmpty()&&SystemClock.now==5000);}
             p=fresh();p.automation.missingFlagReads=100;fails(p);check(p.automation.keys.isEmpty()&&p.imeSubstage.equals("SERVICE_FLAGS"));
+            // Fresh cache is required on every observation, including after the sole Back.
+            p=fresh();p.automation.cacheWindows=true;p.automation.before.add(0,Collections.emptyList());
+            result=new Bundle();p.dismissIme(result);
+            check(p.automation.cacheClears==3&&p.automation.preReads==2&&p.automation.postReads==1);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&result.flags.get("ime_dismissed"));
+            p=fresh();p.automation.failedCacheClears=2;result=new Bundle();p.dismissIme(result);
+            check(p.automation.cacheClears==4&&p.automation.keys.equals(Arrays.asList(0,1))&&SystemClock.now==200);
+            p=fresh();p.automation.failedCacheClears=100;fails(p);
+            check(p.automation.keys.isEmpty()&&p.automation.preReads==0&&SystemClock.now==5000&&p.imeSubstage.equals("CACHE_CLEAR"));
+            p=fresh();p.expires=250;p.automation.failedCacheClears=100;fails(p);
+            check(p.automation.keys.isEmpty()&&p.stage.equals("input_deadline_expired")&&SystemClock.now<5000);
             System.out.print("IME_READINESS_POLICY_PASS");
           }
         '''+'\n private static final class ImeObservation'+observation+'\n private void dismissIme(Bundle result)'+dismiss+'\n}'

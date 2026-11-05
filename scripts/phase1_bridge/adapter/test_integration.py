@@ -955,6 +955,46 @@ class C2FailureDiagnosticTests(unittest.TestCase):
         self.assertNotIn('observations', row)
         self.assertNotIn('PRIVATE', json.dumps(p.report))
 
+    def test_c2_ime_failure_retains_only_fixed_phase_substage_and_bounded_counts(self):
+        actual, p = self.native_probe()
+        p._root_c2_executor_v2._diagnostic_operation = {'control': 'sai_rate', 'substage': 'dismiss_ime'}
+        p.c2_input_failure('account-dismiss-ime', {
+            'stage': 'ime_windows', 'ime_observation_phase': 'AFTER_KEY',
+            'ime_observation_substage': 'APP_WINDOW_UNIQUE', 'ime_observation_count': '4',
+            'ime_window_count': '3', 'ime_focused_app_matches': '0',
+            'raw_windows': 'PRIVATE_WINDOW_TEXT'}, 'PRIVATE_OUTPUT', 'native_input_not_delivered')
+        row = p.report['c2_v2_native_input_failure']
+        self.assertEqual(row['ime_observation'], {'phase': 'AFTER_KEY',
+            'substage': 'APP_WINDOW_UNIQUE', 'observations': 4, 'window_count': 3,
+            'focused_app_matches': 0})
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        actual, p = self.native_probe()
+        p.c2_input_failure('account-dismiss-ime', {
+            'stage': 'ime_windows', 'ime_observation_phase': 'BEFORE_KEY',
+            'ime_observation_substage': 'CACHE_CLEAR', 'ime_observation_count': '1'},
+            '', 'native_input_not_delivered')
+        self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'],
+                         {'phase': 'BEFORE_KEY', 'substage': 'CACHE_CLEAR', 'observations': 1})
+
+    def test_c2_ime_failure_refuses_unknown_categories_and_out_of_range_counts(self):
+        for change in ({'ime_observation_phase': 'PRIVATE_PHASE'},
+                       {'ime_observation_substage': 'PRIVATE_SUBSTAGE'},
+                       {'ime_observation_count': '151'}):
+            actual, p = self.native_probe()
+            result = {'stage': 'ime_windows', 'ime_observation_phase': 'BEFORE_KEY',
+                      'ime_observation_substage': 'WINDOW_LIST', 'ime_observation_count': '1'}
+            result.update(change)
+            p.c2_input_failure('account-dismiss-ime', result, '', 'native_input_not_delivered')
+            self.assertNotIn('ime_observation', p.report['c2_v2_native_input_failure'])
+            self.assertNotIn('PRIVATE', json.dumps(p.report))
+        actual, p = self.native_probe()
+        p.c2_input_failure('account-dismiss-ime', {
+            'ime_observation_phase': 'BEFORE_KEY', 'ime_observation_substage': 'WINDOW_ENTRY',
+            'ime_observation_count': '2', 'ime_window_count': '34',
+            'ime_focused_app_matches': '3'}, '', 'native_input_not_delivered')
+        self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'],
+                         {'phase': 'BEFORE_KEY', 'substage': 'WINDOW_ENTRY', 'observations': 2})
+
     def test_real_native_receiver_records_c2_failure_before_rethrow(self):
         actual, p = self.native_probe()
         p._active_case = None

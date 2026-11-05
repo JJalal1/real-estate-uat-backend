@@ -607,6 +607,10 @@ public final class Phase1Input extends Instrumentation {
     private ImeObservation inspectIme() {
         stage="ime_windows";
         imeObservations=Math.min(150,imeObservations+1); imeWindowCount=-1; imeAppMatches=-1;
+        // Window and node observations must be fresh after IME/layout changes.
+        // Retry observations only within the original bound; never repeat Back.
+        imeSubstage="CACHE_CLEAR";
+        require(automation.clearCache());
         imeSubstage="SERVICE_FLAGS";
         AccessibilityServiceInfo info=automation.getServiceInfo();
         require(info!=null && (info.flags & AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS)!=0);
