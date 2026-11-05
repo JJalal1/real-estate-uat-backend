@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -542,6 +542,116 @@ class C2EntryTests(unittest.TestCase):
         with self.assertRaisesRegex(c2.C2Blocked, 'reviewed_contact_changed_before_explicit_save'):
             executor._execute('full_save', True)
         executor._nonimage_input.assert_not_called()
+
+
+class NonimagePreviousReadinessTests(unittest.TestCase):
+    def setUp(self):
+        fixture = C2EntryTests()
+        fixture.setUp()
+        self.executor, self.probe = fixture.executor(), fixture.probe
+        self.executor.cursor = c2.STAGES.index('navigate_previous_to_specs')
+        self.executor.inflight, self.executor.failed = True, False
+        self.executor.rent_sai_readback = {'kind': 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW'}
+        self.probe.instrument = Mock(return_value={'account_action_delivered': 'true'})
+        self.probe.act = Mock(side_effect=AssertionError('private hash ledger forbidden'))
+        self.probe.scroll = Mock(side_effect=AssertionError('readiness is observation only'))
+        self.clock = 0
+        for name, fn in [('monotonic', lambda: self.clock), ('sleep', self.sleep)]:
+            patcher = patch.object(c2.time, name, fn)
+            patcher.start(); self.addCleanup(patcher.stop)
+
+    def sleep(self, seconds): self.clock += seconds
+
+    def node(self, label='السابق', path='0.4', **changes):
+        return dict(rows(label)[0], **{'path': path, 'bounds': [20, 600, 170, 650], **changes})
+
+    def surface(self, *controls):
+        return rows('خيارات المسودة', 'إرسال للمراجعة') + list(controls)
+
+    def snapshots(self, *observations):
+        pending = iter(observations)
+        last = observations[-1]
+        self.probe.nodes = Mock(side_effect=lambda: next(pending, last))
+
+    def click(self): self.executor._nonimage_input('click', 'السابق')
+
+    def test_ready_named_button_delivers_once_without_private_hashes(self):
+        self.snapshots(self.surface(self.node(clickable=False)))
+        self.click()
+        self.probe.instrument.assert_called_once_with('account-click', node_path='0.4', node_witness='c'*64)
+        self.assertEqual(self.probe.report['c2_v2_previous_control_readiness']['state'], 'direct_ready')
+        self.assertEqual(self.probe.report['c2_v2_nonimage_input_operations_delivered'], 1)
+        self.probe.act.assert_not_called(); self.probe.scroll.assert_not_called()
+
+    def test_absent_then_disabled_then_nested_label_waits_before_one_click(self):
+        leaf = self.node(path='0.4.1', clickable=False, **{'class': 'android.widget.TextView'})
+        parent = self.node('', clickable=True, **{'class': 'android.view.View'})
+        self.snapshots(self.surface(), self.surface(self.node(enabled=False)), self.surface(parent, leaf))
+        self.click()
+        self.probe.instrument.assert_called_once_with('account-click', node_path='0.4', node_witness='c'*64)
+        diagnostic = self.probe.report['c2_v2_previous_control_readiness']
+        self.assertEqual((diagnostic['observations'], diagnostic['state']), (3, 'ancestor_ready'))
+        self.assertFalse(diagnostic['hashes_recorded'])
+        self.assertEqual(set(diagnostic), {'observations', 'visible_label_paths', 'enabled_exact_label_paths',
+                         'direct_control_paths', 'ancestor_control_paths', 'state', 'hashes_recorded'})
+        self.assertNotIn('c'*64, json.dumps(self.probe.report))
+        self.probe.act.assert_not_called(); self.probe.scroll.assert_not_called()
+
+    def test_distinct_direct_or_label_candidates_are_not_collapsed_or_waited(self):
+        for fields in ({}, {'clickable': False, 'class': 'android.widget.TextView'}):
+            with self.subTest(fields=fields):
+                self.snapshots(self.surface(self.node(**fields), self.node(path='0.5', **fields)))
+                with self.assertRaisesRegex(c2.C2Blocked, 'exact_normal_control'): self.click()
+                self.assertEqual(self.probe.nodes.call_count, 1)
+                self.assertEqual(self.probe.report['c2_v2_previous_control_readiness']['state'], 'ambiguous')
+        self.probe.instrument.assert_not_called()
+
+    def test_invalid_ancestors_never_become_pointer_targets(self):
+        leaf = self.node(path='0.4.1', clickable=False, **{'class': 'android.widget.TextView'})
+        for changes in ({'package': 'foreign.app'}, {'visible': False}, {'enabled': False},
+                        {'scrollable': True}, {'editable': True}, {'bounds': [180, 600, 300, 650]},
+                        {'description': 'إرسال للمراجعة'}, {'path': '0'},
+                        {'clickable': False, 'class': 'android.widget.Button'}):
+            with self.subTest(changes=changes):
+                self.clock = 0
+                parent = self.node('', **{'class': 'android.view.View', **changes})
+                self.snapshots(self.surface(parent, leaf))
+                with self.assertRaisesRegex(c2.C2Blocked, 'previous_control_not_ready'): self.click()
+                self.assertEqual(self.clock, 15)
+        self.probe.instrument.assert_not_called()
+        self.probe.act.assert_not_called(); self.probe.scroll.assert_not_called()
+
+    def test_disabled_nearest_button_cannot_be_skipped_for_wider_clickable_ancestor(self):
+        outer = self.node('', path='0.4', **{'class': 'android.view.View'})
+        disabled = self.node('', path='0.4.1', enabled=False, clickable=False)
+        leaf = self.node(path='0.4.1.1', clickable=False, **{'class': 'android.widget.TextView'})
+        self.snapshots(self.surface(outer, disabled, leaf))
+        with self.assertRaisesRegex(c2.C2Blocked, 'previous_control_not_ready'): self.click()
+        self.probe.instrument.assert_not_called()
+
+    def test_composite_label_and_wrong_editor_footer_cannot_authorize_click(self):
+        for observed in (self.surface(self.node(description='إرسال للمراجعة')),
+                         [self.node()], rows('العودة إلى النواقص') + [self.node()]):
+            with self.subTest(observed=observed):
+                self.clock = 0
+                self.snapshots(observed)
+                with self.assertRaisesRegex(c2.C2Blocked, 'previous_control_not_ready'): self.click()
+        self.probe.instrument.assert_not_called()
+
+    def test_auth_surface_or_wrong_reserved_stage_blocks_before_input(self):
+        self.snapshots(self.surface(self.node()) + rows('رمز التحقق'))
+        with self.assertRaisesRegex(c2.C2Blocked, 'auth_surface'): self.click()
+        self.executor.cursor = c2.STAGES.index('full_save')
+        with self.assertRaisesRegex(c2.C2Blocked, 'reserved_editor_stage'): self.click()
+        self.probe.instrument.assert_not_called()
+
+    def test_uncertain_instrument_delivery_is_never_retried(self):
+        self.snapshots(self.surface(self.node()))
+        self.probe.instrument.return_value = {'account_action_delivered': 'false'}
+        with self.assertRaisesRegex(c2.C2Blocked, 'input_not_confirmed'): self.click()
+        self.probe.instrument.assert_called_once()
+        self.assertEqual(self.probe.nodes.call_count, 1)
+        self.assertNotIn('c2_v2_nonimage_input_operations_delivered', self.probe.report)
 
 
 if __name__ == '__main__': unittest.main()

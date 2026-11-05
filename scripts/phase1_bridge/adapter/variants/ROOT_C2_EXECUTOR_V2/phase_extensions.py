@@ -504,6 +504,66 @@ class C2Executor:
         need(policy.digits(self.probe.field('نسبة السعي %').get('text', '')) == '0',
              'actual_sai_zero_text_required_hint_is_not_value')
 
+    def _nonimage_previous_control(self):
+        """Settle the source footer before one input; keep all node data in memory."""
+        need(self.cursor == STAGES.index('navigate_previous_to_specs') and self.inflight and
+             not self.failed and self.rent_sai_readback is not None,
+             'previous_reserved_editor_stage_required')
+        p, deadline, observations = self.probe, time.monotonic() + 15, 0
+        def bounded(row):
+            b = row.get('bounds')
+            return (isinstance(b, list) and len(b) == 4 and
+                    all(type(v) is int for v in b) and b[0] < b[2] and b[1] < b[3])
+        while time.monotonic() < deadline:
+            self._actor('broker')
+            rows = p.nodes()
+            need(not _names(rows) & roles.AUTH_LABELS, 'previous_auth_surface_refused')
+            visible = [r for r in rows if r.get('package') == roles.APP and r.get('visible') is True]
+            named = {r['path']: r for r in visible if 'السابق' in policy.names(r)}
+            exact = [r for r in named.values() if policy.names(r) == {'السابق'}]
+            enabled = [r for r in exact if r.get('enabled') is True]
+            direct = {r['path']: r for r in enabled if r.get('clickable') or
+                      r.get('class') == 'android.widget.Button'}
+            observations += 1
+            diagnostic = {'observations': observations, 'visible_label_paths': len(named),
+                          'enabled_exact_label_paths': len(enabled),
+                          'direct_control_paths': len(direct), 'ancestor_control_paths': 0,
+                          'state': 'absent' if not named else 'disabled_or_nonactionable',
+                          'hashes_recorded': False}
+            p.report['c2_v2_previous_control_readiness'] = diagnostic
+            if len(direct) > 1 or (not direct and len(named) > 1):
+                diagnostic['state'] = 'ambiguous'
+                raise C2Blocked('nonimage_exact_normal_control_required')
+            row = next(iter(direct.values()), None)
+            if row is None and len(enabled) == 1:
+                leaf = enabled[0]
+                # Like Probe.tap, use the nearest actual clickable ancestor.
+                # A disabled/button ancestor is a boundary, never skipped to
+                # reach a wider clickable container.
+                ancestors = [r for r in visible if leaf['path'].startswith(r['path'] + '.') and
+                             (r.get('clickable') or r.get('class') == 'android.widget.Button')]
+                if ancestors:
+                    parent = max(ancestors, key=lambda r: len(r['path'].split('.')))
+                    diagnostic['ancestor_control_paths'] = 1
+                    if (parent.get('enabled') is True and parent.get('clickable') and
+                        not parent.get('editable') and not parent.get('scrollable') and
+                        '.' in parent['path'] and policy.names(parent) <= {'السابق'} and
+                        bounded(parent) and bounded(leaf) and
+                        parent['bounds'][0] <= leaf['bounds'][0] < leaf['bounds'][2] <= parent['bounds'][2] and
+                        parent['bounds'][1] <= leaf['bounds'][1] < leaf['bounds'][3] <= parent['bounds'][3]):
+                        row = parent
+            names = _names(visible)
+            footer = (({'خيارات المسودة', 'إرسال للمراجعة', 'السابق'} <= names and
+                       'العودة إلى النواقص' not in names) if self.entry_mode == 'standard_editor' else
+                      self.entry_mode == 'completed_review' and 'العودة إلى النواقص' in names)
+            if row is not None and footer and bounded(row) and not row.get('editable') and not row.get('scrollable'):
+                diagnostic['state'] = 'direct_ready' if direct else 'ancestor_ready'
+                return row
+            if not footer:
+                diagnostic['state'] = 'editor_footer_pending'
+            time.sleep(max(0, min(.25, deadline - time.monotonic())))
+        raise C2Blocked('nonimage_previous_control_not_ready')
+
     def _nonimage_input(self, kind, label, value=None):
         """Existing normal receiver, synthetic allowlist, no persisted hashes.
 
@@ -533,12 +593,15 @@ class C2Executor:
             need(kind == 'click' and label in {'نسبة مئوية %', 'السابق', 'العودة إلى النواقص',
                                               'خيارات المسودة', 'حفظ مسودة', 'معاينة'},
                  'nonimage_click_allowlist')
-            matches = [row for row in p.matching(p.nodes(), label)
-                       if row.get('visible') and row.get('enabled') and
-                       (row.get('clickable') or row.get('class') == 'android.widget.Button')]
-            need(len({row.get('path') for row in matches}) == 1,
-                 'nonimage_exact_normal_control_required')
-            row = matches[0]
+            if label == 'السابق':
+                row = self._nonimage_previous_control()
+            else:
+                matches = [row for row in p.matching(p.nodes(), label)
+                           if row.get('visible') and row.get('enabled') and
+                           (row.get('clickable') or row.get('class') == 'android.widget.Button')]
+                need(len({row.get('path') for row in matches}) == 1,
+                     'nonimage_exact_normal_control_required')
+                row = matches[0]
         extra = {'node_path': row['path'], 'node_witness': row['witness']}
         explicit = getattr(p, 'explicit_pointer_mode', False)
         op = 'account-pointer-click' if kind == 'click' and explicit else 'account-' + kind
