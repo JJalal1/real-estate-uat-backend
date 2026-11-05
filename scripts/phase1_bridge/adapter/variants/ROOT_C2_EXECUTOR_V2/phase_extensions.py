@@ -800,8 +800,8 @@ class C2Executor:
                  record.get('own_draft_card_visually_reviewed') is True,
                  'native_promotion_card_review_required')
         elif stage == 'review_submitted':
-            need(self.title in names and names & {'بانتظار المراجعة', 'قيد المراجعة'} and
-                 record.get('exact_tagged_card_status') in ('بانتظار المراجعة', 'قيد المراجعة') and
+            need(self.title in names and names & {'بانتظار المراجعة', 'تحت المراجعة'} and
+                 record.get('exact_tagged_card_status') in ('بانتظار المراجعة', 'تحت المراجعة') and
                  record.get('own_card_status_visually_verified') is True and
                  record.get('no_edit_action_on_exact_pending_card') is True and
                  record.get('published') is False, 'native_submission_review_required')
@@ -843,6 +843,136 @@ class C2Executor:
                     self._regular_account_semantics() and
                  self.regular_surfaces == {'marketplace', 'messages', 'listing_gate'},
                  'regular_cache_isolation_review_required')
+
+    def _list_observation(self, role):
+        self._actor(role)
+        rows = [row for row in self.probe.nodes() if row.get('package') == roles.APP
+                and row.get('visible') is True and row.get('enabled') is True]
+        names = _names(rows)
+        need(not names & roles.AUTH_LABELS, 'listing_readiness_auth_surface_refused')
+        return rows, names
+
+    def _wait_loaded_list(self, surface, *, deadline=None):
+        """Observe source-owned data markers before an already planned seek."""
+        scopes = {
+            'my_listings': ('broker', {'open_my_listings', 'open_reason', 'submit_confirm'}),
+            'support_inbox': ('support', {'support_inbox'}),
+            'support_queue': ('support', {'support_claim'}),
+        }
+        need(surface in scopes, 'known_list_readiness_surface_required')
+        role, stages = scopes[surface]
+        need(self.inflight and not self.failed and STAGES[self.cursor] in stages,
+             'reserved_list_readiness_stage_required')
+        deadline = time.monotonic() + 45 if deadline is None else deadline
+        while time.monotonic() < deadline:
+            _, names = self._list_observation(role)
+            if surface == 'my_listings':
+                ready = ('عقاراتي' in names and bool(names & {'ملخص إعلاناتك', 'إضافة عقار'})
+                         and not names & {'إرسال الإعلان للمراجعة؟', 'تحديد السعي قبل إرسال الإعلان'})
+            elif surface == 'support_inbox':
+                ready = ({'الوارد', 'تحقيق إعلانات'} <= names and
+                         bool(names & {'استلام', 'بعد الاستلام', 'فتح', 'تفاصيل القرار'}) and
+                         'جارٍ تحميل طلبات الدعم…' not in names)
+            else:
+                ready = ({'تحقيق الإعلانات', 'طلبات التحقيق'} <= names and
+                         bool(names & {'بانتظار الاستلام', 'تم الاستلام - قيد التحقيق'}) and
+                         'جارٍ تحميل طلبات التحقيق...' not in names)
+            if ready:
+                return
+            time.sleep(.4)
+        need(False, 'source_loaded_list_not_observed')
+
+    def _wait_submitted_listing(self):
+        """Wait after the sole confirmation; reveal the refreshed exact card.
+
+        Flutter closes the SAI sheet before submit/reload completes. The second
+        bounded seek is allowed only if a previously observed title disappears
+        on the still-loaded list. Root still reviews the actual card and status.
+        """
+        need(self.inflight and not self.failed and STAGES[self.cursor] == 'submit_confirm',
+             'reserved_submit_readiness_stage_required')
+        deadline = time.monotonic() + 120
+        self._wait_loaded_list('my_listings', deadline=deadline)
+        seeks = 1
+        self.probe.seek(self.title, attempts=12)
+        while time.monotonic() < deadline:
+            rows, names = self._list_observation('broker')
+            need('عقاراتي' in names, 'known_listing_surface_required')
+            dialogs = bool(names & {'إرسال الإعلان للمراجعة؟', 'تحديد السعي قبل إرسال الإعلان'})
+            titles = [row for row in rows if self.title in policy.names(row)
+                      and isinstance(row.get('path'), str)]
+            leaves = [row for row in titles if not any(
+                other['path'].startswith(row['path'] + '.') for other in titles)]
+            if not titles and names & {'ملخص إعلاناتك', 'إضافة عقار'} and not dialogs:
+                need(seeks < 2, 'listing_title_lost_after_bounded_recovery')
+                seeks += 1  # Consume before input; never replay an uncertain seek.
+                self.probe.seek(self.title, attempts=12)
+                continue
+            if len(leaves) == 1 and not dialogs and names & {'بانتظار المراجعة', 'تحت المراجعة'}:
+                return
+            time.sleep(.4)
+        need(False, 'exact_submitted_listing_not_ready')
+
+    @staticmethod
+    def _fields_below_title(rows, title, required):
+        bounds = title.get('bounds')
+        need(isinstance(bounds, list) and len(bounds) == 4 and
+             all(type(value) is int for value in bounds), 'actual_listing_title_bounds_required')
+        # Readiness only: a previous card's action above this title cannot stop
+        # scrolling. Root's separate exact-card action binding stays authoritative.
+        def below(row):
+            box = row.get('bounds')
+            return (isinstance(box, list) and len(box) == 4 and
+                    all(type(value) is int for value in box) and box[1] >= bounds[1])
+        return all(any(label in policy.names(row) and below(row) for row in rows)
+                   for label in required)
+
+    def _reveal_own_listing_fields(self):
+        """Reveal the existing own-card evidence without clicking its actions."""
+        stage = STAGES[self.cursor]
+        need(self.inflight and not self.failed and stage in {'open_my_listings', 'open_reason'},
+             'reserved_own_listing_reveal_stage_required')
+        required = ({'إرسال للمراجعة'} if stage == 'open_my_listings' else
+                    {self.reason, 'ملاحظة فريق المراجعة', 'إعادة الإرسال'})
+        deadline = time.monotonic() + 30
+        for attempt in range(7):
+            rows, names = self._list_observation('broker')
+            titles = [row for row in rows if self.title in policy.names(row)
+                      and isinstance(row.get('path'), str)]
+            leaves = [row for row in titles if not any(
+                other['path'].startswith(row['path'] + '.') for other in titles)]
+            need('عقاراتي' in names and len(leaves) == 1,
+                 'same_exact_listing_title_required_during_reveal')
+            need(not names & {'إرسال الإعلان للمراجعة؟', 'تحديد السعي قبل إرسال الإعلان'},
+                 'own_listing_reveal_dialog_refused')
+            if self._fields_below_title(rows, leaves[0], required):
+                return
+            need(attempt < 6 and time.monotonic() < deadline, 'own_listing_fields_not_revealed')
+            self.probe.scroll('forward', short=True)
+
+    def _reveal_support_card_fields(self):
+        """Keep the exact task/queue title visible while revealing its control."""
+        stage = STAGES[self.cursor]
+        need(self.inflight and not self.failed and stage in {'support_inbox', 'support_claim'},
+             'reserved_support_card_reveal_stage_required')
+        title = 'تحقق نشر إعلان: ' + self.title if stage == 'support_inbox' else self.title
+        required = ({'استلام'} if stage == 'support_inbox' else
+                    {'تم الاستلام - قيد التحقيق', 'متابعة التحقيق'})
+        anchors = ({'الوارد', 'تحقيق إعلانات'} if stage == 'support_inbox' else
+                   {'تحقيق الإعلانات', 'طلبات التحقيق'})
+        deadline = time.monotonic() + 30
+        for attempt in range(7):
+            rows, names = self._list_observation('support')
+            titles = [row for row in rows if title in policy.names(row)
+                      and isinstance(row.get('path'), str)]
+            leaves = [row for row in titles if not any(
+                other['path'].startswith(row['path'] + '.') for other in titles)]
+            need(anchors <= names and len(leaves) == 1,
+                 'same_exact_support_card_title_required_during_reveal')
+            if self._fields_below_title(rows, leaves[0], required):
+                return
+            need(attempt < 6 and time.monotonic() < deadline, 'support_card_control_not_revealed')
+            self.probe.scroll('forward', short=True)
 
     def _regular_absence(self, surface):
         self._actor('regular')
@@ -965,13 +1095,25 @@ class C2Executor:
             self._actor('regular'); p.tap('إعلاناتي', seek=False)
             self._regular_absence('listing_gate')
         elif stage == 'regular_return_account':
-            self._actor('regular'); p.tap('حسابي', seek=False); p.wait('تسجيل الخروج')
+            self._actor('regular')
+            # Count-only Account navigation: native actor/session stays unchanged.
+            authenticated = p.authenticated
+            p.authenticated = False
+            try:
+                p.tap('حسابي', seek=False)
+                p.wait_account_logout_control(seconds=60)
+            finally:
+                p.authenticated = authenticated
             self.regular_account_witness = self._regular_account_semantics()
             p.report['c2_v2_regular_nonimage_role_witness'] = copy.deepcopy(self.regular_account_witness)
         elif stage in ('open_my_listings', 'open_reason'):
-            self._actor('broker'); p.tap('حسابي'); p.tap('عقاراتي'); p.seek(self.title)
+            self._actor('broker'); p.tap('حسابي'); p.tap('عقاراتي')
+            self._wait_loaded_list('my_listings'); p.seek(self.title)
+            self._reveal_own_listing_fields()
         elif stage == 'support_inbox':
-            self._actor('support'); p.tap('الوارد'); p.seek('تحقق نشر إعلان: ' + self.title)
+            self._actor('support'); p.tap('الوارد')
+            self._wait_loaded_list('support_inbox'); p.seek('تحقق نشر إعلان: ' + self.title)
+            self._reveal_support_card_fields()
         elif stage in TARGETS:
             record, node = prepared
             if stage == 'submit_confirm':
@@ -984,11 +1126,15 @@ class C2Executor:
             # input, NOT proof of the separate unbuilt final-root card extension.
             p.act('click', node)
             self.delivered_frames[stage] = record['frame_sha256']
-            if stage == 'support_claim':
+            if stage == 'submit_confirm':
+                self._wait_submitted_listing()
+            elif stage == 'support_claim':
                 # Inbox claim normally opens the investigation queue after reload.
                 p.wait('تحقيق الإعلانات', seconds=45)
+                self._wait_loaded_list('support_queue')
                 p.seek(self.title)
                 p.wait('تم الاستلام - قيد التحقيق', seconds=45)
+                self._reveal_support_card_fields()
             elif stage == 'support_open':
                 p.wait('تحقيق الإعلان', seconds=45)
                 p.wait(self.title, seconds=45)
@@ -1015,6 +1161,8 @@ class C2Executor:
                      'final_known_property_pin_failed')
                 receipt = self.cleanup_helper.cleanup(native_writers_stopped=True)
                 self.last_receipt = receipt
+                p.report['c2_promoted_cleanup'] = copy.deepcopy(receipt)
+                p.save()
                 need(receipt.get('status') == 'PASS', 'promoted_cleanup_not_confirmed')
                 return receipt
             self.last_receipt = self._api(clean)

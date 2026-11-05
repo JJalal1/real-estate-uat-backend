@@ -12,7 +12,7 @@ sys.path.insert(0, str(HERE))
 ROLE_PATH = 'C2_SOURCE_PROPOSAL/c2_native_roles.py'
 PREVIOUS_UNCHANGED = {
     'variants/ROOT_C4_EXECUTOR/phase_extensions.py': '9832c9943e0d83f7e3fc3591b022bd26471caf0f3c6a0b6e31f0fbc8a5437240',
-    'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py': '71c579ea515899580bca7807fb3ca26b30ffabcfa7abb5799bdf66f154525f50',
+    'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py': '7debe5a3c165baa6bef6a32e71c4d1c9a59e2689804b6e6afd2636392f235b65',
     'variants/ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py': '96bd01d0672dc1ed79decc4da16781ee583f24a32c8dcb0d1345f16d00e33cc4',
     'variants/LOCAL_REMAINING_PROPOSAL/local_stage_policy.py': '2a54658205998dbb02f2a0a3f4c59597d348125d0b520402e19ba8ef85527ec2',
     'variants/promoted_cleanup.py': 'ec54c936f226b9c3cb5a27e914eced199ff6ee5a59b91a8dcfc14997a40f2a9b',
@@ -300,8 +300,8 @@ class LogoutHomeTests(unittest.TestCase):
     def test_reviewed_logout_capture_and_generated_digit_variants_match_pins(self):
         for name,pinned in PREVIOUS_UNCHANGED.items():
             self.assertEqual(hashlib.sha256((HERE/name).read_bytes()).hexdigest(),pinned,name)
-        # The baseline digest is the prior frozen module AST with ONLY the
-        # reviewed logout/safe-error functions removed. This works in packaged
+        # Freeze the reviewed bounded-login helper and fixed auth-stage delta,
+        # with ONLY the reviewed logout/safe-error functions removed. Packaged
         # CI too; no old adapter directory or original source tree is required.
         tree=ast.parse((HERE/'variants'/ROLE_PATH).read_text())
         ignored_functions={'native_logout_role','_safe_role_failure','_visible_app_names'}
@@ -312,7 +312,7 @@ class LogoutHomeTests(unittest.TestCase):
             if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ignored_constants for t in node.targets):continue
             unchanged.append(node)
         actual=hashlib.sha256(ast.dump(ast.Module(body=unchanged,type_ignores=[]),include_attributes=False).encode()).hexdigest()
-        self.assertEqual(actual,'da104e82dabc587d1a17fdf94337ba2ee0ad8f3d9e3011aebecff5d6591d5ce6')
+        self.assertEqual(actual,'aeb82566449ff2131f3bb935f1a8db3a9e42da3c85f24fbdd3332d8d73575614')
         manifest=json.loads((HERE/'variants/VARIANT_MANIFEST.json').read_text())['manifest'][ROLE_PATH]
         self.assertEqual(manifest['original_sha256'],'789a790fa1bbced95653cf0ecf66190420b814caf15c73189f5b783c5efc183c')
         self.assertEqual(manifest['previous_utc_variant_sha256'],'cfec7b46f3d37b68c6432893435cd37c970b6713561c644ca6adbc562d635b6c')

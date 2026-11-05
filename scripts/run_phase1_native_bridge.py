@@ -75,6 +75,8 @@ EXPECTED_FILES = tuple(sorted((
     'scripts/phase1_bridge/adapter/test_integration.py',
     'scripts/phase1_bridge/adapter/test_c2_entry.py',
     'scripts/phase1_bridge/adapter/test_promoted_cleanup.py',
+    'scripts/phase1_bridge/adapter/test_role_login_readiness.py',
+    'scripts/phase1_bridge/adapter/test_c2_list_readiness.py',
     'scripts/phase1_bridge/adapter/test_c2_entry_dispatch.py',
     'scripts/phase1_bridge/adapter/test_logout_home.py',
     'scripts/phase1_bridge/adapter/test_home_capture.py',
@@ -549,7 +551,7 @@ def offline_tests(workspace):
         ('adapter', 'test_logout_home'), ('adapter', 'test_home_capture'),
         ('controller', 'test_home_diagnostic'), ('adapter', 'test_basics_capture'),
         ('adapter', 'test_c2_entry'), ('adapter', 'test_c2_entry_dispatch'),
-        ('adapter', 'test_promoted_cleanup')]
+        ('adapter', 'test_promoted_cleanup'), ('adapter', 'test_role_login_readiness'), ('adapter', 'test_c2_list_readiness')]
     suite = unittest.TestSuite()
     for _, name in tests:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromName(name))

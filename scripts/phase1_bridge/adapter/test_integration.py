@@ -891,15 +891,26 @@ class C2SupportTransitionTests(unittest.TestCase):
 
     def test_claim_and_open_wait_for_source_confirmed_destinations(self):
         record=self.record('support_claim')
+        self.executor.inflight,self.executor.failed=True,False
+        self.executor.cursor=self.c2.STAGES.index('support_claim')
+        self.probe.act.side_effect=lambda *args:self.view('تحقيق الإعلانات','طلبات التحقيق',
+            self.executor.title,'تم الاستلام - قيد التحقيق','متابعة التحقيق')
+        self.probe.seek.side_effect=lambda label:None
         self.executor._execute('support_claim',(record,{'text':'استلام'}))
         self.probe.wait.assert_any_call('تحقيق الإعلانات',seconds=45)
         self.probe.seek.assert_called_once_with(self.executor.title)
         self.probe.wait.assert_any_call('تم الاستلام - قيد التحقيق',seconds=45)
+        self.probe.scroll.assert_not_called()
         self.probe.wait.reset_mock()
+        self.executor.cursor=self.c2.STAGES.index('support_open')
+        self.probe.act.side_effect=lambda *args:self.title_view()
         self.executor._execute('support_open',(self.record('support_open'),{'text':'متابعة التحقيق'}))
         self.assertEqual(self.probe.wait.call_args_list,[
             unittest.mock.call('تحقيق الإعلان',seconds=45),
             unittest.mock.call(self.executor.title,seconds=45)])
+        self.assertEqual(self.probe.act.call_args_list,[
+            unittest.mock.call('click',{'text':'استلام'}),
+            unittest.mock.call('click',{'text':'متابعة التحقيق'})])
 
 
 

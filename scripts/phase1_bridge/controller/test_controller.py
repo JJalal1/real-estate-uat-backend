@@ -940,6 +940,48 @@ class ControllerTests(unittest.TestCase):
         self.assertNotIn('unpromoted_cleanup',self.probe.fixture_api.calls)
         self.assertTrue(self.probe.fixture_api.logged_out)
 
+    def test_promoted_cleanup_receipt_survives_failed_native_relogin_without_acceptance(self):
+        self.initial(); created = self.cleanup_dependencies(); self.cleanup_scope()
+        self.probe.fixture_api.property_id = 77
+        self.controller._writers_stopped = True
+        self.controller._native_logout = False
+        self.probe.native_auth_uncertain = True
+        self.assertFalse(self.controller.cleanup_once(deadline=500))
+        receipt = self.probe.report['c2_promoted_cleanup']
+        self.assertEqual(receipt['status'], 'PASS')
+        self.assertTrue(receipt['known_application_rows_removed'])
+        self.assertTrue(receipt['protected_baseline_restored'])
+        self.assertTrue(receipt['fresh_session_cleaned'])
+        self.assertEqual(created[0].events, ['pin', 'cleanup'])
+        self.assertTrue(self.probe.report['c2_normal_api_sessions'][-1]['logout_http_200'])
+        self.assertFalse(any(row['id'] == 'C1-cleanup' and row['status'] == 'PASS'
+                             for row in self.probe.report['cases']))
+        self.assertTrue(self.probe.native_auth_uncertain)
+
+    def test_promoted_cleanup_receipt_survives_api_revocation_failure_without_false_proof(self):
+        self.initial(); created = self.cleanup_dependencies(); self.cleanup_scope()
+        self.probe.fixture_api.property_id = 77
+        self.controller._writers_stopped = True
+        self.controller._native_logout = False
+        original = self.probe.fixture_api._call
+        def fail_logout(method, path, body=None, token=None):
+            if path == '/auth/logout': return 500, {}, 1
+            return original(method, path, body, token)
+        self.probe.fixture_api._call = fail_logout
+        with self.assertRaisesRegex(Exception, '^normal_api_logout_revocation_not_confirmed$'):
+            self.controller.cleanup_once(deadline=500)
+        receipt = self.probe.report['c2_promoted_cleanup']
+        self.assertEqual(receipt['status'], 'PASS')
+        self.assertTrue(receipt['known_application_rows_removed'])
+        self.assertFalse(receipt['fresh_session_cleaned'])
+        self.assertEqual(created[0].events, ['pin', 'cleanup'])
+        session = self.probe.report['c2_normal_api_sessions'][-1]
+        self.assertFalse(session['logout_http_200'])
+        self.assertFalse(session['revoked_token_me_http_401'])
+        self.assertFalse(any(row['id'] == 'C1-cleanup' and row['status'] == 'PASS'
+                             for row in self.probe.report['cases']))
+        self.assertNotIn('SYNTHETIC_SESSION', json.dumps(self.probe.report))
+
     def test_cleanup_pin_failure_preserves_only_fixed_reason_before_session_wrap(self):
         self.initial()
         created = self.cleanup_dependencies(pin_failure={

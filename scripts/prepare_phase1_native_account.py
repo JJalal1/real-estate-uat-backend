@@ -46,6 +46,8 @@ ALLOWED = {
     'scripts/phase1_bridge/adapter/test_basics_capture.py',
     'scripts/phase1_bridge/adapter/test_c2_entry.py',
     'scripts/phase1_bridge/adapter/test_promoted_cleanup.py',
+    'scripts/phase1_bridge/adapter/test_role_login_readiness.py',
+    'scripts/phase1_bridge/adapter/test_c2_list_readiness.py',
     'scripts/phase1_bridge/adapter/test_c2_entry_dispatch.py',
     'scripts/phase1_bridge/adapter/test_home_capture.py',
     'scripts/phase1_bridge/adapter/test_integration.py',

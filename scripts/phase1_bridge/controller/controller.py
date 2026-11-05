@@ -988,9 +988,24 @@ class Controller:
             need(pin.get('status') == 'READY' and pin.get('property_id') == property_id,
                  'cleanup_strict_original_pair_pin_failed')
             self._cleanup_receipt = helper.cleanup(native_writers_stopped=True)
+            p.report['c2_promoted_cleanup'] = copy.deepcopy(self._cleanup_receipt)
+            p.save()
             need(self._cleanup_receipt.get('status') == 'PASS', 'property_first_cleanup_not_confirmed')
         with self._api_scope('cleanup', deadline):
-            session.run(inspect_and_clean)
+            try:
+                session.run(inspect_and_clean)
+            finally:
+                # Preserve actual cleanup/session outcomes even when a later
+                # native-auth or API-revocation condition prevents acceptance.
+                p.report.setdefault('c2_normal_api_sessions', []).append({
+                    'normal_broker_28_required': True, 'logout_http_200': session.logout_200,
+                    'revoked_token_me_http_401': session.me_401, 'token_persisted': False,
+                    'native_ui_logout_is_not_server_token_revocation_proof': True})
+                if route['kind'] == 'promoted' and type(self._cleanup_receipt) is dict:
+                    self._cleanup_receipt = dict(self._cleanup_receipt,
+                        fresh_session_cleaned=session.logout_200 is True and session.me_401 is True)
+                    p.report['c2_promoted_cleanup'] = copy.deepcopy(self._cleanup_receipt)
+                p.save()
             if route['kind'] == 'unpromoted':
                 # The original strict unpromoted cleaner refuses any promotion
                 # and performs exact baseline/readback plus normal revocation.
@@ -1005,9 +1020,6 @@ class Controller:
                         p.report['api_cleanup'] = copy.deepcopy(receipt)
                         p.save()
             need(self.fixture_removed_confirmed(), 'actual_cleanup_readback_required')
-            if route['kind'] == 'promoted':
-                # session.run returned only after its actual logout200/me401.
-                self._cleanup_receipt = dict(self._cleanup_receipt, fresh_session_cleaned=True)
         p.fixture_possible = False
         self._removed = True
         return self._confirm_cleanup_case()
