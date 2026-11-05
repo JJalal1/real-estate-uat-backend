@@ -27,12 +27,12 @@ paths, duplicate JSON keys and incorrect types fail closed.
 Source-only verification checks the fixed Actions repository/ref/push/source/
 run/attempt/default UAT origin, actual workspace, exact manifest and reviewed
 Root public key. It requires the final paired probe SHA
-`b2a84a16fe3c6b6f39af73cbad2b481868e5e38a938c2068e81e33671e189838`
+`c1c46a574b922643647d8e052fe62391042335217d71f6b4795dbc18bcbd1367`
 and Java SHA
 `dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495`.
 The actual existing `prepare.guard(env)` then checks git HEAD against the Actions
-source, the exact baseline diff allowlist, original unchanged mobile/backend
-trees, clean tracked paths and pinned public recipient certificate/expiry. No
+source, the exact baseline diff allowlist, separately pinned original and reviewed
+mobile trees, unchanged backend tree, clean tracked paths and pinned public recipient certificate/expiry. No
 fixture, native action or source receipt is synthesized. `--github-env` appends
 only the verified public bundle SHA after all checks, through an owned bounded
 file below RUNNER_TEMP with no symlink components.
@@ -346,3 +346,82 @@ untested in56. The corrected review requires only supplied message or independen
 verified same-draft facts, with exact public locality values recorded explicitly.
 It rejects the old ambiguous key, private/unknown fields and malformed context;
 actual visual copy/card review and all Apply/restore gates remain mandatory.
+
+
+## November 5 completion in a separate working branch
+
+The owner authorizes completing the remaining Phase 1 native evidence, retaining
+the accepted C1 save/recovery result. Run 58 has only fixture checkpoint zero and
+terminal checkpoint one; it did not reach a Root review checkpoint. Its private
+evidence is encrypted for the previous task, so its detailed cause is not asserted.
+The isolated work/phase1-completion-20261105 branch binds a new public recipient
+and reviewer key to this task; private keys remain outside the repository.
+
+The owner kernel now retains the fixed failing operation, exception class and
+source file/function/line only in the encrypted terminal checkpoint. It never
+exports exception messages, arguments or frame locals. This makes the next actual
+failure diagnosable while preserving all product, source, account and review gates.
+Initial C1 creates the fixture needed by the existing C4/C2 flow; its execution
+does not reopen the previously accepted C1 product criterion. No Phase 1 closure
+is claimed before the actual C4/C2 evidence and final cleanup are reviewed.
+
+## C2-only completion after independent C4 acceptance
+
+The current production entry explicitly selects `c2_only`. Actual C4
+application, save and recovery were independently accepted in runs67 and68;
+remaining C2 execution no longer depends on another AI response. A C2-only run
+makes no current-run C4 acceptance claim and creates no C4 executor state.
+
+The same native C1 setup supplies a fresh saved/restored fixture. At
+`CONFIGURE_C2_FROM_C1`, Root supplies separate `c1_review` and `c2_entry_review`
+records for its actual UUID, tagged title, restored completed photo and blank
+rent. Both C1 PASS receipts, the restored-editor hold, fresh review timestamps,
+and actual current title/photo file hashes are required before standard-editor
+C2 configuration. Prior-run C4 records cannot stand in for this fixture proof.
+
+The subsequent 44-stage support/return/account-isolation journey and its exact
+fixture cleanup, normal logout and process termination checks remain required.
+This entry change removes repeat AI setup; it does not close C2 or Phase1 before
+those actual outcomes and Root reviews are complete.
+
+## Editor route dismissal is not a SAI decision
+
+Run73 read back the exact synthetic rent and zero SAI rate, with no authentication
+surface, but the global acceptance-label guard also matched the editor route
+barrier. The pinned `/add-property` route is a dismissible CustomTransitionPage;
+Flutter3.27.3 localizes its dismissal barrier as `رفض`. The restored editor
+remains in that route. Its generic Android View is distinct from a decision button.
+
+The C2 preview now requires the actual declared editor controls and permits only
+that standalone, noneditable, visible APP View label. Acceptance controls,
+combined labels, actual rejection buttons, authentication and submission-sheet
+contexts remain refused. Exact rent/rate checks and the source-shaped fallback
+notice remain mandatory. The separate submission-sheet and support action
+guards are unchanged. Native acceptance still requires actual Root review.
+
+## Fresh review after an observation-only hold
+
+The photo review accepts the current specs or completed-photo section with the
+real editor controls; it does not require a section heading that scrolling has
+moved offscreen. Full-tree privacy, the original fixture and photo, and exact
+rent/SAI observations remain required.
+
+A C2 observation-only review may now return a fixed preparation reason and a new
+checkpoint when its fresh receipt proves that execution was never reserved or
+called. The prior command remains consumed, and the old review/frame cache is
+discarded. Root must inspect the fresh evidence and sign a new sequence. Action
+targets, attempted inputs, uncertain delivery and C4 execution cannot use this
+path. A pending review never counts as a completed stage or Phase1 acceptance.
+
+## Synthetic listing contact before full save
+
+The normal test account's authentication phone does not satisfy the listing-only
+mobile-number shape. The editor therefore retained recovery data instead of
+creating a property when its contact validation first ran at full save.
+
+C2 sets a separate fixed synthetic listing contact through the ordinary native
+field. It first observes the source-shaped local validation error and confirms
+the configured prefix. Contact values remain in private runtime memory; scrolling
+and input record only counts, and the reviewed preview contains only validity
+booleans. Exact contact readback, current policy validity and an empty optional
+contact are required again before saving. No calls or messages are sent.

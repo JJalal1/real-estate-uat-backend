@@ -214,6 +214,58 @@ class C4RequestBoundaryTests(unittest.TestCase):
         self.probe.require_value.assert_called_once_with('صف العقار',self.c4.BRIEF)
         self.probe.tap.assert_not_called()
 
+    def _edit_reviewed_title(self, existing_title):
+        self.probe.authenticated = True
+        self.probe.recorder = None
+        self.probe._host_stop_unconfirmed = False
+        self.probe._capture_rows_private.return_value = False
+        rows = [{'text':label, 'visible':True} for label in
+                (self.c4.AI_NOTICE, self.c4.APPLY, 'عنوان الإعلان', 'نص الإعلان')]
+        self.probe.nodes.return_value = rows
+        self.probe._capture_full_rows.return_value = rows
+        self.probe.matching.side_effect = lambda current,label: [
+            row for row in current if row.get('text') == label]
+        actual_title = {'text':existing_title}
+        self.probe.field.return_value = actual_title
+        self.probe.set.side_effect = lambda label,value: actual_title.update(text=value)
+        self.probe.require_value.side_effect = lambda label,expected: self.assertEqual(
+            actual_title['text'], expected)
+        self.state.update(cursor='AI_REVIEW', ai_scene=self.c4.ai_scene(self.probe),
+                          request_copy_sha256='b'*64)
+        review = {'actual_ai_notice':self.c4.AI_NOTICE, 'literal_fallback_notice_visible':False,
+                  'all_selected_fields_and_copy_reviewed':True, 'copy_has_only_supplied_facts':True,
+                  'verified_existing_draft_copy_facts':{},
+                  'selected_fields':{'floor_number':'2','unit_number':'7'},
+                  'all_proposal_cards_visible_in_reviewed_frames':True}
+        def capture(probe,name):
+            self.c4.ai_context(probe)  # Keep the actual strict sheet guard in this test.
+            probe.capture_observed(name)
+            return {name+'.png':DIGEST}
+        with patch.object(self.c4,'ai_capture',side_effect=capture), \
+             patch.object(self.c4,'copy_digest',return_value='b'*64):
+            result = self.c4.edit_title(self.probe,self.state,review)
+        self.assertEqual(result['cursor'],'APPLY_REVIEW')
+        self.assertEqual(len(self.state['apply_frames']),2)
+        self.probe.require_value.assert_called_once_with('عنوان الإعلان',self.state['title'])
+        self.probe.tap.assert_not_called()
+        return self.probe.method_calls
+
+    def test_exact_reviewed_title_is_preserved_without_text_input_or_ime_transition(self):
+        self._edit_reviewed_title(self.state['title'])
+        self.probe.set.assert_not_called()
+        self.probe.adb.assert_not_called()
+        self.probe.wait.assert_not_called()
+
+    def test_changed_reviewed_title_is_set_once_then_footer_observed_before_capture(self):
+        calls = self._edit_reviewed_title('SYNTHETIC_DIFFERENT_TITLE')
+        self.probe.set.assert_called_once_with('عنوان الإعلان',self.state['title'])
+        self.probe.wait.assert_called_once_with(self.c4.APPLY,seconds=5)
+        readback = unittest.mock.call.require_value('عنوان الإعلان',self.state['title'])
+        wait = unittest.mock.call.wait(self.c4.APPLY,seconds=5)
+        capture = unittest.mock.call.capture_observed('C1-c4-edited-title')
+        self.assertLess(calls.index(readback),calls.index(wait))
+        self.assertLess(calls.index(wait),calls.index(capture))
+
 
 class SyntheticAuthority:
     authority_kind = 'ROOT_VERIFIED'
@@ -711,6 +763,407 @@ class OsPickerDiagnosticTests(unittest.TestCase):
             self.assertNotIn('native_silent_audio_tracks',p.report)
 
 
+class C2SupportTransitionTests(unittest.TestCase):
+    def setUp(self):
+        def load(name):
+            spec=importlib.util.spec_from_file_location('_support_'+name,
+                HERE/'variants/ROOT_C2_EXECUTOR_V2'/name)
+            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+            return module
+        self.c2,self.dispatch=load('phase_extensions.py'),load('root_extension_dispatch.py')
+        self.executor=self.c2.C2Executor.__new__(self.c2.C2Executor)
+        e=self.executor
+        e.key,e.tag,e.title='synthetic-key','AQER-C1-'+'a'*12,'SYNTHETIC AQER-C1-'+'a'*12
+        e.property_id=123;e.reason='تصحيح اختبار اصطناعي فقط '+e.tag
+        e.case_review_frame=e.case_header_binding=e.return_confirmation_frame=e.return_queue_transition=None
+        e.delivered_frames={'support_open':'a'*64};e.reviews={}
+        self.probe=Mock(authenticated=True,active_native_role='support',native_auth_uncertain=False,
+                        recorder=None,_host_stop_unconfirmed=False)
+        self.probe._capture_rows_private.return_value=False
+        e.probe=self.probe
+        self.rows=[]
+        self.probe.nodes.side_effect=lambda:self.rows
+        self.probe._capture_full_rows.side_effect=lambda:self.rows
+        self.probe.seek.side_effect=lambda label:self.action_view()
+        self.title_view()
+
+    def row(self,path,text,bounds,clickable=False):
+        return {'path':path,'witness':hashlib.sha256(path.encode()).hexdigest(),
+                'text':text,'package':self.c2.roles.APP,'visible':True,'enabled':True,
+                'bounds':bounds,'clickable':clickable,
+                'class':'android.widget.Button' if clickable else 'android.view.View'}
+
+    def view(self,*labels):
+        self.rows=[self.row('0','',[0,0,540,960])]
+        self.rows += [self.row('0.'+str(i+1),label,[10,10+i*80,520,60+i*80],
+                               label=='إرجاع للتصحيح') for i,label in enumerate(labels)]
+
+    def title_view(self):self.view('تحقيق الإعلان',self.executor.title)
+    def action_view(self):self.view('تحقيق الإعلان','إرجاع للتصحيح','قبول ونشر','رفض نهائي وحظر')
+    def queue_view(self):self.view('تحقيق الإعلانات','طلبات التحقيق','لا توجد طلبات معلقة')
+
+    def record(self,stage,**extra):
+        e=self.executor
+        return dict(kind='ROOT_ACTUAL_FRAME_REVIEW',context=stage,privacy_checked=True,
+            manual_review_completed=True,fixture_key=e.key,fixture_tag=e.tag,exact_fixture_title=e.title,
+            actual_frame_file='C2-'+stage+'-1.png',frame_sha256='b'*64,
+            review_completed_utc=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),**extra)
+
+    def accept_title(self):
+        record=self.record('review_case',exact_own_case_title_observed=True)
+        self.executor._review_observation('review_case',record)
+        self.executor._execute('review_case',record)
+        return record
+
+    def action_record(self):
+        bindings=self.dispatch._capture_rows(self.probe,self.c2,self.executor,'return_open')
+        title,button=bindings['title_candidates'][0],bindings['button_candidates'][0]
+        return self.record('return_open',root_witness=bindings['root']['witness'],
+            title_path=title['path'],title_witness=title['witness'],button_path=button['path'],
+            button_witness=button['witness'],same_serialized_support_case_chain_reviewed=True,
+            serialized_case_binding=bindings['serialized_case_binding'],
+            fixture_title_visible_in_action_frame=False)
+
+    def test_exact_title_review_then_scoped_scroll_keeps_separate_frame_identity(self):
+        record=self.accept_title()
+        self.probe.seek.assert_called_once_with('إرجاع للتصحيح')
+        self.probe.act.assert_not_called()
+        self.assertNotIn(self.executor.title,self.c2._names(self.rows))
+        self.assertEqual(self.executor._case_binding()['case_title_review_frame'],
+                         {'file':record['actual_frame_file'],'sha256':record['frame_sha256']})
+
+    def test_lower_action_review_binds_prior_title_and_never_requires_title_in_same_frame(self):
+        self.accept_title();record=self.action_record()
+        self.assertNotIn('same_exact_tagged_item_and_button_visually_verified',record)
+        self.executor.reviews['return_open']=record
+        prepared=self.executor._prepare('return_open')
+        self.assertEqual(prepared[1]['text'],'إرجاع للتصحيح')
+        self.executor._execute('return_open',prepared)
+        self.probe.act.assert_called_once_with('click',prepared[1])
+
+    def test_changed_case_binding_or_publish_button_cannot_authorize_return(self):
+        self.accept_title();record=self.action_record()
+        for change in ({'serialized_case_binding':{}}, {'fixture_title_visible_in_action_frame':True},
+                       {'button_path':'0.3','button_witness':self.rows[3]['witness']}):
+            self.executor.reviews['return_open']=dict(record,**change)
+            self.assertIsNone(self.executor._prepare('return_open'))
+        self.probe.act.assert_not_called()
+
+    def test_case_action_capture_without_accepted_exact_title_is_refused(self):
+        self.action_view()
+        with self.assertRaises(self.dispatch.Hold):
+            self.dispatch._capture_rows(self.probe,self.c2,self.executor,'return_open')
+
+    def test_changed_case_header_or_private_full_tree_refuses_action_capture(self):
+        self.accept_title()
+        self.rows[1]['witness']='f'*64
+        with self.assertRaisesRegex(self.dispatch.Hold,'REVIEWED_CASE_HEADER_CHANGED'):
+            self.dispatch._capture_rows(self.probe,self.c2,self.executor,'return_open')
+        self.action_view();self.probe._capture_rows_private.return_value=True
+        with self.assertRaisesRegex(self.dispatch.Hold,'PRIVATE_CONTEXT'):
+            self.dispatch._capture_rows(self.probe,self.c2,self.executor,'return_open')
+
+    def test_successful_return_uses_actual_queue_and_defers_exact_outcome(self):
+        self.accept_title();record=self.record('return_confirm')
+        self.view('إرجاع الإعلان للتصحيح',self.executor.reason,'تأكيد')
+        self.probe.act.side_effect=lambda *a:self.queue_view()
+        self.executor._execute('return_confirm',(record,{'text':'تأكيد'}))
+        self.assertNotIn(self.executor.title,self.c2._names(self.rows))
+        bindings=self.dispatch._capture_rows(self.probe,self.c2,self.executor,'review_returned')
+        transition=bindings['return_queue_transition']
+        self.assertFalse(transition['exact_returned_state_proved'])
+        self.assertEqual(transition['return_confirmation_frame']['sha256'],record['frame_sha256'])
+        review=self.record('review_returned',return_queue_transition=transition,
+            return_queue_transition_reviewed=True,exact_outcome_deferred_to_broker_reason=True,
+            native_return_confirmed=False,publication_or_rejection_executed=False,
+            exact_reason=self.executor.reason)
+        self.executor._review_observation('review_returned',review)
+        for change in ({'native_return_confirmed':True},{'publication_or_rejection_executed':True},
+                       {'exact_outcome_deferred_to_broker_reason':False}):
+            with self.assertRaises(self.c2.C2Blocked):
+                self.executor._review_observation('review_returned',dict(review,**change))
+        self.probe.act.assert_called_once()
+
+    def test_loading_dialog_or_still_visible_fixture_is_not_return_completion(self):
+        for extra in ('جارٍ تحميل طلبات التحقيق...','إرجاع الإعلان للتصحيح',self.executor.title):
+            self.view('تحقيق الإعلانات','طلبات التحقيق','لا توجد طلبات معلقة',extra)
+            self.assertFalse(self.executor._return_queue_observed())
+
+    def test_claim_and_open_wait_for_source_confirmed_destinations(self):
+        record=self.record('support_claim')
+        self.executor.inflight,self.executor.failed=True,False
+        self.executor.cursor=self.c2.STAGES.index('support_claim')
+        self.probe.act.side_effect=lambda *args:self.view('تحقيق الإعلانات','طلبات التحقيق',
+            self.executor.title,'تم الاستلام - قيد التحقيق','متابعة التحقيق')
+        self.probe.seek.side_effect=lambda label:None
+        self.executor._execute('support_claim',(record,{'text':'استلام'}))
+        self.probe.wait.assert_any_call('تحقيق الإعلانات',seconds=45)
+        self.probe.seek.assert_called_once_with(self.executor.title)
+        self.probe.wait.assert_any_call('تم الاستلام - قيد التحقيق',seconds=45)
+        self.probe.scroll.assert_not_called()
+        self.probe.wait.reset_mock()
+        self.executor.cursor=self.c2.STAGES.index('support_open')
+        self.probe.act.side_effect=lambda *args:self.title_view()
+        self.executor._execute('support_open',(self.record('support_open'),{'text':'متابعة التحقيق'}))
+        self.assertEqual(self.probe.wait.call_args_list,[
+            unittest.mock.call('تحقيق الإعلان',seconds=45),
+            unittest.mock.call(self.executor.title,seconds=45)])
+        self.assertEqual(self.probe.act.call_args_list,[
+            unittest.mock.call('click',{'text':'استلام'}),
+            unittest.mock.call('click',{'text':'متابعة التحقيق'})])
+
+
+
+class C2FailureDiagnosticTests(unittest.TestCase):
+    def modules(self):
+        def load(name, path):
+            spec = importlib.util.spec_from_file_location(name, path)
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            return module
+        source = HERE.parents[1] / 'probe_phase1_native_account.py'
+        sys.path.insert(0, str(source.parent))
+        return (load('_c2_failure_base', source),
+                load('_c2_failure_executor', HERE / 'variants/ROOT_C2_EXECUTOR_V2/phase_extensions.py'))
+
+    def native_probe(self):
+        actual, c2 = self.modules()
+        p = actual.NativeAccount.__new__(actual.NativeAccount)
+        p.report = {}; p.authenticated = True; p.recorder = None; p.save = Mock()
+        p._root_c2_executor_v2 = Mock(probe=p, inflight=True, cursor=2)
+        p._root_c2_executor_v2._diagnostic_operation = {'control': 'rent', 'substage': 'instrument'}
+        return actual, p
+
+    def test_c2_native_failure_records_fixed_focus_shapes_without_private_output(self):
+        actual, p = self.native_probe()
+        p.c2_input_failure('account-set', {
+            'stage': 'account_focus_hint_match', 'foreground_category': 'APP', 'passed': 'false',
+            'focus_hint_original_shape': 'MONTHLY_RENT_LABEL',
+            'focus_hint_current_shape': 'MONTHLY_RENT_LABEL_AND_ZERO',
+            'focus_source_node_same': 'true', 'focus_observed_focused': 'true',
+            'focus_observation_count': '3', 'tree_b64': 'PRIVATE_TOKEN',
+            'message': 'PRIVATE_PHONE'}, 'PRIVATE_OUTPUT', 'native_input_not_delivered')
+        row = p.report['c2_v2_native_input_failure']
+        self.assertEqual(row['java_stage'], 'account_focus_hint_match')
+        self.assertEqual(row['current_hint_shape'], 'MONTHLY_RENT_LABEL_AND_ZERO')
+        self.assertTrue(row['same_original_android_node'])
+        self.assertEqual(row['observations'], 3)
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        p.save.assert_called_once()
+
+    def test_c2_native_failure_ignores_unknown_shapes_and_requires_exact_active_scope(self):
+        actual, p = self.native_probe()
+        result = {'stage': 'PRIVATE_STAGE', 'focus_hint_original_shape': 'PRIVATE_HINT',
+                  'focus_observation_count': '9999', 'foreground_category': 'PRIVATE_PACKAGE'}
+        p._root_c2_executor_v2.cursor = 20
+        p.c2_input_failure('account-set', result, 'PRIVATE_OUTPUT', 'PRIVATE_REASON')
+        self.assertEqual(p.report, {})
+        p._root_c2_executor_v2.cursor = 2
+        p.c2_input_failure('account-set', result, 'PRIVATE_OUTPUT', 'PRIVATE_REASON')
+        row = p.report['c2_v2_native_input_failure']
+        self.assertIsNone(row['java_stage'])
+        self.assertEqual(row['reason'], 'native_instrumentation_unobserved')
+        self.assertNotIn('original_hint_shape', row)
+        self.assertNotIn('observations', row)
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+
+    def test_c2_contact_failure_keeps_only_fixed_context_without_contact_payload(self):
+        for control, substage, op in (
+                ('fixture_contact', 'instrument', 'account-set'),
+                ('fixture_contact', 'dismiss_ime', 'account-dismiss-ime'),
+                ('fixture_contact', 'contact_policy_observation', 'account-snapshot'),
+                ('fixture_contact', 'contact_readback', 'account-scroll'),
+                ('validation_preview', 'instrument', 'account-click'),
+                ('draft_options', 'instrument', 'account-click')):
+            with self.subTest(control=control, substage=substage):
+                actual, p = self.native_probe()
+                p._root_c2_executor_v2._diagnostic_operation = {'control': control, 'substage': substage}
+                p.c2_input_failure(op, {
+                    'stage': 'account_focus_hint_match', 'passed': 'false',
+                    'focus_hint_original_shape': 'PRIVATE_CONTACT_HINT',
+                    'contact': 'PRIVATE_CONTACT', 'prefixes': 'PRIVATE_PREFIX',
+                    'message': 'PRIVATE_VALIDATION_ERROR', 'tree_b64': 'PRIVATE_TREE',
+                    'node_witness': 'PRIVATE_HASH'}, 'PRIVATE_OUTPUT', 'native_input_not_delivered')
+                row = p.report['c2_v2_native_input_failure']
+                self.assertEqual((row['stage'], row['control'], row['substage'], row['op']),
+                                 ('complete_rent', control, substage, op))
+                self.assertNotIn('PRIVATE', json.dumps(p.report))
+                p.save.assert_called_once()
+
+    def test_c2_contact_readback_failure_requires_exact_later_stage_and_active_scope(self):
+        for cursor, stage in ((5, 'return_next_step3'), (6, 'back_gaps_to_completion'), (7, 'full_save')):
+            actual, p = self.native_probe()
+            p._root_c2_executor_v2.cursor = cursor
+            p._root_c2_executor_v2._diagnostic_operation = {
+                'control': 'fixture_contact', 'substage': 'contact_readback'}
+            p.c2_input_failure('account-scroll', {'stage': 'account_scroll'}, '', 'native_input_not_delivered')
+            self.assertEqual(p.report['c2_v2_native_input_failure']['stage'], stage)
+        for change in ('other_cursor', 'late_set', 'late_preview', 'not_inflight', 'unauthenticated', 'recording'):
+            actual, p = self.native_probe()
+            e = p._root_c2_executor_v2
+            e.cursor = 7
+            e._diagnostic_operation = {'control': 'fixture_contact', 'substage': 'contact_readback'}
+            if change == 'other_cursor': e.cursor = 8
+            elif change == 'late_set': e._diagnostic_operation['substage'] = 'instrument'
+            elif change == 'late_preview': e._diagnostic_operation['control'] = 'validation_preview'
+            elif change == 'not_inflight': e.inflight = False
+            elif change == 'unauthenticated': p.authenticated = False
+            else: p.recorder = object()
+            p.c2_input_failure('account-snapshot', {}, 'PRIVATE_OUTPUT', 'native_input_not_delivered')
+            self.assertEqual(p.report, {}, change)
+            p.save.assert_not_called()
+
+    def test_c2_ime_failure_retains_only_fixed_phase_substage_and_bounded_counts(self):
+        actual, p = self.native_probe()
+        p._root_c2_executor_v2._diagnostic_operation = {'control': 'sai_rate', 'substage': 'dismiss_ime'}
+        p.c2_input_failure('account-dismiss-ime', {
+            'stage': 'ime_windows', 'ime_observation_phase': 'AFTER_KEY',
+            'ime_observation_substage': 'APP_WINDOW_UNIQUE', 'ime_observation_count': '4',
+            'ime_window_count': '3', 'ime_focused_app_matches': '0',
+            'raw_windows': 'PRIVATE_WINDOW_TEXT'}, 'PRIVATE_OUTPUT', 'native_input_not_delivered')
+        row = p.report['c2_v2_native_input_failure']
+        self.assertEqual(row['ime_observation'], {'phase': 'AFTER_KEY',
+            'substage': 'APP_WINDOW_UNIQUE', 'observations': 4, 'window_count': 3,
+            'focused_app_matches': 0})
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        actual, p = self.native_probe()
+        p.c2_input_failure('account-dismiss-ime', {
+            'stage': 'ime_windows', 'ime_observation_phase': 'BEFORE_KEY',
+            'ime_observation_substage': 'CACHE_CLEAR', 'ime_observation_count': '1'},
+            '', 'native_input_not_delivered')
+        self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'],
+                         {'phase': 'BEFORE_KEY', 'substage': 'CACHE_CLEAR', 'observations': 1})
+
+    def test_c2_ime_failure_refuses_unknown_categories_and_out_of_range_counts(self):
+        for change in ({'ime_observation_phase': 'PRIVATE_PHASE'},
+                       {'ime_observation_substage': 'PRIVATE_SUBSTAGE'},
+                       {'ime_observation_count': '151'}):
+            actual, p = self.native_probe()
+            result = {'stage': 'ime_windows', 'ime_observation_phase': 'BEFORE_KEY',
+                      'ime_observation_substage': 'WINDOW_LIST', 'ime_observation_count': '1'}
+            result.update(change)
+            p.c2_input_failure('account-dismiss-ime', result, '', 'native_input_not_delivered')
+            self.assertNotIn('ime_observation', p.report['c2_v2_native_input_failure'])
+            self.assertNotIn('PRIVATE', json.dumps(p.report))
+        actual, p = self.native_probe()
+        p.c2_input_failure('account-dismiss-ime', {
+            'ime_observation_phase': 'BEFORE_KEY', 'ime_observation_substage': 'WINDOW_ENTRY',
+            'ime_observation_count': '2', 'ime_window_count': '34',
+            'ime_focused_app_matches': '3'}, '', 'native_input_not_delivered')
+        self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'],
+                         {'phase': 'BEFORE_KEY', 'substage': 'WINDOW_ENTRY', 'observations': 2})
+
+    def test_c2_ime_retained_field_diagnostic_accepts_only_fixed_true_false_strings(self):
+        actual, p = self.native_probe()
+        fixed = {key: ('true' if index % 2 else 'false')
+                 for index, key in enumerate(actual.IME_RETAINED_FIELD_BOOLEAN_KEYS)}
+        p.c2_input_failure('account-dismiss-ime', dict(fixed,
+            ime_observation_phase='AFTER_KEY', ime_observation_substage='ORIGINAL_FIELD_RETAINED',
+            ime_observation_count='4', original_text='PRIVATE_TEXT',
+            original_class='PRIVATE_CLASS', arbitrary_flag='true'),
+            'PRIVATE_OUTPUT', 'native_input_not_delivered')
+        observation = p.report['c2_v2_native_input_failure']['ime_observation']
+        for key, value in fixed.items():
+            self.assertIs(observation[key.removeprefix('ime_')], value == 'true')
+        self.assertEqual(set(observation), {'phase', 'substage', 'observations'} |
+                         {key.removeprefix('ime_') for key in fixed})
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+
+    def test_c2_ime_retained_field_diagnostic_rejects_other_values_and_preserves_bounds(self):
+        for value in (True, False, 1, 0, None, 'TRUE', 'False', 'PRIVATE', {}, []):
+            actual, p = self.native_probe()
+            result = {key: value for key in actual.IME_RETAINED_FIELD_BOOLEAN_KEYS}
+            result.update(ime_observation_phase='AFTER_KEY',
+                          ime_observation_substage='ORIGINAL_FIELD_REFRESH',
+                          ime_observation_count='2', ime_window_count='99')
+            p.c2_input_failure('account-dismiss-ime', result, '', 'native_input_not_delivered')
+            self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'],
+                             {'phase': 'AFTER_KEY', 'substage': 'ORIGINAL_FIELD_REFRESH', 'observations': 2})
+            self.assertNotIn('PRIVATE', json.dumps(p.report))
+
+    def test_c2_ime_logical_rebind_failure_preserves_fixed_false_and_true_evidence(self):
+        actual, p = self.native_probe()
+        p.c2_input_failure('account-dismiss-ime', {
+            'ime_observation_phase': 'AFTER_KEY', 'ime_observation_substage': 'LOGICAL_FIELD_REBIND',
+            'ime_observation_count': '3', 'ime_original_refreshed': 'false',
+            'ime_logical_field_rebound': 'false', 'ime_logical_field_unique': 'false',
+            'ime_logical_anchor_present': 'true', 'ime_logical_field_value': 'PRIVATE_VALUE',
+            'ime_logical_field_hint': 'PRIVATE_HINT'}, '', 'native_input_not_delivered')
+        self.assertEqual(p.report['c2_v2_native_input_failure']['ime_observation'], {
+            'phase': 'AFTER_KEY', 'substage': 'LOGICAL_FIELD_REBIND', 'observations': 3,
+            'original_refreshed': False, 'logical_field_rebound': False,
+            'logical_field_unique': False, 'logical_anchor_present': True})
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+
+    def test_real_native_receiver_records_c2_failure_before_rethrow(self):
+        actual, p = self.native_probe()
+        p._active_case = None
+        p.c4_prepare_input_failure = Mock()
+        p.adb = Mock(return_value='INSTRUMENTATION_RESULT: passed=false\n'
+                    'INSTRUMENTATION_RESULT: stage=account_focus_hint_match\n'
+                    'INSTRUMENTATION_RESULT: message=PRIVATE_VALUE\nINSTRUMENTATION_CODE: 0')
+        with self.assertRaisesRegex(actual.Blocked, '^native_input_not_delivered$'):
+            p.instrument('account-set', node_path='0.1', node_witness=DIGEST, value_b64='MA==')
+        self.assertEqual(p.report['c2_v2_native_input_failure']['java_stage'], 'account_focus_hint_match')
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        p.adb.assert_called_once()
+
+    def test_complete_rent_failure_keeps_exact_substage_and_latches_without_replay(self):
+        actual, c2 = self.modules()
+        e = c2.C2Executor.__new__(c2.C2Executor)
+        e.cursor = 2; e.failed = e.inflight = False; e.monthly_rent = '50000'
+        e.fixture_contact = '770000028'
+        e._nonimage_field = Mock(return_value={'path': '0.1', 'witness': DIGEST})
+        e.regular_logout_receipt = None; e.property_id = None
+        p = Mock(report={}, explicit_pointer_mode=False)
+        p.field.return_value = {'path': '0.1', 'witness': DIGEST}
+        p.instrument.side_effect = AdmissionError('PRIVATE_TOKEN PRIVATE_PHONE')
+        e.probe = p; e._prepare = Mock(return_value=True); e._actor = Mock()
+        with self.assertRaisesRegex(c2.C2Blocked, '^c2_stage_uncertain_root_readback_required$'):
+            e.advance()
+        row = p.report['c2_v2_stage_failure']
+        self.assertEqual((row['stage'], row['control'], row['substage']),
+                         ('complete_rent', 'rent', 'instrument'))
+        self.assertEqual(row['exception_type'], 'AdmissionError')
+        self.assertTrue(row['source_frames'])
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        self.assertTrue(e.failed)
+        with self.assertRaisesRegex(c2.C2Blocked, '^c2_uncertain_stage_no_replay$'):
+            e.advance()
+        p.instrument.assert_called_once()
+
+    def test_pin_failure_fixed_reason_survives_wrapped_normal_session_without_payload(self):
+        actual, c2 = self.modules()
+        e = c2.C2Executor.__new__(c2.C2Executor)
+        p = Mock(report={}, adapter=None, private_values=set())
+        p._known_role_memory.resolve.return_value = ('PRIVATE_PHONE', 'PRIVATE_OTP')
+        e.probe = p; e.state = {}; e._guest = Mock(); e.property_id = None
+        logged_out = False
+        def request(method, path, body, token):
+            nonlocal logged_out
+            if path == '/auth/whatsapp/verify': return 200, {'data': {'token': 'PRIVATE_TOKEN'}}
+            if path == '/auth/logout': logged_out = True; return 200, {}
+            if path == '/auth/me':
+                return (401, {}) if logged_out else (200, {'data': {'user': {'id': 28, 'account_type': 'broker'}}})
+            return 200, {}
+        e.request = request
+        receipt = {'status': 'BLOCKED', 'reason': 'new_property_ownership_required',
+                   'payload': 'PRIVATE_BODY', 'token': 'PRIVATE_TOKEN', 'property_id': 'PRIVATE_ID'}
+        with patch.object(c2.cleanup_module, 'PromotedFixtureCleanup') as helper:
+            helper.return_value.pin_candidate.return_value = receipt
+            with self.assertRaisesRegex(c2.C2Blocked, '^normal_api_work_or_auth_uncertain$'):
+                e._execute('pin_promotion', True)
+        self.assertEqual(p.report['c2_pin_promotion_diagnostic'],
+                         {'status': 'BLOCKED', 'reason': 'new_property_ownership_required'})
+        self.assertTrue(logged_out)
+        self.assertTrue(p.report['c2_normal_api_sessions'][0]['revoked_token_me_http_401'])
+        self.assertIsNone(e.property_id)
+        p.save.assert_called_once()
+        self.assertNotIn('PRIVATE', json.dumps(p.report))
+        for receipt in ({'status': 'PRIVATE_STATUS', 'reason': 'PRIVATE_REASON'},
+                        {'status': {}, 'reason': []}, None):
+            self.assertEqual(c2.pin_candidate_diagnostic(receipt),
+                             {'status': 'UNOBSERVED', 'reason': 'UNOBSERVED'})
+
 class VariantTests(unittest.TestCase):
     def load(self, relative):
         spec = importlib.util.spec_from_file_location('_synthetic_' + relative.replace('/', '_'),
@@ -779,7 +1232,7 @@ class VariantTests(unittest.TestCase):
             policy_text = (output / 'LOCAL_REMAINING_PROPOSAL/local_stage_policy.py').read_text()
             self.assertIn('fresh_remote_review(review, now_utc=now_utc)', policy_text)
             c2_text = (output / 'ROOT_C2_EXECUTOR_V2/phase_extensions.py').read_text()
-            self.assertEqual(c2_text.count('fresh_remote_review('), 2)
+            self.assertEqual(c2_text.count('fresh_remote_review('), 3)
             dispatch = (output / 'ROOT_C2_EXECUTOR_V2/root_extension_dispatch.py').read_text()
             self.assertIn('root_review_utc_expired', dispatch)
             self.assertIn("'frame_sha256', 'review_completed_utc'", dispatch)

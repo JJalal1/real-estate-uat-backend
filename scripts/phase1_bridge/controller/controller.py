@@ -19,7 +19,7 @@ import time
 import uuid
 
 from ci_remote_evidence import C4_EXTRA, frames_wire, fresh_remote_review, video_wire
-from bounded_api import BoundedApiFactory, DeadlineTransport
+from bounded_api import BoundedApiFactory, DeadlineTransport, read_public_with_retry
 
 
 class ControllerRefused(RuntimeError):
@@ -129,11 +129,14 @@ class Controller:
                  public_reference_reader, boot_runtime, close_runtime,
                  authority_getter, context_getter, work_deadline_getter,
                  monotonic_clock=time.monotonic, wait=time.sleep,
-                 api_transport=None, app='com.aqer.yemen.uat'):
+                 api_transport=None, app='com.aqer.yemen.uat', entry_mode='c4_then_c2'):
         callbacks = (public_reference_reader, boot_runtime, close_runtime, authority_getter,
                      context_getter, work_deadline_getter, monotonic_clock, wait)
         need(all(callable(f) for f in callbacks), 'controller_callbacks_required')
         self.probe, self.c4, self.c2, self.dispatcher = probe, c4, c2, dispatcher
+        need(entry_mode in {'c4_then_c2', 'c2_only'}, 'fixed_controller_entry_mode_required')
+        self._entry_mode = entry_mode
+        probe._root_c2_entry_mode = entry_mode
         self._reference, self._boot, self._close = public_reference_reader, boot_runtime, close_runtime
         self._authority, self._context = authority_getter, context_getter
         self._work_deadline, self._mono, self._wait = work_deadline_getter, monotonic_clock, wait
@@ -154,6 +157,7 @@ class Controller:
         self._advance_failed = self._cleanup_used = self._stop_used = False
         self._writers_stopped = self._native_logout = self._removed = False
         self._cleanup_receipt = self._runtime_receipt = self._snapshot = None
+        self._c2_pending_preparation = None
         self._close_used = False
         self._promotion_pin = None
         self._promotion_pin_at = None
@@ -164,6 +168,11 @@ class Controller:
         probe.report['limitations'] = [
             'C4/C2 require actual Root media review and original executor postconditions',
             'API36 KVM functional evidence, not a physical handset/performance claim']
+        if entry_mode == 'c2_only':
+            probe.report['scope'] = 'Same-job native C1 fixture preparation with signed C2 continuation only'
+            probe.report['c2_entry_mode'] = 'standard_editor'
+            probe.report['current_run_c4_executed'] = False
+            probe.report['limitations'][0] = 'C2 requires actual current fixture and stage reviews; prior C4 acceptance is separate'
         # Exact same module identity as the installed RAM KnownRoleMemory.
         probe._root_extension_dispatch_v2_modules = {'C4': c4, 'C2': c2}
 
@@ -236,7 +245,11 @@ class Controller:
         # Same actual published-card prerequisite as the source collector, with
         # bounded transport injected before the first public HTTP operation.
         with self._api_scope('source'):
-            references = self._reference(transport=self._transport)
+            def public_diagnostic(value):
+                p.report.setdefault('public_reference_attempts', []).append(value)
+                p.save()
+            references = read_public_with_retry(self._reference, self._transport,
+                diagnostic=public_diagnostic, wait=self._wait)
             need(type(references) is list and 0 < len(references) <= 50, 'actual_public_reference_required')
             p.report['initial_native_readiness_stage'] = 'native_public_card'
             p.save()
@@ -378,16 +391,35 @@ class Controller:
         return result
 
     def _position(self):
-        c4 = self._c4_state()
-        if c4.get('accepted') is not True:
-            return 'C4', c4['cursor'], c4['cursor']
+        if self._entry_mode == 'c2_only':
+            self._c1_entry_checks()
+        else:
+            c4 = self._c4_state()
+            if c4.get('accepted') is not True:
+                return 'C4', c4['cursor'], c4['cursor']
         executor = getattr(self.probe, '_root_c2_executor_v2', None)
         if executor is None:
+            if self._entry_mode == 'c2_only':
+                return 'C2', 'CONFIGURE_C2_FROM_C1', 'CONFIGURE_C2_FROM_C1'
             return 'C2', 'CONFIGURE_C2', 'CONFIGURE_C2'
         need(type(executor.cursor) is int and 0 <= executor.cursor <= len(self.c2.STAGES), 'c2_cursor_invalid')
         if executor.cursor == len(self.c2.STAGES): return 'C2', 'C2_COLLECTED', 'C2_COLLECTED'
         stage = self.c2.STAGES[executor.cursor]
         return 'C2', 'C2_' + str(executor.cursor) + '_' + stage.upper(), stage
+
+    def _c1_entry_checks(self):
+        p = self.probe
+        need(self._initial_used and p.report.get('held_after_c1_restore_for_root_review') is True
+             and self.c4.KEY not in p.report, 'actual_c1_only_entry_required')
+        cases = p.report.get('cases', [])
+        need(all(any(row.get('id') == name and row.get('status') == 'PASS' for row in cases)
+                 for name in ('C1-photo-save', 'C1-force-stop-restore')),
+             'actual_c1_fixture_cases_required')
+        checks = p.report.get('c1_monthly_rent_blank_checks')
+        need(type(checks) is dict and set(checks) == {'before_save', 'after_reopen'}
+             and checks['before_save'] is True and checks['after_reopen'] is True,
+             'actual_c1_blank_rent_checks_required')
+        return dict(checks)
 
     def _media(self, names):
         p, result = self.probe, []
@@ -466,10 +498,56 @@ class Controller:
             need(executor._regular_account_semantics() == executor.regular_account_witness,
                  'actual_regular_nonimage_witness_changed')
             return
+        if stage in {'navigate_previous_to_specs', 'back_gaps_to_completion'}:
+            executor._actor('broker')
+            previous = {'navigate_previous_to_specs':'complete_rent',
+                        'back_gaps_to_completion':'return_next_step3'}[stage]
+            receipts = p.report.get('c2_segmented_execution', [])
+            last = receipts[-1] if type(receipts) is list and receipts else None
+            preview = executor.rent_sai_readback
+            need(type(last) is dict and last.get('status') == 'STAGE_COMPLETED'
+                 and last.get('completed') == previous and last.get('next_stage') == stage
+                 and last.get('cursor') == executor.cursor
+                 and type(preview) is dict
+                 and preview.get('kind') == 'NATIVE_NONIMAGE_RENT_SAI_PREVIEW'
+                 and type(preview.get('fallback_notice')) is str
+                 and bool(preview['fallback_notice'])
+                 and preview.get('recording_stopped') is True
+                 and (stage != 'back_gaps_to_completion' or executor.rent_sai_recheck == preview),
+                 'immediately_preceding_rent_sai_readback_required')
+            # The preceding stage ended with actual rate/fallback readback.
+            # Rent may now be above the viewport; observations must never seek.
+            rows = p.nodes()
+            names = self.c2._names(rows)
+            standard = getattr(executor, 'entry_mode', None) == 'standard_editor'
+            mode_control = 'خيارات المسودة' if standard else 'العودة إلى النواقص'
+            control = 'السابق' if stage == 'navigate_previous_to_specs' else mode_control
+            need({'نسبة السعي %', preview['fallback_notice'], mode_control} <= names
+                 and any(row.get('enabled') is True for row in p.matching(rows, control))
+                 and not names & self.c2.roles.AUTH_LABELS,
+                 'actual_reviewed_rent_navigation_surface_required')
+            return
+        if stage == 'full_save':
+            executor._actor('broker')
+            # Returning to completion hides already completed rent/SAI inputs.
+            # Bind their preceding serialized recheck, then observe this page.
+            preview = executor.rent_sai_readback
+            need(type(preview) is dict and bool(preview)
+                 and executor.rent_sai_recheck == preview,
+                 'same_actual_preview_required_before_completion_save')
+            names = self.c2._names(p.nodes())
+            expected = ({'خيارات المسودة', 'إرسال للمراجعة', 'نسبة السعي %', preview['fallback_notice']}
+                        if getattr(executor, 'entry_mode', None) == 'standard_editor'
+                        else {'أكمل الناقص فقط', 'خيارات المسودة'})
+            need(expected <= names
+                 and not names & self.c2.roles.AUTH_LABELS,
+                 'actual_completion_save_surface_required')
+            return
         if stage in NONIMAGE_RENT:
             executor._actor('broker')
             if stage == 'complete_rent':
-                need(not str(p.field('الإيجار الشهري بالريال اليمني *').get('text', '')).strip(),
+                value = p.field('الإيجار الشهري بالريال اليمني *', seek=False).get('text')
+                need(type(value) is str and not value.strip(),
                      'actual_blank_rent_required')
             else:
                 need(executor._rent_sai_preview() == executor.rent_sai_readback,
@@ -542,6 +620,14 @@ class Controller:
             else:
                 with self._read_session(): bindings['safe_scene_sha256'] = self._safe_scene()
                 bindings['observation_mode'] = 'safe_full_tree_scene_digest'
+        elif stage == 'CONFIGURE_C2_FROM_C1':
+            bindings['c1_monthly_rent_blank_checks'] = self._c1_entry_checks()
+            bindings['entry_mode'] = 'standard_editor'
+            evidence = self._media(['C1-photo-selected.png', 'C1-restored-title.png',
+                                    'C1-restored-complete-photo.png'])
+            bindings['configuration_frames'] = [{'file': row['file'], 'sha256': row['sha256']} for row in evidence]
+            with self._read_session(): bindings['safe_scene_sha256'] = self._safe_scene()
+            bindings['observation_mode'] = 'safe_full_tree_scene_digest'
         elif stage == 'CONFIGURE_C2':
             evidence = self._media(['C1-restored-title.png', 'C1-c4-restored-final-title.png'])
             bindings['configuration_frames'] = [{'file': row['file'], 'sha256': row['sha256']} for row in evidence]
@@ -568,11 +654,29 @@ class Controller:
                     need(current == held['node_bindings'], 'actual_c2_gate_scene_changed')
                 bindings.update(observation_mode='safe_exact_frame_node_bindings', actual_frame_file=held['file'],
                     frame_sha256=held['sha256'], node_bindings=copy.deepcopy(held['node_bindings']))
+                if stage == 'review_photo_before_save':
+                    # Transport the already observed synthetic policy preview
+                    # required by the next review, without a contact-page image.
+                    preview_keys = (
+                        'kind', 'fixture_key', 'fixture_tag', 'editor_chain', 'rent_text',
+                        'sai_rate_text', 'fallback_notice', 'recording_stopped',
+                        'custom_terms_visible', 'policy_was_visually_reviewed',
+                        'persisted_policy_configuration_proved')
+                    if getattr(executor, 'entry_mode', None) == 'standard_editor':
+                        preview_keys += ('native_contact_readback_matches_fixture', 'contact_policy_valid',
+                            'optional_contact_empty', 'contact_policy_observed_in_ui')
+                    bindings['semantic_preview'] = {key: executor.rent_sai_readback[key] for key in preview_keys}
                 evidence = self._media([held['file']])
             elif stage in API_STAGES or stage in LOGIN_STAGES:
                 self._nonimage_check(phase, stage)
             else:
                 with self._read_session(): self._nonimage_check(phase, stage)
+        if phase == 'C2' and self._c2_pending_preparation is not None:
+            pending = self._c2_pending_preparation
+            executor = getattr(p, '_root_c2_executor_v2', None)
+            need(executor is not None and pending['cursor'] == executor.cursor and
+                 pending['stage'] == stage, 'pending_preparation_current_stage_required')
+            bindings['pending_preparation'] = copy.deepcopy(pending)
         return {'phase': phase, 'cursor': cursor, 'stage_name': stage, 'bindings': bindings, 'evidence': evidence}
 
     @exclusive
@@ -584,6 +688,7 @@ class Controller:
         bindings = dict(observed['bindings'], checkpoint_binding_sha256=binding)
         required = sorted(C4_EXTRA[cursor]) if phase == 'C4' and cursor in C4_EXTRA else []
         if stage == 'CONFIGURE_C2': required = ['c1_review', 'c4_review']
+        elif stage == 'CONFIGURE_C2_FROM_C1': required = ['c1_review', 'c2_entry_review']
         result = {'phase': phase, 'cursor': cursor, 'stage': {'executor_cursor': cursor,
             'context': stage, 'bindings': bindings, 'requested_review_fields': required,
             'report_scope': 'Actual safe evidence; no Root review or acceptance created'}, 'evidence': observed['evidence']}
@@ -606,7 +711,10 @@ class Controller:
             return False
 
     def _write_review(self, filename, value):
-        need(filename in set(C4_FILES.values()) | {self.dispatcher.C1_FILE, self.dispatcher.C4_FILE, self.dispatcher.STAGE_FILE},
+        allowed = set(C4_FILES.values()) | {self.dispatcher.C1_FILE, self.dispatcher.C4_FILE, self.dispatcher.STAGE_FILE}
+        entry_file = getattr(self.dispatcher, 'C2_ENTRY_FILE', None)
+        if type(entry_file) is str: allowed.add(entry_file)
+        need(filename in allowed,
              'fixed_review_filename_required')
         data = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
         need(0 < len(data) <= 16384 and not any(alias.encode() in data for alias in self.private_aliases()),
@@ -623,6 +731,62 @@ class Controller:
         except BaseException:
             raise ControllerRefused('review_write_unconfirmed_no_retry') from None
 
+    def _pending_c2_preparation(self, result, executor, previous_executor, before, before_attempt, stage):
+        """Accept only this call's source-owned hold before execution reservation.
+
+        The signed command stays consumed. Returning to the owner creates a new
+        checkpoint/challenge; it never repeats this review or an attempted input.
+        """
+        # TARGET preparation can seek a field and scroll. Only the source's
+        # observation-only review stages qualify for a fresh review checkpoint.
+        need(stage in self.c2.REVIEW_STAGES and stage not in self.c2.TARGETS,
+             'observation_only_c2_review_required')
+        need(executor is previous_executor and type(before) is int and executor.cursor == before and
+             type(before_attempt) is int and before_attempt >= 0 and
+             type(getattr(executor, 'preparation_attempt', None)) is int and
+             executor.preparation_attempt == before_attempt + 1 and
+             executor.failed is False and executor.inflight is False,
+             'exact_unexecuted_c2_preparation_required')
+        need(result.get('requested_phase') == 'C2' and result.get('status') == 'PENDING_ROOT_REVIEW' and
+             result.get('cursor') == before and type(result.get('cursor')) is int and
+             result.get('pending') == stage and result.get('next_stage') == stage and
+             result.get('uncertain') is False and result.get('automatic_replay_allowed') is False and
+             result.get('phase1_accepted') is False and result.get('report_persisted') is True and
+             result.get('dispatcher_version') == 2 and 'completed' not in result and 'failed' not in result,
+             'exact_pending_c2_dispatch_receipt_required')
+        proof = result.get('pending_preparation')
+        need(type(proof) is dict and set(proof) == {
+             'attempt', 'stage', 'cursor', 'preparation_only', 'execution_called',
+             'reservation_created', 'failed', 'inflight', 'reason'} and
+             proof == getattr(executor, 'pending_preparation', None) and
+             type(proof['attempt']) is int and proof['attempt'] == executor.preparation_attempt and
+             type(proof['cursor']) is int and proof['cursor'] == before and proof['stage'] == stage and
+             proof['preparation_only'] is True and proof['execution_called'] is False and
+             proof['reservation_created'] is False and proof['failed'] is False and proof['inflight'] is False and
+             proof['reason'] in self.c2.PREPARE_REFUSAL_REASONS,
+             'source_owned_pending_preparation_proof_required')
+        p = self.probe
+        need(p.adapter is None and p.recorder is None and
+             p.admission_metrics.get('state') == 'closed' and
+             p.admission_metrics.get('inflight') == 0 and
+             not getattr(p, '_root_extension_dispatch_v2_save_failed', False) and
+             not getattr(p, '_root_extension_dispatch_v2_admission_failed', False) and
+             'C2' not in getattr(p, '_root_extension_dispatch_v2_latched', set()) and
+             ('oneshot_admission_closed_at_boundary' not in result or
+              result['oneshot_admission_closed_at_boundary'] is True),
+             'pending_preparation_quiescent_boundary_required')
+        review_path = Path(p.out) / self.dispatcher.STAGE_FILE
+        need(not review_path.exists() and not review_path.is_symlink() and
+             type(getattr(executor, 'reviews', None)) is dict and
+             type(getattr(p, '_root_c2_v2_pending_frames', {})) is dict,
+             'pending_preparation_review_consumption_required')
+        executor.reviews.pop(stage, None)
+        getattr(p, '_root_c2_v2_pending_frames', {}).pop(stage, None)
+        latest = getattr(p, '_root_c2_v2_last_capture', None)
+        if type(latest) is dict and latest.get('stage') == stage:
+            del p._root_c2_v2_last_capture
+        self._c2_pending_preparation = copy.deepcopy(proof)
+
     @exclusive
     def advance(self, review):
         need(not self._advance_failed and not self.uncertain(), 'controller_stage_no_replay')
@@ -632,6 +796,7 @@ class Controller:
         wanted = set(ROOT_KEYS)
         if phase == 'C4' and cursor in C4_EXTRA: wanted.add('phase_review')
         elif stage == 'CONFIGURE_C2': wanted.update({'c1_review', 'c4_review'})
+        elif stage == 'CONFIGURE_C2_FROM_C1': wanted.update({'c1_review', 'c2_entry_review'})
         elif stage in self.c2.TARGETS or stage in self.c2.REVIEW_STAGES: wanted.add('phase_review')
         need(set(review) == wanted, 'exact_signed_stage_review_schema_required')
         if not self._root_preflight_done:
@@ -639,8 +804,8 @@ class Controller:
             # the first Root boundary, not inferred from pre-C1 installation.
             with self._read_session(): self.probe.preflight_deadline_helper()
             self._root_preflight_done = True
-        # Consume before any file, phase, auth, UI or API attempt. Failure never
-        # restores permission to replay even when the original executor held.
+        # Consume before any file, phase, auth, UI or API attempt. Only a proven
+        # pre-execution C2 hold may produce a NEW checkpoint, never a replay.
         self._advance_failed = True
         try:
             for key in wanted - ROOT_KEYS:
@@ -652,22 +817,32 @@ class Controller:
             elif stage == 'CONFIGURE_C2':
                 self._write_review(self.dispatcher.C1_FILE, review['c1_review'])
                 self._write_review(self.dispatcher.C4_FILE, review['c4_review'])
+            elif stage == 'CONFIGURE_C2_FROM_C1':
+                self._write_review(self.dispatcher.C1_FILE, review['c1_review'])
+                self._write_review(self.dispatcher.C2_ENTRY_FILE, review['c2_entry_review'])
             elif 'phase_review' in review:
                 self._write_review(self.dispatcher.STAGE_FILE, review['phase_review'])
-            before = getattr(getattr(self.probe, '_root_c2_executor_v2', None), 'cursor', None)
+            previous_executor = getattr(self.probe, '_root_c2_executor_v2', None)
+            before = getattr(previous_executor, 'cursor', None)
+            before_attempt = getattr(previous_executor, 'preparation_attempt', None)
             with self._api_scope('advance'):
-                self.dispatcher.run_phase(self.probe, phase)
+                result = self.dispatcher.run_phase(self.probe, phase)
             need(not self.uncertain(ignore_controller=True), 'actual_phase_uncertain')
             if phase == 'C4':
                 after = self._c4_state()
                 need(after['cursor'] != cursor and not after.get('held_error'), 'actual_c4_stage_not_advanced')
-            elif stage == 'CONFIGURE_C2':
+            elif stage in {'CONFIGURE_C2', 'CONFIGURE_C2_FROM_C1'}:
                 need(getattr(self.probe, '_root_c2_executor_v2', None) is not None
                      and self.probe._root_c2_executor_v2.cursor == 0, 'actual_c2_configuration_required')
             else:
                 executor = self.probe._root_c2_executor_v2
-                need(executor.cursor == before + 1, 'exact_one_c2_stage_required')
-                if stage == 'pin_promotion':
+                pending = type(result) is dict and result.get('status') == 'PENDING_ROOT_REVIEW'
+                if pending:
+                    self._pending_c2_preparation(result, executor, previous_executor, before, before_attempt, stage)
+                else:
+                    need(executor.cursor == before + 1, 'exact_one_c2_stage_required')
+                    self._c2_pending_preparation = None
+                if stage == 'pin_promotion' and not pending:
                     sessions = self.probe.report.get('c2_normal_api_sessions', [])
                     need(sessions and sessions[-1].get('logout_http_200') is True
                          and sessions[-1].get('revoked_token_me_http_401') is True,
@@ -808,12 +983,29 @@ class Controller:
             # Hold SAME helper through final pin and its sole deletion attempt.
             self._promoted_cleanup_helper = helper
             pin = helper.pin_candidate(native_writers_stopped=True)
+            p.report['c2_cleanup_pin_diagnostic'] = self.c2.pin_candidate_diagnostic(pin)
+            p.save()
             need(pin.get('status') == 'READY' and pin.get('property_id') == property_id,
                  'cleanup_strict_original_pair_pin_failed')
             self._cleanup_receipt = helper.cleanup(native_writers_stopped=True)
+            p.report['c2_promoted_cleanup'] = copy.deepcopy(self._cleanup_receipt)
+            p.save()
             need(self._cleanup_receipt.get('status') == 'PASS', 'property_first_cleanup_not_confirmed')
         with self._api_scope('cleanup', deadline):
-            session.run(inspect_and_clean)
+            try:
+                session.run(inspect_and_clean)
+            finally:
+                # Preserve actual cleanup/session outcomes even when a later
+                # native-auth or API-revocation condition prevents acceptance.
+                p.report.setdefault('c2_normal_api_sessions', []).append({
+                    'normal_broker_28_required': True, 'logout_http_200': session.logout_200,
+                    'revoked_token_me_http_401': session.me_401, 'token_persisted': False,
+                    'native_ui_logout_is_not_server_token_revocation_proof': True})
+                if route['kind'] == 'promoted' and type(self._cleanup_receipt) is dict:
+                    self._cleanup_receipt = dict(self._cleanup_receipt,
+                        fresh_session_cleaned=session.logout_200 is True and session.me_401 is True)
+                    p.report['c2_promoted_cleanup'] = copy.deepcopy(self._cleanup_receipt)
+                p.save()
             if route['kind'] == 'unpromoted':
                 # The original strict unpromoted cleaner refuses any promotion
                 # and performs exact baseline/readback plus normal revocation.
@@ -828,9 +1020,6 @@ class Controller:
                         p.report['api_cleanup'] = copy.deepcopy(receipt)
                         p.save()
             need(self.fixture_removed_confirmed(), 'actual_cleanup_readback_required')
-            if route['kind'] == 'promoted':
-                # session.run returned only after its actual logout200/me401.
-                self._cleanup_receipt = dict(self._cleanup_receipt, fresh_session_cleaned=True)
         p.fixture_possible = False
         self._removed = True
         return self._confirm_cleanup_case()
@@ -871,8 +1060,11 @@ class Controller:
             self._snapshot = None
             # Only controller-owned legacy review controls are removed. Actual
             # report/media/proofs and the separate signed consume ledger remain.
-            for name in sorted(set(C4_FILES.values()) | {
-                    self.dispatcher.C1_FILE, self.dispatcher.C4_FILE, self.dispatcher.STAGE_FILE}):
+            review_files = set(C4_FILES.values()) | {
+                self.dispatcher.C1_FILE, self.dispatcher.C4_FILE, self.dispatcher.STAGE_FILE}
+            entry_file = getattr(self.dispatcher, 'C2_ENTRY_FILE', None)
+            if type(entry_file) is str: review_files.add(entry_file)
+            for name in sorted(review_files):
                 path = Path(self.probe.out) / name
                 try: info = path.lstat()
                 except FileNotFoundError: continue

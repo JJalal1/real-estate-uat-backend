@@ -11,6 +11,7 @@ transport. The owner must dispose of its runtime on an unknown mutation result.
 from __future__ import annotations
 
 import http.client
+import copy
 import json
 import math
 import re
@@ -88,6 +89,7 @@ class DeadlineTransport:
         self._monotonic = monotonic_clock
         self._factory = connection_factory or _DeadlineHTTPSConnection
         self._context = ssl.create_default_context()
+        self.last_observation = None
 
     def __repr__(self):
         return '<DeadlineTransport fixed_origin default_tls no_retry>'
@@ -98,6 +100,7 @@ class DeadlineTransport:
         return self._deadline_getter
 
     def __call__(self, method, path, body=None, token=None):
+        self.last_observation = {'stage': 'validate', 'method': method if type(method) is str and method in {'GET', 'POST', 'PUT', 'DELETE'} else 'OTHER'}
         require(type(method) is str and method in {'GET', 'POST', 'PUT', 'DELETE'},
                 'api_method_refused')
         require(type(path) is str and 0 < len(path) <= 4096 and path.startswith('/')
@@ -148,20 +151,25 @@ class DeadlineTransport:
                     sock.settimeout(timeout)
 
             bound_socket()
+            self.last_observation['stage'] = 'connect'
             connection.connect()
             remaining_timeout()
             bound_socket()
+            self.last_observation['stage'] = 'request'
             connection.request(method, BASE_PATH + path, body=data, headers=headers)
             remaining_timeout()
             bound_socket()
+            self.last_observation['stage'] = 'response_headers'
             response = connection.getresponse()
             remaining_timeout()
             status = response.status
             require(type(status) is int and 100 <= status <= 599, 'api_http_status_invalid')
+            self.last_observation['http_status'] = status
             # HTTPConnection never follows Location. Reject every redirect
             # before reading/returning it; there is no new destination request.
             require(not 300 <= status <= 399, 'api_redirect_refused')
             raw = bytearray()
+            self.last_observation['stage'] = 'response_body'
             while True:
                 bound_socket()
                 chunk = response.read(min(READ_CHUNK, MAX_RESPONSE + 1 - len(raw)))
@@ -172,6 +180,7 @@ class DeadlineTransport:
                 raw.extend(chunk)
                 require(len(raw) <= MAX_RESPONSE, 'api_response_size_bound')
             remaining_timeout()
+            self.last_observation['stage'] = 'parse_json'
             try:
                 value = json.loads(bytes(raw), object_pairs_hook=_pairs,
                                    parse_constant=_constant)
@@ -182,10 +191,21 @@ class DeadlineTransport:
             require(type(value) is dict, 'api_response_object_required')
             remaining_timeout()
             elapsed_ms = round((self._monotonic() - started) * 1000)
+            self.last_observation.update(stage='completed', elapsed_ms=elapsed_ms)
             return status, value, elapsed_ms
-        except ApiDeadlineError:
+        except ApiDeadlineError as exc:
+            safe_codes = {'api_deadline_expired', 'api_monotonic_clock_required',
+                'api_http_status_invalid', 'api_redirect_refused', 'api_response_transport_shape',
+                'api_response_size_bound', 'api_duplicate_json_key', 'api_nonfinite_json',
+                'api_response_json_invalid', 'api_response_object_required'}
+            self.last_observation['error'] = exc.args[0] if len(exc.args) == 1 and exc.args[0] in safe_codes else 'api_validation_failed'
             raise
-        except BaseException:
+        except BaseException as exc:
+            kind = type(exc).__name__
+            self.last_observation['error'] = kind if kind in {
+                'TimeoutError', 'ConnectionResetError', 'ConnectionRefusedError',
+                'RemoteDisconnected', 'SSLCertVerificationError', 'SSLError',
+                'OSError', 'gaierror', 'IncompleteRead'} else 'other_transport_error'
             # A mutation's unknown completion is never retried. Do not relay
             # arbitrary exception strings, raw HTTP bodies or request values.
             raise ApiDeadlineError('api_transport_completion_unknown') from None
@@ -195,6 +215,33 @@ class DeadlineTransport:
                     connection.close()
                 except BaseException:
                     pass
+
+
+def read_public_with_retry(reader, transport, *, diagnostic=None, wait=time.sleep):
+    """Retry only a failed public GET once; preserve the transport's deadline.
+
+    No credentials, writes, response bodies or exception messages are recorded.
+    A valid public response is still required before native matching can pass.
+    """
+    transient = {'TimeoutError', 'ConnectionResetError', 'ConnectionRefusedError',
+                 'RemoteDisconnected', 'OSError', 'gaierror', 'IncompleteRead'}
+    for attempt in (1, 2):
+        try:
+            result = reader(transport=transport)
+        except Exception:
+            observed = copy.deepcopy(getattr(transport, 'last_observation', None) or {})
+            if diagnostic is not None:
+                diagnostic(dict(attempt=attempt, outcome='failed', transport=observed))
+            retryable = observed.get('http_status') in {408, 429, 502, 503, 504} or observed.get('error') in transient
+            if attempt == 2 or not retryable:
+                raise
+            # The next request must recheck the same absolute owner deadline.
+            wait(2)
+        else:
+            if diagnostic is not None:
+                diagnostic(dict(attempt=attempt, outcome='passed',
+                    transport=copy.deepcopy(getattr(transport, 'last_observation', None) or {})))
+            return result
 
 
 class BoundedApiFactory:

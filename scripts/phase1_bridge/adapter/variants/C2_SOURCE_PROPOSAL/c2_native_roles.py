@@ -109,7 +109,8 @@ def _safe_role_failure(error):
     # Never relay arbitrary controller exceptions, phone values or API bodies.
     safe = {'fresh_guest_account_gate_required', 'post_auth_account_not_observed',
             'expected_native_role_not_observed', 'native_guest_logout_state_not_observed',
-            'native_guest_marketplace_not_observed'}
+            'native_guest_marketplace_not_observed', 'retained_broker_home_not_observed',
+            'support_queue_before_logout_required', 'support_shell_before_logout_required'}
     return str(error) if isinstance(error, RouteBlocked) and str(error) in safe \
         else 'controller_operation_blocked'
 
@@ -156,7 +157,7 @@ def native_login_role(probe, role):
          'previous_native_actor_must_logout_first')
     need(getattr(probe, 'native_auth_uncertain', True) is False,
          'uncertain_native_auth_requires_explicit_recovery')
-    receipt = {'role': role, 'status': 'BLOCKED', 'normal_whatsapp_ui': True,
+    receipt = {'role': role, 'status': 'BLOCKED', 'auth_stage': 'guest_account_open', 'normal_whatsapp_ui': True,
                'authentication_captures': False, 'auth_hashes_recorded': False,
                'server_actor_id_verified_by_this_chunk': False,
                'native_journey_accepted': False}
@@ -167,21 +168,30 @@ def native_login_role(probe, role):
     probe.native_auth_uncertain = True
     try:
         probe.tap('حسابي', seek=False)
+        receipt['auth_stage'] = 'guest_account_gate'
         rows = probe.nodes()
         need(not (_visible_names(rows) & AUTH_LABELS), 'fresh_guest_account_gate_required')
         need(bool(probe.matching(rows, 'تسجيل الدخول أو إنشاء حساب')) and
              not probe.matching(rows, 'تسجيل الخروج'), 'fresh_guest_account_gate_required')
+        receipt['auth_stage'] = 'login_open'
         probe.tap('تسجيل الدخول أو إنشاء حساب', seek=False)
+        receipt['auth_stage'] = 'login_form_wait'
         probe.wait('مرحبًا بعودتك')
+        receipt['auth_stage'] = 'phone_entry'
         phone, otp = memory.resolve(role)
         probe.set('رقم واتساب', phone)
         probe.auth_attempted = True
         probe.report['native_auth_attempted'] = True
+        receipt['auth_stage'] = 'code_request'
         probe.tap('إرسال رمز واتساب', seek=False)
+        receipt['auth_stage'] = 'otp_form_wait'
         probe.wait('تأكيد والدخول', seconds=60)
+        receipt['auth_stage'] = 'otp_entry'
         probe.set('رمز التحقق', otp)
         del phone, otp
+        receipt['auth_stage'] = 'confirm'
         probe.tap('تأكيد والدخول', seek=False)
+        receipt['auth_stage'] = 'role_navigation_wait'
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             rows = probe.nodes()
@@ -189,8 +199,13 @@ def native_login_role(probe, role):
             if ROLE_NAV[role] <= names and not (names & AUTH_LABELS):
                 # Regular and guest share navigation. Logout is indispensable
                 # post-auth evidence; navigation alone cannot prove login.
+                receipt['auth_stage'] = 'post_auth_account_open'
                 probe.tap('حسابي', seek=False)
-                probe.wait('تسجيل الخروج', seconds=60)
+                receipt['auth_stage'] = 'post_auth_logout_control'
+                # The real logout control is below the Account rows. Reuse
+                # the bounded native scroll while auth receipts remain counts.
+                probe.wait_account_logout_control(seconds=60)
+                receipt['auth_stage'] = 'post_auth_account_verify'
                 names = _visible_names(probe.nodes())
                 need('تسجيل الخروج' in names and
                      'تسجيل الدخول أو إنشاء حساب' not in names and
@@ -199,7 +214,7 @@ def native_login_role(probe, role):
                 probe.active_native_role = role
                 probe.native_auth_uncertain = False
                 probe.report['native_auth_executed'] = True
-                receipt.update(status='PASS_WITHIN_AUTH_UI_SCOPE',
+                receipt.update(status='PASS_WITHIN_AUTH_UI_SCOPE', auth_stage='complete',
                                role_navigation_observed=True,
                                post_auth_logout_control_observed=True)
                 break
@@ -232,6 +247,34 @@ def native_logout_role(probe):
                'authentication_captures': False, 'auth_hashes_recorded': False,
                'server_token_revocation_verified': False}
     try:
+        if role == 'broker':
+            # MyListings is a standalone route without the Account footer.
+            # Relaunch its already retained session, as in C1 logout; never
+            # reset storage, guess Back navigation, or enter credentials.
+            if probe.adapter is not None:
+                probe.stop_session('C2_broker_logout_retained_home')
+            probe.adb('shell', 'am', 'force-stop', APP)
+            probe.startup()
+            names = _visible_app_names(probe.nodes())
+            need(ROLE_NAV['broker'] <= names and not names & AUTH_LABELS
+                 and 'تسجيل الدخول أو إنشاء حساب' not in names,
+                 'retained_broker_home_not_observed')
+            receipt['retained_broker_home_observed'] = True
+        elif role == 'support':
+            names = _visible_app_names(probe.nodes())
+            if not ROLE_NAV['support'] <= names:
+                # The task opens this queue with context.push; its standard
+                # AppBar Back is Arabic Material's observed named control.
+                need({'تحقيق الإعلانات', 'طلبات التحقيق', 'رجوع'} <= names
+                     and not names & AUTH_LABELS,
+                     'support_queue_before_logout_required')
+                probe.tap('رجوع', seek=False)
+                probe.wait('لوحة الدعم', seconds=15)
+                names = _visible_app_names(probe.nodes())
+            need(ROLE_NAV['support'] <= names and not names & AUTH_LABELS
+                 and 'تسجيل الدخول أو إنشاء حساب' not in names,
+                 'support_shell_before_logout_required')
+            receipt['support_shell_before_logout_observed'] = True
         probe.tap('حسابي', seek=False)
         probe.tap('تسجيل الخروج')
         deadline = time.monotonic() + 90

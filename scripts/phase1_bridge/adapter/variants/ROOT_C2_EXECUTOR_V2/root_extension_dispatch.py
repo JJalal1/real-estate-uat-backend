@@ -20,6 +20,7 @@ SOURCES = {'C4': BASE / 'ROOT_C4_EXECUTOR/phase_extensions.py',
 KEY = 'local_c2_executor'
 C1_FILE = 'C2_V2_ROOT_C1_REVIEW.json'
 C4_FILE = 'C2_V2_ROOT_C4_REVIEW.json'
+C2_ENTRY_FILE = 'C2_V2_ROOT_ENTRY_REVIEW.json'
 STAGE_FILE = 'C2_V2_ROOT_STAGE_REVIEW.json'
 JSON_LIMIT = 16384
 C1_KEYS = frozenset({'kind', 'phase', 'privacy_checked', 'manual_review_completed', 'c1_accepted',
@@ -29,6 +30,11 @@ C4_KEYS = frozenset({'kind', 'phase', 'privacy_checked', 'manual_review_complete
     'fixture_key', 'fixture_tag', 'restored_title', 'monthly_rent_still_blank',
     'property_id', 'same_unpromoted_uuid_verified', 'restored_editor_step',
     'restored_frame_sha256'})
+C2_ENTRY_KEYS = frozenset({'kind', 'phase', 'privacy_checked', 'manual_review_completed',
+    'fixture_key', 'fixture_tag', 'restored_title', 'monthly_rent_still_blank',
+    'property_id', 'same_unpromoted_uuid_verified', 'restored_editor_step',
+    'restored_frame_sha256', 'restored_photo_frame_sha256', 'entry_mode',
+    'current_fixture_visually_verified', 'review_completed_utc'})
 STAGE_KEYS = frozenset({'executor_cursor', 'actual_frame_file', 'kind', 'context', 'privacy_checked',
     'manual_review_completed', 'fixture_key', 'fixture_tag', 'exact_fixture_title',
     'frame_sha256', 'review_completed_utc', 'root_witness', 'title_path',
@@ -47,9 +53,12 @@ STAGE_KEYS = frozenset({'executor_cursor', 'actual_frame_file', 'kind', 'context
     'all_regular_tabs_checked', 'old_fixture_data_visible',
     'old_support_workspace_visible', 'evidence_kind', 'editor_chain',
     'same_serialized_editor_chain_reviewed', 'original_fixture_receipt_reviewed',
-    'bound_c4_title_frame', 'photo_visually_unchanged', 'actual_safe_spec_photo_reviewed',
+    'bound_c4_title_frame', 'bound_fixture_title_frame', 'photo_visually_unchanged', 'actual_safe_spec_photo_reviewed',
     'semantic_preview', 'policy_was_visually_reviewed', 'safe_surface_frames',
-    'regular_cycle', 'nonimage_role_witness'})
+    'regular_cycle', 'nonimage_role_witness', 'same_serialized_support_case_chain_reviewed',
+    'serialized_case_binding', 'fixture_title_visible_in_action_frame',
+    'return_queue_transition', 'return_queue_transition_reviewed',
+    'exact_outcome_deferred_to_broker_reason'})
 
 C1_KEYS = C1_KEYS | {'review_completed_utc'}
 C4_KEYS = C4_KEYS | {'review_completed_utc'}
@@ -78,7 +87,7 @@ def _version(info):
 
 def _read(probe, filename, allowed):
     """Read only one fixed non-symlink0600 bounded Root review, no secret path."""
-    need(filename in {C1_FILE, C4_FILE, STAGE_FILE}, 'review_filename_not_allowlisted')
+    need(filename in {C1_FILE, C4_FILE, C2_ENTRY_FILE, STAGE_FILE}, 'review_filename_not_allowlisted')
     need(type(probe.private_values) is set, 'parent_redaction_set_required')
     path = Path(probe.out) / filename
     try:
@@ -141,8 +150,9 @@ def _load(probe, phase):
 
 
 def _bind_frame(probe, filename, wanted):
-    # Only the already recorded safe restored-title images are read here.
-    need(filename in {'C1-restored-title.png', 'C1-c4-restored-final-title.png'},
+    # Only already recorded safe restored-title/photo images are read here.
+    need(filename in {'C1-restored-title.png', 'C1-restored-complete-photo.png',
+                      'C1-c4-restored-final-title.png'},
          'accepted_review_frame_not_allowlisted')
     receipts = [row for row in probe.report.get('frames', []) if row.get('file') == filename]
     need(len(receipts) == 1 and receipts[0].get('authenticated_editor_only') is True and
@@ -155,7 +165,61 @@ def _bind_frame(probe, filename, wanted):
          'accepted_review_actual_frame_mismatch')
 
 
+def _configure_standard(probe, module):
+    """Current C1 fixture enters C2 directly; no C4 state or acceptance exists."""
+    need(not hasattr(probe, '_root_c2_executor'), 'existing_v1_executor_requires_root_reconciliation')
+    need('local_c4_executor' not in probe.report, 'c2_only_current_c4_state_refused')
+    c1, _ = _read(probe, C1_FILE, C1_KEYS)
+    entry, _ = _read(probe, C2_ENTRY_FILE, C2_ENTRY_KEYS)
+    need(set(c1) == C1_KEYS and set(entry) == C2_ENTRY_KEYS and
+         c1.get('phase') == 'C1' and entry.get('phase') == 'C2',
+         'current_c1_c2_entry_review_phase_required')
+    need(c1.get('manual_review_completed') is True and c1.get('c1_accepted') is True and
+         c1.get('privacy_checked') is True and c1.get('monthly_rent_still_blank') is True and
+         entry.get('manual_review_completed') is True and entry.get('privacy_checked') is True and
+         entry.get('monthly_rent_still_blank') is True and entry.get('property_id') is None and
+         entry.get('same_unpromoted_uuid_verified') is True and
+         entry.get('current_fixture_visually_verified') is True and
+         entry.get('entry_mode') == 'standard_editor' and
+         type(entry.get('restored_editor_step')) is int and entry['restored_editor_step'] == 0,
+         'actual_current_c1_c2_entry_review_required')
+    state = getattr(getattr(probe, 'fixture_api', None), 'state', None)
+    need(isinstance(state, dict) and state.get('actor_id') == 28 and
+         state.get('key') == probe.report.get('fixture_key') and
+         state.get('tag') == probe.report.get('fixture_tag') and
+         c1.get('fixture_key') == state.get('key') == entry.get('fixture_key') and
+         c1.get('fixture_tag') == state.get('tag') == entry.get('fixture_tag') and
+         c1.get('native_title') == probe.title == entry.get('restored_title'),
+         'original_bootstrap_state_and_reviews_required')
+    required_cases = {'C1-photo-save', 'C1-force-stop-restore'}
+    actual_cases = [row for row in probe.report.get('cases', []) if row.get('id') in required_cases]
+    checks = probe.report.get('c1_monthly_rent_blank_checks')
+    need(len(actual_cases) == 2 and {row.get('id') for row in actual_cases} == required_cases and
+         all(row.get('status') == 'PASS' for row in actual_cases) and
+         type(checks) is dict and set(checks) == {'before_save', 'after_reopen'} and
+         checks['before_save'] is True and checks['after_reopen'] is True and
+         probe.report.get('held_after_c1_restore_for_root_review') is True and
+         probe.authenticated is True and getattr(probe, 'recorder', None) is None and
+         not getattr(probe, '_host_stop_unconfirmed', False),
+         'actual_current_c1_restored_hold_required')
+    need(c1['restored_frame_sha256'] == entry['restored_frame_sha256'],
+         'current_c1_entry_title_frame_mismatch')
+    _bind_frame(probe, 'C1-restored-title.png', entry['restored_frame_sha256'])
+    _bind_frame(probe, 'C1-restored-complete-photo.png', entry['restored_photo_frame_sha256'])
+    access = getattr(probe, 'access', None)
+    need(isinstance(access, dict) and isinstance(access.get('phones'), dict) and
+         {'broker', 'support', 'regular'} <= set(access['phones']),
+         'all_three_validated_roles_must_already_be_in_parent_memory')
+    need(callable(getattr(probe.fixture_api, '_call', None)), 'normal_parent_api_adapter_required')
+    return module.configure_c2(probe, state, c1, None, entry_review=entry,
+        role_loader=lambda: probe.access,
+        request=lambda method, path, body, token:
+            probe.fixture_api._call(method, path, body=body, token=token))
+
+
 def _configure(probe, module):
+    if getattr(probe, '_root_c2_entry_mode', None) == 'c2_only':
+        return _configure_standard(probe, module)
     need(not hasattr(probe, '_root_c2_executor'), 'existing_v1_executor_requires_root_reconciliation')
     c1, _ = _read(probe, C1_FILE, C1_KEYS)
     c4, _ = _read(probe, C4_FILE, C4_KEYS)
@@ -226,6 +290,11 @@ def _capture_rows(probe, module, executor, stage):
         need('صور الإعلان (1/12)' in names and 'مكتمل' in names,
              'CAPTURE_HELD_SAFE_SPEC_PHOTO_NOT_OBSERVED')
         title_text, action_text = None, None
+    elif stage == 'review_returned':
+        need(executor.return_queue_transition is not None and executor._return_queue_observed(),
+             'CAPTURE_HELD_RETURN_QUEUE_TRANSITION_NOT_OBSERVED')
+        title_text, action_text = 'تحقيق الإعلانات', None
+        need(title_text in names, 'CAPTURE_HELD_RETURN_QUEUE_ANCHOR_NOT_OBSERVED')
     elif stage in module.TARGETS:
         _, action_text, anchor = module.TARGETS[stage]
         title_text = (executor.title if anchor == 'fixture' else
@@ -249,12 +318,22 @@ def _capture_rows(probe, module, executor, stage):
         'button_candidates': [binding(row) for row in visible
                               if action_text is not None and action_text in module.policy.names(row)]}
     if stage == 'review_photo_before_save':
-        bindings['serialized_identity_binding'] = {
-            'fixture_key': executor.key, 'fixture_tag': executor.tag,
-            'editor_chain': executor.editor_chain,
-            'prior_c4_tagged_title_frame': {'file': 'C1-c4-restored-final-title.png',
-                                           'sha256': executor.c4['restored_frame_sha256']},
-            'fixture_title_visible_in_this_spec_frame': False}
+        identity = {'fixture_key': executor.key, 'fixture_tag': executor.tag,
+                    'editor_chain': executor.editor_chain,
+                    'fixture_title_visible_in_this_spec_frame': False}
+        if getattr(executor, 'entry_mode', None) == 'standard_editor':
+            identity['prior_fixture_tagged_title_frame'] = dict(executor.fixture_title_frame)
+        else:
+            identity['prior_c4_tagged_title_frame'] = {'file': 'C1-c4-restored-final-title.png',
+                                                     'sha256': executor.c4['restored_frame_sha256']}
+        bindings['serialized_identity_binding'] = identity
+    if stage == 'return_open':
+        need(executor._case_header() == executor.case_header_binding,
+             'CAPTURE_HELD_REVIEWED_CASE_HEADER_CHANGED')
+        bindings['serialized_case_binding'] = executor._case_binding()
+        bindings['fixture_title_visible_in_action_frame'] = False
+    elif stage == 'review_returned':
+        bindings['return_queue_transition'] = executor.return_queue_transition
     return bindings
 
 
@@ -430,7 +509,8 @@ def run_phase(probe, phase='C2'):
             result = _c2(probe, module)
             receipt.update({key: result[key] for key in
                 ('status', 'cursor', 'next_stage', 'completed', 'pending', 'failed',
-                 'known_promoted_property_id', 'automatic_replay_allowed') if key in result})
+                 'known_promoted_property_id', 'automatic_replay_allowed',
+                 'pending_preparation') if key in result})
         else:
             executing = True
             module.run_phase(probe, 'C4')

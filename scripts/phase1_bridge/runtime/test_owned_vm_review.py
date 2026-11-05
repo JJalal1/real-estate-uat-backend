@@ -28,7 +28,7 @@ class OwnedVmSourceReview(unittest.TestCase):
         (self.avd / 'aqer-native-account.avd').mkdir()
         (self.avd / 'aqer-native-account.avd/config.ini').write_text('test-placeholder-only')
         self.env = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': 'JJalal1/real-estate-uat-backend',
-            'GITHUB_REF': 'refs/heads/work/phase1-native-account-20261103',
+            'GITHUB_REF': 'refs/heads/work/phase1-completion-20261105',
             'GITHUB_EVENT_NAME': 'push',
             'ANDROID_HOME': str(self.sdk), 'ANDROID_AVD_HOME': str(self.avd),
             'RUNNER_TEMP': str(self.root), 'GITHUB_SHA': 'a' * 40, 'SOURCE_COMMIT': 'a' * 40,

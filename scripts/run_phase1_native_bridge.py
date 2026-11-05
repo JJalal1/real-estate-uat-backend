@@ -21,14 +21,14 @@ import time
 import unittest
 
 REPO = 'JJalal1/real-estate-uat-backend'
-REF = 'refs/heads/work/phase1-native-account-20261103'
+REF = 'refs/heads/work/phase1-completion-20261105'
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 SECRET = 'AQER_PHASE1_TEST_ACCESS_JSON'
 MANIFEST = 'scripts/phase1_bridge/tool_manifest.json'
-HELPER_SOURCE_SHA = 'dcfd105f7581d3bb9ae164124b770c711eeac2a3b3519f67500454b6d3b35495'
-PAIRED_PROBE_SHA = 'b2a84a16fe3c6b6f39af73cbad2b481868e5e38a938c2068e81e33671e189838'
-ROOT_PUBLIC_B64 = 'JhpJ97jF4RGpskxSodJge5e1JK+usUcGdJGg9K8gInA='
-ROOT_KEY_ID = '0aa9312dfaf25e6f5b5c231ef230aa859caed22a8f464e18b77eb67333250872'
+HELPER_SOURCE_SHA = 'cd224d9a827d6260899b55a8826d0916563cba245791a310d015e22956ed2b18'
+PAIRED_PROBE_SHA = 'd77eb74d25f3a203ad721b89ac8adef7843fd09a9aa70ae33a29e3ceefd0449d'
+ROOT_PUBLIC_B64 = 'pbdvvlDb01pk0AC1Kk++MjIFCGMQEcsSn98hmnJfC9I='
+ROOT_KEY_ID = '4d2e6da95a3e98d088aa594cfa14d5c3af771730fda483b437c863411a43dcdd'
 EXPECTED_FILES = tuple(sorted((
     '.github/actions/phase1-review/README.md',
     '.github/actions/phase1-review/action.yml',
@@ -73,6 +73,11 @@ EXPECTED_FILES = tuple(sorted((
     'scripts/phase1_bridge/adapter/ci_remote_evidence.py',
     'scripts/phase1_bridge/adapter/build_ci_variants.py',
     'scripts/phase1_bridge/adapter/test_integration.py',
+    'scripts/phase1_bridge/adapter/test_c2_entry.py',
+    'scripts/phase1_bridge/adapter/test_promoted_cleanup.py',
+    'scripts/phase1_bridge/adapter/test_role_login_readiness.py',
+    'scripts/phase1_bridge/adapter/test_c2_list_readiness.py',
+    'scripts/phase1_bridge/adapter/test_c2_entry_dispatch.py',
     'scripts/phase1_bridge/adapter/test_logout_home.py',
     'scripts/phase1_bridge/adapter/test_home_capture.py',
     'scripts/phase1_bridge/adapter/test_basics_capture.py',
@@ -510,7 +515,7 @@ def run_native(workspace, env, channels, run_root, tool_sha, guard):
         fixture_api_class=m['base'].FixtureApi, public_reference_reader=m['base'].read_public_reference,
         boot_runtime=boot, close_runtime=close_owned_runtime,
         authority_getter=authority, context_getter=context,
-        work_deadline_getter=lambda: holder['owner'].work_deadline)
+        work_deadline_getter=lambda: holder['owner'].work_deadline, entry_mode='c2_only')
     job_key = m['review_protocol'].JobEphemeralKey()
     underlying = m['checkpoint_packager'].CheckpointPackager(root=run_root, evidence_root=probe.out,
         identity={'repo': REPO, 'run_id': env['GITHUB_RUN_ID'], 'run_attempt': int(env['GITHUB_RUN_ATTEMPT']),
@@ -544,7 +549,9 @@ def offline_tests(workspace):
         ('oneshot', 'test_oneshot_adapter'), ('controller', 'test_bounded_api'),
         ('controller', 'test_controller'), ('runtime', 'test_owned_vm_review'), ('entry', 'test_entry'),
         ('adapter', 'test_logout_home'), ('adapter', 'test_home_capture'),
-        ('controller', 'test_home_diagnostic'), ('adapter', 'test_basics_capture')]
+        ('controller', 'test_home_diagnostic'), ('adapter', 'test_basics_capture'),
+        ('adapter', 'test_c2_entry'), ('adapter', 'test_c2_entry_dispatch'),
+        ('adapter', 'test_promoted_cleanup'), ('adapter', 'test_role_login_readiness'), ('adapter', 'test_c2_list_readiness')]
     suite = unittest.TestSuite()
     for _, name in tests:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromName(name))

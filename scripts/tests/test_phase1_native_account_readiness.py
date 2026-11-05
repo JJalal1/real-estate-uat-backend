@@ -12,7 +12,7 @@ spec.loader.exec_module(ready)
 class AccountReadinessSafety(unittest.TestCase):
     def env(self, raw=None):
         env = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': 'JJalal1/real-estate-uat-backend',
-               'GITHUB_REF': 'refs/heads/work/phase1-native-account-20261103',
+               'GITHUB_REF': 'refs/heads/work/phase1-completion-20261105',
                'GITHUB_EVENT_NAME': 'push', 'GITHUB_SHA': 'a' * 40}
         if raw is not None:
             env[ready.SECRET_NAME] = raw

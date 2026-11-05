@@ -7,14 +7,14 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   const EbrokerPropertyHorizontalCard({required this.title, required this.price, required this.currency,
     required this.onTap, this.imageUrl, this.location, this.purposeLabel, this.categoryLabel = 'عقار',
     this.facts = const [], this.trailing, this.action, this.unavailable = false, this.embedded = false, this.imageFirst = false,
-    this.imageUrls = const [], this.isSpotlight = false, this.propertyType, this.supportingText = const [], this.priceSuffix, super.key});
+    this.imageUrls = const [], this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, this.supportingText = const [], this.priceSuffix, super.key});
   final String title, price, currency, categoryLabel;
   final VoidCallback onTap;
   final String? imageUrl, location, purposeLabel, propertyType, priceSuffix;
   final List<String> imageUrls, supportingText;
   final List<AppPropertyFact> facts;
   final Widget? trailing, action;
-  final bool unavailable, embedded, imageFirst, isSpotlight;
+  final bool unavailable, embedded, imageFirst, isSpotlight, authenticatedImages;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
@@ -23,7 +23,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final vertical = imageFirst || largeText;
     final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix, compact: true);
     Widget gallery(double height) => ClipRRect(borderRadius: BorderRadius.circular(12),
-      child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight,
+      child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, authenticatedImages: authenticatedImages,
         height: height, overlay: vertical ? trailing : null,
         priceBadge: imageFirst ? Container(key: const ValueKey('property-photo-price'),
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),

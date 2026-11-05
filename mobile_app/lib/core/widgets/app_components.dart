@@ -729,6 +729,7 @@ class AppPropertyMedia extends StatelessWidget {
     this.overlay,
     this.cacheWidth,
     this.propertyType,
+    this.authenticated = false,
     super.key,
   });
 
@@ -738,6 +739,7 @@ class AppPropertyMedia extends StatelessWidget {
   final Widget? overlay;
   final int? cacheWidth;
   final String? propertyType;
+  final bool authenticated;
 
   @override
   Widget build(BuildContext context) {
@@ -750,7 +752,7 @@ class AppPropertyMedia extends StatelessWidget {
           if (imageUrl == null || imageUrl!.isEmpty)
             EbrokerPropertyPlaceholder(type: propertyType)
           else if (AdaptiveImagePolicy.supportsVariants(imageUrl!))
-            AdaptivePropertyPhoto(url: imageUrl!)
+            AdaptivePropertyPhoto(url: imageUrl!, authenticated: authenticated)
           else
             ViewportMedia(builder: (_) => Image.network(
               imageUrl!,

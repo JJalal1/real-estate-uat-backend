@@ -115,7 +115,7 @@ future guest input occurred before expiry if instrumentation startup stalled.
 The distinct initial source lease is the agreed initial-only exception.
 
 Default work budget is 5400 seconds; cleanup reserve is 600 seconds; each Root
-hold is 300 seconds. Poll/network/upload/controller calls must be bounded.
+hold is 900 seconds. Poll/network/upload/controller calls must be bounded.
 Every controller operation must cap its own HTTP/subprocess/native work using
 the active authority's original deadline or the passed cleanup deadline; the
 kernel cannot preempt an arbitrary blocking Python callback. Cleanup on early

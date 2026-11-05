@@ -47,7 +47,7 @@ class EntryContracts(unittest.TestCase):
         for path in entry.EXPECTED_FILES:
             self.assertNotIn('private', path.lower()); self.assertNotIn('node_modules', path)
         self.assertEqual(entry.PAIRED_PROBE_SHA,
-            'b2a84a16fe3c6b6f39af73cbad2b481868e5e38a938c2068e81e33671e189838')
+            'd77eb74d25f3a203ad721b89ac8adef7843fd09a9aa70ae33a29e3ceefd0449d')
         self.assertIn('scripts/phase1_bridge/adapter/test_logout_home.py', entry.EXPECTED_FILES)
         for path in ('adapter/c1_home_capture.py', 'adapter/test_home_capture.py', 'controller/test_home_diagnostic.py',
                      'adapter/c1_basics_capture.py', 'adapter/test_basics_capture.py'):
@@ -64,6 +64,17 @@ class EntryContracts(unittest.TestCase):
             changed = dict(actual, **{name: 'f' * 64})
             with self.subTest(name=name), self.assertRaisesRegex(entry.EntryBlocked, 'paired_helper'):
                 entry.verify_paired_sources(changed)
+
+    def test_every_manifest_source_is_explicitly_allowed_by_product_guard(self):
+        import ast
+        source = ENTRY.parents[1] / 'scripts/prepare_phase1_native_account.py'
+        tree = ast.parse(source.read_text())
+        allowed = next(ast.literal_eval(node.value) for node in tree.body
+            if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+                and target.id == 'ALLOWED' for target in node.targets))
+        self.assertLessEqual(set(entry.EXPECTED_FILES), allowed)
+        self.assertNotIn('mobile_app/lib/main.dart', allowed)
+        self.assertNotIn('backend-api-runtime/app', allowed)
 
     def test_runtime_channels_are_popped_before_any_child_and_unknown_env_dropped(self):
         original = dict(self.env, GITHUB_TOKEN='SYNTHETIC_TOKEN',

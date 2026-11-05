@@ -1,7 +1,7 @@
 name: Phase1 native account draft recovery
 on:
   push:
-    branches: [work/phase1-native-account-20261103]
+    branches: [work/phase1-completion-20261105]
     paths:
       - .github/workflows/phase1-native-account.yml
       - scripts/phase1_native_account_readiness.py
@@ -24,7 +24,7 @@ env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
 jobs:
   secure-channel:
-    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-native-account-20261103'
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-completion-20261105'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -45,7 +45,7 @@ jobs:
           retention-days: 3
           if-no-files-found: error
   collector-safety:
-    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-native-account-20261103'
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-completion-20261105'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -58,7 +58,7 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
-      - name: Guard exact unchanged product components
+      - name: Guard exact reviewed mobile and unchanged backend components
         run: python3 -B scripts/prepare_phase1_native_account.py --source-only
       - name: Run only native collector safety tests
         run: |
@@ -79,7 +79,7 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
-      - name: Guard exact unchanged mobile and backend components
+      - name: Guard exact reviewed mobile and unchanged backend components
         run: |
           python3 -B scripts/prepare_phase1_native_account.py --source-only
           printf 'GRADLE_USER_HOME=%s\n' "$RUNNER_TEMP/aqer-native-account-gradle" >> "$GITHUB_ENV"
@@ -104,6 +104,7 @@ jobs:
         with:
           node-version: '24'
       - name: Install pinned collector and checkpoint dependencies
+        timeout-minutes: 8
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check Pillow==12.3.0 cryptography==50.0.2
@@ -114,6 +115,24 @@ jobs:
           fi
           command -v ffprobe >/dev/null
           command -v ffmpeg >/dev/null
+      - name: Verify public UAT connectivity before expensive build
+        timeout-minutes: 3
+        run: |
+          python3 -B - <<'PY'
+          import json, sys, time
+          sys.path[:0] = ['scripts', 'scripts/phase1_bridge/controller']
+          from bounded_api import DeadlineTransport, read_public_with_retry
+          from phase1_native_fixture_api import read_public_reference
+          deadline = time.monotonic() + 125
+          transport = DeadlineTransport(deadline_getter=lambda: deadline)
+          def diagnostic(value):
+              print('AQER_PUBLIC_PREFLIGHT ' + json.dumps(value, sort_keys=True), flush=True)
+          try:
+              rows = read_public_with_retry(read_public_reference, transport, diagnostic=diagnostic)
+          except Exception:
+              raise SystemExit('AQER_PUBLIC_PREFLIGHT_FAILED') from None
+          print('AQER_PUBLIC_PREFLIGHT_PASSED count=' + str(len(rows)))
+          PY
       - name: Resolve approved locked graph
         working-directory: mobile_app
         run: |
@@ -123,6 +142,9 @@ jobs:
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
           flutter pub get --enforce-lockfile
           git diff --exit-code -- pubspec.yaml
+      - name: Verify authenticated own-listing photo regression
+        working-directory: mobile_app
+        run: flutter test test/private_listing_card_photo_test.dart
       - name: Restore only public Gradle dependency archives
         id: gradle-deps
         continue-on-error: true
@@ -131,8 +153,8 @@ jobs:
           path: |
             ${{ env.GRADLE_USER_HOME }}/caches/modules-2
             ${{ env.GRADLE_USER_HOME }}/wrapper/dists
-          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ef562ae410023046b4abee283f09707051a0e7b6-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
-      - name: Build unchanged release for actual account journey
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Build reviewed release for actual account journey
         working-directory: mobile_app
         env:
           AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
@@ -161,7 +183,7 @@ jobs:
           set -euo pipefail
           test "$GITHUB_ACTIONS" = true
           test "$GITHUB_REPOSITORY" = JJalal1/real-estate-uat-backend
-          test "$GITHUB_REF" = refs/heads/work/phase1-native-account-20261103
+          test "$GITHUB_REF" = refs/heads/work/phase1-completion-20261105
           test -f phase1-native-account-private/APK_VERIFICATION.json
           test -c /dev/kvm
           test "$GRADLE_USER_HOME" = "$RUNNER_TEMP/aqer-native-account-gradle"

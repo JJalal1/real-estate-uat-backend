@@ -436,6 +436,8 @@ public final class Phase1Input extends Instrumentation {
             (sameNode && focused && ((!original.isEmpty() && current.isEmpty()) ||
                 ("غرف النوم *".equals(original) && "غرف النوم *\nمثال: 3".equals(current)) ||
                 ("الحمامات *".equals(original) && "الحمامات *\nمثال: 2".equals(current)) ||
+                ("الإيجار الشهري بالريال اليمني *".equals(original) && "الإيجار الشهري بالريال اليمني *\n0".equals(current)) ||
+                ("نسبة السعي %".equals(original) && "نسبة السعي %\n0".equals(current)) ||
                 ("صف العقار".equals(original) && "النوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(current))));
     }
     private static String focusHintShape(String value) {
@@ -449,6 +451,11 @@ public final class Phase1Input extends Instrumentation {
         if("صف العقار".equals(value)) return "AI_BRIEF_LABEL";
         if("النوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(value)) return "AI_BRIEF_HINT";
         if("صف العقار\nالنوع، الموقع، الغرف، الدور، الإيجار أو السعر…".equals(value)) return "AI_BRIEF_LABEL_AND_HINT";
+        if("الإيجار الشهري بالريال اليمني *".equals(value)) return "MONTHLY_RENT_LABEL";
+        if("الإيجار الشهري بالريال اليمني *\n0".equals(value)) return "MONTHLY_RENT_LABEL_AND_ZERO";
+        if("نسبة السعي %".equals(value)) return "SAI_RATE_LABEL";
+        if("نسبة السعي %\n0".equals(value)) return "SAI_RATE_LABEL_AND_ZERO";
+        if("0".equals(value)) return "ZERO_HINT";
         if(value.contains("غرف النوم *") && value.contains("مثال: 3")) return "BEDROOMS_LABEL_AND_EXAMPLE";
         if(value.contains("الحمامات *") && value.contains("مثال: 2")) return "BATHROOMS_LABEL_AND_EXAMPLE";
         return "OTHER";
@@ -592,14 +599,42 @@ public final class Phase1Input extends Instrumentation {
         requireLiveMutation(); return node.performAction(action,value);
     }
     private static final class ImeObservation {
-        final boolean visible; final int windowId; final AccessibilityNodeInfo focus;
-        ImeObservation(boolean visible,int windowId,AccessibilityNodeInfo focus) {
-            this.visible=visible; this.windowId=windowId; this.focus=focus;
+        final boolean visible; final int windowId; final AccessibilityNodeInfo focus,root;
+        ImeObservation(boolean visible,int windowId,AccessibilityNodeInfo focus,AccessibilityNodeInfo root) {
+            this.visible=visible; this.windowId=windowId; this.focus=focus; this.root=root;
         }
+    }
+    private static String imeSyntheticLabel(String hint) {
+        // The listing contact field has a label and helperText, but no hintText.
+        if("رقم الاتصال *".equals(hint)) return hint;
+        for(String label:new String[]{"الإيجار الشهري بالريال اليمني *","نسبة السعي %"})
+            if(label.equals(hint) || (label+"\n0").equals(hint)) return label;
+        return "";
+    }
+    private boolean findImeLogicalField(AccessibilityNodeInfo node,String label,String description,
+            String fieldClass,int windowId,List<AccessibilityNodeInfo> matches,int[] visited,int depth,long end) {
+        requireLiveMutation();
+        require(SystemClock.elapsedRealtime()<end && depth<=40 && ++visited[0]<=1200);
+        if(node==null) return false;
+        if(label.equals(imeSyntheticLabel(plain(node.getHintText()))) &&
+            fieldClass.equals(plain(node.getClassName())) && description.equals(accessibleDescription(node))) {
+            require(node.getWindowId()==windowId && node.getPackageName()!=null && APP.contentEquals(node.getPackageName()));
+            if(node.isEditable() && node.isVisibleToUser() && node.isEnabled()) matches.add(node);
+        }
+        boolean complete=true;
+        for(int i=0;i<node.getChildCount();i++)
+            if(!findImeLogicalField(node.getChild(i),label,description,fieldClass,windowId,matches,visited,depth+1,end)) complete=false;
+        requireLiveMutation();
+        require(SystemClock.elapsedRealtime()<end);
+        return complete;
     }
     private ImeObservation inspectIme() {
         stage="ime_windows";
         imeObservations=Math.min(150,imeObservations+1); imeWindowCount=-1; imeAppMatches=-1;
+        // Window and node observations must be fresh after IME/layout changes.
+        // Retry observations only within the original bound; never repeat Back.
+        imeSubstage="CACHE_CLEAR";
+        require(automation.clearCache());
         imeSubstage="SERVICE_FLAGS";
         AccessibilityServiceInfo info=automation.getServiceInfo();
         require(info!=null && (info.flags & AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS)!=0);
@@ -630,7 +665,7 @@ public final class Phase1Input extends Instrumentation {
                 && focus.isFocused() && focus.isEditable() && focus.isVisibleToUser() && focus.isEnabled());
         }
         imeSubstage="READY";
-        return new ImeObservation(ime,appWindow,focus);
+        return new ImeObservation(ime,appWindow,focus,appRoot);
     }
     private ImeObservation observeImeUntil(long end) {
         while(SystemClock.elapsedRealtime()<end) {
@@ -673,6 +708,20 @@ public final class Phase1Input extends Instrumentation {
         result.putBoolean("ime_was_visible",before.visible);
         result.putBoolean("ime_dismissed",false);
         if(!before.visible) { stage="ime_noop"; return; }
+        // Retain the exact original Android source and its value only in RAM.
+        // IME dismissal may release or move input focus without replacing this field.
+        final AccessibilityNodeInfo original=before.focus;
+        final String originalClass=plain(original.getClassName()),originalText=plain(original.getText());
+        final String originalDescription=accessibleDescription(original);
+        final String logicalLabel=imeSyntheticLabel(plain(original.getHintText()));
+        final boolean logicalAnchor=("الإيجار الشهري بالريال اليمني *".equals(logicalLabel) && "50000".equals(originalText)) ||
+            ("نسبة السعي %".equals(logicalLabel) && "0".equals(originalText)) ||
+            ("رقم الاتصال *".equals(logicalLabel) && "770000028".equals(originalText));
+        result.putBoolean("ime_logical_anchor_present",logicalAnchor);
+        result.putBoolean("ime_logical_field_unique",false);
+        result.putBoolean("ime_logical_field_rebound",false);
+        boolean originalObsolete=false;
+        require(original.getWindowId()==before.windowId);
         // No general Back navigation: the fresh APP + visible IME + focused
         // editable field above are mandatory before this fixed key sequence.
         stage="ime_back_down"; sendImeKey(KeyEvent.ACTION_DOWN,false);
@@ -683,9 +732,59 @@ public final class Phase1Input extends Instrumentation {
             ImeObservation after=observeImeUntil(end);
             if(!after.visible) {
                 imeSubstage="SAME_WINDOW_FOCUS";
-                require(after.windowId==before.windowId && after.focus!=null && after.focus.equals(before.focus)
-                    && after.focus.isFocused() && after.focus.isEditable() && after.focus.isVisibleToUser() && after.focus.isEnabled());
-                result.putBoolean("ime_dismissed",true); return;
+                boolean sameWindow=after.windowId==before.windowId,focusPresent=after.focus!=null;
+                boolean sameFocus=focusPresent && after.focus.equals(original);
+                result.putBoolean("ime_same_app_window",sameWindow);
+                result.putBoolean("ime_focus_present",focusPresent);
+                result.putBoolean("ime_focus_same_original",sameFocus);
+                require(sameWindow);
+                // Flutter may move input focus when the keyboard disappears.
+                // Focus identity is diagnostic only: retain and refresh the
+                // original field below, never adopt or act on the new focus.
+                if(focusPresent) require(after.focus.getWindowId()==before.windowId &&
+                    after.focus.getPackageName()!=null && APP.contentEquals(after.focus.getPackageName()));
+                imeSubstage="ORIGINAL_FIELD_REFRESH";
+                boolean refreshed=!originalObsolete && original.refresh();
+                result.putBoolean("ime_original_refreshed",refreshed);
+                requireLiveMutation();
+                if(SystemClock.elapsedRealtime()>=end) break;
+                AccessibilityNodeInfo retained=original;
+                if(!refreshed) {
+                    originalObsolete=true;
+                    imeSubstage="LOGICAL_FIELD_REBIND";
+                    // Flutter may replace a semantics node during IME reflow.
+                    // Observe ONLY these exact synthetic C2 values/labels. Never
+                    // re-identify an auth field, arbitrary contact value, or send replacement input.
+                    require(logicalAnchor);
+                    List<AccessibilityNodeInfo> matches=new ArrayList<>();
+                    boolean complete=findImeLogicalField(after.root,logicalLabel,originalDescription,
+                        originalClass,before.windowId,matches,new int[]{0},0,end);
+                    require(matches.size()<=1);
+                    result.putBoolean("ime_logical_field_unique",complete && matches.size()==1);
+                    if(!complete || matches.isEmpty()) {
+                        SystemClock.sleep(Math.max(0L,Math.min(100L,end-SystemClock.elapsedRealtime())));
+                        continue;
+                    }
+                    retained=matches.get(0);
+                    result.putBoolean("ime_logical_field_rebound",true);
+                }
+                imeSubstage="ORIGINAL_FIELD_RETAINED";
+                boolean fieldWindow=retained.getWindowId()==before.windowId;
+                boolean fieldPackage=retained.getPackageName()!=null && APP.contentEquals(retained.getPackageName());
+                boolean fieldClass=originalClass.equals(plain(retained.getClassName()));
+                boolean fieldEditable=retained.isEditable(),fieldVisible=retained.isVisibleToUser(),fieldEnabled=retained.isEnabled();
+                boolean valuePreserved=originalText.equals(plain(retained.getText()));
+                result.putBoolean("ime_original_window_same",fieldWindow);
+                result.putBoolean("ime_original_package_same",fieldPackage);
+                result.putBoolean("ime_original_class_same",fieldClass);
+                result.putBoolean("ime_original_editable",fieldEditable);
+                result.putBoolean("ime_original_visible",fieldVisible);
+                result.putBoolean("ime_original_enabled",fieldEnabled);
+                result.putBoolean("ime_original_value_preserved",valuePreserved);
+                require(fieldWindow && fieldPackage && fieldClass && valuePreserved);
+                if(fieldEditable && fieldVisible && fieldEnabled) {
+                    result.putBoolean("ime_dismissed",true); return;
+                }
             }
             SystemClock.sleep(Math.max(0L,Math.min(100L,end-SystemClock.elapsedRealtime())));
         }

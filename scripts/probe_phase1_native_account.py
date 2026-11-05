@@ -71,6 +71,12 @@ INPUT_JAVA_STAGES = frozenset({'guard', 'automation', 'root_ready', 'account_inp
 INPUT_FAILURE_REASONS = frozenset({'native_input_not_delivered', 'ambiguous_native_input_receipt',
                                   'device_command_timeout', 'device_command_failed',
                                   'native_instrumentation_unobserved'})
+IME_RETAINED_FIELD_BOOLEAN_KEYS = (
+    'ime_same_app_window', 'ime_focus_present', 'ime_focus_same_original',
+    'ime_original_refreshed', 'ime_original_window_same', 'ime_original_package_same',
+    'ime_original_class_same', 'ime_original_editable', 'ime_original_visible',
+    'ime_original_enabled', 'ime_original_value_preserved',
+    'ime_logical_field_rebound', 'ime_logical_field_unique', 'ime_logical_anchor_present')
 
 
 class Blocked(RuntimeError):
@@ -281,8 +287,9 @@ class NativeAccount:
             phase, substage = result.get('ime_observation_phase'), result.get('ime_observation_substage')
             count = result.get('ime_observation_count', '')
             if (phase in {'BEFORE_KEY', 'AFTER_KEY'} and substage in {
-                    'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
-                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS'}
+                    'CACHE_CLEAR', 'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
+                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS',
+                    'ORIGINAL_FIELD_REFRESH', 'ORIGINAL_FIELD_RETAINED', 'LOGICAL_FIELD_REBIND'}
                     and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
                 observation = {'phase': phase, 'substage': substage, 'observations': int(count)}
                 for source, target, maximum in [('ime_window_count', 'window_count', 33),
@@ -290,8 +297,75 @@ class NativeAccount:
                     value = result.get(source, '')
                     if re.fullmatch(r'[0-9]{1,2}', value) and 0 <= int(value) <= maximum:
                         observation[target] = int(value)
+                for source in IME_RETAINED_FIELD_BOOLEAN_KEYS:
+                    value = result.get(source)
+                    if type(value) is str and value in {'true', 'false'}:
+                        observation[source.removeprefix('ime_')] = value == 'true'
                 row['ime_observation'] = observation
         diagnostic['native_input_failure'] = row
+        self.save()
+
+    def c2_input_failure(self, op, result, output, reason):
+        executor = getattr(self, '_root_c2_executor_v2', None)
+        context = getattr(executor, '_diagnostic_operation', None)
+        cursor = getattr(executor, 'cursor', None)
+        stage = {2: 'complete_rent', 5: 'return_next_step3',
+                 6: 'back_gaps_to_completion', 7: 'full_save'}.get(cursor)
+        scoped_context = type(context) is dict and (
+            (cursor == 2 and context.get('control') in {
+                'rent', 'sai_mode', 'sai_rate', 'fixture_contact', 'validation_preview', 'draft_options'} and
+             context.get('substage') in {'field_lookup', 'instrument', 'dismiss_ime',
+                                         'contact_policy_observation', 'contact_readback'}) or
+            (cursor in {5, 6, 7} and context.get('control') == 'fixture_contact' and
+             context.get('substage') == 'contact_readback'))
+        if (getattr(executor, 'probe', None) is not self or
+                getattr(executor, 'inflight', False) is not True or
+                self.authenticated is not True or getattr(self, 'recorder', None) is not None or
+                op not in INPUT_OPS or not scoped_context or
+                'c2_v2_native_input_failure' in self.report):
+            return
+        row = {
+            'stage': stage, 'control': context['control'],
+            'substage': context['substage'], 'op': op,
+            'java_stage': result.get('stage') if result.get('stage') in INPUT_JAVA_STAGES else None,
+            'foreground_category': result.get('foreground_category') if result.get('foreground_category') in FOREGROUND_CATEGORIES else 'UNOBSERVED',
+            'passed_true': result.get('passed') == 'true', 'passed_false': result.get('passed') == 'false',
+            'reason': reason if reason in INPUT_FAILURE_REASONS else 'native_instrumentation_unobserved',
+        }
+        if op == 'account-set':
+            shapes = {'EMPTY', 'MONTHLY_RENT_LABEL', 'MONTHLY_RENT_LABEL_AND_ZERO',
+                      'SAI_RATE_LABEL', 'SAI_RATE_LABEL_AND_ZERO', 'ZERO_HINT', 'OTHER'}
+            for source, target in [('focus_hint_original_shape', 'original_hint_shape'),
+                                   ('focus_hint_current_shape', 'current_hint_shape')]:
+                if result.get(source) in shapes:
+                    row[target] = result[source]
+            for source, target in [('focus_source_node_same', 'same_original_android_node'),
+                                   ('focus_observed_focused', 'focused')]:
+                if result.get(source) in {'true', 'false'}:
+                    row[target] = result[source] == 'true'
+            count = result.get('focus_observation_count', '')
+            if re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150:
+                row['observations'] = int(count)
+        if op == 'account-dismiss-ime':
+            phase, substage = result.get('ime_observation_phase'), result.get('ime_observation_substage')
+            count = result.get('ime_observation_count', '')
+            if (phase in {'BEFORE_KEY', 'AFTER_KEY'} and substage in {
+                    'CACHE_CLEAR', 'SERVICE_FLAGS', 'WINDOW_LIST', 'WINDOW_ENTRY', 'APP_ROOT', 'APP_WINDOW_UNIQUE',
+                    'FOCUSED_EDITABLE', 'READY', 'SAME_WINDOW_FOCUS',
+                    'ORIGINAL_FIELD_REFRESH', 'ORIGINAL_FIELD_RETAINED', 'LOGICAL_FIELD_REBIND'}
+                    and re.fullmatch(r'[0-9]{1,3}', count) and 1 <= int(count) <= 150):
+                observation = {'phase': phase, 'substage': substage, 'observations': int(count)}
+                for source, target, maximum in [('ime_window_count', 'window_count', 33),
+                        ('ime_focused_app_matches', 'focused_app_matches', 2)]:
+                    value = result.get(source, '')
+                    if re.fullmatch(r'[0-9]{1,2}', value) and 0 <= int(value) <= maximum:
+                        observation[target] = int(value)
+                for source in IME_RETAINED_FIELD_BOOLEAN_KEYS:
+                    value = result.get(source)
+                    if type(value) is str and value in {'true', 'false'}:
+                        observation[source.removeprefix('ime_')] = value == 'true'
+                row['ime_observation'] = observation
+        self.report['c2_v2_native_input_failure'] = row
         self.save()
 
     def input_failure(self, op, result, output, reason):
@@ -357,6 +431,7 @@ class NativeAccount:
                 reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
                     else 'native_instrumentation_unobserved'
                 self.c4_prepare_input_failure(op, result, output, reason)
+                self.c2_input_failure(op, result, output, reason)
                 raise
             reason = str(error) if isinstance(error, Blocked) and str(error) in INPUT_FAILURE_REASONS \
                 else 'native_instrumentation_unobserved'
@@ -543,7 +618,7 @@ class NativeAccount:
         state = self.report.get('local_c4_executor')
         metrics = getattr(self, 'admission_metrics', {})
         return (label in {'عنوان الإعلان', 'نص الإعلان'} and type(state) is dict
-                and state.get('inflight') in {'prepare_request', 'edit_reviewed_title'}
+                and state.get('inflight') in {'prepare_request', 'collect_response', 'edit_reviewed_title'}
                 and state.get('uncertain') is False and self._active_case not in C1_CASES
                 and self.authenticated is True and self.recorder is None
                 and not getattr(self, '_host_stop_unconfirmed', False)
@@ -1420,9 +1495,13 @@ class NativeAccount:
         deadline = time.monotonic() + 45
         selected, final_sent, app_returned = False, False, False
         drawer_sent, downloads_sent = False, False
+        downloads_attempts = 0
+        dispatched_downloads_signature, downloads_retry_allowed = None, True
         downloads_signature, downloads_stable_since = None, None
         downloads_stable_observed = False
         root_matches, download_matches, file_matches = 0, 0, 0
+        xml_counts = {'fresh_dump_attempts': 0, 'parse_failures': 0}
+        self.report['os_picker_xml_observation_counts'] = xml_counts
         identity_keys = ('package', 'class', 'resource-id', 'text', 'content-desc',
                          'bounds', 'enabled', 'clickable', 'focusable')
 
@@ -1434,13 +1513,35 @@ class NativeAccount:
 
         while time.monotonic() < deadline:
             target = '/sdcard/phase1-os-picker.xml'
-            self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
-            raw = self.adb('exec-out', 'cat', target)
-            try:
-                rows = list(ET.fromstring(raw).iter('node'))
-            except ET.ParseError:
-                raise Blocked('fresh_os_picker_tree_unavailable') from None
-            self.adb('shell', 'rm', '-f', target)
+            rows = None
+            for parse_attempt in range(3):
+                if time.monotonic() >= deadline:
+                    break
+                # Each read owns a new dump. A malformed/empty response never
+                # authorizes reuse of an older XML file or another input tap.
+                self.adb('shell', 'rm', '-f', target)
+                if time.monotonic() >= deadline:
+                    break
+                xml_counts['fresh_dump_attempts'] += 1
+                self.adb('shell', 'uiautomator', 'dump', target, timeout=20)
+                raw = self.adb('exec-out', 'cat', target)
+                try:
+                    rows = list(ET.fromstring(raw).iter('node'))
+                except ET.ParseError:
+                    xml_counts['parse_failures'] += 1
+                    self.adb('shell', 'rm', '-f', target)
+                    downloads_signature, downloads_stable_since = None, None
+                    if downloads_attempts:
+                        downloads_retry_allowed = False
+                    self.save()
+                    if parse_attempt == 2:
+                        raise Blocked('fresh_os_picker_tree_unavailable') from None
+                    pause(.25)
+                    continue
+                self.adb('shell', 'rm', '-f', target)
+                break
+            if rows is None:
+                break  # The original picker deadline is never renewed.
             observed_at = time.monotonic()
             if observed_at >= deadline:
                 break
@@ -1467,11 +1568,13 @@ class NativeAccount:
                     'com.google.android.documentsui', 'com.android.documentsui',
                     'com.google.android.providers.media.module', 'com.android.providers.media.module'}:
                 downloads_signature, downloads_stable_since = None, None
+                if downloads_attempts:
+                    downloads_retry_allowed = False
                 root_matches, download_matches, file_matches = 0, 0, 0
                 pause(.7)
                 continue
             def tap_os(node, attempt=None):
-                nonlocal drawer_sent, downloads_sent, final_sent
+                nonlocal drawer_sent, downloads_sent, downloads_attempts, final_sent
                 found = re.fullmatch(r'\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]', node.get('bounds', ''))
                 if not found:
                     raise Blocked('os_picker_bounds_invalid')
@@ -1481,13 +1584,17 @@ class NativeAccount:
                 if time.monotonic() >= deadline:
                     return False
                 if attempt == 'drawer': drawer_sent = True
-                elif attempt == 'downloads': downloads_sent = True
+                elif attempt == 'downloads':
+                    downloads_sent = True
+                    downloads_attempts += 1
                 elif attempt == 'final': final_sent = True
                 self.adb('shell', 'input', 'tap', (a+c)//2, (b+d)//2)
                 return True
             # A visible roots drawer can leave the dimmed file tree mounted.
             # Select Downloads only within its actual roots_list, never a
-            # toolbar/breadcrumb with the same label. Dispatch each route once.
+            # toolbar/breadcrumb with the same label. A second folder-navigation
+            # tap requires fresh proof that the first left the SAME drawer open.
+            # File selection and final Open remain single-dispatch operations.
             roots = [n for n in candidates if n.get('resource-id', '').rsplit('/', 1)[-1] == 'roots_list']
             downloads = [n for n in roots[0].iter('node') if n in candidates
                          and n.get('text', '') in {'Downloads', 'التنزيلات'}
@@ -1508,15 +1615,23 @@ class NativeAccount:
             # Counts are diagnostic only; 2 means multiple. Covered file nodes
             # never become actionable while the roots drawer is mounted.
             root_matches, download_matches, file_matches = min(2,len(roots)), min(2,len(downloads)), min(2,len(files))
+            if downloads_attempts and (len(roots) != 1 or len(downloads) != 1):
+                downloads_retry_allowed = False
             if roots and not selected:
-                if len(roots) == 1 and len(downloads) == 1 and not downloads_sent:
+                if len(roots) == 1 and len(downloads) == 1 and downloads_attempts < 2:
                     signature = (identity(rows[0]), identity(roots[0]), identity(downloads[0]))
-                    if signature != downloads_signature:
+                    if downloads_attempts and (not downloads_retry_allowed or
+                            signature != dispatched_downloads_signature):
+                        downloads_retry_allowed = False
+                        downloads_signature, downloads_stable_since = None, None
+                    elif signature != downloads_signature:
                         downloads_signature, downloads_stable_since = signature, observed_at
                     elif observed_at >= downloads_stable_since + .7:
                         downloads_stable_observed = True
                         if not tap_os(downloads[0], 'downloads'):
                             break
+                        dispatched_downloads_signature = signature
+                        downloads_signature, downloads_stable_since = None, None
                 else:
                     downloads_signature, downloads_stable_since = None, None
                 pause(.7)
@@ -1552,6 +1667,7 @@ class NativeAccount:
                 'roots_matches': root_matches, 'scoped_downloads_matches': download_matches,
                 'file_matches': file_matches, 'drawer_attempted': drawer_sent,
                 'downloads_attempted': downloads_sent, 'downloads_stable_observed': downloads_stable_observed,
+                'downloads_navigation_attempts': downloads_attempts,
                 'file_tap_returned': selected, 'final_sent': final_sent, 'app_returned': app_returned}
             self.save()
         if not selected:
@@ -1560,6 +1676,7 @@ class NativeAccount:
             raise Blocked('genuine_os_picker_return_not_observed')
         self.report['os_photo_selection_observation'] = {
             'exact_fixture_filename_observed': True, 'file_tap_sent_once': True,
+            'downloads_navigation_attempts': downloads_attempts,
             'final_open_sent_once': final_sent, 'app_window_return_observed': True}
         self.journey_stage('photo_count_wait')
         self.wait('صور الإعلان (1/12)', seconds=30)

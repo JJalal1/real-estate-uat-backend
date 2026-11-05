@@ -705,6 +705,35 @@ class NativeAccountSafetyTest(unittest.TestCase):
             shape(briefLabel,"AI_BRIEF_LABEL");shape(briefHint,"AI_BRIEF_HINT");
             shape(briefLabel+"\\n"+briefHint,"AI_BRIEF_LABEL_AND_HINT");
             shape(briefLabel+", "+briefHint,"OTHER");
+            String rentLabel="الإيجار الشهري بالريال اليمني *",saiLabel="نسبة السعي %";
+            for(String label:new String[]{rentLabel,saiLabel}) {
+              check(focusHintMatches(label,label+"\\n0",true,true),true);
+              check(focusHintMatches(label,label+"\\n0",true,false),false);
+              check(focusHintMatches(label,label+"\\n0",false,true),false);
+              check(focusHintMatches(label,"0",true,true),false);
+              check(focusHintMatches(label,label+", 0",true,true),false);
+              check(focusHintMatches(label,label+"\\r\\n0",true,true),false);
+              check(focusHintMatches(label,label+"\\n٠",true,true),false);
+              check(focusHintMatches(label,label+"\\n1",true,true),false);
+              check(focusHintMatches(label,label+"\\n0 ",true,true),false);
+              check(focusHintMatches(label,"PRIVATE_FIELD_SENTINEL",true,true),false);
+            }
+            check(focusHintMatches(rentLabel,saiLabel+"\\n0",true,true),false);
+            check(focusHintMatches(saiLabel,rentLabel+"\\n0",true,true),false);
+            check(focusHintMatches("سعر البيع بالريال اليمني *","سعر البيع بالريال اليمني *\\n0",true,true),false);
+            String contactLabel="رقم الاتصال *";
+            check(focusHintMatches(contactLabel,contactLabel,true,true),true);
+            check(focusHintMatches(contactLabel,"",true,true),true);
+            check(focusHintMatches(contactLabel,"",true,false),false);
+            check(focusHintMatches(contactLabel,contactLabel+"\\n0",true,true),false);
+            check(focusHintMatches(contactLabel,contactLabel+"\\nرقم جوال يمني من 9 أرقام",true,true),false);
+            check(focusHintMatches(contactLabel,"رقم واتساب",true,true),false);
+            shape(rentLabel,"MONTHLY_RENT_LABEL");
+            shape(rentLabel+"\\n0","MONTHLY_RENT_LABEL_AND_ZERO");
+            shape(saiLabel,"SAI_RATE_LABEL");
+            shape(saiLabel+"\\n0","SAI_RATE_LABEL_AND_ZERO");
+            shape("0","ZERO_HINT");
+            shape(rentLabel+", 0","OTHER");
             System.out.print("FOCUS_HINT_POLICY_PASS");
           }
         }'''
@@ -783,7 +812,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
     def test_candidate_c4_ai_fields_bind_below_each_header_without_preceding_title_misbinding(self):
         self.c4_prepare_scope();rows=self.c4_ai_candidate_rows()
         self.probe.nodes=Mock(return_value=rows);self.probe.scroll=Mock()
-        for stage in ('prepare_request','edit_reviewed_title'):
+        for stage in ('prepare_request','collect_response','edit_reviewed_title'):
             self.probe.report['local_c4_executor']['inflight']=stage
             self.assertEqual(self.probe.field('عنوان الإعلان'),rows[1])
             self.assertEqual(self.probe.field('نص الإعلان'),rows[3])
@@ -1001,9 +1030,18 @@ class NativeAccountSafetyTest(unittest.TestCase):
           static class AccessibilityServiceInfo {static final int FLAG_RETRIEVE_INTERACTIVE_WINDOWS=1;int flags;}
           static class AccessibilityNodeInfo {
             static final int FOCUS_INPUT=1; int id;String pkg=APP;boolean visible=true,enabled=true,editable=true,focused=true;AccessibilityNodeInfo focus;
+            int window=3,refreshes;String cls="android.widget.EditText",text="50000";boolean refreshResult=true;long refreshCost;
+            String hint="الإيجار الشهري بالريال اليمني *",description="";List<AccessibilityNodeInfo> children=new ArrayList<>();
+            List<AccessibilityNodeInfo> refreshStates=new ArrayList<>();
             AccessibilityNodeInfo(int id){this.id=id;}
             String getPackageName(){return pkg;}boolean isVisibleToUser(){return visible;}boolean isEnabled(){return enabled;}
             boolean isEditable(){return editable;}boolean isFocused(){return focused;}AccessibilityNodeInfo findFocus(int kind){return focus;}
+            int getWindowId(){return window;}String getClassName(){return cls;}String getText(){return text;}
+            String getHintText(){return hint;}int getChildCount(){return children.size();}AccessibilityNodeInfo getChild(int index){return children.get(index);}
+            boolean refresh(){refreshes++;SystemClock.now+=refreshCost;if(!refreshResult)return false;
+              if(!refreshStates.isEmpty()){AccessibilityNodeInfo state=refreshStates.get(Math.min(refreshes-1,refreshStates.size()-1));
+                window=state.window;pkg=state.pkg;cls=state.cls;text=state.text;editable=state.editable;
+                visible=state.visible;enabled=state.enabled;focused=state.focused;}return true;}
             public boolean equals(Object other){return other instanceof AccessibilityNodeInfo&&id==((AccessibilityNodeInfo)other).id;}
           }
           static class AccessibilityWindowInfo {
@@ -1020,25 +1058,33 @@ class NativeAccountSafetyTest(unittest.TestCase):
           static class Bundle {Map<String,Boolean> flags=new HashMap<>();void putBoolean(String key,boolean value){flags.put(key,value);}}
           class Automation {
             int flags,sets,preReads,postReads,missingFlagReads;long preCost,postCost;boolean failDown;
+            int cacheClears,failedCacheClears;boolean cacheWindows;List<AccessibilityWindowInfo> cachedWindows;
             List<Integer> keys=new ArrayList<>();List<List<AccessibilityWindowInfo>> before=new ArrayList<>(),after=new ArrayList<>();
+            boolean clearCache(){cacheClears++;if(failedCacheClears-->0)return false;cachedWindows=null;return true;}
             AccessibilityServiceInfo getServiceInfo(){AccessibilityServiceInfo info=new AccessibilityServiceInfo();
               info.flags=sets>0&&missingFlagReads-->0?0:flags;return info;}
             void setServiceInfo(AccessibilityServiceInfo info){sets++;flags=info.flags;}
-            List<AccessibilityWindowInfo> getWindows(){boolean post=keys.size()>=2;int index=post?postReads++:preReads++;
+            List<AccessibilityWindowInfo> getWindows(){if(cacheWindows&&cachedWindows!=null)return cachedWindows;
+              boolean post=keys.size()>=2;int index=post?postReads++:preReads++;
               SystemClock.now+=post?postCost:preCost;List<List<AccessibilityWindowInfo>> values=post?after:before;
-              return values.get(Math.min(index,values.size()-1));}
+              List<AccessibilityWindowInfo> result=values.get(Math.min(index,values.size()-1));
+              if(cacheWindows)cachedWindows=result;return result;}
             boolean injectInputEvent(KeyEvent event,boolean sync){keys.add(event.action);return !(failDown&&event.action==0);}
           }
           static void require(boolean value){if(!value)throw new IllegalStateException();}
+          static String plain(CharSequence value){return value==null?"":value.toString();}
+          static String accessibleDescription(AccessibilityNodeInfo node){return node.description;}
           void requireLiveMutation(){if(SystemClock.now>=expires){stage="input_deadline_expired";throw new IllegalStateException();}}
           static void check(boolean value){if(!value)throw new AssertionError("IME policy");}
           static List<AccessibilityWindowInfo> windows(boolean ime,int window,int focus){
-            AccessibilityNodeInfo root=new AccessibilityNodeInfo(1);root.focus=new AccessibilityNodeInfo(focus);
+            AccessibilityNodeInfo root=new AccessibilityNodeInfo(1);root.editable=false;root.focused=false;root.hint="";root.text="";root.cls="android.view.View";root.window=window;
+            root.focus=new AccessibilityNodeInfo(focus);root.focus.window=window;root.children.add(root.focus);
             List<AccessibilityWindowInfo> values=new ArrayList<>();values.add(new AccessibilityWindowInfo(window,1,root));
             if(ime)values.add(new AccessibilityWindowInfo(8,2,null));return values;}
           static ImeReadinessPolicy fresh(){SystemClock.now=0;ImeReadinessPolicy p=new ImeReadinessPolicy();
             p.automation.before.add(windows(true,3,7));p.automation.after.add(windows(false,3,7));return p;}
           static void fails(ImeReadinessPolicy p){try{p.dismissIme(new Bundle());throw new AssertionError("must refuse");}catch(IllegalStateException expected){}}
+          static AccessibilityNodeInfo original(ImeReadinessPolicy p){return p.automation.before.get(0).get(0).root.focus;}
           public static void main(String[] args){
             ImeReadinessPolicy p=fresh();p.automation.missingFlagReads=2;
             p.automation.before.add(0,Collections.emptyList());
@@ -1059,8 +1105,24 @@ class NativeAccountSafetyTest(unittest.TestCase):
             check(p.automation.keys.equals(Arrays.asList(0,1))&&SystemClock.now==5000&&p.imeSubstage.equals("WINDOW_LIST"));
             p=fresh();p.automation.after=Arrays.asList(windows(false,4,7),windows(false,3,7));fails(p);
             check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1&&p.imeSubstage.equals("SAME_WINDOW_FOCUS"));
-            p=fresh();p.automation.after=Arrays.asList(windows(false,3,9),windows(false,3,7));fails(p);
-            check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1);
+            // A different same-APP focus does not replace the original field.
+            for(boolean editable:new boolean[]{false,true}){
+              p=fresh();p.automation.after=Arrays.asList(windows(false,3,9));
+              AccessibilityNodeInfo moved=p.automation.after.get(0).get(0).root.focus;
+              moved.editable=editable;moved.cls=editable?"android.widget.EditText":"android.view.View";
+              result=new Bundle();p.dismissIme(result);
+              check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1);
+              check(result.flags.get("ime_dismissed")&&result.flags.get("ime_focus_present")&&!result.flags.get("ime_focus_same_original"));
+              check(result.flags.get("ime_original_refreshed")&&result.flags.get("ime_original_value_preserved"));
+              check(original(p).refreshes==1&&moved.refreshes==0);
+            }
+            // A focused node from another package/window is never admitted.
+            for(boolean wrongWindow:new boolean[]{false,true}){
+              p=fresh();p.automation.after=Arrays.asList(windows(false,3,9));
+              AccessibilityNodeInfo moved=p.automation.after.get(0).get(0).root.focus;
+              if(wrongWindow)moved.window=4;else moved.pkg="FOREIGN";
+              fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==0);
+            }
             p=fresh();p.expires=250;p.automation.before=Arrays.asList(Collections.emptyList());fails(p);
             check(p.automation.keys.isEmpty()&&p.stage.equals("input_deadline_expired")&&SystemClock.now<5000);
             p=fresh();p.expires=250;p.automation.postCost=300;fails(p);
@@ -1073,6 +1135,147 @@ class NativeAccountSafetyTest(unittest.TestCase):
             List<AccessibilityWindowInfo> focus=windows(true,3,7);focus.get(0).root.focus.editable=false;bad.add(focus);
             for(List<AccessibilityWindowInfo> values:bad){p=fresh();p.automation.before=Arrays.asList(values);fails(p);check(p.automation.keys.isEmpty()&&SystemClock.now==5000);}
             p=fresh();p.automation.missingFlagReads=100;fails(p);check(p.automation.keys.isEmpty()&&p.imeSubstage.equals("SERVICE_FLAGS"));
+            // Fresh cache is required on every observation, including after the sole Back.
+            p=fresh();p.automation.cacheWindows=true;p.automation.before.add(0,Collections.emptyList());
+            result=new Bundle();p.dismissIme(result);
+            check(p.automation.cacheClears==3&&p.automation.preReads==2&&p.automation.postReads==1);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&result.flags.get("ime_dismissed"));
+            p=fresh();p.automation.failedCacheClears=2;result=new Bundle();p.dismissIme(result);
+            check(p.automation.cacheClears==4&&p.automation.keys.equals(Arrays.asList(0,1))&&SystemClock.now==200);
+            p=fresh();p.automation.failedCacheClears=100;fails(p);
+            check(p.automation.keys.isEmpty()&&p.automation.preReads==0&&SystemClock.now==5000&&p.imeSubstage.equals("CACHE_CLEAR"));
+            p=fresh();p.expires=250;p.automation.failedCacheClears=100;fails(p);
+            check(p.automation.keys.isEmpty()&&p.stage.equals("input_deadline_expired")&&SystemClock.now<5000);
+            // Hiding the IME may release input focus, but must retain the exact field and value.
+            p=fresh();AccessibilityNodeInfo retained=new AccessibilityNodeInfo(7);retained.focused=false;
+            original(p).refreshStates.add(retained);p.automation.after.get(0).get(0).root.focus=null;
+            result=new Bundle();p.dismissIme(result);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&result.flags.get("ime_dismissed"));
+            check(!result.flags.get("ime_focus_present")&&result.flags.get("ime_original_refreshed")&&result.flags.get("ime_original_value_preserved"));
+            // No new field, window, class, package or changed value is an acceptable replacement.
+            for(String fault:new String[]{"window","package","class","value"}){
+              p=fresh();retained=new AccessibilityNodeInfo(7);retained.focused=false;
+              if(fault.equals("window"))retained.window=4;
+              if(fault.equals("package"))retained.pkg="FOREIGN";
+              if(fault.equals("class"))retained.cls="OtherWidget";
+              if(fault.equals("value"))retained.text="PRIVATE_CHANGED_VALUE";
+              original(p).refreshStates.add(retained);p.automation.after.get(0).get(0).root.focus=null;fails(p);
+              check(p.automation.keys.equals(Arrays.asList(0,1))&&p.automation.postReads==1);
+            }
+            p=fresh();original(p).refreshResult=false;original(p).hint="";p.automation.after.get(0).get(0).root.focus=null;fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            // Moved focus cannot mask an obsolete original node or altered value.
+            for(boolean obsolete:new boolean[]{false,true}){
+              p=fresh();p.automation.after=Arrays.asList(windows(false,3,9));
+              if(obsolete){original(p).refreshResult=false;original(p).hint="";}
+              else {AccessibilityNodeInfo changed=new AccessibilityNodeInfo(7);changed.text="PRIVATE_CHANGED_VALUE";
+                original(p).refreshStates.add(changed);}
+              fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            }
+            // Original-field layout settling is read-only under the existing five-second bound.
+            for(String fault:new String[]{"visible","enabled","editable"}){
+              p=fresh();AccessibilityNodeInfo pending=new AccessibilityNodeInfo(7);
+              if(fault.equals("visible"))pending.visible=false;
+              if(fault.equals("enabled"))pending.enabled=false;
+              if(fault.equals("editable"))pending.editable=false;
+              original(p).refreshStates.add(pending);original(p).refreshStates.add(new AccessibilityNodeInfo(7));
+              result=new Bundle();p.dismissIme(result);
+              check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==2&&SystemClock.now==100);
+            }
+            p=fresh();retained=new AccessibilityNodeInfo(7);retained.visible=false;original(p).refreshStates.add(retained);fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&SystemClock.now==5000);
+            p=fresh();p.expires=250;original(p).refreshCost=300;fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&p.stage.equals("input_deadline_expired"));
+            p=fresh();original(p).refreshCost=5001;fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&SystemClock.now==5001);
+            // A rebuilt native node may prove the same exact synthetic logical
+            // field. The two known focused/unfocused hints are source-pinned.
+            for(String label:new String[]{"الإيجار الشهري بالريال اليمني *","نسبة السعي %"}){
+              for(boolean focusedHint:new boolean[]{false,true}){
+                p=fresh();original(p).hint=label+(focusedHint?"\n0":"");
+                original(p).text=label.equals("نسبة السعي %")?"0":"50000";
+                original(p).description="FIXED_DESCRIPTION";original(p).refreshResult=false;
+                p.automation.after=Arrays.asList(windows(false,3,9));
+                AccessibilityNodeInfo replacement=p.automation.after.get(0).get(0).root.focus;
+                replacement.hint=label+(focusedHint?"":"\n0");replacement.text=original(p).text;
+                replacement.description=original(p).description;
+                result=new Bundle();p.dismissIme(result);
+                check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1&&replacement.refreshes==0);
+                check(result.flags.get("ime_dismissed")&&!result.flags.get("ime_original_refreshed"));
+                check(result.flags.get("ime_logical_anchor_present")&&result.flags.get("ime_logical_field_unique")&&result.flags.get("ime_logical_field_rebound"));
+                check(result.flags.get("ime_original_value_preserved")&&!result.flags.get("ime_focus_same_original"));
+              }
+            }
+            // Only the fixed synthetic listing contact may be rebound. Its
+            // source has no hintText; helperText is not a guessed placeholder.
+            p=fresh();original(p).hint="رقم الاتصال *";original(p).text="770000028";
+            original(p).refreshResult=false;p.automation.after=Arrays.asList(windows(false,3,9));
+            AccessibilityNodeInfo contact=p.automation.after.get(0).get(0).root.focus;
+            contact.hint="رقم الاتصال *";contact.text="770000028";
+            result=new Bundle();p.dismissIme(result);
+            check(result.flags.get("ime_dismissed")&&result.flags.get("ime_logical_field_rebound"));
+            check(!result.flags.get("ime_original_refreshed")&&result.flags.get("ime_original_value_preserved"));
+            check(p.automation.keys.equals(Arrays.asList(0,1))&&contact.refreshes==0);
+            for(String fault:new String[]{"auth_label","other_contact_value","changed_value","zero_hint","helper_hint","blank_anchor","duplicate"}){
+              p=fresh();original(p).hint="رقم الاتصال *";original(p).text="770000028";original(p).refreshResult=false;
+              p.automation.after=Arrays.asList(windows(false,3,9));
+              AccessibilityNodeInfo root=p.automation.after.get(0).get(0).root,field=root.focus;
+              field.hint="رقم الاتصال *";field.text="770000028";
+              if(fault.equals("auth_label"))original(p).hint=field.hint="رقم واتساب";
+              if(fault.equals("other_contact_value"))original(p).text=field.text="770000029";
+              if(fault.equals("changed_value"))field.text="770000029";
+              if(fault.equals("zero_hint"))original(p).hint=field.hint="رقم الاتصال *\n0";
+              if(fault.equals("helper_hint"))field.hint+="\nرقم جوال يمني من 9 أرقام";
+              if(fault.equals("blank_anchor"))original(p).hint="";
+              if(fault.equals("duplicate")){AccessibilityNodeInfo other=new AccessibilityNodeInfo(10);
+                other.hint=field.hint;other.text=field.text;root.children.add(other);}
+              fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            }
+            // Missing/incomplete fresh trees and temporary field layout settle
+            // read-only within the original bound, with no second Back.
+            for(String fault:new String[]{"missing","incomplete","hidden","disabled","noneditable"}){
+              p=fresh();original(p).refreshResult=false;
+              List<AccessibilityWindowInfo> pending=windows(false,3,9);
+              AccessibilityNodeInfo root=pending.get(0).root,field=root.focus;
+              if(fault.equals("missing"))root.children.clear();
+              if(fault.equals("incomplete"))root.children.add(null);
+              if(fault.equals("hidden"))field.visible=false;
+              if(fault.equals("disabled"))field.enabled=false;
+              if(fault.equals("noneditable"))field.editable=false;
+              p.automation.after=Arrays.asList(pending,windows(false,3,10));
+              result=new Bundle();p.dismissIme(result);
+              check(result.flags.get("ime_logical_field_rebound")&&p.automation.postReads==2&&SystemClock.now==100);
+              check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            }
+            // Full anchored identity, unique field, original window/package and
+            // exact value remain mandatory; neither focus nor value alone bind.
+            for(String fault:new String[]{"duplicate","different_value_duplicate","value","label","hint_suffix","description","class","window","package","no_anchor","placeholder","wrong_before_value"}){
+              p=fresh();original(p).refreshResult=false;p.automation.after=Arrays.asList(windows(false,3,9));
+              AccessibilityNodeInfo root=p.automation.after.get(0).get(0).root,field=root.focus;
+              root.focus=null; // Selection is from the fresh APP tree, not new focus.
+              if(fault.equals("duplicate")||fault.equals("different_value_duplicate")){
+                AccessibilityNodeInfo other=new AccessibilityNodeInfo(10);root.children.add(other);
+                if(fault.equals("different_value_duplicate"))other.text="50001";
+              }
+              if(fault.equals("value"))field.text="50001";
+              if(fault.equals("label"))field.hint="نسبة السعي %";
+              if(fault.equals("hint_suffix"))field.hint+="\nPRIVATE_OTHER_HINT";
+              if(fault.equals("description"))field.description="PRIVATE_OTHER_DESCRIPTION";
+              if(fault.equals("class"))field.cls="OtherWidget";
+              if(fault.equals("window"))field.window=4;
+              if(fault.equals("package"))field.pkg="FOREIGN";
+              if(fault.equals("no_anchor"))original(p).hint="";
+              if(fault.equals("placeholder"))original(p).hint="0";
+              if(fault.equals("wrong_before_value"))original(p).text="50001";
+              fails(p);check(p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            }
+            p=fresh();original(p).refreshResult=false;p.automation.after.get(0).get(0).root.children.clear();fails(p);
+            check(SystemClock.now==5000&&p.automation.keys.equals(Arrays.asList(0,1))&&original(p).refreshes==1);
+            p=fresh();p.expires=250;original(p).refreshResult=false;p.automation.after.get(0).get(0).root.children.clear();fails(p);
+            check(SystemClock.now<5000&&p.stage.equals("input_deadline_expired")&&p.automation.keys.equals(Arrays.asList(0,1)));
+            p=fresh();original(p).refreshResult=false;AccessibilityNodeInfo wide=p.automation.after.get(0).get(0).root;
+            for(int i=0;i<1201;i++){AccessibilityNodeInfo empty=new AccessibilityNodeInfo(100+i);empty.hint="";wide.children.add(empty);}fails(p);
+            check(p.automation.keys.equals(Arrays.asList(0,1)));
             System.out.print("IME_READINESS_POLICY_PASS");
           }
         '''+'\n private static final class ImeObservation'+observation+'\n private void dismissIme(Bundle result)'+dismiss+'\n}'
@@ -2414,7 +2617,98 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.probe.wait.assert_called_once_with('صور الإعلان (1/12)', seconds=30)
         self.assertEqual(self.probe.report['os_photo_selection_observation'], {
             'exact_fixture_filename_observed': True, 'file_tap_sent_once': True,
+            'downloads_navigation_attempts': 0,
             'final_open_sent_once': True, 'app_window_return_observed': True})
+
+    def test_os_picker_retries_only_fresh_empty_or_malformed_xml_without_replaying_file_or_open(self):
+        self.stability_clock()
+        frames = iter(['', '<PRIVATE_XML', self.picker_xml(), '<broken',
+            self.picker_xml(include_done=True), '', self.picker_xml(include_done=True),
+            '<hierarchy><node package="' + native.APP + '" /></hierarchy>'])
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames)
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        self.probe.photo_picker()
+        calls = self.probe.adb.call_args_list
+        self.assertEqual([c.args[3:] for c in calls if c.args[:3] == ('shell', 'input', 'tap')],
+                         [(20, 20), (100, 200)])
+        target = '/sdcard/phase1-os-picker.xml'
+        for index, item in enumerate(calls):
+            if item.args[:3] == ('shell', 'uiautomator', 'dump'):
+                self.assertEqual(calls[index-1].args, ('shell', 'rm', '-f', target))
+            if item.args[:2] == ('exec-out', 'cat'):
+                self.assertEqual(calls[index+1].args, ('shell', 'rm', '-f', target))
+        self.assertEqual(self.probe.report['os_picker_xml_observation_counts'],
+                         {'fresh_dump_attempts': 8, 'parse_failures': 4})
+        self.assertNotIn('PRIVATE_XML', json.dumps(self.probe.report))
+        self.probe.wait.assert_called_once_with('صور الإعلان (1/12)', seconds=30)
+
+    def test_os_picker_three_invalid_fresh_dumps_stop_without_input_or_raw_xml(self):
+        self.stability_clock()
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: '<PRIVATE_XML'
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        with self.assertRaisesRegex(native.Blocked, '^fresh_os_picker_tree_unavailable$'):
+            self.probe.photo_picker()
+        self.assertEqual(self.probe.report['os_picker_xml_observation_counts'],
+                         {'fresh_dump_attempts': 3, 'parse_failures': 3})
+        self.assertEqual(sum(c.args[:2] == ('exec-out', 'cat') for c in self.probe.adb.call_args_list), 3)
+        self.assertFalse(any(c.args[:3] == ('shell', 'input', 'tap') for c in self.probe.adb.call_args_list))
+        self.assertNotIn('PRIVATE_XML', json.dumps(self.probe.report))
+        self.probe.wait.assert_not_called()
+
+    def test_os_picker_parse_retry_cannot_extend_original_deadline(self):
+        clock = self.stability_clock()
+        def adb(*args, **kwargs):
+            if args[:2] == ('exec-out', 'cat'):
+                clock[0] = 45
+                return ''
+            return ''
+        self.probe.adb = Mock(side_effect=adb); self.probe.tap, self.probe.wait = Mock(), Mock()
+        with self.assertRaisesRegex(native.Blocked, '^genuine_os_photo_selection_not_observed$'):
+            self.probe.photo_picker()
+        self.assertEqual(clock[0], 45)
+        self.assertEqual(self.probe.report['os_picker_xml_observation_counts'],
+                         {'fresh_dump_attempts': 1, 'parse_failures': 1})
+        self.assertFalse(any(c.args[:3] == ('shell', 'input', 'tap') for c in self.probe.adb.call_args_list))
+
+    def test_os_picker_dump_cat_or_invalid_cleanup_transport_exception_is_never_retried(self):
+        clock = self.stability_clock()
+        for failure in ('dump', 'cat', 'invalid_cleanup'):
+            with self.subTest(failure=failure):
+                clock[0] = 0
+                removals = []
+                def adb(*args, **kwargs):
+                    if args[:3] == ('shell', 'rm', '-f'):
+                        removals.append(True)
+                        if failure == 'invalid_cleanup' and len(removals) == 2:
+                            raise native.Blocked('device_command_timeout')
+                    if args[:3] == ('shell', 'uiautomator', 'dump') and failure == 'dump':
+                        raise native.Blocked('device_command_timeout')
+                    if args[:2] == ('exec-out', 'cat'):
+                        if failure == 'cat': raise native.Blocked('device_command_timeout')
+                        return '<invalid'
+                    return ''
+                self.probe.adb = Mock(side_effect=adb); self.probe.tap, self.probe.wait = Mock(), Mock()
+                with self.assertRaisesRegex(native.Blocked, '^device_command_timeout$'):
+                    self.probe.photo_picker()
+                self.assertEqual(sum(c.args[:3] == ('shell', 'uiautomator', 'dump')
+                                     for c in self.probe.adb.call_args_list), 1)
+                self.assertFalse(any(c.args[:3] == ('shell', 'input', 'tap') for c in self.probe.adb.call_args_list))
+                self.probe.wait.assert_not_called()
+
+    def test_os_picker_invalid_dump_after_downloads_does_not_authorize_another_navigation_tap(self):
+        clock = self.stability_clock(); drawer = self.picker_drawer_xml()
+        frames = iter([drawer, drawer, '<invalid'])
+        self.probe.adb = Mock(side_effect=lambda *a, **kw: next(frames, drawer)
+                             if a[:2] == ('exec-out', 'cat') else '')
+        self.probe.tap, self.probe.wait = Mock(), Mock()
+        with self.assertRaisesRegex(native.Blocked, '^genuine_os_photo_selection_not_observed$'):
+            self.probe.photo_picker()
+        taps = [c.args[3:] for c in self.probe.adb.call_args_list if c.args[:3] == ('shell', 'input', 'tap')]
+        self.assertEqual(taps, [(180, 290)])
+        self.assertEqual(clock[0], 45)
+        self.assertEqual(self.probe.report['os_picker_xml_observation_counts']['parse_failures'], 1)
 
     def test_os_picker_selects_complete_grid_filename_metadata_not_preview_or_similar_name(self):
         package = 'com.android.documentsui'
@@ -2556,7 +2850,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.assertFalse(facts['downloads_attempted'])
             self.assertEqual(facts['downloads_stable_observed'],expiry_at=='dispatch')
 
-    def test_os_picker_stable_downloads_is_never_replayed_and_failure_facts_are_minimized(self):
+    def test_os_picker_unchanged_downloads_noop_is_capped_at_two_and_failure_facts_are_minimized(self):
         clock=self.stability_clock();reads=[]
         menu='<hierarchy><node package="com.android.documentsui" enabled="true" content-desc="Show roots" bounds="[0,0][20,20]" /></hierarchy>'
         base=self.picker_drawer_xml(download_changes={'content-desc':'PRIVATE_DESCRIPTION_SENTINEL'})
@@ -2569,13 +2863,72 @@ class NativeAccountSafetyTest(unittest.TestCase):
             self.probe.photo_picker()
         self.assertEqual(clock[0],45)
         taps=[c.args[3:]for c in self.probe.adb.call_args_list if c.args[:3]==('shell','input','tap')]
-        self.assertEqual(taps,[(10,10),(180,290)])
+        self.assertEqual(taps,[(10,10),(180,290),(180,290)])
         facts=self.probe.report['os_photo_selection_failure']
         self.assertEqual(facts,{'roots_matches':1,'scoped_downloads_matches':1,'file_matches':0,
             'drawer_attempted':True,'downloads_attempted':True,'downloads_stable_observed':True,
+            'downloads_navigation_attempts':2,
             'file_tap_returned':False,'final_sent':False,'app_returned':False})
         for private in ('PRIVATE_DESCRIPTION_SENTINEL',self.probe.photo_name,'roots_list','[10,270][350,310]'):
             self.assertNotIn(private,json.dumps(facts))
+        self.probe.wait.assert_not_called()
+
+    def test_os_picker_second_downloads_navigation_requires_fresh_same_target_then_selects_file_once(self):
+        clock = self.stability_clock(); base = self.picker_drawer_xml()
+        # A covered file is visible to XML throughout the unchanged open drawer.
+        base = base.replace('</hierarchy>', self.picker_xml().removeprefix('<hierarchy>'))
+        frames = iter([base] * 4 + [self.picker_xml(), self.picker_xml(include_done=True),
+            '<hierarchy><node package="' + native.APP + '" /></hierarchy>'])
+        reads, taps = [], []
+        def adb(*args, **kwargs):
+            if args[:2] == ('exec-out', 'cat'):
+                reads.append(clock[0]); return next(frames)
+            if args[:3] == ('shell', 'input', 'tap'):
+                taps.append(args[3:])
+                if args[3:] == (180, 290) and len(taps) == 2:
+                    self.assertEqual(len(reads), 4)
+                    self.assertGreaterEqual(clock[0], reads[2] + .7)
+            return ''
+        self.probe.adb = Mock(side_effect=adb); self.probe.tap, self.probe.wait = Mock(), Mock()
+        self.probe.photo_picker()
+        self.assertEqual(taps, [(180, 290), (180, 290), (20, 20), (100, 200)])
+        self.assertEqual(self.probe.report['os_photo_selection_observation']['downloads_navigation_attempts'], 2)
+        self.probe.wait.assert_called_once_with('صور الإعلان (1/12)', seconds=30)
+
+    def test_os_picker_changed_or_missing_drawer_after_first_tap_never_authorizes_second_tap(self):
+        clock = self.stability_clock(); base = self.picker_drawer_xml()
+        changed_frames = [self.picker_drawer_xml(download_changes={'bounds': '[20,280][360,320]'}),
+            self.picker_drawer_xml(root_changes={'class': 'OTHER_ROOT_CLASS'}),
+            self.picker_drawer_xml(roots=2), self.picker_drawer_xml(downloads=2),
+            self.picker_drawer_xml(roots=0), '<hierarchy/>',
+            '<hierarchy><node package="com.example.foreign" /></hierarchy>']
+        for changed in changed_frames:
+            clock[0] = 0
+            frames = iter([base, base, changed])
+            self.probe.adb = Mock(side_effect=lambda *a, **kw:
+                next(frames, base) if a[:2] == ('exec-out', 'cat') else '')
+            self.probe.tap, self.probe.wait = Mock(), Mock()
+            with self.subTest(changed=changed), self.assertRaisesRegex(native.Blocked,
+                    '^genuine_os_photo_selection_not_observed$'):
+                self.probe.photo_picker()
+            taps = [c.args[3:] for c in self.probe.adb.call_args_list
+                    if c.args[:3] == ('shell', 'input', 'tap')]
+            self.assertEqual(taps, [(180, 290)])
+            self.assertEqual(clock[0], 45)
+            self.assertEqual(self.probe.report['os_photo_selection_failure']['downloads_navigation_attempts'], 1)
+
+    def test_os_picker_downloads_transport_uncertainty_never_retries(self):
+        clock = self.stability_clock(); base = self.picker_drawer_xml(); taps = []
+        def adb(*args, **kwargs):
+            if args[:2] == ('exec-out', 'cat'): return base
+            if args[:3] == ('shell', 'input', 'tap'):
+                taps.append(args[3:])
+                raise native.Blocked('device_command_timeout')
+            return ''
+        self.probe.adb = Mock(side_effect=adb); self.probe.tap, self.probe.wait = Mock(), Mock()
+        with self.assertRaisesRegex(native.Blocked, '^device_command_timeout$'):
+            self.probe.photo_picker()
+        self.assertEqual(taps, [(180, 290)])
         self.probe.wait.assert_not_called()
 
     def test_os_picker_ambiguous_targets_remain_readonly_and_counts_are_capped(self):
@@ -2652,6 +3005,7 @@ class NativeAccountSafetyTest(unittest.TestCase):
         self.assertEqual(self.probe.report['os_photo_selection_failure'],{
             'roots_matches':0,'scoped_downloads_matches':0,'file_matches':0,'drawer_attempted':False,
             'downloads_attempted':False,'downloads_stable_observed':False,
+            'downloads_navigation_attempts':0,
             'file_tap_returned':True,'final_sent':True,'app_returned':False})
         self.probe.wait.assert_not_called()
         self.assertNotIn('os_photo_selection_observation', self.probe.report)

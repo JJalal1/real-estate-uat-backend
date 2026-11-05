@@ -19,7 +19,7 @@ BASE = 'dfe667fa6607f031a44a40a5020ce6678b716019'
 REF = 'refs/heads/work/phase1-close-20261103'
 MOBILE_TREE = 'ef562ae410023046b4abee283f09707051a0e7b6'
 RECIPIENT = '.github/phase1-close-recipient.pem'
-RECIPIENT_SHA256 = '688132b02067f2469726c843083c4cefe9aea9bec286a161d802707ce7ead1fd'
+RECIPIENT_SHA256 = 'd89fadfb4b63fec9e4aedf2d3a4edde876250b0cc9b99014fbbf71cc870799aa'
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 ALLOWED = {
     RECIPIENT, '.github/workflows/phase1-close.yml',

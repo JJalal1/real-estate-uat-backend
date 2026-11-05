@@ -269,11 +269,58 @@ class OwnerKernelTests(unittest.TestCase):
         self.session = self.make_session()
         self.controller.session = self.session
 
-    def make_session(self, packager=None):
+    def make_session(self, packager=None, budget=None):
         return owner.OwnerSession(root=Path(self.temp.name), controller=self.controller,
             channel=self.channel, packager=packager or self.packager, job_key=self.job,
             root_public=self.root.public_key(), checkpoint_io=self.io,
-            budget=owner.Budget(work_seconds=600, cleanup_seconds=60, hold_seconds=30, poll_seconds=5), clock=self.clock)
+            budget=budget or owner.Budget(work_seconds=600, cleanup_seconds=60, hold_seconds=30, poll_seconds=5), clock=self.clock)
+
+    def extended_review_session(self):
+        self.session = self.make_session(budget=owner.Budget(
+            work_seconds=600, cleanup_seconds=60, hold_seconds=900, poll_seconds=5))
+        self.controller.session = self.session
+
+    def test_extended_review_wait_accepts_a_new_fresh_signature_after_visual_review(self):
+        self.extended_review_session()
+        original = self.channel.poll.side_effect
+        def reviewed_later(seq):
+            self.assertIsNone(self.session.active_authority)
+            self.assertNotIn('advance', self.controller.events)
+            self.clock.value += 400
+            return original(seq)
+        self.channel.poll.side_effect = reviewed_later
+        result = self.session.run()
+        self.assertTrue(result.collected)
+        self.assertTrue(result.cleanup_confirmed)
+        self.assertEqual(self.controller.events.count('advance'), 1)
+
+    def test_extended_review_wait_does_not_renew_an_expired_signature(self):
+        self.extended_review_session()
+        original = self.channel.poll.side_effect
+        cached = []
+        def expired(seq):
+            if not cached:
+                cached.append(original(seq))
+                self.clock.value += 400
+            return cached[0]
+        self.channel.poll.side_effect = expired
+        result = self.session.run()
+        self.assertFalse(result.collected)
+        self.assertNotIn('advance', self.controller.events)
+        self.assertTrue(result.cleanup_confirmed)
+        self.assertIn(('COMMAND_REFUSED', 1), self.io.statuses)
+
+    def test_extended_review_wait_cannot_extend_the_overall_work_deadline(self):
+        self.extended_review_session()
+        original = self.channel.poll.side_effect
+        def past_work_budget(seq):
+            self.clock.value += 601
+            return original(seq)
+        self.channel.poll.side_effect = past_work_budget
+        result = self.session.run()
+        self.assertFalse(result.collected)
+        self.assertNotIn('advance', self.controller.events)
+        self.assertTrue(result.cleanup_confirmed)
 
     def test_same_owner_keeps_fixture_sequence_and_reserves_before_active_grant(self):
         def advance(review):
@@ -311,6 +358,26 @@ class OwnerKernelTests(unittest.TestCase):
         self.assertEqual(self.controller.stop_writers.call_args.kwargs['deadline'], 60)
         self.assertFalse(result.collected)
         self.assertNotIn('SYNTHETIC_PRIVATE_ERROR', repr(result))
+
+    def test_initial_failure_retains_stage_without_private_exception_values(self):
+        private_value = 'SYNTHETIC_PRIVATE_ERROR_DO_NOT_EXPORT'
+        def failing_initial():
+            raise RuntimeError(private_value)
+        self.controller.initial_c1 = failing_initial
+        result = self.session.run()
+        terminal = self.packager.records[-1]['stage']['postconditions']
+        diagnostic = terminal['failure_location']
+        self.assertEqual(diagnostic['operation'], 'initial_c1')
+        self.assertEqual(diagnostic['exception_type'], 'RuntimeError')
+        self.assertTrue(diagnostic['source_frames'])
+        self.assertTrue(all(set(frame) == {'file', 'line', 'function'} for frame in diagnostic['source_frames']))
+        self.assertNotIn(private_value, json.dumps(terminal))
+        self.assertFalse(result.collected)
+        self.assertEqual(self.controller.events.count('cleanup'), 1)
+
+    def test_success_keeps_failure_location_empty(self):
+        self.assertTrue(self.session.run().collected)
+        self.assertIsNone(self.packager.records[-1]['stage']['postconditions']['failure_location'])
 
     def test_repeated_stop_during_cleanup_never_revokes_cleanup_lease(self):
         def cleanup(*, deadline):

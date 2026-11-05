@@ -41,7 +41,7 @@ class OwnedApi36Vm:
     def __init__(self, env):
         require(env.get('GITHUB_ACTIONS') == 'true' and
                 env.get('GITHUB_REPOSITORY') == 'JJalal1/real-estate-uat-backend' and
-                env.get('GITHUB_REF') == 'refs/heads/work/phase1-native-account-20261103' and
+                env.get('GITHUB_REF') == 'refs/heads/work/phase1-completion-20261105' and
                 env.get('GITHUB_EVENT_NAME') == 'push' and
                 re.fullmatch('[a-f0-9]{40}', env.get('GITHUB_SHA', '')) is not None and
                 env.get('SOURCE_COMMIT') == env.get('GITHUB_SHA') and
