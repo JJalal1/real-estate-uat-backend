@@ -411,7 +411,18 @@ class PropertyController extends Controller
             $identity=array_merge(['purpose'=>$property->purpose,'type'=>$property->type,'latitude'=>$property->latitude,'longitude'=>$property->longitude,'area_m2'=>$property->area_m2,'bedrooms'=>$property->bedrooms,'bathrooms'=>$property->bathrooms,'address'=>$property->address],$validated);
             if ((int) $property->listing_input_version >= 6) $identity = array_merge($this->listingState($property), $validated);
             $asset=$this->identity->resolveOrCreateAsset($user,$identity,$property->propertyAsset);$property->property_asset_id=$asset->id;
-            $property->status='draft';$property->review_status='draft';$property->submitted_at=null;$property->reviewed_at=null;$property->last_review_reason=null;if($wasPublished)$property->published_at=null;$property->save();$this->syncLocation($property);
+            $property->status = 'draft';
+            if ($property->review_status !== 'returned_for_correction') {
+                $property->review_status = 'draft';
+                $property->submitted_at = null;
+                $property->reviewed_at = null;
+                $property->last_review_reason = null;
+            }
+            if ($wasPublished) {
+                $property->published_at = null;
+            }
+            $property->save();
+            $this->syncLocation($property);
             if($replaceImages)$property->images()->delete();if($request->hasFile('images'))$this->storeImages($request,$property,$property->images()->count(),$storedPublic);$this->storeProofDocuments($request,$property,$user,$storedPrivate);app(\App\Services\ListingEditorDraftService::class)->attach($request,$property);
             $this->audit->record($user,$wasPublished?'listing.published_edit_moved_to_draft':'listing.updated',$property,['changed_fields'=>array_values(array_keys($validated)),'replace_images'=>$replaceImages,'property_asset_id'=>$asset->id],$request,$user->id);
             return $property->fresh(['images','documents','propertyAsset']);
@@ -421,7 +432,10 @@ class PropertyController extends Controller
             $property = $this->workflow->submit($user, $property, $request);
             return response()->json(['message'=>'Listing updates submitted for support review.','data'=>$this->detailData($property,$request)]);
         }
-        return response()->json(['message'=>'Listing saved as draft and requires review before publication.','data'=>$this->detailData($property,$request)]);
+        $message = $property->review_status === 'returned_for_correction'
+            ? 'Listing correction saved. Resubmit it for support review when ready.'
+            : 'Listing saved as draft and requires review before publication.';
+        return response()->json(['message' => $message, 'data' => $this->detailData($property, $request)]);
     }
 
     public function destroy(Request $request, Property $property): JsonResponse
