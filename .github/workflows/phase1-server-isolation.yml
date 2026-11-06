@@ -1,0 +1,103 @@
+name: Phase1 UAT server-side support isolation
+on:
+  push:
+    branches: [work/phase1-server-isolation-20261106]
+    paths: [.github/workflows/phase1-server-isolation.yml]
+permissions:
+  contents: read
+jobs:
+  regular-role:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase1-server-isolation-20261106' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: d3eacc6986827862a0f129ad973a9a13842a9938
+          persist-credentials: false
+      - name: Verify the ordinary UAT role receives HTTP 403 from both support routes
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          test "$(git rev-parse HEAD)" = d3eacc6986827862a0f129ad973a9a13842a9938 || exit 1
+          python3 -B - <<'PY'
+          import json
+          import os
+          import sys
+          import time
+
+          sys.path[:0] = ['scripts', 'scripts/phase1_bridge/controller']
+          from bounded_api import DeadlineTransport
+          from phase1_native_account_readiness import validate_access
+
+          checks = {}
+          phase = 'secure_channel'
+          token = None
+          verdict = 'BLOCKED'
+          reason = 'incomplete'
+          deadline = time.monotonic() + 135
+          call = DeadlineTransport(deadline_getter=lambda: deadline)
+          try:
+              access = validate_access(os.environ.pop('AQER_PHASE1_TEST_ACCESS_JSON', ''))
+              phone = access['phones']['regular']
+              otp = access['otp']
+              del access
+              phase = 'uat_health'
+              checks[phase], _, _ = call('GET', '/health')
+              if checks[phase] != 200:
+                  raise RuntimeError
+              phase = 'otp_start'
+              checks[phase], _, _ = call('POST', '/auth/whatsapp/start', {'phone': phone, 'intent': 'login'})
+              if checks[phase] != 200:
+                  raise RuntimeError
+              phase = 'otp_verify'
+              checks[phase], data, _ = call('POST', '/auth/whatsapp/verify', {'phone': phone, 'code': otp})
+              candidate = (data.get('data') or {}).get('token')
+              if isinstance(candidate, str) and candidate:
+                  token = candidate
+              del phone, otp, data, candidate
+              if checks[phase] != 200 or token is None:
+                  raise RuntimeError
+              phase = 'authenticated_regular_role'
+              checks['auth_me'], data, _ = call('GET', '/auth/me', token=token)
+              actor = (data.get('data') or {}).get('user') or {}
+              checks['expected_role'] = (actor.get('id') == 26
+                                         and actor.get('account_type') == 'registered_user')
+              del data, actor
+              if checks['auth_me'] != 200 or not checks['expected_role']:
+                  raise RuntimeError
+              phase = 'support_routes'
+              routes = {
+                  'support_dashboard': '/admin/workspace/dashboard',
+                  'support_tasks_inbox': '/admin/workspace/tasks?scope=inbox',
+              }
+              results = []
+              for label, route in routes.items():
+                  checks[label], _, _ = call('GET', route, token=token)
+                  results.append(checks[label])
+              if results == [403, 403]:
+                  verdict, reason = 'PASS', 'both_routes_refused_authenticated_regular_role'
+              elif any(200 <= code < 300 for code in results):
+                  verdict, reason = 'FAIL', 'support_route_returned_success_for_regular_role'
+              else:
+                  reason = 'unexpected_support_status'
+          except Exception:
+              reason = phase + '_unconfirmed'
+          finally:
+              if token:
+                  deadline = time.monotonic() + 45
+                  try:
+                      checks['logout'], _, _ = call('POST', '/auth/logout', {}, token=token)
+                  except Exception:
+                      checks['logout'] = 'unconfirmed'
+                  try:
+                      checks['revoked_auth_me'], _, _ = call('GET', '/auth/me', token=token)
+                  except Exception:
+                      checks['revoked_auth_me'] = 'unconfirmed'
+                  if verdict == 'PASS' and (checks['logout'], checks['revoked_auth_me']) != (200, 401):
+                      verdict, reason = 'BLOCKED', 'session_cleanup_unconfirmed'
+              print('AQER_PHASE1_SERVER_ISOLATION ' + json.dumps({
+                  'verdict': verdict, 'reason': reason, 'checks': checks,
+              }, sort_keys=True), flush=True)
+          sys.exit(0 if verdict == 'PASS' else 1)
+          PY
