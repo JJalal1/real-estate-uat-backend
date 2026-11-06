@@ -1,0 +1,50 @@
+name: Aqer Phase1 UAT unified backend smoke
+on:
+  push:
+    branches: [work/uat-unified-phase1-20261107]
+    paths:
+      - 'backend-api-runtime/**'
+      - '.github/workflows/phase1-unified-smoke.yml'
+  pull_request:
+    paths:
+      - 'backend-api-runtime/**'
+      - '.github/workflows/phase1-unified-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  backend-scoped:
+    name: Laravel AI and support acceptance regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Configure isolated Laravel tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer install --no-interaction --prefer-dist --no-progress
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+      - name: Syntax-check imported backend tooling
+        run: |
+          php -l app/Console/Commands/UatRoleJourneys.php
+          php -l app/Console/Commands/UatListingAiProbe.php
+          php -l tests/Feature/UatListingAiProbeTest.php
+          php -l tests/Feature/BrokerSupportHttpJourneyTest.php
+      - name: Test UAT AI diagnostic and support contracts
+        run: >-
+          php artisan test
+          tests/Feature/UatListingAiProbeTest.php
+          tests/Feature/BrokerSupportHttpJourneyTest.php
+          tests/Feature/Wave01SharedFiltersTest.php
+          --display-warnings --fail-on-warning --fail-on-risky

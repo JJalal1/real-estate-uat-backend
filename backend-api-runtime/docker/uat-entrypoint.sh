@@ -60,6 +60,9 @@ case "${APP_ENV:-production}" in
       if ! php artisan uat:ai-check; then
         echo "AI provider is unavailable; manual marketplace workflows remain ready."
       fi
+      if ! php artisan uat:listing-ai-check; then
+        echo "Synthetic listing AI probe did not pass; inspect its sanitized diagnostic."
+      fi
     fi
     ;;
 esac
