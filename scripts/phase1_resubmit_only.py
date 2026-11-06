@@ -66,7 +66,8 @@ def create_fixture(session, title, run_id, receipt):
     fields = {
         'title': title, 'description': 'بيانات اصطناعية لاختبار تصحيح إعلان وإعادة إرساله',
         'purpose': 'rent', 'type': 'apartment', 'listing_input_version': '9',
-        'price': '50000', 'currency': 'YER', 'bedrooms': '3', 'bathrooms': '2',
+        'price': '50000', 'monthly_rent': '50000', 'currency': 'YER',
+        'bedrooms': '3', 'bathrooms': '2',
         'has_parking': '0', 'building_facade': 'north', 'floor_number': '2',
         'unit_number': 'RS' + run_id[-6:], 'building_reference': 'اختبار ' + run_id,
         'address': 'المحافظة: صنعاء - المدينة: صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق',
