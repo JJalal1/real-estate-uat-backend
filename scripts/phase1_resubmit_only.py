@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 import time
 from urllib.error import HTTPError
@@ -273,6 +274,30 @@ def use_fallback_and_confirm(probe):
     raise ProofBlocked('zero_platform_sai_confirmation_not_ready')
 
 
+def prepare_android(probe):
+    temp = Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
+    recipe = temp / 'aqer-resubmit-build.sh'
+    need(recipe.is_file() and not recipe.is_symlink(), 'reviewed_build_recipe_required')
+    android = temp / 'aqer-native-account-android'
+    homes = {'ANDROID_USER_HOME': str(android), 'ANDROID_EMULATOR_HOME': str(android),
+             'ANDROID_AVD_HOME': str(android / 'avd')}
+    allowed = {'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'LC_ALL', 'TZ', 'CI',
+               'TMPDIR', 'TEMP', 'TMP', 'JAVA_HOME', 'FLUTTER_ROOT', 'PUB_CACHE', 'ANDROID_HOME',
+               'ANDROID_SDK_ROOT', 'GRADLE_USER_HOME', 'RUNNER_TEMP', 'GITHUB_ACTIONS',
+               'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_EVENT_NAME', 'GITHUB_SHA',
+               'GITHUB_RUN_ID', 'GITHUB_RUN_NUMBER', 'GITHUB_RUN_ATTEMPT', 'SOURCE_COMMIT',
+               'AQER_PHASE1_NATIVE_ACCOUNT', 'AQER_PHASE1_RESUBMIT_ONLY', 'UAT_API_BASE_URL',
+               'QT_QPA_PLATFORM', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'HTTP_PROXY', 'HTTPS_PROXY',
+               'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy'}
+    build_env = {key: value for key, value in os.environ.items() if key in allowed}
+    build_env.update(homes, AQER_ALLOW_DEBUG_RELEASE_SIGNING='true', AQER_PHASE1_RELEASE_UI_TEST='true')
+    result = subprocess.run(['bash', str(recipe)], env=build_env, timeout=18 * 60)
+    need(result.returncode == 0, 'verified_android_preparation_failed')
+    os.environ.update(homes)
+    probe.env.update(homes)
+    return OwnedApi36Vm(build_env)
+
+
 def main():
     env = dict(os.environ)
     guard(env)
@@ -287,38 +312,52 @@ def main():
     support = FixtureApi(access['phones']['support'], access['otp'], run_id)
     probe = NativeAccount(PRIVATE, env)
     probe.private_values.update({access['phones']['support'], access['phones']['support'].lstrip('+')})
-    vm = OwnedApi36Vm(env)
+    vm = None
     receipt = {'scope': 'Android correction and resubmission only', 'status': 'BLOCKED',
                'baseline_source': 'd3eacc6986827862a0f129ad973a9a13842a9938', 'cleanup': {}}
     probe.report['scope'] = receipt['scope']
     probe.report['resubmit'] = receipt
     baseline = property_id = None
-    stage = 'boot'
+    stage = 'authorized_fixture_login'
     try:
-        vm.start()
-        vm.prepare_utc_clock(deadline=time.monotonic() + 90)
-        probe.validate_and_install()
-        probe.startup()
-        stage = 'authorized_fixture_setup'
         login_receipt = {}
         broker._login(login_receipt)
         receipt['broker_api_identity'] = login_receipt['identity']
         login_support(support, access['phones']['support'], access['otp'])
         baseline = broker._snapshot()
         receipt['baseline_before'] = summary(baseline)
+        stage = 'create_fixture'
         property_id = create_fixture(broker, title, run_id, receipt)
         receipt['fixture_property_id'] = property_id
         need(str(property_id) not in baseline['properties'], 'new_fixture_required')
         row = read_listing(broker, property_id, {title})
         need(row.get('review_status') == 'draft' and len(row.get('images', [])) == 1, 'draft_fixture_invalid')
+        stage = 'configure_fixture_platform_fallback'
+        sai = api(broker, 'PUT', f'/properties/{property_id}/sai', body={
+            'sai_payer': 'tenant', 'sai_amount_type': 'percentage', 'broker_sai_rate_percent': 0,
+        })['data']['sai_management']
+        need(sai.get('source_mode') == 'platform_fallback' and sai.get('requested_broker_rate_percent') == 0,
+             'fixture_platform_fallback_unconfirmed')
+        receipt['fixture_platform_fallback'] = True
+        stage = 'initial_fixture_submit'
         submitted = api(broker, 'POST', f'/properties/{property_id}/submit', body={})['data']
         need(submitted.get('id') == property_id and submitted.get('review_status') == 'submitted',
              'initial_fixture_submit_unconfirmed')
+        stage = 'claim_and_return_fixture'
         return_fixture(support, property_id, reason)
         before = read_listing(broker, property_id, {title})
         need(before.get('review_status') == 'returned_for_correction' and before.get('last_review_reason') == reason,
              'returned_fixture_required')
         receipt['before_edit'] = listing_fact(before)
+        probe.save()
+        print('RESUBMIT_FIXTURE_READY', flush=True)
+
+        stage = 'verified_android_preparation'
+        vm = prepare_android(probe)
+        vm.start()
+        vm.prepare_utc_clock(deadline=time.monotonic() + 90)
+        probe.validate_and_install()
+        probe.startup()
 
         stage = 'native_broker_login'
         probe.login()
@@ -392,7 +431,7 @@ def main():
                 cleanup['native_logout'] = probe.report.get('session_logged_out') is True
         except Exception:
             cleanup['native_logout'] = False
-        cleanup['vm'] = vm.close(deadline=time.monotonic() + 45)
+        cleanup['vm'] = vm.close(deadline=time.monotonic() + 45) if vm is not None else {'created': False}
         try:
             if baseline is not None:
                 clean_fixture(broker, support, baseline, property_id, {title, corrected}, cleanup)

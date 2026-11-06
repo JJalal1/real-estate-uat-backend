@@ -78,25 +78,19 @@ jobs:
             ${{ env.GRADLE_USER_HOME }}/caches/modules-2
             ${{ env.GRADLE_USER_HOME }}/wrapper/dists
           key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
-      - name: Build the verified mobile source for this disposable emulator
-        working-directory: mobile_app
-        env:
-          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
-          AQER_PHASE1_RELEASE_UI_TEST: 'true'
-        run: |
-          flutter build apk --flavor uat --release --build-number=1554 \
-            --dart-define=APP_BUILD_NUMBER=1554 --dart-define=APP_ENVIRONMENT=uat \
-            --dart-define=API_BASE_URL="$UAT_API_BASE_URL"
-      - name: Verify APK and prepare one Android API 36 KVM image
+      - name: Prepare the scoped build recipe without executing it
         run: |
           set -euo pipefail
-          test -c /dev/kvm
           python3 -m pip install --disable-pip-version-check Pillow==12.3.0
+          umask 077
+          cat > "$RUNNER_TEMP/aqer-resubmit-build.sh" <<'BASH'
+          set -euo pipefail
+          test -c /dev/kvm
+          (cd mobile_app && flutter build apk --flavor uat --release --build-number=1554 \
+            --dart-define=APP_BUILD_NUMBER=1554 --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL="$UAT_API_BASE_URL")
           python3 -B scripts/prepare_phase1_native_account.py
           sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
-          export ANDROID_USER_HOME="$RUNNER_TEMP/aqer-native-account-android"
-          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
-          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
           mkdir -p "$ANDROID_AVD_HOME"
           avdmanager create avd --force --name aqer-native-account --device pixel \
             --path "$ANDROID_AVD_HOME/aqer-native-account.avd" \
@@ -112,9 +106,8 @@ jobs:
           path.write_text('\n'.join(lines + [key + '=' + value for key, value in selected.items()]) + '\n')
           PY
           sudo chmod 666 /dev/kvm
-          printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' \
-            "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
-      - name: Save a correction and resend the same UAT listing from Android
+          BASH
+      - name: Prepare the returned fixture before building and test Android resubmission
         env:
           AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
           QT_QPA_PLATFORM: offscreen
