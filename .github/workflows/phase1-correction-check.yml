@@ -1,0 +1,67 @@
+name: Phase1 returned listing regression
+on:
+  push:
+    branches: [test/phase1-correction-20261106]
+    paths:
+      - '.github/workflows/phase1-correction-check.yml'
+      - 'backend-api-runtime/app/Http/Controllers/Api/PropertyController.php'
+permissions:
+  contents: read
+concurrency:
+  group: phase1-correction-check
+  cancel-in-progress: false
+jobs:
+  correction:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/test/phase1-correction-20261106'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Reproduce returned state loss and verify the focused correction
+        shell: bash
+        env:
+          BASE_SOURCE: d3eacc6986827862a0f129ad973a9a13842a9938
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SOURCE" HEAD
+          test "$(git rev-parse HEAD:mobile_app)" = ad06237b7aceaaba2ea4833b822d61753244af41
+          key="$(php -r 'echo base64_encode(random_bytes(32));')"
+          printf 'APP_KEY=base64:%s\n' "$key" > .env
+          controller=app/Http/Controllers/Api/PropertyController.php
+          saved="$RUNNER_TEMP/property-controller-corrected.php"
+          cp -- "$controller" "$saved"
+          trap 'cp -- "$saved" "$controller"' EXIT
+          git show "$BASE_SOURCE:backend-api-runtime/$controller" > "$controller"
+          test_case=tests/Feature/Stage9ListingReviewApiTest.php
+          test_method=test_return_for_correction_keeps_reason_while_editing_and_can_be_resubmitted
+          set +e
+          php artisan test "$test_case" --filter "$test_method" --log-junit "$RUNNER_TEMP/correction-before.xml"
+          before=$?
+          set -e
+          cp -- "$saved" "$controller"
+          php -l "$controller"
+          php artisan test "$test_case" --filter "$test_method" --log-junit "$RUNNER_TEMP/correction-after.xml"
+          python3 - "$before" "$RUNNER_TEMP/correction-before.xml" "$RUNNER_TEMP/correction-after.xml" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          before = ET.parse(sys.argv[2])
+          after = ET.parse(sys.argv[3])
+          failures = before.findall('.//failure')
+          assert int(sys.argv[1]) != 0 and len(failures) == 1
+          failure = failures[0].text or ''
+          assert 'returned_for_correction' in failure and "'draft'" in failure
+          assert len(after.findall('.//testcase')) == 1 and not after.findall('.//failure') and not after.findall('.//error') and not after.findall('.//skipped')
+          print('PASS: saved correction retains returned_for_correction and reason; resubmission becomes submitted')
+          PY
