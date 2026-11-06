@@ -19,6 +19,14 @@ BASE_MOBILE_TREE = 'ef562ae410023046b4abee283f09707051a0e7b6'
 MOBILE_TREE = 'ad06237b7aceaaba2ea4833b822d61753244af41'
 BACKEND_TREE = 'b569691cd06df69a2181291f43b419a46400f244'
 VERSION_BASE = 1466
+RESUBMIT_REF = 'refs/heads/test/phase1-correction-20261106'
+RESUBMIT_BASE = 'd3eacc6986827862a0f129ad973a9a13842a9938'
+RESUBMIT_FILES = {
+    '.github/workflows/phase1-resubmit-only.yml',
+    'scripts/phase1_resubmit_only.py',
+    'scripts/prepare_phase1_native_account.py',
+    'scripts/phase1_bridge/runtime/owned_vm.py',
+}
 API = close.API
 PRIVATE = ROOT / 'phase1-native-account-private'
 EVIDENCE = ROOT / 'phase1-native-account-evidence'
@@ -118,9 +126,11 @@ def digest(path):
 
 
 def guard(env):
+    resubmit = env.get('AQER_PHASE1_RESUBMIT_ONLY') == 'true'
+    expected_ref = RESUBMIT_REF if resubmit else REF
     if not (env.get('GITHUB_ACTIONS') == 'true'
             and env.get('GITHUB_REPOSITORY') == 'JJalal1/real-estate-uat-backend'
-            and env.get('GITHUB_REF') == REF and env.get('GITHUB_EVENT_NAME') == 'push'
+            and env.get('GITHUB_REF') == expected_ref and env.get('GITHUB_EVENT_NAME') == 'push'
             and env.get('AQER_PHASE1_NATIVE_ACCOUNT') == 'true'
             and re.fullmatch('[a-f0-9]{40}', env.get('GITHUB_SHA', ''))
             and env.get('SOURCE_COMMIT') == env.get('GITHUB_SHA')
@@ -129,16 +139,21 @@ def guard(env):
         raise RuntimeError('explicit_native_account_ci_context_required')
     if text(['git', 'rev-parse', 'HEAD']) != env['SOURCE_COMMIT']:
         raise RuntimeError('native_account_source_checkout_mismatch')
-    changes = set(text(['git', 'diff', '--name-only', BASE, 'HEAD']).splitlines())
-    if not changes or changes - ALLOWED:
-        raise RuntimeError('native_account_source_scope_mismatch')
+    if resubmit:
+        changes = set(text(['git', 'diff', '--name-only', RESUBMIT_BASE, 'HEAD']).splitlines())
+        if changes != RESUBMIT_FILES:
+            raise RuntimeError('resubmit_only_source_scope_mismatch')
+    else:
+        changes = set(text(['git', 'diff', '--name-only', BASE, 'HEAD']).splitlines())
+        if not changes or changes - ALLOWED:
+            raise RuntimeError('native_account_source_scope_mismatch')
     for component, expected, baseline in [('mobile_app', MOBILE_TREE, BASE_MOBILE_TREE),
                                            ('backend-api-runtime', BACKEND_TREE, BACKEND_TREE)]:
         if text(['git', 'rev-parse', 'HEAD:' + component]) != expected:
             raise RuntimeError('native_account_product_component_changed')
         if text(['git', 'rev-parse', BASE + ':' + component]) != baseline:
             raise RuntimeError('native_account_base_component_changed')
-    text(['git', 'diff', '--exit-code', 'HEAD', '--', *sorted(ALLOWED),
+    text(['git', 'diff', '--exit-code', 'HEAD', '--', *sorted(ALLOWED | (RESUBMIT_FILES if resubmit else set())),
           'mobile_app/lib', 'mobile_app/android', 'mobile_app/assets', 'mobile_app/pubspec.yaml',
           'backend-api-runtime'])
     recipient = ROOT / close.RECIPIENT
@@ -147,7 +162,7 @@ def guard(env):
     run(['openssl', 'x509', '-in', recipient, '-noout', '-checkend', '600'])
     return {'source_commit': env['SOURCE_COMMIT'], 'source_parent': BASE,
             'ci_run_id': env['GITHUB_RUN_ID'], 'ci_run_number': int(env['GITHUB_RUN_NUMBER']),
-            'version_code': VERSION_BASE + int(env['GITHUB_RUN_NUMBER']),
+            'version_code': 1554 if resubmit else VERSION_BASE + int(env['GITHUB_RUN_NUMBER']),
             'product_trees': {'mobile_app': MOBILE_TREE, 'backend-api-runtime': BACKEND_TREE},
             'product_base_trees': {'mobile_app': BASE_MOBILE_TREE, 'backend-api-runtime': BACKEND_TREE},
             'recipient_sha256': close.RECIPIENT_SHA256,
