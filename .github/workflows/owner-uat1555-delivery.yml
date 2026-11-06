@@ -29,6 +29,7 @@ jobs:
         with:
           ref: ${{ env.UAT_SOURCE }}
           path: candidate
+          fetch-depth: 0
           persist-credentials: false
       - name: Verify the reviewed source and UAT readiness
         run: |
