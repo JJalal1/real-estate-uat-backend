@@ -1,0 +1,116 @@
+name: Phase1 remove the verified resubmission fixture
+on:
+  push:
+    branches: [test/phase1-cleanup-105-20261106]
+    paths: ['.github/workflows/phase1-cleanup-105.yml']
+permissions:
+  contents: read
+concurrency:
+  group: phase1-resubmit-only
+  cancel-in-progress: false
+jobs:
+  cleanup:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/test/phase1-cleanup-105-20261106'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Verify the cleanup source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = d011496cb99e8adbe028ce978665824975781c17
+          test "$(git diff --name-only HEAD^ HEAD)" = .github/workflows/phase1-cleanup-105.yml
+          test "$(git rev-parse HEAD:mobile_app)" = ad06237b7aceaaba2ea4833b822d61753244af41
+          test "$(git rev-parse HEAD:backend-api-runtime)" = b569691cd06df69a2181291f43b419a46400f244
+          python3 -m pip install --disable-pip-version-check --quiet Pillow==11.3.0
+      - name: Clean only listing 105 and its test drafts
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          python3 -B - <<'PY'
+          import json
+          import os
+          import sys
+          import uuid
+
+          sys.path.insert(0, 'scripts')
+          from phase1_resubmit_only import (
+              API, SECRET_NAME, FixtureApi, api, clean_fixture, list_rows, login_support,
+              need, read_listing, safe_reason, summary, validate_access,
+          )
+
+          run = '42155299597'
+          property_id = 105
+          title = 'اختبار التصحيح AQER-RS-' + run
+          titles = (title, title + ' بعد التعديل')
+          expected = {
+              'properties': {'count': 25, 'sha256': '0abc8495cae3cdcabe4f9d00c4e732e7c1e63140175646008e8fe9ded1995cd6'},
+              'drafts': {'count': 7, 'sha256': '8f10dc0a80fae8813d68c4b88d36e279a25353bd40071cd198c786deb96c5051'},
+          }
+          need(API == 'https://real-estate-uat-api-frankfurt.onrender.com/api', 'expected_uat_required')
+          access = validate_access(os.environ[SECRET_NAME])
+          broker = FixtureApi(access['phones']['broker'], access['otp'], run)
+          support = FixtureApi(access['phones']['support'], access['otp'], run)
+          receipt = {'status': 'BLOCKED', 'property_id': property_id, 'source_run': run}
+          stage = 'login_authorized_actors'
+          try:
+              broker._login({})
+              login_support(support, access['phones']['support'], access['otp'])
+              stage = 'pin_exact_synthetic_listing'
+              current = read_listing(broker, property_id, titles)
+              need(current['title'] == titles[1] and current['status'] == 'pending'
+                   and current['review_status'] == 'submitted' and len(current['images']) == 1,
+                   'exact_pending_resubmission_fixture_required')
+              history = api(support, 'GET', f'/admin/listing-review/listings/{property_id}')['data']
+              need(history['id'] == property_id and history['submitted_at'] == '2026-11-06T03:24:36+00:00'
+                   and any(item['id'] == 138 and item['action'] == 'submitted'
+                           and item['from'] == 'returned_for_correction' and item['to'] == 'submitted'
+                           for item in history['review_history']), 'verified_resend_history_required')
+              stage = 'pin_protected_baseline'
+              baseline = broker._snapshot()
+              need(baseline['properties'].pop(str(property_id), None) is not None, 'owned_listing_missing')
+              for draft in list_rows(broker, '/listing-editor-drafts'):
+                  payload = draft.get('payload')
+                  exact_title = (isinstance(payload, dict) and payload.get('title') in titles)
+                  if draft.get('property_id') == property_id or (draft.get('property_id') is None and exact_title):
+                      key = draft['key']
+                      need(str(uuid.UUID(key)) == key and key in baseline['drafts'], 'exact_test_draft_key_required')
+                      del baseline['drafts'][key]
+              need(summary(baseline) == expected, 'protected_baseline_diff_before_cleanup')
+              receipt['prior_baseline_matched'] = True
+              stage = 'delete_owned_test_fixture'
+              clean_fixture(broker, support, baseline, property_id, titles, receipt)
+              receipt.pop('baseline_after')
+              receipt['protected_counts'] = {kind: fact['count'] for kind, fact in expected.items()}
+          except Exception as error:
+              receipt.update(status='BLOCKED', stage=stage, reason=safe_reason(error))
+          finally:
+              for role, session in [('broker', broker), ('support', support)]:
+                  evidence = {}
+                  session._logout(evidence)
+                  receipt[role + '_api_session'] = evidence
+                  session.clear_credentials()
+
+          passed = receipt['status'] == 'PASS' and all(
+              receipt[role + '_api_session'].get('fresh_session_cleaned') is True for role in ('broker', 'support'))
+          if not passed:
+              receipt['status'] = 'BLOCKED'
+          print('AQER_PHASE1_RESUBMIT_CLEANUP ' + json.dumps(receipt, sort_keys=True))
+          with open('PHASE1_RESUBMIT_CLEANUP.json', 'w', encoding='utf-8') as file:
+              json.dump(receipt, file, indent=2, sort_keys=True)
+          sys.exit(0 if passed else 1)
+          PY
+      - name: Save the sanitized cleanup receipt
+        if: ${{ !cancelled() && hashFiles('PHASE1_RESUBMIT_CLEANUP.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-resubmission-cleanup-receipt
+          path: PHASE1_RESUBMIT_CLEANUP.json
+          retention-days: 7
