@@ -199,34 +199,90 @@ def names(rows):
     return set().union(*(labels(row) for row in rows))
 
 
-def inside(outer, inner):
-    return outer[0] <= inner[0] < inner[2] <= outer[2] and outer[1] <= inner[1] < inner[3] <= outer[3]
-
-
 def overlap(first, second):
     return max(first[0], second[0]) < min(first[2], second[2]) and max(first[1], second[1]) < min(first[3], second[3])
 
 
-def card_control(probe, title, control, *, clickable):
-    probe.seek(title, attempts=5)
-    for attempt in range(5):
+def leaves(rows):
+    return [row for row in rows if not any(other['path'].startswith(row['path'] + '.') for other in rows)]
+
+
+def unique_control(rows, label, *, clickable):
+    matched = [row for row in rows if label in labels(row) and row.get('enabled')]
+    direct = [row for row in matched if row.get('clickable') or row['class'] == 'android.widget.Button']
+    if not clickable:
+        direct = matched
+    elif not direct:
+        direct = [row for row in rows if row.get('clickable') and row.get('enabled')
+                  and any(item['path'].startswith(row['path'] + '.') for item in matched)]
+    candidates = leaves(direct)
+    need(len({tuple(row['bounds']) for row in candidates}) <= 1, 'ambiguous_native_control_bounds')
+    return candidates[0] if candidates else None
+
+
+def stable_tap(probe, select):
+    # Reattaching the input helper changed the account node's pointer witness
+    # before dispatch in run 42153305550. Use two fresh matching observations
+    # and one ordinary Android shell tap, with a separate UI/API postcondition.
+    previous = None
+    until = time.monotonic() + 12
+    while time.monotonic() < until:
         rows = app_rows(probe)
-        need('عقاراتي' in names(rows), 'own_listings_surface_required')
-        anchors = [row for row in rows if title in labels(row)]
-        anchors = [row for row in anchors if not any(other['path'].startswith(row['path'] + '.')
-                                                    for other in anchors)]
-        need(len(anchors) == 1, 'unique_fixture_card_required')
-        fab = [row['bounds'] for row in rows if 'إضافة عقار' in labels(row) and row.get('clickable')]
-        options = [row for row in rows if control in labels(row) and row.get('enabled')
-                   and (not clickable or row.get('clickable'))
-                   and inside(anchors[0]['bounds'], row['bounds'])
-                   and (not clickable or not any(overlap(row['bounds'], box) for box in fab))]
-        options = [row for row in options if not any(other['path'].startswith(row['path'] + '.')
-                                                    for other in options)]
-        if len(options) == 1:
-            return options[0]
-        need(not options, 'ambiguous_fixture_card_action')
-        if attempt < 4:
+        need(probe.authenticated and not names(rows) & AUTH_LABELS, 'authenticated_input_surface_required')
+        target = select(rows)
+        box = tuple(target['bounds']) if target is not None else None
+        if box is not None and box == previous:
+            left, top, right, bottom = box
+            need(0 <= left < right <= 540 and 0 <= top < bottom <= 960
+                 and right - left > 8 and bottom - top > 8, 'safe_native_pointer_bounds_required')
+            probe.adb('shell', 'input', 'tap', str((left + right) // 2), str((top + bottom) // 2))
+            return
+        previous = box
+        time.sleep(.3)
+    raise ProofBlocked('stable_exact_native_control_not_observed')
+
+
+def tap(probe, label, *, seek=False):
+    if seek:
+        probe.seek(label, attempts=5)
+    stable_tap(probe, lambda rows: unique_control(rows, label, clickable=True))
+
+
+def card_control(rows, title, other_titles, control, *, reason=None):
+    if 'عقاراتي' not in names(rows):
+        return None
+    anchor = unique_control(rows, title, clickable=False)
+    if anchor is None:
+        return None
+    start = anchor['bounds'][1]
+    end = min((row['bounds'][1] for row in rows
+               if row['bounds'][1] > start and labels(row) & other_titles), default=960)
+    if reason is not None:
+        marker = unique_control(rows, reason, clickable=False)
+        if marker is None or not start <= marker['bounds'][1] < end:
+            return None
+        start = marker['bounds'][1]
+        end = min(end, marker['bounds'][3] + 155)
+    else:
+        end = min(end, start + 270)
+    scoped = [row for row in rows if start <= row['bounds'][1] < end]
+    target = unique_control(scoped, control, clickable=reason is not None)
+    if target is not None and reason is not None and any(
+            overlap(row['bounds'], target['bounds']) for row in rows
+            if 'إضافة عقار' in labels(row) and row.get('clickable')):
+        return None
+    return target
+
+
+def reveal_card_control(probe, title, select):
+    probe.seek(title, attempts=6)
+    for attempt in range(7):
+        rows = app_rows(probe)
+        need('عقاراتي' in names(rows) and unique_control(rows, title, clickable=False),
+             'same_fixture_card_required_during_reveal')
+        if select(rows) is not None:
+            return
+        if attempt < 6:
             probe.scroll('forward', short=True)
     raise ProofBlocked('fixture_card_action_not_visible')
 
@@ -254,8 +310,12 @@ def frame(probe, name, required):
 
 def use_fallback_and_confirm(probe):
     probe.wait('تحديد السعي قبل إرسال الإعلان')
-    probe.tap('نسبة مئوية %', seek=False)
-    probe.set('نسبة السعي %', '0')
+    rate_label = 'نسبة السعي %'
+    if not probe.has(rate_label):
+        tap(probe, 'نسبة مئوية %')
+        probe.wait(rate_label)
+    if probe.field(rate_label, seek=False).get('text', '').strip() not in {'0', '٠'}:
+        probe.set(rate_label, '0')
     until = time.monotonic() + 12
     while time.monotonic() < until:
         rows = app_rows(probe)
@@ -265,10 +325,10 @@ def use_fallback_and_confirm(probe):
              all(labels(row) == {'رفض'} and row.get('class') == 'android.view.View' and
                  row.get('editable') is False for row in rejects), 'custom_sai_decision_refused')
         notices = [s for s in observed if re.fullmatch(r'اختيار 0% يفعّل السعي الثابت [0-9]+% تلقائيًا\.', s)]
-        field = probe.field('نسبة السعي %', seek=False)
+        field = probe.field(rate_label, seek=False)
         if len(notices) == 1 and field.get('text', '').strip() in {'0', '٠'} and \
                 {'تحديد السعي قبل إرسال الإعلان', 'تأكيد السعي والمتابعة', 'العودة بدون إرسال'} <= observed:
-            probe.tap('تأكيد السعي والمتابعة', seek=False)
+            tap(probe, 'تأكيد السعي والمتابعة')
             return
         time.sleep(.5)
     raise ProofBlocked('zero_platform_sai_confirmation_not_ready')
@@ -361,13 +421,20 @@ def main():
 
         stage = 'native_broker_login'
         probe.login()
-        stage = 'open_exact_correction_card'
-        probe.tap('حسابي', seek=False)
-        probe.tap('عقاراتي')
+        stage = 'open_broker_account'
+        if not probe.has('عقاراتي'):
+            tap(probe, 'حسابي')
+        stage = 'open_my_listings'
+        tap(probe, 'عقاراتي', seek=True)
         probe.wait('عقاراتي')
         probe.wait('إضافة عقار', seconds=85)
-        probe.act('click', card_control(probe, title, 'خيارات البطاقة', clickable=True))
-        probe.tap('تصحيح الإعلان', seek=False)
+        other_titles = {row['title'] for row in list_rows(broker, '/properties/mine/list')
+                        if row['id'] != property_id}
+        stage = 'open_exact_correction_card'
+        correction_menu = lambda rows: card_control(rows, title, other_titles, 'خيارات البطاقة', reason=reason)
+        reveal_card_control(probe, title, correction_menu)
+        stable_tap(probe, correction_menu)
+        tap(probe, 'تصحيح الإعلان')
         probe.wait('تعديل الإعلان')
         stage = 'edit_exact_title'
         field = 'عنوان الإعلان *'
@@ -376,12 +443,13 @@ def main():
         probe.require_value(field, corrected)
         frame(probe, 'resubmit-edited-title', {'تعديل الإعلان', corrected})
         stage = 'save_correction'
-        for _ in range(3):
+        for step in range(1, 4):
             if probe.has('خيارات المسودة'):
                 break
-            probe.tap('التالي')
-        probe.tap('خيارات المسودة', seek=False)
-        probe.tap('حفظ مسودة', seek=False)
+            tap(probe, 'التالي')
+            probe.wait(f'{step + 1}/4', seconds=20)
+        tap(probe, 'خيارات المسودة')
+        tap(probe, 'حفظ مسودة')
         edited = await_listing(broker, property_id, {title, corrected}, lambda row: row['title'] == corrected,
                                'native_edit_not_persisted')
         receipt['after_edit'] = listing_fact(edited)
@@ -390,11 +458,12 @@ def main():
         probe.wait('عقاراتي', seconds=85)
         probe.wait('إضافة عقار', seconds=85)
         stage = 'open_resend_confirmation'
-        action = card_control(probe, corrected, 'إعادة الإرسال', clickable=True)
+        resend = lambda rows: card_control(rows, corrected, other_titles, 'إعادة الإرسال', reason=reason)
+        reveal_card_control(probe, corrected, resend)
         frame(probe, 'resubmit-corrected-returned', {corrected, reason, 'إعادة الإرسال'})
-        probe.act('click', action)
+        stable_tap(probe, resend)
         probe.wait('إعادة إرسال الإعلان؟')
-        probe.tap('متابعة', seek=False)
+        tap(probe, 'متابعة')
         stage = 'confirm_resend_platform_fallback'
         use_fallback_and_confirm(probe)
         stage = 'read_server_resubmission'
@@ -417,7 +486,8 @@ def main():
         stage = 'capture_pending_review'
         probe.wait('عقاراتي', seconds=85)
         probe.wait('إضافة عقار', seconds=85)
-        card_control(probe, corrected, 'بانتظار المراجعة', clickable=False)
+        reveal_card_control(probe, corrected,
+                            lambda rows: card_control(rows, corrected, other_titles, 'بانتظار المراجعة'))
         frame(probe, 'resubmit-pending-review', {corrected, 'بانتظار المراجعة'})
         receipt['status'] = 'PASS'
         probe.report['submission_executed'] = True
