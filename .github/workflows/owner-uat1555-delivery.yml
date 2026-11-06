@@ -1,0 +1,126 @@
+name: Package and smoke-test the owner UAT1555 installer
+on:
+  push:
+    branches: [test/uat1555-owner-delivery-20261107]
+    paths:
+      - '.github/workflows/owner-uat1555-delivery.yml'
+      - 'scripts/uat1555_owner_apk.py'
+permissions:
+  contents: read
+concurrency:
+  group: uat1555-owner-delivery
+  cancel-in-progress: false
+env:
+  UAT_SOURCE: cba6e8ea47833d1fcd56ffb695a8d4e35e368e36
+  UAT_API: https://real-estate-uat-api-frankfurt.onrender.com/api
+  UAT_ORIGIN: https://real-estate-uat-api-frankfurt.onrender.com
+  AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+jobs:
+  owner-apk:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/test/uat1555-owner-delivery-20261107'
+    runs-on: ubuntu-latest
+    timeout-minutes: 36
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.UAT_SOURCE }}
+          path: candidate
+          persist-credentials: false
+      - name: Verify the reviewed source and UAT readiness
+        run: |
+          set -euo pipefail
+          test "$(git -C candidate rev-parse HEAD)" = "$UAT_SOURCE"
+          test "$(git -C candidate rev-parse HEAD:mobile_app)" = ad06237b7aceaaba2ea4833b822d61753244af41
+          test -c /dev/kvm
+          curl --fail --silent --show-error --max-time 45 --retry 2 --retry-delay 4 --output /dev/null "$UAT_API/health"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Build the signed UAT APK from the reviewed Flutter tree
+        working-directory: candidate/mobile_app
+        run: |
+          set -euo pipefail
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          flutter build apk --flavor uat --release --no-pub --build-number=1555 \
+            --dart-define=APP_BUILD_NUMBER=1555 --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL="$UAT_API" --dart-define=APP_SHARE_BASE_URL="$UAT_ORIGIN"
+          git diff --exit-code -- lib android assets pubspec.yaml
+      - name: Verify APK identity and encrypt the installer for private delivery
+        run: python3 -B scripts/uat1555_owner_apk.py package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: owner-uat1555-encrypted-${{ github.run_id }}
+          path: owner-apk-sealed/
+          retention-days: 7
+          if-no-files-found: error
+      - name: Prepare one disposable API36 KVM emulator
+        run: |
+          set -euo pipefail
+          sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+          chmod_target="$RUNNER_TEMP/owner-android"
+          mkdir -p "$chmod_target/avd"
+          export ANDROID_USER_HOME="$chmod_target" ANDROID_EMULATOR_HOME="$chmod_target" ANDROID_AVD_HOME="$chmod_target/avd"
+          for name in ANDROID_USER_HOME ANDROID_EMULATOR_HOME ANDROID_AVD_HOME; do
+            printf '%s=%s\n' "$name" "${!name}" >> "$GITHUB_ENV"
+          done
+          avdmanager create avd --force --name aqer-owner-api36 --device pixel \
+            --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-owner-api36.avd/config.ini" <<'PY'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          selected = {'hw.lcd.width': '1080', 'hw.lcd.height': '1920', 'hw.lcd.density': '420', 'showDeviceFrame': 'no'}
+          lines = [line for line in path.read_text().splitlines() if line.split('=', 1)[0].strip() not in selected]
+          path.write_text('\n'.join(lines + [key + '=' + value for key, value in selected.items()]) + '\n')
+          PY
+          sudo chmod 666 /dev/kvm
+          python3 -m pip install --disable-pip-version-check --quiet Pillow==12.3.0
+      - name: Install the exact APK and exercise live UAT
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set -euo pipefail
+          umask 077
+          env -u AQER_PHASE1_TEST_ACCESS_JSON "$ANDROID_HOME/emulator/emulator" \
+            -avd aqer-owner-api36 -port 5554 -no-window -no-audio -no-snapshot -no-boot-anim \
+            -gpu swiftshader -accel on -memory 2048 -cores 2 > "$RUNNER_TEMP/owner-emulator.log" 2>&1 &
+          emulator_pid=$!
+          trap 'adb -s emulator-5554 emu kill >/dev/null 2>&1 || kill "$emulator_pid" 2>/dev/null || true; wait "$emulator_pid" 2>/dev/null || true' EXIT
+          deadline=$((SECONDS+250))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            kill -0 "$emulator_pid"
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = '1' ] &&
+               [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = 'true' ]; then
+              break
+            fi
+            sleep 2
+          done
+          test "$SECONDS" -lt "$deadline"
+          python3 -B scripts/uat1555_owner_apk.py smoke
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && hashFiles('owner-smoke-sealed/SMOKE_RECEIPT.json') != '' }}
+        with:
+          name: owner-uat1555-smoke-encrypted-${{ github.run_id }}
+          path: owner-smoke-sealed/
+          retention-days: 7
+          if-no-files-found: error
