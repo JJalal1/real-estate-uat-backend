@@ -62,7 +62,9 @@ jobs:
               checks['auth_me'], data, _ = call('GET', '/auth/me', token=token)
               actor = (data.get('data') or {}).get('user') or {}
               checks['expected_role'] = (actor.get('id') == 26
-                                         and actor.get('account_type') == 'registered_user')
+                                         and actor.get('account_type') == 'regular'
+                                         and actor.get('roles') == ['registered_user']
+                                         and actor.get('is_platform_owner') is False)
               del data, actor
               if checks['auth_me'] != 200 or not checks['expected_role']:
                   raise RuntimeError
