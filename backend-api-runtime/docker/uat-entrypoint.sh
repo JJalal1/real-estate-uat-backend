@@ -99,4 +99,3 @@ if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-26-109-v5" ]; then
 fi
 
 exec apache2-foreground
-
