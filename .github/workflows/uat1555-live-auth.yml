@@ -1,0 +1,70 @@
+name: Verify the UAT1555 login contract after deployment
+on:
+  push:
+    branches: [test/uat1555-live-auth-20261107]
+    paths: ['.github/workflows/uat1555-live-auth.yml']
+permissions:
+  contents: read
+concurrency:
+  group: uat1555-live-auth
+  cancel-in-progress: false
+jobs:
+  login-contract:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/test/uat1555-live-auth-20261107'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cba6e8ea47833d1fcd56ffb695a8d4e35e368e36
+          persist-credentials: false
+      - name: Check the normal UAT login endpoints and close the test session
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = cba6e8ea47833d1fcd56ffb695a8d4e35e368e36
+          python3 -B - <<'PY'
+          import json
+          import os
+          import sys
+
+          sys.path.insert(0, 'scripts')
+          from phase1_native_account_readiness import SECRET_NAME, validate_access
+          from phase1_native_fixture_api import API, FixtureApi, FixtureError
+
+          receipt = {'status': 'BLOCKED', 'build': 1555,
+                     'deployment': 'dep-dbn6rvt6e07s73dqc9hg',
+                     'source': 'cba6e8ea47833d1fcd56ffb695a8d4e35e368e36'}
+          native = None
+          details = {}
+          authenticated = False
+          try:
+              if API != 'https://real-estate-uat-api-frankfurt.onrender.com/api':
+                  raise RuntimeError('expected_uat_origin_required')
+              config = validate_access(os.environ.pop(SECRET_NAME, ''))
+              native = FixtureApi(config['phones']['broker'], config['otp'], os.environ['GITHUB_RUN_ID'])
+              del config
+              native._login(details)
+              authenticated = True
+          except FixtureError as error:
+              receipt['reason'] = str(error) if str(error).startswith('fixture_') else 'fixture_error'
+          except Exception as error:
+              receipt['reason'] = type(error).__name__
+          finally:
+              if native is not None:
+                  native._logout(details)
+                  native.clear_credentials()
+          receipt.update({
+              'otp_start': details.get('normal_login_start', {}).get('http'),
+              'otp_verify': details.get('normal_login_verify', {}).get('http'),
+              'auth_me': details.get('identity', {}).get('http'),
+              'expected_broker': authenticated,
+              'logout': details.get('logout_http'),
+              'revoked_auth_me': details.get('revoked_token_http'),
+          })
+          if authenticated and details.get('fresh_session_cleaned') is True:
+              receipt['status'] = 'PASS'
+          print('AQER_UAT1555_POSTDEPLOY_AUTH ' + json.dumps(receipt, sort_keys=True))
+          sys.exit(0 if receipt['status'] == 'PASS' else 1)
+          PY
