@@ -1,9 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 37,
-  "challenge": "1ab9dbc60cd8d60027c46b4be1ea19bf5956270a79dc0d7ce7889d229325bbab",
+  "seq": 38,
+  "challenge": "887cd9b2ac5b36335e18c054f843f5465722177d3068d36a4f970e9ee2069dde",
   "op": "tap",
   "args": {
-    "label": "خيارات المسودة"
+    "label": "حفظ مسودة"
   }
 }
