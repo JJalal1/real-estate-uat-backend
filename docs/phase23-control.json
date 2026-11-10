@@ -1,9 +1,7 @@
 {
   "run_id": "42919221669",
-  "seq": 3,
-  "challenge": "bb518a07f642577cf6d941d606a03f2205960b655b4e2998f0be0f356b2c9297",
-  "op": "tap",
-  "args": {
-    "label": "بدء إعلان جديد"
-  }
+  "seq": 4,
+  "challenge": "848f261846644fd54bbca7e9c7a61562ef3dfafc4dd97c99766b50e08999ec3b",
+  "op": "record_start",
+  "args": {}
 }
