@@ -1,9 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 41,
-  "challenge": "76375cc3ff495a2f405fd40b4b435e1850820df49d3059d8b1b80189e5ac5913",
-  "op": "scroll",
+  "seq": 42,
+  "challenge": "83734d9b80dfad6fddf3b5b63ffdbfd221ff9eb52b67ce2412dfa5f2915abc86",
+  "op": "set",
   "args": {
-    "direction": "forward"
+    "label": "رقم الاتصال *",
+    "value": "777000555"
   }
 }
