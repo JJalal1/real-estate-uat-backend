@@ -1,23 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 35,
-  "challenge": "b5f018f4713204925573f302af888e06589ce84e7980fa6b0fe8a49e1c4e3d2b",
-  "op": "batch",
+  "seq": 36,
+  "challenge": "f3e846189a326b5d55c56dfbaba5ab814f0eb2830f4c3a1a89ff2a94a049090a",
+  "op": "api_get",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "متابعة الإعلان"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
-        }
-      }
-    ]
+    "alias": "broker",
+    "path": "/ai/capabilities"
   }
 }
