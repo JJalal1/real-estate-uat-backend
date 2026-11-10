@@ -1,7 +1,22 @@
 {
   "run_id": "42919221669",
-  "seq": 33,
-  "challenge": "64aea8303b9aa8fbda9227015b1436ac9dba6b6adaad9555309e213d527c6ed7",
-  "op": "force_stop",
-  "args": {}
+  "seq": 34,
+  "challenge": "27906a0cd76d606f678e370c299c612e6c0c39905cb2d94b27136e8465b30129",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إضافة عقار"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تعبئة يدوي"
+        }
+      }
+    ]
+  }
 }
