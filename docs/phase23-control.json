@@ -1,29 +1,7 @@
 {
   "run_id": "42919221669",
-  "seq": 1,
-  "challenge": "08a262ec4310e133f8185f9d27032f2392e8c3d16eb56574a0493c739ce092b6",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/auth/me"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إضافة عقار"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تعبئة يدوي"
-        }
-      }
-    ]
-  }
+  "seq": 2,
+  "challenge": "902aa11bb917e3ee6d104944d9c9fa3e004d51e5bf03d9a3e52c847b693e773e",
+  "op": "observe",
+  "args": {}
 }
