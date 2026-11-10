@@ -1,9 +1,7 @@
 {
   "run_id": "42919221669",
-  "seq": 6,
-  "challenge": "69b9fe5f161c2553ee50fc57d1cf5672c95b32178d9239446a0fcbb6a5537b77",
-  "op": "tap",
-  "args": {
-    "label": "تأكيد الموقع على الخريطة"
-  }
+  "seq": 7,
+  "challenge": "e0b56afbf672241fffad95066164a9e518c247479709edcf2407875c45b82e31",
+  "op": "record_stop",
+  "args": {}
 }
