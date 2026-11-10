@@ -1,47 +1,32 @@
 {
   "run_id": "42919221669",
-  "seq": 10,
-  "challenge": "6e4625d048869fc61db7b34e98c26d8d4446840fb6e88e02434355cba0baa1f1",
+  "seq": 11,
+  "challenge": "2d7538541967ea1cc30f5b1e53e78c2b30f46478cac34f9dba51dc896eabd3ba",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "الشقة في الدور *"
+          "label": "لا يوجد"
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "الثاني"
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "موضع الشقة داخل الدور (اختياري)",
-          "value": "شرقية مرحلة23"
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "غرف النوم *",
-          "value": "3"
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "الحمامات *",
-          "value": "2"
+          "label": "واجهة البناء *"
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "موقف سيارة *"
+          "label": "شمالية"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إضافة صور"
         }
       }
     ]
