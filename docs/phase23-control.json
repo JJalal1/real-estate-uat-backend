@@ -1,9 +1,45 @@
 {
   "run_id": "42919221669",
-  "seq": 27,
-  "challenge": "8d758d177e9efb5fff19001804fec1f5beb1f8576246547349d94d8488cacfb7",
-  "op": "tap",
+  "seq": 28,
+  "challenge": "f475340e073e5389ddadf5f4a8787a925ac71f2e05e2e24447df8e168db652fb",
+  "op": "batch",
   "args": {
-    "label": "متابعة التعديل"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "مقدار السعي بالريال اليمني",
+          "value": "10000"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "رقم الاتصال *",
+          "value": "777000555"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
+        }
+      }
+    ]
   }
 }
