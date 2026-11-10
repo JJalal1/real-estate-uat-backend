@@ -13,7 +13,7 @@ permissions:
   contents: read
 concurrency:
   group: phase23-native
-  cancel-in-progress: false
+  cancel-in-progress: ${{ contains(github.event.head_commit.message, '[replace-stalled-native]') }}
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
 jobs:

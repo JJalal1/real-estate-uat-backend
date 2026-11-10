@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import select
 import signal
 import subprocess
 import sys
@@ -219,6 +220,8 @@ class NativeRun:
         (directory / 'PUBLIC_RECEIPT.json').write_bytes(canonical(receipt))
         print(json.dumps({'event': 'checkpoint_ready', 'seq': self.seq,
                           'checkpoint_dir': 'checkpoints/' + str(self.seq).zfill(6)}), flush=True)
+        if not select.select([sys.stdin], [], [], 90)[0]:
+            raise GateError('checkpoint_ack_timeout')
         ack = json.loads(sys.stdin.readline())
         if ack.get('seq') != self.seq or not ack.get('success'):
             raise GateError('checkpoint_upload_unconfirmed')
@@ -341,6 +344,10 @@ class NativeRun:
                 'scope': 'disposable OS picker only; no property upload'}
 
     def cleanup(self):
+        try:
+            self.driver.record_stop(export=False)
+        except Exception:
+            self.report['cleanup']['recorder_stopped'] = False
         for alias, session in self.sessions.items():
             try: self.report['cleanup']['api_' + alias] = session.close()
             except Exception: self.report['cleanup']['api_' + alias] = False

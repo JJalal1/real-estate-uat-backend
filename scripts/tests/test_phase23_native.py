@@ -3,10 +3,13 @@ import sys
 from pathlib import Path
 import unittest
 import tempfile
+import subprocess
+from unittest.mock import Mock
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from run_phase23_native import validate_command, GateError
 from run_phase23_native import NativeRun
+from probe_phase1_native_account import NativeAccount
 
 
 class CommandSafetyTest(unittest.TestCase):
@@ -56,6 +59,16 @@ class CommandSafetyTest(unittest.TestCase):
             self.assertEqual(len(receipt['files']), 3)
             self.assertEqual(len(run.driver.writes), 3)
             self.assertTrue(all(p.startswith('/sdcard/Download/phase23-') for p in run.driver.writes))
+
+    def test_video_recorder_cannot_consume_supervisor_acknowledgements(self):
+        driver = object.__new__(NativeAccount)
+        driver.safe_capture = Mock()
+        driver.recorder = None
+        driver.serial = 'emulator-5554'
+        with patch('probe_phase1_native_account.subprocess.Popen') as launch:
+            driver.record_start('C1-phase23-regression')
+            self.assertEqual(launch.call_args.kwargs['stdin'], subprocess.DEVNULL)
+            self.assertEqual(launch.call_args.kwargs['stdout'], subprocess.DEVNULL)
 
 
 if __name__ == '__main__': unittest.main()
