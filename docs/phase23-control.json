@@ -1,9 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 40,
-  "challenge": "1c80bf1507adb10ca8efd4e02e46281c5a57696e891a3eeb416496fac4519c00",
-  "op": "tap",
+  "seq": 41,
+  "challenge": "76375cc3ff495a2f405fd40b4b435e1850820df49d3059d8b1b80189e5ac5913",
+  "op": "scroll",
   "args": {
-    "label": "معاينة"
+    "direction": "forward"
   }
 }
