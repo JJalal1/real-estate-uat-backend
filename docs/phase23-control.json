@@ -1,10 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 51,
-  "challenge": "ca659ce4f3ca51f3eea766c6785b95e5f0e0b0c17cd3c2b01b3bfaca4ac62bcb",
+  "seq": 52,
+  "challenge": "44e5969078c2f91439cf0fc047b3f7a139c11a825440521c56932516a3754ac7",
   "op": "touch",
   "args": {
-    "x": 466,
-    "y": 1825
+    "x": 310,
+    "y": 1137
   }
 }
