@@ -1,23 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 19,
-  "challenge": "74b5a4cec69de26818f2b50fa1b20ac8c599c3bda0c0c4d0a34ecf83ff4405d2",
-  "op": "batch",
+  "seq": 20,
+  "challenge": "786ecb2dba7c59482b6305644aee5015f9ba6335b07da07492409e7990943e8c",
+  "op": "touch",
   "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إضافة صور"
-        }
-      }
-    ]
+    "x": 540,
+    "y": 350
   }
 }
