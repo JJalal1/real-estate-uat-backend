@@ -1,10 +1,31 @@
 {
   "run_id": "42919221669",
-  "seq": 53,
-  "challenge": "bf8beac57e78d130795edd33fcd3f04894c5e6341c59e1c4b802e8e8bac7993e",
-  "op": "api_get",
+  "seq": 54,
+  "challenge": "93313d47fa0ba9c5bbd8a71e721ba969df116898c0fedbbd9f1296f8b9e2f0e3",
+  "op": "batch",
   "args": {
-    "alias": "broker",
-    "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/properties/106"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/properties/106"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "support",
+          "path": "/admin/listing-review/listings/106"
+        }
+      }
+    ]
   }
 }
