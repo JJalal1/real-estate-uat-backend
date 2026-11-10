@@ -1,0 +1,36 @@
+name: Phase23 bounded UAT readiness
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-preflight.yml
+      - scripts/phase23_preflight.py
+      - scripts/tests/test_phase23_preflight.py
+permissions:
+  contents: read
+concurrency:
+  group: phase23-preflight
+  cancel-in-progress: false
+jobs:
+  readiness:
+    if: github.repository == 'JJalal1/real-estate-uat-backend' && github.ref == 'refs/heads/work/phase23-acceptance-20261111'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check preflight cleanup and redaction
+        run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_preflight.py -v
+      - name: Verify normal UAT access without fixture mutation
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: python3 -B scripts/phase23_preflight.py
+      - name: Preserve the public readiness receipt
+        if: ${{ !cancelled() && hashFiles('phase23-public/PREFLIGHT.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase23-preflight-${{ github.run_id }}
+          path: phase23-public/PREFLIGHT.json
+          retention-days: 30
+          if-no-files-found: error
