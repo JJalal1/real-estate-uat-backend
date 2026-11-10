@@ -1,9 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 57,
-  "challenge": "317a3f5c2e0deab79db887d6bd0c7ad82e21685cf47791e07ac2d57590707766",
-  "op": "tap",
+  "seq": 58,
+  "challenge": "a4a8405255c6cb2f4ca4b320f4165468feb3db3fb47db507d635ba378637b63d",
+  "op": "scroll",
   "args": {
-    "label": "تحقيق الإعلانات"
+    "direction": "forward"
   }
 }
