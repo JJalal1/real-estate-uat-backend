@@ -1,10 +1,24 @@
 {
   "run_id": "42919221669",
-  "seq": 17,
-  "challenge": "790e4967bd293ec341097c045ce9a3457a169d080a89f684ac3a24a1bc5fb7c0",
-  "op": "touch",
+  "seq": 18,
+  "challenge": "96a3a9babbe06de851d52042cd9e4a6f5f54cf6b2d761d85806a6763dc7ce57f",
+  "op": "batch",
   "args": {
-    "x": 210,
-    "y": 665
+    "steps": [
+      {
+        "op": "set",
+        "args": {
+          "label": "وصف العقار",
+          "value": "إعلان تجريبي لاختبارات المرحلة23. شقة شرقية في الدور الثاني بصنعاء، ثلاث غرف نوم وحمامان، بواجهة شمالية ودون موقف سيارة. هذا الإعلان وبياناته غير حقيقية."
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
+        }
+      }
+    ]
   }
 }
