@@ -1,7 +1,9 @@
 {
   "run_id": "42914819054",
-  "seq": 2,
-  "challenge": "6f735ad5008b36433a9dd336253469138bf5aa61fde4ec4546dd5ad7c993932b",
-  "op": "record_start",
-  "args": {}
+  "seq": 3,
+  "challenge": "da7aee931cc63f142847d61010bc34d8ce54df1021cc8cbc6c73cd7332a84757",
+  "op": "tap",
+  "args": {
+    "label": "تعبئة يدوي"
+  }
 }
