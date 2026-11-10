@@ -1,9 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 13,
-  "challenge": "339cfcb158844d8847f56cbcc3140384eaa509212ef173f33f08f75eecd86d89",
-  "op": "key",
+  "seq": 14,
+  "challenge": "2449369a80e742de4af75d0e028486eea42332c6815605df52b0543cda1efccb",
+  "op": "tap",
   "args": {
-    "key": "BACK"
+    "label": "واجهة البناء *"
   }
 }
