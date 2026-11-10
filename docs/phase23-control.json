@@ -1,9 +1,23 @@
 {
   "run_id": "42914819054",
-  "seq": 0,
-  "challenge": "c78adbce8ab852964b86629dffa31257a5550c1ded478b5a5856aaf55dc98e76",
-  "op": "login",
+  "seq": 1,
+  "challenge": "59e82e6d579b7b09981759bbcbfe1d240635e012fc47a465913ce56c647e2a72",
+  "op": "batch",
   "args": {
-    "alias": "broker"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/auth/me"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إضافة عقار"
+        }
+      }
+    ]
   }
 }
