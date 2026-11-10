@@ -1,23 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 39,
-  "challenge": "d8380a7ba600b38402da7973f3884e2ff4ef6a0a9366af69273ddb698edf23d7",
-  "op": "batch",
+  "seq": 40,
+  "challenge": "1c80bf1507adb10ca8efd4e02e46281c5a57696e891a3eeb416496fac4519c00",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "خيارات المسودة"
-        }
-      }
-    ]
+    "label": "معاينة"
   }
 }
