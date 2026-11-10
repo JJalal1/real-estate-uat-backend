@@ -1,10 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 43,
-  "challenge": "b60d3fa01c4a7a0cef245cbae834544ad6b55c25a91d90dc47c2d9355fbaf823",
-  "op": "api_get",
+  "seq": 44,
+  "challenge": "04b9b43ff850f467b7f8b2c68a93e96087017eab1031f70caa7ddfc25fe2787d",
+  "op": "tap",
   "args": {
-    "alias": "broker",
-    "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
+    "label": "خيارات المسودة"
   }
 }
