@@ -31,7 +31,7 @@ CONTROL = 'docs/phase23-control.json'
 REPO = 'JJalal1/real-estate-uat-backend'
 AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المرور', 'البريد الإلكتروني'}
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get',
-       'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch', 'batch', 'finish'}
+       'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch', 'batch', 'seed_media', 'finish'}
 
 
 def canonical(value):
@@ -53,7 +53,7 @@ def validate_command(value, run_id, seq, challenge):
                'api_get': {'alias', 'path'}, 'record_start': set(), 'record_stop': set(),
                'key': {'key'}, 'force_stop': set(), 'touch': {'x', 'y'},
                'swipe': {'x1', 'y1', 'x2', 'y2'}, 'pinch': {'direction', 'x', 'y'},
-               'batch': {'steps'}, 'finish': set()}
+               'batch': {'steps'}, 'seed_media': set(), 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
     if value['op'] == 'set' and args['label'] in AUTH_FIELDS:
@@ -277,6 +277,7 @@ class NativeRun:
     def apply(self, command):
         op, args, d = command['op'], command['args'], self.driver
         if op == 'observe': return {'operation': op}
+        if op == 'seed_media': return self.seed_media()
         if op == 'batch':
             results = []
             for step in args['steps']:
@@ -321,6 +322,24 @@ class NativeRun:
         elif op == 'finish': self.running = False
         return {'operation': op, 'input_delivered': op != 'finish', 'product_acceptance_claimed': False}
 
+    def seed_media(self):
+        # Match the previously proven timing: app startup precedes picker writes.
+        d = self.driver
+        d.require_preauth_runtime()
+        d.adb('shell', 'mkdir', '-p', '/sdcard/Download')
+        files = []
+        for name in ['phase23-property.jpg', 'phase23-rotated-exif.jpg', 'phase23-unsuitable.jpg']:
+            path = PRIVATE / name
+            if not path.is_file(): raise GateError('synthetic_media_source_missing')
+            target = '/sdcard/Download/' + name
+            d.adb('push', path, target, timeout=30)
+            d.adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+                  '-d', 'file://' + target)
+            files.append({'file': name, 'bytes': path.stat().st_size,
+                          'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+        return {'operation': 'seed_media', 'status': 'OBSERVED', 'files': files,
+                'scope': 'disposable OS picker only; no property upload'}
+
     def cleanup(self):
         for alias, session in self.sessions.items():
             try: self.report['cleanup']['api_' + alias] = session.close()
@@ -339,6 +358,11 @@ class NativeRun:
             self.driver.validate_and_install()
             self.driver.startup()
             outcome = {'operation': 'startup', 'status': 'OBSERVED', 'android_api': 36}
+            try:
+                outcome['media_setup'] = self.seed_media()
+            except Exception as error:
+                outcome['media_setup'] = {'status': 'BLOCKED', 'reason': type(error).__name__,
+                                         'scope': 'synthetic picker setup; app journey not yet tested'}
             while self.running and time.monotonic() < self.deadline:
                 self.checkpoint(outcome)
                 command = None

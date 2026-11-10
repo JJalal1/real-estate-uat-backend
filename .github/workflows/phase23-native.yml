@@ -15,7 +15,6 @@ concurrency:
   group: phase23-native
   cancel-in-progress: false
 env:
-  PHASE23_BUILD: '1556'
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
 jobs:
   collector-safety:
@@ -58,6 +57,9 @@ jobs:
           del access
           code,body=http('GET','/properties?per_page=2')
           assert code == 200, 'public_discovery_readiness_required'
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+              env.write('PHASE23_BUILD='+str(1555+int(os.environ['GITHUB_RUN_NUMBER']))+'\n')
+              env.write('GRADLE_USER_HOME='+os.environ['RUNNER_TEMP']+'/aqer-native-account-gradle\n')
           print('AQER_PHASE23_CHANNEL_AND_SOURCE_READY')
           PY
           test -c /dev/kvm
@@ -82,12 +84,13 @@ jobs:
           python3 -m pip install --disable-pip-version-check Pillow==12.3.0 cryptography==50.0.2
           npm ci --ignore-scripts --omit=dev --prefix .github/actions/phase1-review
       - name: Reuse only reviewed public Gradle dependencies
-        uses: actions/cache@v4
+        id: gradle-deps
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
-            ~/.gradle/caches/modules-2
-            ~/.gradle/wrapper/dists
-          key: aqer-phase23-public-gradle-${{ runner.os }}-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
       - name: Build the unchanged accepted application for native acceptance
         working-directory: mobile_app
         env:
@@ -104,6 +107,14 @@ jobs:
           git diff --exit-code -- lib android assets pubspec.yaml
       - name: Verify and encrypt the exact installer
         run: python3 -B scripts/prepare_phase23_native.py
+      - name: Preserve only public dependencies before the native session
+        if: steps.gradle-deps.outputs.cache-hit != 'true' && steps.gradle-deps.outputs.cache-primary-key != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: ${{ steps.gradle-deps.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
           name: phase23-installer-${{ github.run_id }}
@@ -112,6 +123,7 @@ jobs:
           if-no-files-found: error
       - name: Prepare one disposable API36 KVM device
         run: |
+          (cd mobile_app/android && ./gradlew --stop --gradle-user-home "$GRADLE_USER_HOME")
           sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
           export ANDROID_USER_HOME="$RUNNER_TEMP/phase23-android"
           export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
@@ -139,7 +151,7 @@ jobs:
             sleep 2
           done
           test "$SECONDS" -lt "$deadline"
-      - name: Seed only clearly synthetic photo fixtures in the disposable picker
+      - name: Prepare synthetic media before the reviewed native session
         run: |
           python3 -B - <<'PY'
           from pathlib import Path
@@ -162,10 +174,6 @@ jobs:
           for x in range(0,800,40): pen.line((x,0,800-x,600),fill='#ffff00',width=8)
           pen.text((30,30),'SYNTHETIC UNSUITABLE MEDIA TEST',fill='white')
           wrong.save(folder/'phase23-unsuitable.jpg',quality=85)
-          for p in folder.glob('phase23-*.jpg'):
-              target='/sdcard/Download/'+p.name
-              subprocess.run(['adb','-s','emulator-5554','push',str(p),target],check=True)
-              subprocess.run(['adb','-s','emulator-5554','shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file://'+target],check=True)
           PY
       - name: Review and execute bounded UAT native commands
         uses: ./.github/actions/phase1-review
