@@ -122,7 +122,8 @@ function validateReceipt(value, cfg, seq, cipherSize, cipherHash) {
     value.run_attempt === cfg.attempt && value.source_sha === cfg.source &&
     value.toolbundle_sha === cfg.bundle && value.seq === seq && value.phase1_accepted === false,
   'receipt_identity');
-  need(['C1','C4','C2','C5'].includes(value.phase) && typeof value.cursor === 'string' &&
+  const phases = cfg.phase23 ? ['R0','R1','R2','R3','R4','R5','R6'] : ['C1','C4','C2','C5'];
+  need(phases.includes(value.phase) && typeof value.cursor === 'string' &&
     /^[A-Z][A-Z0-9_]{0,63}$/.test(value.cursor), 'receipt_phase');
   need(['fixture_checkpoint','review_checkpoint','terminal_checkpoint'].includes(value.kind) &&
     ((seq === 0 && value.kind === 'fixture_checkpoint') ||
@@ -241,8 +242,9 @@ function configFromEnvironment(env) {
     need(/^[1-9][0-9]*$/.test(raw),'bounded_timeout');
     const n=Number(raw); need(Number.isSafeInteger(n) && n>=min && n<=max,'bounded_timeout');return n;
   };
-  return {root:path.join(env.RUNNER_TEMP,`aqer-phase1-bridge-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`),
-    script:path.join(env.GITHUB_WORKSPACE,OWNER_RELATIVE),runId:env.GITHUB_RUN_ID,
+  const phase23 = env.GITHUB_REF === 'refs/heads/work/phase23-acceptance-20261111';
+  return {root:path.join(env.RUNNER_TEMP,`${phase23 ? 'aqer-phase23' : 'aqer-phase1'}-bridge-${env.GITHUB_RUN_ID}-${env.GITHUB_RUN_ATTEMPT}`),
+    script:path.join(env.GITHUB_WORKSPACE,phase23 ? 'scripts/run_phase23_native.py' : OWNER_RELATIVE),runId:env.GITHUB_RUN_ID,phase23,
     attempt:Number(env.GITHUB_RUN_ATTEMPT),source:env.GITHUB_SHA,bundle:env.AQER_BRIDGE_TOOLBUNDLE_SHA,
     ownerMilliseconds:number('INPUT_OWNER-TIMEOUT-SECONDS',6200,60,7200)*1000,
     cleanupMilliseconds:number('INPUT_CLEANUP-GRACE-SECONDS',180,5,180)*1000};
