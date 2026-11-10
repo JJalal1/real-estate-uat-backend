@@ -1,10 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 15,
-  "challenge": "14a12286dbd73438e509a4ccb02b77fdbe09bc451d5dcfd8d0a8f18586c7c53b",
-  "op": "touch",
+  "seq": 16,
+  "challenge": "f5225ec6f59878b45c9f8903bf4458fcf0a563bd739976dd177a60bf05d39dc6",
+  "op": "tap",
   "args": {
-    "x": 540,
-    "y": 782
+    "label": "إضافة صور"
   }
 }
