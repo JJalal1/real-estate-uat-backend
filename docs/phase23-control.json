@@ -1,10 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 42,
-  "challenge": "83734d9b80dfad6fddf3b5b63ffdbfd221ff9eb52b67ce2412dfa5f2915abc86",
-  "op": "set",
+  "seq": 43,
+  "challenge": "b60d3fa01c4a7a0cef245cbae834544ad6b55c25a91d90dc47c2d9355fbaf823",
+  "op": "api_get",
   "args": {
-    "label": "رقم الاتصال *",
-    "value": "777000555"
+    "alias": "broker",
+    "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
   }
 }
