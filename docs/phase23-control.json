@@ -1,20 +1,21 @@
 {
   "run_id": "42919221669",
-  "seq": 34,
-  "challenge": "27906a0cd76d606f678e370c299c612e6c0c39905cb2d94b27136e8465b30129",
+  "seq": 35,
+  "challenge": "b5f018f4713204925573f302af888e06589ce84e7980fa6b0fe8a49e1c4e3d2b",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "إضافة عقار"
+          "label": "متابعة الإعلان"
         }
       },
       {
-        "op": "tap",
+        "op": "api_get",
         "args": {
-          "label": "تعبئة يدوي"
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
         }
       }
     ]
