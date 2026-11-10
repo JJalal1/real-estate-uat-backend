@@ -1,7 +1,7 @@
 {
   "run_id": "42919221669",
-  "seq": 25,
-  "challenge": "8994362b98b979913ff1e249f01981cd8859949352b0bf2074f21f33e721ae16",
+  "seq": 26,
+  "challenge": "eb8b012e783a848707366afdb49ef5af77df34c4f3e42d29648ee0fe5532ef3d",
   "op": "batch",
   "args": {
     "steps": [
@@ -9,7 +9,14 @@
         "op": "set",
         "args": {
           "label": "الإيجار الشهري بالريال اليمني *",
-          "value": "200000"
+          "value": "175000"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
         }
       },
       {
@@ -20,6 +27,13 @@
         }
       },
       {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
+        }
+      },
+      {
         "op": "set",
         "args": {
           "label": "رقم الاتصال *",
@@ -27,10 +41,10 @@
         }
       },
       {
-        "op": "set",
+        "op": "api_get",
         "args": {
-          "label": "رقم اتصال آخر (اختياري)",
-          "value": ""
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
         }
       }
     ]
