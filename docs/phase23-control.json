@@ -1,9 +1,9 @@
 {
-  "run_id": "42914819054",
-  "seq": 3,
-  "challenge": "da7aee931cc63f142847d61010bc34d8ce54df1021cc8cbc6c73cd7332a84757",
-  "op": "tap",
+  "run_id": "42919221669",
+  "seq": 0,
+  "challenge": "67c349351af6fb881580daa90e9d76484f117ae4d2c8070e487e52d0d0d3472d",
+  "op": "login",
   "args": {
-    "label": "تعبئة يدوي"
+    "alias": "broker"
   }
 }
