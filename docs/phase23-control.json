@@ -1,9 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 56,
-  "challenge": "a8e72eba29b983daf9bf5a0a34d475b038c9844b5718a563c83c13899d8501cd",
-  "op": "login",
+  "seq": 57,
+  "challenge": "317a3f5c2e0deab79db887d6bd0c7ad82e21685cf47791e07ac2d57590707766",
+  "op": "tap",
   "args": {
-    "alias": "support"
+    "label": "تحقيق الإعلانات"
   }
 }
