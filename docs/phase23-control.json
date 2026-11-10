@@ -1,9 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 45,
-  "challenge": "582115777cd1610ec2374d430133f14a4e7a92c90a7e02ef3f261b38490f3f51",
-  "op": "tap",
+  "seq": 46,
+  "challenge": "9eb0a377fc699a4f73afe9bbc145aa25611fb1c08fae286bd866491658855dcc",
+  "op": "touch",
   "args": {
-    "label": "معاينة"
+    "x": 190,
+    "y": 1752
   }
 }
