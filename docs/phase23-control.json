@@ -1,9 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 14,
-  "challenge": "2449369a80e742de4af75d0e028486eea42332c6815605df52b0543cda1efccb",
-  "op": "tap",
+  "seq": 15,
+  "challenge": "14a12286dbd73438e509a4ccb02b77fdbe09bc451d5dcfd8d0a8f18586c7c53b",
+  "op": "touch",
   "args": {
-    "label": "واجهة البناء *"
+    "x": 540,
+    "y": 782
   }
 }
