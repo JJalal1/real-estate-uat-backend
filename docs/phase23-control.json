@@ -1,10 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 36,
-  "challenge": "f3e846189a326b5d55c56dfbaba5ab814f0eb2830f4c3a1a89ff2a94a049090a",
-  "op": "api_get",
+  "seq": 37,
+  "challenge": "1ab9dbc60cd8d60027c46b4be1ea19bf5956270a79dc0d7ce7889d229325bbab",
+  "op": "tap",
   "args": {
-    "alias": "broker",
-    "path": "/ai/capabilities"
+    "label": "خيارات المسودة"
   }
 }
