@@ -1,21 +1,47 @@
 {
   "run_id": "42919221669",
-  "seq": 9,
-  "challenge": "6835a118cb917faa307a3a7faddc785bb5a955318521068cca6ca69f264e9931",
+  "seq": 10,
+  "challenge": "6e4625d048869fc61db7b34e98c26d8d4446840fb6e88e02434355cba0baa1f1",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "set",
+        "op": "tap",
         "args": {
-          "label": "الشارع",
-          "value": "شارع اختبار المرحلة23"
+          "label": "الشقة في الدور *"
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "التالي"
+          "label": "الثاني"
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "موضع الشقة داخل الدور (اختياري)",
+          "value": "شرقية مرحلة23"
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "غرف النوم *",
+          "value": "3"
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "الحمامات *",
+          "value": "2"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "موقف سيارة *"
         }
       }
     ]
