@@ -1,35 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 5,
-  "challenge": "fce7d5b509f59ac28efcfc25b33eeafecdecb1b7a8f617f18366ce66a74badc4",
-  "op": "batch",
+  "seq": 6,
+  "challenge": "69b9fe5f161c2553ee50fc57d1cf5672c95b32178d9239446a0fcbb6a5537b77",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "للإيجار"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "شقة"
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "عنوان الإعلان *",
-          "value": "شقة النور اختبار المرحلة23"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "التالي"
-        }
-      }
-    ]
+    "label": "تأكيد الموقع على الخريطة"
   }
 }
