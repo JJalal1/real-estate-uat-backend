@@ -1,34 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 11,
-  "challenge": "2d7538541967ea1cc30f5b1e53e78c2b30f46478cac34f9dba51dc896eabd3ba",
-  "op": "batch",
+  "seq": 12,
+  "challenge": "733335149fe47c3eeb0de51717337a57e67e74e093131e9aeccf3d53b533e370",
+  "op": "scroll",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "لا يوجد"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "واجهة البناء *"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "شمالية"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إضافة صور"
-        }
-      }
-    ]
+    "direction": "forward"
   }
 }
