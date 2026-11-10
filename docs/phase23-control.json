@@ -1,35 +1,15 @@
 {
   "run_id": "42919221669",
-  "seq": 8,
-  "challenge": "4f7f33a576e2ddd900cb17e4a45fb014b878ec8e343e9f40b502f8b8c59792c6",
+  "seq": 9,
+  "challenge": "6835a118cb917faa307a3a7faddc785bb5a955318521068cca6ca69f264e9931",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
-        "args": {
-          "label": "تأكيد هذا الموقع"
-        }
-      },
-      {
         "op": "set",
         "args": {
-          "label": "المحافظة *",
-          "value": "صنعاء"
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "المدينة",
-          "value": "صنعاء"
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "الحي",
-          "value": "حي تجربة المرحلة23"
+          "label": "الشارع",
+          "value": "شارع اختبار المرحلة23"
         }
       },
       {
