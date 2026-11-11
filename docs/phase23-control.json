@@ -1,9 +1,10 @@
 {
   "run_id": "42939077400",
-  "seq": 54,
-  "challenge": "414bd43ba2caa143378f1b565930c0f0b6e8fd7a99a28f79d9cf023d95f63101",
-  "op": "tap",
+  "seq": 55,
+  "challenge": "7b10f412192cfff90152d81680fe113bf09265ef5982ddeb90f7e1550165f77d",
+  "op": "touch",
   "args": {
-    "label": "فتح صورة العقار 1 من 3"
+    "x": 922,
+    "y": 499
   }
 }
