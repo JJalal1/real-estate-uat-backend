@@ -1,9 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 78,
-  "challenge": "63da7c09f8a7a71f792e86b02a4a254779df77284a316a6c9887863b896ecdcf",
-  "op": "tap",
+  "seq": 79,
+  "challenge": "575c18c7da031ceea3a21d4f80f3e3b68cabd67f2b87054acda85bb39a1063d2",
+  "op": "api_get",
   "args": {
-    "label": "حفظ المراجعة"
+    "alias": "support",
+    "path": "/admin/listing-review/listings/106"
   }
 }
