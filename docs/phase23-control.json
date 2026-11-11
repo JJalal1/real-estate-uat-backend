@@ -1,10 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 60,
-  "challenge": "71b99c3051d0d854fb0014abcf4e28cd7876f7318dba0bad7ae60dc61212ceff",
-  "op": "touch",
+  "seq": 61,
+  "challenge": "23bf91e58cf34aa6e43ed41ed73e4c98bc26e45f9d853a5f3e28fed16539ea84",
+  "op": "tap",
   "args": {
-    "x": 450,
-    "y": 1190
+    "label": "رجوع"
   }
 }
