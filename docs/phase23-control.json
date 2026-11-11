@@ -1,9 +1,36 @@
 {
   "run_id": "43087697204",
-  "seq": 1,
-  "challenge": "3e202ccc35be08f0d2ed4fbbc3ace6d8bd4419fc83826cab7bd924434564db8f",
-  "op": "tap",
+  "seq": 2,
+  "challenge": "1d0f2210af62d67d43aeca4fc60fed506234e9141eb0dbcf09409c6514f14b3b",
+  "op": "batch",
   "args": {
-    "label": "حسابي"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "الوارد"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "بلاغات",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "بلاغات"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "Conversation complaint",
+          "seconds": 20
+        }
+      }
+    ]
   }
 }
