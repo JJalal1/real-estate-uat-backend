@@ -1,12 +1,33 @@
 {
   "run_id": "43113135513",
-  "seq": 60,
-  "challenge": "6656f2b0ea28bc296b270e9b1fdb147b1f23a2ef0fc93dbfa4f1134a053c9f77",
-  "op": "swipe",
+  "seq": 61,
+  "challenge": "cbe65c14dfc75f0de15f041071d5a2c4c984b677b8b7b111ba739a60c6ed5751",
+  "op": "batch",
   "args": {
-    "x1": 540,
-    "y1": 1400,
-    "x2": 540,
-    "y2": 800
+    "steps": [
+      {
+        "op": "swipe",
+        "args": {
+          "x1": 540,
+          "y1": 1530,
+          "x2": 540,
+          "y2": 900
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/properties?per_page=1&page=2"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/properties?per_page=1&page=3"
+        }
+      }
+    ]
   }
 }
