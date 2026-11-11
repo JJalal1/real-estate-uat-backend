@@ -1,10 +1,10 @@
 {
   "run_id": "42986038827",
-  "seq": 49,
-  "challenge": "9e9ced14855328ea6e221c19d8630ad3b45da1b38849efb54052040fd068b27d",
-  "op": "set",
+  "seq": 50,
+  "challenge": "1d97baf04f4e025e1d11defc16b931f6731f49afbbd1b7e1c3ef79916cce86c2",
+  "op": "api_get",
   "args": {
-    "label": "شرقية مرحلة23",
-    "value": "غربية 2 مرحلة23"
+    "alias": "broker",
+    "path": "/listing-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
   }
 }
