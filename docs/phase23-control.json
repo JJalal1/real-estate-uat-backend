@@ -1,9 +1,9 @@
 {
   "run_id": "43099213137",
-  "seq": 13,
-  "challenge": "8a5be219908f63dfb65c4ff91c1ad3f19be6d2174d351e9f338f0a459e4767b7",
+  "seq": 14,
+  "challenge": "49d25d4c379810f65e03faf304a38edefff5985b893403b384ebff70d0371d69",
   "op": "tap",
   "args": {
-    "label": "فتح"
+    "label": "تغيير الحالة"
   }
 }
