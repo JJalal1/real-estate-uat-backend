@@ -1,23 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 45,
-  "challenge": "4823623163a46de4702e3c0c0cf9b3b3d8949f0728c619bfc0717d871b1c8603",
-  "op": "batch",
+  "seq": 46,
+  "challenge": "f9c14693dde01516a11b490c8316bd3ca67b65d7069067e96c03fe99d90635ac",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "ذكاء اصطناعي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "متابعة الإعلان",
-          "seconds": 20
-        }
-      }
-    ]
+    "label": "متابعة الإعلان"
   }
 }
