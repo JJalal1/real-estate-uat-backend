@@ -1,37 +1,10 @@
 {
   "run_id": "43113135513",
-  "seq": 37,
-  "challenge": "59d188dcdeaaa93a83f0eb4c961dfd280ae389cff3591908bc6d6e08a964e2bd",
-  "op": "batch",
+  "seq": 38,
+  "challenge": "70c6251b20a8cd1d0e82f36b54ebeeb65b32cf53203fe0ccd538f63264acbe80",
+  "op": "set",
   "args": {
-    "steps": [
-      {
-        "op": "touch",
-        "args": {
-          "x": 500,
-          "y": 560
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "شقة للإيجار في صنعاء، ثلاث غرف…",
-          "value": "أبحث عن شقة أو فيلا للإيجار في صنعاء"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "ابحث لي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تحديث",
-          "seconds": 30
-        }
-      }
-    ]
+    "label": "شقة للإيجار في صنعاء، ثلاث غرف…",
+    "value": "أبحث عن شقة أو فيلا للإيجار في صنعاء"
   }
 }
