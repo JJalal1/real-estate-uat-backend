@@ -1,10 +1,23 @@
 {
   "run_id": "42939077400",
-  "seq": 14,
-  "challenge": "c7c0d8be48d0ab5fd98fd33ecb05bd49595f97af6c6bfb4e38ca2bd0988d5625",
-  "op": "touch",
+  "seq": 15,
+  "challenge": "8561f5fa8186c8d5b816726deadef6450ad1c3a8308426e7eac5cd3ec6af4427",
+  "op": "batch",
   "args": {
-    "x": 180,
-    "y": 810
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "التالي"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/e6ed8fef-46a5-44bc-b38f-2dcfecb25c98"
+        }
+      }
+    ]
   }
 }
