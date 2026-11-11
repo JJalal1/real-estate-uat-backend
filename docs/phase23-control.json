@@ -1,9 +1,7 @@
 {
   "run_id": "43087697204",
-  "seq": 6,
-  "challenge": "093488379b9527719248795667d166b20477227da9dc1e56adafe5dd2d1e93a0",
-  "op": "tap",
-  "args": {
-    "label": "تغيير الحالة"
-  }
+  "seq": 7,
+  "challenge": "286ca0d559b4c19311c3c844b86d8181e16e6a6fb58804ee256c4e86e8debf30",
+  "op": "finish",
+  "args": {}
 }
