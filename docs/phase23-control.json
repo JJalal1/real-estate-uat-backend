@@ -1,9 +1,42 @@
 {
   "run_id": "43113135513",
-  "seq": 18,
-  "challenge": "557294e6ad7aa28c9f3b4cc5730f662872ab296b5a3202d6f7870d48d039e7ac",
-  "op": "network",
+  "seq": 19,
+  "challenge": "86cad8e2998aadca54a9eb3ac0487d4f0ae3fca815834538aa2f513abdf80802",
+  "op": "batch",
   "args": {
-    "state": "offline"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "مراجعة وتعديل البيانات المكتملة والاختيارية"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "عنوان الإعلان *",
+          "seconds": 8
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "عنوان الإعلان *",
+          "value": "شقة النور الغربية اختبار المرحلة23 - استعادة الشبكة"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "نواقص الإعلان"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "خيارات المسودة"
+        }
+      }
+    ]
   }
 }
