@@ -1,30 +1,9 @@
 {
   "run_id": "43113135513",
-  "seq": 5,
-  "challenge": "3d738a31a2e59609f2701123046ac0b0e18dbf36c6663f9e21de6726385cbf51",
-  "op": "batch",
+  "seq": 6,
+  "challenge": "1993c2f994c3e415c385daf3377e00ab2bb3694424adf157c679c646d37215a6",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "الرئيسية",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "الرئيسية"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "ماذا تبحث عنه؟",
-          "seconds": 10
-        }
-      }
-    ]
+    "label": "إضافة عقار"
   }
 }
