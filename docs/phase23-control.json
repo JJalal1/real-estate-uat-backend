@@ -1,9 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 44,
-  "challenge": "412afcc331f5b554a866b82636a3eae5b25eb834e505f1b38b27cc7f6bf71274",
+  "seq": 45,
+  "challenge": "bb62b43cdbe5535dc1d25254b1ac1064d84dca0b1ccc5e148a7b852969af0300",
   "op": "tap",
   "args": {
-    "label": "إساءة"
+    "label": "أخرى"
   }
 }
