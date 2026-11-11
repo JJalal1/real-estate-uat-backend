@@ -1,12 +1,23 @@
 {
   "run_id": "42962422395",
-  "seq": 28,
-  "challenge": "728826e60cc4787ffa73683618cbd592c609d1b02d131df610f6d0fe07c91a45",
-  "op": "swipe",
+  "seq": 29,
+  "challenge": "6267c0be0dec8e4059045de4231558bee7cefb09d2a6f47da164ecd316118041",
+  "op": "batch",
   "args": {
-    "x1": 180,
-    "y1": 1000,
-    "x2": 900,
-    "y2": 1000
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إغلاق الصور"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "تفاصيل العقار",
+          "seconds": 15
+        }
+      }
+    ]
   }
 }
