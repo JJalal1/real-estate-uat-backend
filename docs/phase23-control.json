@@ -1,22 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 58,
-  "challenge": "2e1df03a9242cf0360fb1f2a885044a1461cc7474c81bb2f49b4f6c5fa5b4c78",
-  "op": "batch",
+  "seq": 59,
+  "challenge": "b7e7211671bf823eb5ef3a84bd29af5ca0ce03c3d7accd5df3cd65e106eee776",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "إغلاق الصور"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "رجوع"
-        }
-      }
-    ]
+    "label": "تنفيذ"
   }
 }
