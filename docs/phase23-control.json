@@ -1,10 +1,37 @@
 {
   "run_id": "42962422395",
-  "seq": 17,
-  "challenge": "e059eaaaf63cfe0216ec88c3746a71d6b6b7aed179d9d4dc71500d76e93aa4b8",
-  "op": "wait",
+  "seq": 18,
+  "challenge": "0aa3995c72dab6b65ccfe33b26b53469069e1b14a12c172c3cc2aff8aba897ec",
+  "op": "batch",
   "args": {
-    "label": "شقة النور اختبار المرحلة23",
-    "seconds": 25
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/favorites/ids"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إعادة تحميل المفضلة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "إزالة من المفضلة",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/favorites/ids"
+        }
+      }
+    ]
   }
 }
