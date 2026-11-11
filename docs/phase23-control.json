@@ -1,9 +1,7 @@
 {
   "run_id": "42939077400",
-  "seq": 66,
-  "challenge": "1812c991d71f1e8b3cb484b038d43a36e7d09a97fcd9d1817311644b20ca3b41",
-  "op": "tap",
-  "args": {
-    "label": "مشاركة العقار"
-  }
+  "seq": 67,
+  "challenge": "a8034c6b1596882910af1d1456914dba185de9c343634bf2376c2ad9172ce663",
+  "op": "back",
+  "args": {}
 }
