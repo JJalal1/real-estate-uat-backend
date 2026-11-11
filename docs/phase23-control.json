@@ -1,9 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 52,
-  "challenge": "83133cb30e69b52a38a07f3a3020fffd853408c53c0d2ac1f6b26815083606fc",
+  "seq": 53,
+  "challenge": "d8a3b42ef9ee4f94ab3bf905fb06c6a6abe5d675520c421060b7eee167787399",
   "op": "tap",
   "args": {
-    "label": "ريال يمني للميزانية"
+    "label": "ريال يمني"
   }
 }
