@@ -1,36 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 5,
-  "challenge": "a91517be8459b2feecd540e4bfeefcf95cbde9af6d98314521f3e8f9f5ebec9a",
-  "op": "batch",
+  "seq": 6,
+  "challenge": "886d14fe8f0607985b977b92db5aca346831a6bda6120d49ab0799c63bb4ef94",
+  "op": "login",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "إغلاق الصور"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تفاصيل العقار",
-          "seconds": 8
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "رجوع"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "ماذا تبحث عنه؟",
-          "seconds": 8
-        }
-      }
-    ]
+    "alias": "regular"
   }
 }
