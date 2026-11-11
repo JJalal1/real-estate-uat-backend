@@ -1,12 +1,22 @@
 {
   "run_id": "42939077400",
-  "seq": 57,
-  "challenge": "be281181e07b0c30242d87a93969d09b25e1779818c40cf40907de26f5f1a9d6",
-  "op": "swipe",
+  "seq": 58,
+  "challenge": "2e1df03a9242cf0360fb1f2a885044a1461cc7474c81bb2f49b4f6c5fa5b4c78",
+  "op": "batch",
   "args": {
-    "x1": 220,
-    "y1": 960,
-    "x2": 880,
-    "y2": 960
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إغلاق الصور"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "رجوع"
+        }
+      }
+    ]
   }
 }
