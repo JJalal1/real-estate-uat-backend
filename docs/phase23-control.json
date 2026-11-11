@@ -1,27 +1,34 @@
 {
   "run_id": "42986038827",
-  "seq": 32,
-  "challenge": "436e499bc4817d3660bcffc3ec5cdd9df89553b9585ec5a9e74f6c2453c45ed4",
+  "seq": 33,
+  "challenge": "1977ac9d91cff90d5bcb595f25d34d85453e935901539fa7bc4b770f02f1cad0",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "set",
+        "op": "api_get",
         "args": {
-          "label": "الشارع",
-          "value": "شارع اختبار المرحلة23"
+          "alias": "broker",
+          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "التالي"
+          "label": "العودة إلى النواقص"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "معاينة الإعلان",
+          "seconds": 15
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "التالي"
+          "label": "معاينة الإعلان"
         }
       }
     ]
