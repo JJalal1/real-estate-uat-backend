@@ -1,9 +1,9 @@
 {
   "run_id": "43107427969",
-  "seq": 16,
-  "challenge": "33b6a3b032015a2972326340f5e4607c03046a6f46d0506cfea6a70f2bb58734",
-  "op": "login",
+  "seq": 17,
+  "challenge": "db746d8c0ce33ead1c10da2551a9a9a0e63ab4a83f58229070e0b7675b1a9805",
+  "op": "tap",
   "args": {
-    "alias": "broker"
+    "label": "إعلاناتي"
   }
 }
