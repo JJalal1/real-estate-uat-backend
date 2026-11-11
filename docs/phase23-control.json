@@ -1,9 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 62,
-  "challenge": "5bf3a82c0c99e1b4f9a8698eb50a88abcad6fb589f6c4e185bc05c30c4cb2dc1",
+  "seq": 63,
+  "challenge": "df2924cd247eb3931dd0c96dfcdf1b1b69257d254d6abe18f0fe26fb9b00b3d3",
   "op": "tap",
   "args": {
-    "label": "عرض على الخريطة"
+    "label": "تصغير الفلاتر"
   }
 }
