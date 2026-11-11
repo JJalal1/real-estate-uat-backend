@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
@@ -12,6 +11,7 @@ import '../../account/data/auth_controller.dart';
 import '../../financial/data/financial_repository.dart';
 import '../../financial/domain/financial_models.dart';
 import '../../broker/data/broker_repository.dart';
+import '../../reviews/presentation/listing_review_workspace_screen.dart';
 import '../data/support_repository.dart';
 import '../data/support_workspace_repository.dart';
 import '../domain/support_models.dart';
@@ -502,7 +502,15 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         );
         break;
       case 'listing_review':
-        context.push('/admin/listing-review');
+        final actor = ref.read(authControllerProvider).asData?.value?.id;
+        await Navigator.of(context).push<bool>(
+          MaterialPageRoute<bool>(
+            builder: (_) => ListingReviewCaseScreen(
+              listingId: task.sourceId,
+              actorId: actor,
+            ),
+          ),
+        );
         break;
       case 'support_ticket':
       case 'report':
