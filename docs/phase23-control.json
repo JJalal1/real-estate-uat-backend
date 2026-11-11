@@ -1,9 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 41,
-  "challenge": "121ab4115efb3a7feca3e87f5558332978e0411047d68b84e222af8e14c7130c",
-  "op": "tap",
+  "seq": 42,
+  "challenge": "6f77275a988c5b1b864371006a197f9a0dfe47d0f377e1772a455a360275f021",
+  "op": "display",
   "args": {
-    "label": "إزالة فيلا"
+    "mode": "default"
   }
 }
