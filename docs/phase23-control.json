@@ -1,9 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 58,
-  "challenge": "40e806af8939d73ff49688b81df259344169d2e957d8fc41a54f655bdd3fbf9f",
+  "seq": 59,
+  "challenge": "971e4afe0ffd2022312cf94576c352361650584ca4bceb05a3cb143095fe7880",
   "op": "tap",
   "args": {
-    "label": "رسم منطقة على الخريطة"
+    "label": "إلغاء"
   }
 }
