@@ -1,9 +1,44 @@
 {
   "run_id": "42948672743",
-  "seq": 35,
-  "challenge": "e8eb0eae5aa8a9b727b21c3e2d9b36fc5933900d99b01d146a60ca36604b0aef",
-  "op": "display",
+  "seq": 36,
+  "challenge": "d917c93c49a6ac8368f76d3886500cea850f56b08c7f403587544606be151af6",
+  "op": "batch",
   "args": {
-    "mode": "compact_large"
+    "steps": [
+      {
+        "op": "touch",
+        "args": {
+          "x": 420,
+          "y": 450
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "البحث عن عقار",
+          "seconds": 8
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "ابحث عن عقار…",
+          "value": "شقة النور اختبار المرحلة23"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تنفيذ"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "نتائج «شقة النور اختبار المرحلة23»",
+          "seconds": 20
+        }
+      }
+    ]
   }
 }
