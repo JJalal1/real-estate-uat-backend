@@ -1,23 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 29,
-  "challenge": "6267c0be0dec8e4059045de4231558bee7cefb09d2a6f47da164ecd316118041",
-  "op": "batch",
+  "seq": 30,
+  "challenge": "126c09e46210c9a88733108bdc36d66dbdc3d6a150009ce513ca8ff96a359fac",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "إغلاق الصور"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تفاصيل العقار",
-          "seconds": 15
-        }
-      }
-    ]
+    "label": "فتح صورة العقار 1 من 3"
   }
 }
