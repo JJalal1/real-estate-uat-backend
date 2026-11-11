@@ -1,42 +1,10 @@
 {
   "run_id": "43113135513",
-  "seq": 23,
-  "challenge": "ce80e8e81f6b9ada12c76d2dbb5200621550b6bb6bed7730b852922c26d3ddbc",
-  "op": "batch",
+  "seq": 24,
+  "challenge": "606678b7b029766b292e6f6d3630847cc7797277fcc8851187007c8233374071",
+  "op": "api_get",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "إعادة محاولة الحفظ"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "حُفظ تقدمك وصورك على حسابك",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "خيارات المسودة"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "حفظ مسودة"
-        }
-      }
-    ]
+    "alias": "broker",
+    "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
   }
 }
