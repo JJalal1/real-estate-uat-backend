@@ -1,7 +1,23 @@
 {
   "run_id": "42986038827",
-  "seq": 9,
-  "challenge": "a54cd8cae8081788b0f3564401bb1bba6845ef934c483dece789e02601803836",
-  "op": "observe",
-  "args": {}
+  "seq": 10,
+  "challenge": "b9f8e2ac0f03d49b5b5f06fd621b60a953f9cb8e68778bb5ad9f196cb7925344",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "set",
+        "args": {
+          "label": "عنوان الإعلان",
+          "value": "شقة النور الغربية اختبار المرحلة23"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      }
+    ]
+  }
 }
