@@ -1,0 +1,116 @@
+name: Phase23 original opt-in HTTP acceptance
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths: [.github/workflows/phase23-original-http.yml]
+permissions:
+  contents: read
+jobs:
+  original-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the pinned product components
+        run: |
+          python3 -B - <<'PY'
+          import os,sys
+          sys.path.insert(0,'scripts')
+          from phase23_preflight import guard
+          guard(os.environ)
+          print('PINNED_PRODUCT_COMPONENTS_MATCH')
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve the existing approved dependency set
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Original real HTTP viewport and fast scrolling measurements
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/viewport_network_measurement_test.dart
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=AQER_VIEWPORT_HTTP_PROBE=true
+          --dart-define=AQER_EXPECT_VIEWPORT_GATING=true
+          --name 'count actual home HTTP requests|fast ballistic scrolling'
+          --reporter expanded
+      - name: Original delayed HTTP, failure, exact retry, next page and zero-result behavior
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/discovery_http_acceptance_test.dart
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=AQER_DISCOVERY_HTTP_PROBE=true
+          --plain-name 'actual HTTP delayed load, 503 refresh, exact retry, pagination and zero results'
+          --reporter expanded
+      - name: Read-only prerequisites for the unchanged live UAT probes
+        id: live
+        run: |
+          python3 -B - <<'PY'
+          import json,os,urllib.request,urllib.error,concurrent.futures
+          from pathlib import Path
+          base='https://real-estate-uat-api-frankfurt.onrender.com/api'
+          def get(path):
+              try:
+                  req=urllib.request.Request(base+path,headers={'Accept':'application/json'})
+                  with urllib.request.urlopen(req,timeout=25) as r:
+                      return r.status,json.loads(r.read(2000000))
+              except urllib.error.HTTPError as e:return e.code,{}
+              except Exception:return 0,{}
+          def media(i):
+              code,body=get('/properties/'+str(i));d=body.get('data',{})
+              return {'id':i,'http':code,'published':d.get('status')=='published','image_count':len(d.get('images',[]))}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+              media_rows=list(pool.map(media,[60,61,62]))
+          code,body=get('/properties?per_page=1')
+          total=body.get('meta',{}).get('total',0)
+          arcode,ar=get('/properties?search=%D8%A5%D8%A8&per_page=1')
+          ibb_count=len(ar.get('data',[]))
+          media_ready=all(x['http']==200 and x['published'] and x['image_count']>0 for x in media_rows)
+          discovery_ready=code==200 and total>=10 and arcode==200 and ibb_count>0
+          report={'scope':'read-only original live-probe prerequisites; no fixture renewal or account token',
+              'media_fixtures':media_rows,'available_public_total':total,'ibb_nonempty':ibb_count>0,
+              'media_probe':'READY' if media_ready else 'NOT_TESTED_MISSING_ORIGINAL_PUBLIC_MEDIA_FIXTURES',
+              'discovery_probe':'READY' if discovery_ready else 'NOT_TESTED_REQUIRES_TEN_AVAILABLE_LISTINGS_AND_NONEMPTY_IBB'}
+          Path('mobile_app/viewport-original-live-readiness.json').write_text(json.dumps(report,indent=2)+'\n')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('media_ready='+str(media_ready).lower()+'\n')
+              f.write('discovery_ready='+str(discovery_ready).lower()+'\n')
+          print(json.dumps(report))
+          PY
+      - name: Original live UAT image transfer, hidden-image and cache-return measurements
+        if: steps.live.outputs.media_ready == 'true'
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/viewport_network_measurement_test.dart
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=AQER_VIEWPORT_HTTP_PROBE=true
+          --plain-name 'count real UAT image HTTP transfers for hidden images and return'
+          --reporter expanded
+      - name: Original live UAT discovery contracts when its fixed prerequisites exist
+        if: steps.live.outputs.discovery_ready == 'true'
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/discovery_http_acceptance_test.dart
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=AQER_DISCOVERY_HTTP_PROBE=true
+          --plain-name 'live UAT Arabic search, disjoint pages, empty results and access/error contracts'
+          --reporter expanded
+      - name: Keep the tested application unchanged
+        run: git diff --exit-code -- mobile_app/lib mobile_app/android mobile_app/assets mobile_app/pubspec.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-original-http-${{ github.run_id }}
+          path: mobile_app/viewport-*.json
+          if-no-files-found: warn
+          retention-days: 30
