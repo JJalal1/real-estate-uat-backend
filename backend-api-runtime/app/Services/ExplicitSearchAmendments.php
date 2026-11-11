@@ -11,8 +11,8 @@ class ExplicitSearchAmendments
     {
         $text = ArabicListingNumber::normalize($message);
         // Adding rooms or a budget never authorizes an incidental type change.
-        $typeWords = '(?:ال)?(?:نوع|انواع|شقه|شقق|منزل|منازل|بيت|بيوت|فيلا|فلل|فيلات|عماره|عمارات|عمائر|ارض|اراضي|مزرعه|مزارع|محل|محلات|مكتب|مكاتب)';
-        if (!preg_match('/(?<!\pL)(?:و)?'.$typeWords.'(?!\pL)|(?<!\pL)(?:ال)?(?:دور|طابق)\s+(?:كامل|كاملا|بالكامل)(?!\pL)/u', $text)) {
+        $typeWords = '(?:(?:ال)?(?:نوع|انواع|شقه|شقق|منزل|منازل|بيت|بيوت|فيلا|فلل|فيلات|عماره|عمارات|عمائر|ارض|اراضي|مزرعه|مزارع|محل|محلات|مكتب|مكاتب)|apartment|house|villa|building|land|farm|shop|office|types?)';
+        if (!preg_match('/(?<!\pL)(?:و)?'.$typeWords.'(?!\pL)|(?<!\pL)(?:ال)?(?:دور|طابق)\s+(?:كامل|كاملا|بالكامل)(?!\pL)/iu', $text)) {
             unset($patch['set']['type'], $patch['set']['types']);
             $patch['remove'] = array_values(array_diff($patch['remove'], ['type', 'types']));
         }
