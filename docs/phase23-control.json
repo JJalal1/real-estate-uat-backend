@@ -1,36 +1,9 @@
 {
   "run_id": "43113135513",
-  "seq": 54,
-  "challenge": "0c996deb82cade70174c71d7bfa742773bf0191c5db7d6037868d300d1f992b7",
-  "op": "batch",
+  "seq": 55,
+  "challenge": "6c661fa132d88269b76606245db59ea2cff85daee0ce7ec3bb8cb5222ca283bb",
+  "op": "blocked_message_probe",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "حظر الحساب"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "حظر هذا الحساب؟",
-          "seconds": 8
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "حظر"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/messages/threads/37"
-        }
-      }
-    ]
+    "alias": "regular"
   }
 }
