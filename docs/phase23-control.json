@@ -1,47 +1,21 @@
 {
   "run_id": "43113135513",
-  "seq": 1,
-  "challenge": "58c950695af614b554fd5979977d15bd2379dc0b246a00a5f14d226912f5aa09",
+  "seq": 2,
+  "challenge": "2e95ade0d6a261dcafb64f5380237c07dce47a097bc4665c0c365dfc4ff92ffb",
   "op": "batch",
   "args": {
     "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "رفض / إغلاق"
+        }
+      },
       {
         "op": "api_get",
         "args": {
           "alias": "support",
           "path": "/admin/support/cases/9"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "مهامي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "فتح",
-          "seconds": 8
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "فتح"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تغيير الحالة",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تغيير الحالة"
         }
       }
     ]
