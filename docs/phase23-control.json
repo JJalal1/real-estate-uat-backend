@@ -1,9 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 35,
-  "challenge": "7c1a33c261c651f4fef3a0117b0b6a3f3a693eb354f584dfd815b69087891924",
+  "seq": 36,
+  "challenge": "3062ee974261d5153efb391b59dc316c8a42c1ae20b3ba8c2cbf47b437e085c8",
   "op": "tap",
   "args": {
-    "label": "بحث ذكي"
+    "label": "الخريطة"
   }
 }
