@@ -1,9 +1,30 @@
 {
   "run_id": "42948672743",
-  "seq": 12,
-  "challenge": "051132b66763b0e5f30470644f8fa96416bbfbef2285f3995f3b5caebd8d37b0",
-  "op": "tap",
+  "seq": 13,
+  "challenge": "a8a1e8ba6a27242550c188e85451c185c569039a92eff61d624933a00d63ab9f",
+  "op": "batch",
   "args": {
-    "label": "قارن العقارين (٢/٢)"
+    "steps": [
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/properties/43"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/properties/38"
+        }
+      }
+    ]
   }
 }
