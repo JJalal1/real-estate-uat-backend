@@ -1,10 +1,29 @@
 {
   "run_id": "43087697204",
-  "seq": 4,
-  "challenge": "96e2961b1580fbdb74c8121d632e44e48491b7a650beb0734be19cf021337113",
-  "op": "api_get",
+  "seq": 5,
+  "challenge": "1d72ecd7ee66c3625c2e9569ad2941269a99ac9116375ea4a372a64f190e65f9",
+  "op": "batch",
   "args": {
-    "alias": "support",
-    "path": "/admin/support/cases/9"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "تغيير الحالة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "رفض / إغلاق",
+          "seconds": 15
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "رفض / إغلاق"
+        }
+      }
+    ]
   }
 }
