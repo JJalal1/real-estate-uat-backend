@@ -1,9 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 1,
-  "challenge": "8d8d4bda9b3824855f4700dc95a05032e3748c159850cd05147f682e5c529f64",
+  "seq": 2,
+  "challenge": "a87c4b4c15f21840d8e27e83b2decc9f1f0f8afecc476e9ab64bab38a8212268",
   "op": "tap",
   "args": {
-    "label": "عملي"
+    "label": "1 إعلانات تحتاج تصحيحًا"
   }
 }
