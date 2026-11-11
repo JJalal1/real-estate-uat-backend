@@ -19,7 +19,9 @@ abstract final class ConditionalImagePrefetch {
         uri.scheme != origin.scheme || uri.host != origin.host || uri.port != origin.port ||
         !RegExp(r'^/api/property-media/[1-9][0-9]*$').hasMatch(uri.path) ||
         uri.queryParametersAll.values.any((values) => values.length != 1) ||
-        uri.queryParameters.keys.any((key) => key != 'variant' && key != 'v')) return false;
+        uri.queryParameters.keys.any((key) => key != 'variant' && key != 'v')) {
+      return false;
+    }
     final loopback = const ['127.0.0.1', 'localhost', '::1'].contains(uri.host);
     if (uri.scheme != 'https' && !(uri.scheme == 'http' && loopback)) return false;
     final version = uri.queryParameters['v'];
