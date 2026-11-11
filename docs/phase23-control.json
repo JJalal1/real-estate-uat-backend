@@ -1,10 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 3,
-  "challenge": "d172630f580e4b1a1d22609b568ccf405534a83f8d2348c22416dc80939af788",
-  "op": "api_get",
+  "seq": 4,
+  "challenge": "386662412c8b3a4f82c02dea341f575a257715b2feb7c102defc5f80977dea4f",
+  "op": "tap",
   "args": {
-    "alias": "regular",
-    "path": "/support/cases/mine?per_page=5"
+    "label": "إضافة عقار"
   }
 }
