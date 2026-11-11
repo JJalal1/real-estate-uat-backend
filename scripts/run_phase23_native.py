@@ -100,8 +100,13 @@ class Phase23Account(NativeAccount):
 
     """Keep the historical Phase1 executor unchanged; handle current role shells."""
 
+    def public_marketplace_binding(self, rows):
+        # Reuse the original strict visible-leaf, path, witness and private-field
+        # exclusions for both marketplace and broker Home navigation.
+        return super().startup_home_binding(rows)
+
     def startup_home_binding(self, rows):
-        binding = super().startup_home_binding(rows)
+        binding = self.public_marketplace_binding(rows)
         if binding is not None:
             return binding
         if any(field in labels(row) for row in rows for field in AUTH_FIELDS):
@@ -110,6 +115,14 @@ class Phase23Account(NativeAccount):
                         ('لوحة الفريق', 'الأعمال', 'الفريق', 'الرسائل', 'حسابي'),
                         ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…', 'العقارات', 'الخريطة', 'الرسائل', 'حسابي')):
             binding = self.startup_public_binding(rows, anchors)
+            if binding is None and anchors[0] in {'لوحة الدعم', 'لوحة الفريق'}:
+                # Dashboard cards may repeat a footer label such as My tasks.
+                # Bind only the visible navigation strip, retaining unique leaves.
+                roots = [r for r in rows if r.get('path') == '0' and r.get('package') == APP]
+                bottom = roots[0]['bounds'][3] if len(roots) == 1 else 1920
+                footer = [r for r in rows if isinstance(r.get('bounds'), list)
+                          and len(r['bounds']) == 4 and r['bounds'][1] >= bottom * .75]
+                binding = self.startup_public_binding(footer, anchors)
             if binding is not None:
                 return binding
         return None
@@ -365,6 +378,7 @@ class NativeRun:
         'الأمان والخصوصية','تعديل الملف الشخصي','الملف الشخصي','المفضلة',
         'تسجيل الخروج','الخدمات والأدوات','المساعدة والدعم','نشاطي',
         'العقارات','حسابي','الرسائل','إعلاناتي','إضافة عقار',
+        'الرئيسية','عملي','العملاء',
         'لوحة الدعم','الوارد','مهامي','البلاغات','بلاغات','الوارد الجديد',
         'استلام','فتح','بعد الاستلام','إغلاق','إلغاء','رجوع','حفظ','تحديث',
         'بدء المعالجة','قيد المعالجة','انتظار المستخدم','إغلاق كمحلولة',
@@ -540,8 +554,7 @@ class NativeRun:
         # while still showing it in the screenshot. Retain the privacy boundary
         # through popups/details until a full public Home is witnessed again.
         names = set().union(*(labels(row) for row in rows)) if rows else set()
-        public_home = all(name in names for name in (
-            'ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…', 'العقارات', 'حسابي'))
+        public_home = self.driver.public_marketplace_binding(rows) is not None
         sticky = getattr(self, 'private_surface_open', False) and not public_home
         rows, private_ui = self.private_ui_controls(rows, force_private=sticky)
         self.private_surface_open = private_ui

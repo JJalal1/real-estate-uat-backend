@@ -95,6 +95,61 @@ class CommandSafetyTest(unittest.TestCase):
             rows.append(dict(rows[0], path='0.9', text='رمز التحقق'))
             self.assertIsNone(driver.startup_home_binding(rows))
 
+    def test_broker_public_home_requires_the_original_strict_marketplace_binding(self):
+        driver = object.__new__(Phase23Account)
+        for footer in [('العقارات','الرسائل','إعلاناتي','حسابي'),
+                       ('الرئيسية','عملي','العملاء','حسابي')]:
+            names = ('ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…') + footer
+            rows = [{'path':'0.'+str(i),'witness':format(i+1,'064x'),
+                     'bounds':[10,100+i*100,100,160+i*100],
+                     'package':'com.aqer.yemen.uat','visible':True,'enabled':True,'text':name}
+                    for i,name in enumerate(names)]
+            self.assertIsNotNone(driver.public_marketplace_binding(rows))
+            for private in ('رمز التحقق','الملف الشخصي','تعديل الملف الشخصي','تسجيل الخروج'):
+                self.assertIsNone(driver.public_marketplace_binding(rows+[dict(rows[0],path='0.90',text=private)]))
+            self.assertIsNone(driver.public_marketplace_binding(rows[1:]))
+            self.assertIsNone(driver.public_marketplace_binding(rows+[dict(rows[0],path='0.91')]))
+            self.assertIsNone(driver.public_marketplace_binding([dict(r,package='other.app') for r in rows]))
+            self.assertIsNone(driver.public_marketplace_binding([dict(r,visible=False) for r in rows]))
+
+    def test_private_latch_clears_only_after_a_complete_public_broker_home(self):
+        run = object.__new__(NativeRun)
+        run.driver = object.__new__(Phase23Account)
+        run.driver.recorder = None
+        names = ('ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…','الرئيسية','عملي','العملاء','حسابي')
+        rows = [{'path':'0.'+str(i),'witness':format(i+1,'064x'),
+                 'bounds':[10,100+i*100,100,160+i*100],
+                 'package':'com.aqer.yemen.uat','visible':True,'enabled':True,'text':name}
+                for i,name in enumerate(names)]
+        run.driver.nodes = Mock(return_value=rows)
+        run.driver.adb = Mock(return_value=b'\x89PNG\r\n\x1a\n')
+        run.private_values=set();run.private_surface_open=True;run.seq=1
+        with tempfile.TemporaryDirectory() as folder:
+            run.root=Path(folder)
+            _,frame,protected=run.observe()
+            self.assertFalse(protected);self.assertIsNotNone(frame)
+            self.assertFalse(run.private_surface_open)
+            frame.unlink()
+            for private in ('رمز التحقق','الملف الشخصي','خيارات المحادثة','لوحة الدعم'):
+                run.private_surface_open=True
+                run.driver.nodes.return_value=rows+[dict(rows[0],path='0.90',text=private)]
+                run.driver.adb.reset_mock()
+                _,frame,protected=run.observe()
+                self.assertTrue(protected);self.assertIsNone(frame)
+                run.driver.adb.assert_not_called()
+
+    def test_dashboard_card_duplicates_cannot_ambiguate_the_support_footer(self):
+        driver=object.__new__(Phase23Account)
+        names=('لوحة الدعم','الوارد','مهامي','الرسائل','حسابي')
+        rows=[{'path':'0.'+str(i),'witness':format(i+1,'064x'),
+               'bounds':[i*200,1658,(i+1)*200+180,1857],
+               'package':'com.aqer.yemen.uat','visible':True,'enabled':True,'text':name}
+              for i,name in enumerate(names)]
+        rows.append(dict(rows[2],path='0.99',bounds=[100,600,400,800]))
+        self.assertIsNotNone(driver.startup_home_binding(rows))
+        rows.append(dict(rows[0],path='0.98',text='رمز التحقق'))
+        self.assertIsNone(driver.startup_home_binding(rows))
+
     def test_large_scroll_container_stays_above_app_navigation(self):
         driver = object.__new__(Phase23Account)
         rows = [{'path':'0','package':'com.aqer.yemen.uat','bounds':[0,50,1080,1860]},
@@ -263,11 +318,14 @@ class CommandSafetyTest(unittest.TestCase):
         account=[{'description':'شوهد مؤخرًا'}, {'text':'private@example.invalid'}]
         modal=[{'description':'تفاصيل العقار'}, {'text':'public property106'}]
         popup=[{'description':'أخرى'}, {'text':'hidden private backdrop'}]
-        home=[{'description':name} for name in (
-            'ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…','العقارات','حسابي')]
-        run.driver=Mock(recorder=None)
-        run.driver.nodes.side_effect=[account,modal,popup,home]
-        run.driver.adb.return_value=b'\x89PNG\r\n\x1a\nfixture'
+        home=[{'description':name,'path':'0.'+str(i),'witness':format(i+1,'064x'),
+               'bounds':[10,100+i*100,100,160+i*100],
+               'package':'com.aqer.yemen.uat','visible':True,'enabled':True}
+              for i,name in enumerate(('ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…',
+                                      'العقارات','الرسائل','إعلاناتي','حسابي'))]
+        run.driver=object.__new__(Phase23Account);run.driver.recorder=None
+        run.driver.nodes=Mock(side_effect=[account,modal,popup,home])
+        run.driver.adb=Mock(return_value=b'\x89PNG\r\n\x1a\nfixture')
         with tempfile.TemporaryDirectory() as folder:
             run.root=Path(folder)
             for expected in ({'شوهد مؤخرًا'},set(),{'أخرى'}):
