@@ -1,9 +1,24 @@
 {
   "run_id": "42978036876",
-  "seq": 11,
-  "challenge": "3317b272bdde9cf8f8a28b60cc589226f1fdd40cb689cf112b9cc92927aaa84c",
-  "op": "tap",
+  "seq": 12,
+  "challenge": "2b9c21941b7d3ed3b9e7f6ca0ef1d5b7913d8bd5ae8ebd68254824299db1c06c",
+  "op": "batch",
   "args": {
-    "label": "البحث الذكي"
+    "steps": [
+      {
+        "op": "touch",
+        "args": {
+          "x": 955,
+          "y": 870
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "منطقة مرسومة",
+          "seconds": 20
+        }
+      }
+    ]
   }
 }
