@@ -2,34 +2,8 @@
   "run_id": "42978036876",
   "seq": 11,
   "challenge": "3317b272bdde9cf8f8a28b60cc589226f1fdd40cb689cf112b9cc92927aaa84c",
-  "op": "batch",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "شقق"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "فلل"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إيجار"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "منطقة مرسومة",
-          "seconds": 20
-        }
-      }
-    ]
+    "label": "البحث الذكي"
   }
 }
