@@ -1,9 +1,29 @@
 {
   "run_id": "43113135513",
-  "seq": 67,
-  "challenge": "d9df0d7b929ce7cc39425aacab405d74ac41a613260346c1cb8aa59d484abfa7",
-  "op": "login",
+  "seq": 68,
+  "challenge": "121af912ebc81f788d8e4ae046e2e28e2c26cabb675dce689caa097fc3acc102",
+  "op": "batch",
   "args": {
-    "alias": "broker"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "حسابي"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "شوهد مؤخرًا"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "ما شاهدت عقارات بعد",
+          "seconds": 10
+        }
+      }
+    ]
   }
 }
