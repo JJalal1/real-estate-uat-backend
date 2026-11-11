@@ -221,6 +221,28 @@ class CommandSafetyTest(unittest.TestCase):
         self.assertEqual({r['description'] for r in controls},{'شوهد مؤخرًا','المظهر'})
         self.assertNotIn('real user',str(controls));self.assertNotIn('@',str(controls))
 
+    def test_private_backdrop_remains_protected_through_modal_and_popup_until_public_home(self):
+        run=object.__new__(NativeRun);run.private_values=set();run.seq=5
+        account=[{'description':'شوهد مؤخرًا'}, {'text':'private@example.invalid'}]
+        modal=[{'description':'تفاصيل العقار'}, {'text':'public property106'}]
+        popup=[{'description':'أخرى'}, {'text':'hidden private backdrop'}]
+        home=[{'description':name} for name in (
+            'ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…','العقارات','حسابي')]
+        run.driver=Mock(recorder=None)
+        run.driver.nodes.side_effect=[account,modal,popup,home]
+        run.driver.adb.return_value=b'\x89PNG\r\n\x1a\nfixture'
+        with tempfile.TemporaryDirectory() as folder:
+            run.root=Path(folder)
+            for expected in ({'شوهد مؤخرًا'},set(),{'أخرى'}):
+                controls,frame,protected=run.observe()
+                self.assertTrue(protected);self.assertIsNone(frame)
+                self.assertEqual({r['description'] for r in controls},expected)
+                run.driver.adb.assert_not_called()
+            controls,frame,protected=run.observe()
+            self.assertFalse(protected);self.assertTrue(frame.is_file())
+            run.driver.adb.assert_called_once_with('exec-out','screencap','-p',binary=True)
+            self.assertFalse(run.private_surface_open)
+
     def test_synthetic_thread_read_exports_only_bound_metadata(self):
         body={'data':{'thread':{'id':37,'property_id':106,'other_user':{'id':28,'name':'private'},
                               'can_send':True,'blocked_by_me':False,'last_message_preview':'secret'},

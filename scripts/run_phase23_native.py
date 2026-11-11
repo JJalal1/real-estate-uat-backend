@@ -303,6 +303,7 @@ class NativeRun:
         self.sessions = {}
         self.network_changed = False
         self.display_changed = False
+        self.private_surface_open = False
         self.report = {'scope': 'actual API36 UAT observations; acceptance requires review',
                        'source_sha': os.environ['GITHUB_SHA'], 'api': API,
                        'run_id': os.environ['GITHUB_RUN_ID'], 'actions': [],
@@ -337,8 +338,8 @@ class NativeRun:
     })
 
     @classmethod
-    def private_ui_controls(cls, rows):
-        if not any(cls.PRIVATE_UI_ANCHORS & labels(row) or any(
+    def private_ui_controls(cls, rows, force_private=False):
+        if not force_private and not any(cls.PRIVATE_UI_ANCHORS & labels(row) or any(
                 re.search(r'[^\s@]+@[^\s@]+\.[^\s@]+',name) for name in labels(row)) for row in rows):
             return rows, False
         controls=[]
@@ -455,7 +456,15 @@ class NativeRun:
                  'com.android.systemui'}
         protected = bool(packages - known) or any(s and s in visible for s in self.private_values) or any(
             field in labels(r) for field in AUTH_FIELDS for r in rows)
-        rows, private_ui = self.private_ui_controls(rows)
+        # Modal routes can omit the background Account/conversation from AX
+        # while still showing it in the screenshot. Retain the privacy boundary
+        # through popups/details until a full public Home is witnessed again.
+        names = set().union(*(labels(row) for row in rows)) if rows else set()
+        public_home = all(name in names for name in (
+            'ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…', 'العقارات', 'حسابي'))
+        sticky = getattr(self, 'private_surface_open', False) and not public_home
+        rows, private_ui = self.private_ui_controls(rows, force_private=sticky)
+        self.private_surface_open = private_ui
         protected = protected or private_ui
         if protected and self.driver.recorder is not None:
             self.driver.record_tainted = True

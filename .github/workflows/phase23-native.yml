@@ -15,7 +15,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: phase23-native
+  group: ${{ contains(github.event.head_commit.message, '[collector-only]') && 'phase23-collector' || 'phase23-native' }}
   cancel-in-progress: ${{ contains(github.event.head_commit.message, '[replace-stalled-native]') }}
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
@@ -38,6 +38,7 @@ jobs:
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_native.py -v
       - run: node --test .github/actions/phase1-review/test_index.js
   native:
+    if: ${{ !contains(github.event.head_commit.message, '[collector-only]') }}
     needs: collector-safety
     runs-on: ubuntu-latest
     timeout-minutes: 125
