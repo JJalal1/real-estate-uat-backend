@@ -1,7 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 34,
-  "challenge": "f14b0060d5591477208ee2797cc69d668ade426ce632b9c3d3cbbd3f410685e4",
-  "op": "force_stop",
-  "args": {}
+  "seq": 35,
+  "challenge": "7c1a33c261c651f4fef3a0117b0b6a3f3a693eb354f584dfd815b69087891924",
+  "op": "tap",
+  "args": {
+    "label": "بحث ذكي"
+  }
 }
