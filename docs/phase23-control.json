@@ -1,10 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 51,
-  "challenge": "aab1380dc46bd7c3dd3173c07761e3b51092761f0739838e6caa45d24ec182c9",
-  "op": "set",
+  "seq": 52,
+  "challenge": "83133cb30e69b52a38a07f3a3020fffd853408c53c0d2ac1f6b26815083606fc",
+  "op": "tap",
   "args": {
-    "label": "حتى إيجار شهري",
-    "value": "200000"
+    "label": "ريال يمني للميزانية"
   }
 }
