@@ -172,7 +172,7 @@ void main() {
     expect(find.text('Synthetic conversation report'), findsOneWidget);
     final statusButton = find.ancestor(
       of: find.text('تغيير الحالة'),
-      matching: find.byWidgetPredicate((widget) => widget is OutlinedButton),
+      matching: find.byWidgetPredicate((widget) => widget is MaterialButton),
     );
     expect(statusButton, findsOneWidget);
     final statusSemantics = tester.getSemantics(statusButton).getSemanticsData();
