@@ -1,9 +1,9 @@
 {
   "run_id": "43107427969",
-  "seq": 12,
-  "challenge": "a3b883a06e6bb26d78f2c9e52bef17fe3c1bc2a7944f4dbf7aa4faae50deecfc",
-  "op": "scroll",
+  "seq": 13,
+  "challenge": "3b6bb28822e8f5090177286263680199eb81c0481c4187a830f4010803a504bb",
+  "op": "tap",
   "args": {
-    "direction": "forward"
+    "label": "تسجيل الخروج"
   }
 }
