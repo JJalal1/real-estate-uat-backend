@@ -56,7 +56,7 @@ def prepare():
             if n.startswith(('lib/arm64-v8a/', 'lib/x86_64/')) and n.endswith('.so'):
                 tools.elf(app.read(n))
     helper = tools.build_input(PRIVATE, bt, sdk)
-    receipt = {'source_commit': os.environ['GITHUB_SHA'], 'product_source_commit': '0c197da26ef814b7f8db6ee4936fde6dd0782566',
+    receipt = {'source_commit': os.environ['GITHUB_SHA'], 'product_source_commit': '1b56760df668ea760be079223643b1a3c190ebe1',
                'product_trees': TREES, 'ci_run_id': os.environ['GITHUB_RUN_ID'],
                'package': 'com.aqer.yemen.uat', 'version_code': version,
                'sha256': sha(apk), 'bytes': apk.stat().st_size,

@@ -213,6 +213,12 @@ class CommandSafetyTest(unittest.TestCase):
         run.driver.adb.assert_not_called()
         self.assertNotIn('private message',str(exported))
         self.assertNotIn('participant',str(exported))
+        account=[{'description':'شوهد مؤخرًا'},{'description':'A real user name'},
+                 {'text':'private@example.invalid'},{'description':'المظهر'}]
+        controls,protected=NativeRun.private_ui_controls(account)
+        self.assertTrue(protected)
+        self.assertEqual({r['description'] for r in controls},{'شوهد مؤخرًا','المظهر'})
+        self.assertNotIn('real user',str(controls));self.assertNotIn('@',str(controls))
 
     def test_synthetic_thread_read_exports_only_bound_metadata(self):
         body={'data':{'thread':{'id':37,'property_id':106,'other_user':{'id':28,'name':'private'},
