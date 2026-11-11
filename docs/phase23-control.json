@@ -1,11 +1,32 @@
 {
   "run_id": "43113135513",
-  "seq": 46,
-  "challenge": "6aef40dcef25daa7ec3390b7ed462cfd8be393851e6851c87b85cf860d88910c",
-  "op": "pinch",
+  "seq": 47,
+  "challenge": "2565e8e722091e65260bd3b5779fe98ef9b23e8182671ce98a2bf99c7b90b866",
+  "op": "batch",
   "args": {
-    "direction": "in",
-    "x": 540,
-    "y": 600
+    "steps": [
+      {
+        "op": "pinch",
+        "args": {
+          "direction": "in",
+          "x": 540,
+          "y": 600
+        }
+      },
+      {
+        "op": "pinch",
+        "args": {
+          "direction": "in",
+          "x": 540,
+          "y": 600
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تصغير الفلاتر"
+        }
+      }
+    ]
   }
 }
