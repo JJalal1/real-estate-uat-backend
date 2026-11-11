@@ -1,33 +1,26 @@
 {
   "run_id": "42948672743",
-  "seq": 43,
-  "challenge": "f8170c7b717279dfe2e587586cab6d5447a17af1ce0facfb5b3852b1c22ca488",
+  "seq": 44,
+  "challenge": "fef81746e70eab8dd6a80399989f21ea2c0adf141035b61192d373aff0d17dbc",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "رجوع"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "البحث عن عقار",
-          "seconds": 8
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "backward"
+          "label": "شقة"
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "تصفية"
+          "label": "منزل"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إيجار"
         }
       }
     ]
