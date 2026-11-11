@@ -12,6 +12,7 @@ import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_schema.dart';
 import 'property_compare_actions.dart';
+import 'property_favorite_status.dart';
 
 List<AppPropertyFact> summaryPropertyFacts(PropertySummary property) {
   final scope = {'type': property.type, 'purpose': property.purpose};
@@ -84,15 +85,17 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
-    final selected = user?.isActive == true && (ref.watch(favoritePropertyIdsProvider).asData?.value.contains(widget.propertyId) ?? false);
-    return IconButton(key: ValueKey('favorite-property-${widget.propertyId}'), tooltip: selected ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-      onPressed: _busy || !widget.enabled ? null : () => _toggle(selected),
-      isSelected: selected,
+    final status = PropertyFavoriteStatus.fromAsync(
+      user?.isActive == true ? ref.watch(favoritePropertyIdsProvider) : null, widget.propertyId);
+    return IconButton(key: ValueKey('favorite-property-${widget.propertyId}'), tooltip: status.tooltip,
+      onPressed: _busy || !widget.enabled || status.loading ? null : status.failed
+          ? () => ref.invalidate(favoritePropertyIdsProvider) : () => _toggle(status.selected),
+      isSelected: status.selected,
       style: IconButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.secondary,
         minimumSize: const Size(48, 48), padding: const EdgeInsets.all(8), shape: const CircleBorder()),
       icon: Container(width: 32, height: 32, alignment: Alignment.center,
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: .96), shape: BoxShape.circle),
         child: _busy ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-          : Icon(selected ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 19)));
+          : Icon(status.icon, size: 19)));
   }
 }

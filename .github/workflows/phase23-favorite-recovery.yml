@@ -1,0 +1,40 @@
+name: Phase23 favorite recovery fix
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-favorite-recovery.yml
+      - mobile_app/lib/features/properties/presentation/property_favorite_status.dart
+      - mobile_app/lib/features/properties/presentation/property_summary_card.dart
+      - mobile_app/lib/features/properties/presentation/property_details_screen.dart
+      - mobile_app/lib/features/map/presentation/map_screen.dart
+      - mobile_app/lib/features/map/presentation/property_map_results_sheet.dart
+      - mobile_app/test/phase23_favorite_recovery_test.dart
+permissions:
+  contents: read
+jobs:
+  favorite-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Use the approved dependency lock
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Analyze favorite state and affected screens
+        working-directory: mobile_app
+        run: flutter analyze --fatal-infos lib/features/properties/presentation/property_favorite_status.dart lib/features/properties/presentation/property_summary_card.dart lib/features/properties/presentation/property_details_screen.dart lib/features/map/presentation/map_screen.dart lib/features/map/presentation/property_map_results_sheet.dart test/phase23_favorite_recovery_test.dart
+      - name: Verify read recovery and actor isolation
+        working-directory: mobile_app
+        run: flutter test --no-pub test/phase23_favorite_recovery_test.dart test/phase3_favorites_screen_test.dart

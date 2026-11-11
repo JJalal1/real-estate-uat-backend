@@ -11,9 +11,9 @@
       ],
       "fix": "Open the task source listing directly in the actor-bound case and await its return before refreshing tasks",
       "implementation_commit": "af60708973722af2d83eceeaa66f18ac7df24019",
-      "ci_run": 42931272840,
+      "ci_run": 42933818225,
       "ci_result": "PASS",
-      "native_fix_confirmation": "pending new APK"
+      "native_fix_confirmation": "PASS on UAT1559; exact-task106/Arabic investigation and history/approval return refresh, checkpoints26–30 and44–46"
     },
     {
       "id": "P23-APP-002",
@@ -24,8 +24,20 @@
         "UAT1558 checkpoint82"
       ],
       "fix": "Use shared property display labels and review history action labels without changing stored codes",
-      "ci_result": "pending",
-      "native_fix_confirmation": "pending new APK"
+      "ci_result": "PASS",
+      "native_fix_confirmation": "PASS on UAT1559; exact-task106/Arabic investigation and history/approval return refresh, checkpoints26–30 and44–46",
+      "ci_run": 42933818225
+    },
+    {
+      "id": "P23-APP-003",
+      "severity": "medium",
+      "problem": "After network recovery, failed favorite lookup appears as an unsaved property on cards and details although the server still has106 saved for the same actor. An idempotent add refreshes the indicator.",
+      "evidence": [
+        "UAT1562 checkpoints028–031, server favorite IDs106/43/38 versus Save label in card and details"
+      ],
+      "fix": "Represent loading and failed account favorite lookup explicitly on cards, details and map. Retry performs a read only; toggles remain disabled until the state is known.",
+      "ci_result": "pending focused favorite recovery CI",
+      "native_fix_confirmation": "pending next APK"
     }
   ]
 }
