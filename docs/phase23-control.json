@@ -1,9 +1,10 @@
 {
   "run_id": "42978036876",
-  "seq": 23,
-  "challenge": "41e9b37bd792b3bda4c8eff54193d55d15ce561adb7421513bd05c6d887916af",
-  "op": "tap",
+  "seq": 24,
+  "challenge": "20f071a2af5cdb68281a7f87136a102a104599d617a23673de949ccc450dd45d",
+  "op": "touch",
   "args": {
-    "label": "أكمل بحثك بالصوت"
+    "x": 540,
+    "y": 1095
   }
 }
