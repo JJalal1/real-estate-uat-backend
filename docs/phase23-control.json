@@ -1,10 +1,7 @@
 {
   "run_id": "43107427969",
-  "seq": 7,
-  "challenge": "63be2fd661b10922a0ad2887c8f1ccea4379dbad55766333d1399fb3576a2512",
-  "op": "wait",
-  "args": {
-    "label": "رفض / إغلاق",
-    "seconds": 5
-  }
+  "seq": 8,
+  "challenge": "7fe04ac7b8404b4a0c98353ce29ed8ad4cb812bb4dbf880eb0a5fa993ad7d1e6",
+  "op": "back",
+  "args": {}
 }
