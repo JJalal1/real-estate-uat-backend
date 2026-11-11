@@ -1,7 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 69,
-  "challenge": "2837df6b98e54b3c821139030b61c552f680ac794167da6b18e935020b927290",
-  "op": "back",
-  "args": {}
+  "seq": 70,
+  "challenge": "b9b7c87998c966c8a41ae43734323c13ab195f7b28d4e68f18e74f6abd136a80",
+  "op": "tap",
+  "args": {
+    "label": "متابعة التصفح"
+  }
 }
