@@ -1,9 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 26,
-  "challenge": "e8c150c22a4c0bfb4460d45a8ecdd765941449d0985c89f7b8a7302e5f46f07a",
-  "op": "tap",
+  "seq": 27,
+  "challenge": "27167a49ecc23a7e4d5522a31ed71f5d8f9c8f7cad91842c5970486612dddb66",
+  "op": "scroll",
   "args": {
-    "label": "مهامي"
+    "direction": "backward"
   }
 }
