@@ -1,9 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 34,
-  "challenge": "9fd9bd5b497951fe22b3f79c8c5d3a805797d0c0dbf067b7202cc700a0646f76",
-  "op": "scroll",
+  "seq": 35,
+  "challenge": "68243462a7e10793ce3fde16570a6734462ab7aa46d2c5d8b917b717176fdaa7",
+  "op": "tap",
   "args": {
-    "direction": "forward"
+    "label": "تسجيل المراجعة البشرية"
   }
 }
