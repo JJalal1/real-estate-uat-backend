@@ -6,6 +6,8 @@ on:
       - .github/workflows/phase23-native.yml
       - scripts/run_phase23_native.py
       - scripts/prepare_phase23_native.py
+      - scripts/phase23_preflight.py
+      - scripts/phase23_checkpoint_state.py
       - scripts/phase23_recipient.pem
       - scripts/tests/test_phase23_native.py
       - .github/actions/phase1-review/index.js
@@ -42,7 +44,7 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
-      - name: Verify unchanged product components and secure channel
+      - name: Verify reviewed product components and secure channel
         env:
           AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
         run: |
@@ -91,7 +93,7 @@ jobs:
             ${{ env.GRADLE_USER_HOME }}/caches/modules-2
             ${{ env.GRADLE_USER_HOME }}/wrapper/dists
           key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
-      - name: Build the unchanged accepted application for native acceptance
+      - name: Build the reviewed application including the focused fixes
         working-directory: mobile_app
         env:
           AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'

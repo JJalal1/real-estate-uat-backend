@@ -35,6 +35,75 @@ OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get',
        'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch', 'batch', 'seed_media', 'finish'}
 
 
+class Phase23Account(NativeAccount):
+    """Keep the historical Phase1 executor unchanged; handle current role shells."""
+
+    def startup_home_binding(self, rows):
+        binding = super().startup_home_binding(rows)
+        if binding is not None:
+            return binding
+        if any(field in labels(row) for row in rows for field in AUTH_FIELDS):
+            return None
+        for anchors in (('لوحة الدعم', 'الوارد', 'مهامي', 'الرسائل', 'حسابي'),
+                        ('لوحة الفريق', 'الأعمال', 'الفريق', 'الرسائل', 'حسابي'),
+                        ('ماذا تبحث عنه؟', 'ابحث عن عقار أو منطقة…', 'العقارات', 'الخريطة', 'الرسائل', 'حسابي')):
+            binding = self.startup_public_binding(rows, anchors)
+            if binding is not None:
+                return binding
+        return None
+
+    def dismiss_keyboard_if_shown(self):
+        state = self.adb('shell', 'dumpsys', 'input_method')
+        if re.search(r'\b(?:mInputShown|isInputViewShown)=true\b', state):
+            self.adb('shell', 'input', 'keyevent', '4')
+            return True
+        return False
+
+    def set(self, label, value):
+        self.act('set', self.field(label), value=value)
+        self.dismiss_keyboard_if_shown()
+
+    def scroll(self, direction='forward', *, short=False):
+        if direction not in {'forward', 'backward'}:
+            raise Blocked('native_scroll_refused')
+        rows = self.nodes()
+        if any(field in labels(row) for row in rows for field in AUTH_FIELDS):
+            raise Blocked('authentication_scroll_refused')
+        roots = [r for r in rows if r.get('path') == '0' and r.get('package') == APP]
+        if len(roots) != 1:
+            raise Blocked('fresh_native_viewport_required')
+        left, top, right, bottom = roots[0]['bounds']
+        left, top, right, bottom = max(0,left), max(0,top), min(1080,right), min(1920,bottom)
+        footer = [r['bounds'][1] for r in rows if 'حسابي' in labels(r)
+                  and r['bounds'][1] >= 1400]
+        if footer:
+            bottom = min(bottom, min(footer))
+        candidates = []
+        for row in rows:
+            if row.get('scrollable') and row.get('enabled'):
+                a,b,c,d = row['bounds']
+                a,b,c,d = max(a,left),max(b,top),min(c,right),min(d,bottom)
+                if c-a > 80 and d-b > 160:
+                    candidates.append(((c-a)*(d-b), row, (a,b,c,d)))
+        if not candidates:
+            raise Blocked('scrollable_native_container_missing')
+        _, row, (a,b,c,d) = max(candidates, key=lambda item:item[0])
+        # Re-read the selected semantic witness before the bounded physical input.
+        fresh = [r for r in self.nodes() if r.get('path') == row['path']
+                 and r.get('witness') == row['witness'] and r.get('bounds') == row['bounds']]
+        if len(fresh) != 1:
+            raise Blocked('native_scroll_witness_changed')
+        margin = min(100, (d-b)//4)
+        start,end = d-margin,b+margin
+        if short:
+            center=(b+d)//2; half=(d-b-2*margin)//6
+            start,end=center+half,center-half
+        if direction == 'backward':
+            start,end=end,start
+        self.adb('shell','input','swipe',(a+c)//2,start,(a+c)//2,end,500)
+        time.sleep(.3)
+
+
 def canonical(value):
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
 
@@ -127,7 +196,7 @@ class NativeRun:
             digits = phone.lstrip('+')
             self.private_values.update({digits, '+' + digits})
             if digits.startswith('00'): self.private_values.update({digits[2:], '+' + digits[2:]})
-        self.driver = NativeAccount(PRIVATE, dict(os.environ))
+        self.driver = Phase23Account(PRIVATE, dict(os.environ))
         self.driver.private_values.update(self.private_values)
         self.driver._active_case = 'P23'
         self.actor = None
@@ -269,13 +338,16 @@ class NativeRun:
         d.adb('shell', 'am', 'force-stop', APP)
         d.startup()
         d.tap('حسابي')
-        d.seek('تسجيل الخروج')
-        d.tap('تسجيل الخروج', seek=False)
+        already_guest = d.has('تسجيل الدخول أو إنشاء حساب')
+        if not already_guest:
+            d.wait_account_logout_control(seconds=30)
+            d.tap('تسجيل الخروج', seek=False)
         d.authenticated = False
-        d.wait_guest_marketplace()
+        # The app intentionally retains the Account tab after logout.
+        d.wait_guest_account()
         self.actor = None
         self.native_auth_attempted = False
-        return {'native_logout_observed': True}
+        return {'native_logout_observed': True, 'already_guest': already_guest}
 
     def apply(self, command):
         op, args, d = command['op'], command['args'], self.driver
