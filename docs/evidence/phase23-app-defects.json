@@ -36,7 +36,21 @@
         "UAT1562 checkpoints028–031, server favorite IDs106/43/38 versus Save label in card and details"
       ],
       "fix": "Represent loading and failed account favorite lookup explicitly on cards, details and map. Retry performs a read only; toggles remain disabled until the state is known.",
-      "ci_result": "pending focused favorite recovery CI",
+      "ci_result": "PASS analyze and5 tests",
+      "native_fix_confirmation": "pending next APK",
+      "ci_run": 42955004653,
+      "implementation_commit": "1b56760df668ea760be079223643b1a3c190ebe1",
+      "tested_source": "7760e22b5d1ad0f03fb94568c962960440e8874b"
+    },
+    {
+      "id": "P23-APP-004",
+      "severity": "medium",
+      "problem": "Property informational panels keep a white background in dark mode while their text follows the light-on-dark theme, making About property and specifications difficult to read.",
+      "evidence": [
+        "UAT1562 checkpoint043 native dark/font2.4 details"
+      ],
+      "fix": "Use Material surface, outline and onSurface roles in existing section panels and advertiser cards; preserve dimensions/assets and light-theme roles.",
+      "ci_result": "pending focused theme tests",
       "native_fix_confirmation": "pending next APK"
     }
   ]

@@ -1,0 +1,37 @@
+name: Phase23 dark informational sections fix
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-dark-sections.yml
+      - mobile_app/lib/core/widgets/ebroker_screen_sections.dart
+      - mobile_app/test/phase23_dark_sections_test.dart
+permissions:
+  contents: read
+jobs:
+  dark-sections:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Use the approved dependency lock
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Analyze affected theme components
+        working-directory: mobile_app
+        run: flutter analyze --fatal-infos lib/core/widgets/ebroker_screen_sections.dart test/phase23_dark_sections_test.dart
+      - name: Verify readable RTL sections at large text in both themes
+        working-directory: mobile_app
+        run: flutter test --no-pub test/phase23_dark_sections_test.dart
