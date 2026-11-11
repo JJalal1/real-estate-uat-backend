@@ -1,21 +1,21 @@
 {
   "run_id": "42986038827",
-  "seq": 16,
-  "challenge": "a795b62653bc355b2372db12611ec36c9ad5566d1a55a156cf3f6ada65015fbd",
+  "seq": 17,
+  "challenge": "a8c7cd80350318479abbede6dc59f2ea3a39bad1b68028229964057e266c35f1",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "scroll",
+        "op": "set",
         "args": {
-          "direction": "forward"
+          "label": "الإيجار الشهري بالريال اليمني *",
+          "value": "180000"
         }
       },
       {
-        "op": "api_get",
+        "op": "tap",
         "args": {
-          "alias": "regular",
-          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
+          "label": "موقف السيارة *\nاختر…"
         }
       }
     ]
