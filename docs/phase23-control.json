@@ -1,10 +1,7 @@
 {
   "run_id": "42978036876",
-  "seq": 15,
-  "challenge": "349a52ab4a1e5c275a2c81394d882597c8bcf6faa51b6e73b81122dc0ed83e0d",
-  "op": "wait",
-  "args": {
-    "label": "تطبيق الشروط",
-    "seconds": 20
-  }
+  "seq": 16,
+  "challenge": "291719b427613dc749e471c2aec7a8ada90e8b0f09a2f305f46270d8c45d65c9",
+  "op": "back",
+  "args": {}
 }
