@@ -1,9 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 22,
-  "challenge": "944a0821f1145a9e9a0aff29a336210d3e4cb99f6c410d0dc4e66f7c0213866c",
-  "op": "key",
+  "seq": 23,
+  "challenge": "092a28aa1d8d44a993e3be3eb7d524d53cdff84c9b0a97d0e1499632e02d848d",
+  "op": "tap",
   "args": {
-    "key": "BACK"
+    "label": "إضافة صور"
   }
 }
