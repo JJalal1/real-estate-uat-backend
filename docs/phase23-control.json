@@ -1,23 +1,10 @@
 {
   "run_id": "43107427969",
-  "seq": 1,
-  "challenge": "a37c6cdce46837798b72e2b35896262a8dd6fb9d95940bb15cdefa7b6bc04874",
-  "op": "batch",
+  "seq": 2,
+  "challenge": "a130e46105260cef10d39dd5c4196b0bb268d3fe2a2a496fe143bb57d8e2826a",
+  "op": "wait",
   "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "support",
-          "path": "/admin/support/cases/9"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "البلاغات"
-        }
-      }
-    ]
+    "label": "SUP-261111-QYLXJRN",
+    "seconds": 15
   }
 }
