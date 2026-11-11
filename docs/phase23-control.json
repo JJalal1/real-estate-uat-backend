@@ -1,9 +1,50 @@
 {
   "run_id": "43113135513",
-  "seq": 30,
-  "challenge": "c7da0fe6e01ea72ee0c2564978722ef5c649e2fb2b053ea49d5f785e838c1be1",
-  "op": "login",
+  "seq": 31,
+  "challenge": "4fedf7a4626a4cdb17d3f0da028c2625c8d126851cdaaa70a3284d5df29730df",
+  "op": "batch",
   "args": {
-    "alias": "regular"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "حسابي"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "شوهد مؤخرًا",
+          "seconds": 8
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "شوهد مؤخرًا"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "ما شاهدت عقارات بعد",
+          "seconds": 8
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/support/cases/9"
+        }
+      }
+    ]
   }
 }
