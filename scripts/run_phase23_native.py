@@ -33,7 +33,7 @@ REPO = 'JJalal1/real-estate-uat-backend'
 AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المرور', 'البريد الإلكتروني'}
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get',
        'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch',
-       'double_tap', 'draw_area', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'finish'}
+       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'finish'}
 
 
 class Phase23Account(NativeAccount):
@@ -208,7 +208,7 @@ def validate_command(value, run_id, seq, challenge):
                'key': {'key'}, 'force_stop': set(), 'touch': {'x', 'y'},
                'swipe': {'x1', 'y1', 'x2', 'y2'}, 'pinch': {'direction', 'x', 'y'},
                'double_tap': {'x','y'}, 'wait': {'label','seconds'}, 'network': {'state'},
-               'display': {'mode'}, 'open_link': {'uri'}, 'draw_area': set(),
+               'display': {'mode'}, 'open_link': {'uri'}, 'draw_area': set(), 'blocked_message_probe': {'alias'}, 'send_synthetic_message': set(),
                'batch': {'steps'}, 'seed_media': set(), 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
@@ -238,8 +238,10 @@ def validate_command(value, run_id, seq, challenge):
         raise GateError('fixed_native_network_state_required')
     if value['op'] == 'display' and args['mode'] not in {'default','compact_large','large'}:
         raise GateError('fixed_native_display_mode_required')
-    if value['op'] == 'open_link' and args['uri'] != 'realestate://app/properties/106':
+    if value['op'] == 'open_link' and args['uri'] not in {'realestate://app/properties/106','realestate://app/messages/37'}:
         raise GateError('approved_public_fixture_link_required')
+    if value['op'] == 'blocked_message_probe' and args['alias'] not in {'regular','broker'}:
+        raise GateError('synthetic_participant_required')
     if value['op'] in {'touch', 'swipe', 'pinch', 'double_tap'}:
         for k, v in args.items():
             if k == 'direction':
@@ -357,6 +359,81 @@ class NativeRun:
         return {'data':{key:thread[key] for key in
                 ('id','property_id','can_send','blocked_by_me') if key in thread} |
                 {'other_user_id':other['id'],'message_count_on_page':len(data.get('messages',[]))}}
+
+    def blocked_message_probe(self, alias):
+        if alias not in {'regular','broker'}:
+            raise GateError('synthetic_participant_required')
+        if alias not in self.sessions:
+            self.sessions[alias]=Session(alias,self.access)
+            self.sessions[alias].login()
+        session=self.sessions[alias]
+        code,body=http('GET','/messages/threads/37',token=session.token)
+        if code!=200: raise GateError('synthetic_thread_not_available')
+        meta=self.synthetic_thread_metadata(body)['data']
+        expected_other=28 if alias=='regular' else 26
+        if meta['other_user_id']!=expected_other or meta.get('can_send') is not False:
+            raise GateError('observed_block_required_before_negative_probe')
+        code,_=http('POST','/messages/threads/37/messages',
+                    {'body':'رسالة اصطناعية لاختبار منع الحظر؛ يجب رفضها؛ ليست تواصلًا حقيقيًا.'},token=session.token)
+        result={'operation':'blocked_message_probe','alias':alias,'thread_id':37,'property_id':106,
+                'expected_http':403,'actual_http':code,'rejected':code==403,
+                'private_body_exported':False}
+        if alias=='regular':
+            public_code,public=http('GET','/properties/33',token=session.token)
+            data=public.get('data',{}) if isinstance(public,dict) else {}
+            if public_code==200 and data.get('id')==33 and data.get('advertiser',{}).get('id')==28 and data.get('status')=='published':
+                cross,_=http('POST','/properties/33/conversation',{},token=session.token)
+                result['other_property_start']={'property_id':33,'expected_http':403,'actual_http':cross,'rejected':cross==403}
+            else:
+                result['other_property_start']={'property_id':33,'status':'NOT_TESTED','reason':'same-advertiser public fixture unavailable'}
+        return result
+
+    def send_synthetic_message(self):
+        if self.actor!='regular': raise GateError('synthetic_regular_native_actor_required')
+        if 'regular' not in self.sessions:
+            self.sessions['regular']=Session('regular',self.access)
+            self.sessions['regular'].login()
+        session=self.sessions['regular']
+        code,body=http('GET','/messages/threads/37',token=session.token)
+        if code!=200: raise GateError('synthetic_thread_not_available')
+        before=self.synthetic_thread_metadata(body)['data']
+        if before['other_user_id']!=28 or before.get('can_send') is not True or before['message_count_on_page']!=0:
+            raise GateError('empty_unblocked_synthetic_thread_required')
+        d=self.driver
+        d.adb('shell','am','start','-W','-a','android.intent.action.VIEW','-d','realestate://app/messages/37',APP)
+        d.wait('اكتب رسالة...',seconds=20)
+        field=d.field('اكتب رسالة...',seek=False)
+        if field.get('text','').strip(): raise GateError('existing_unsent_draft_preserved')
+        message='رسالة اختبار اصطناعية للمرحلة23 على الإعلان106؛ ليست استفسارًا حقيقيًا.'
+        d.set('اكتب رسالة...',message)
+        rows=d.nodes()
+        names=set().union(*(labels(r) for r in rows)) if rows else set()
+        fields=[r for r in rows if r.get('editable') and r.get('text')==message]
+        roots=[r for r in rows if r.get('path')=='0' and r.get('bounds')==[0,0,1080,1920]]
+        send=[r for r in rows if r.get('class')=='android.widget.Button' and r.get('clickable')
+              and r.get('enabled') and not labels(r) and len(r.get('bounds',[]))==4
+              and r['bounds'][0]<180 and r['bounds'][2]<200 and 1500<r['bounds'][1]<1850]
+        if len(roots)!=1 or len(fields)!=1 or len(send)!=1 or 'خيارات المحادثة' not in names:
+            raise GateError('fresh_synthetic_composer_required')
+        # The only native send target is the fresh, witnessed composer button;
+        # no API send fallback, arbitrary coordinates, text or destination.
+        d.act('click',send[0])
+        after=before
+        matched=False
+        for _ in range(10):
+            code,body=http('GET','/messages/threads/37',token=session.token)
+            if code!=200: break
+            after=self.synthetic_thread_metadata(body)['data']
+            if after['message_count_on_page']>0:
+                messages=body.get('data',{}).get('messages',[])
+                matched=len(messages)==1 and messages[0].get('sender_user_id')==26 and messages[0].get('body')==message
+                break
+            time.sleep(1)
+        return {'operation':'send_synthetic_message','thread_id':37,'property_id':106,
+                'sender_id':26,'recipient_id':28,'before_count':0,
+                'after_count':after['message_count_on_page'],
+                'normal_native_send_observed':matched,
+                'private_body_exported':False}
 
     def observe(self):
         try:
@@ -498,6 +575,8 @@ class NativeRun:
             _, temporary_frame, _ = self.observe()
             if temporary_frame: temporary_frame.unlink()
         if op == 'observe': return {'operation': op}
+        if op == 'blocked_message_probe': return self.blocked_message_probe(args['alias'])
+        if op == 'send_synthetic_message': return self.send_synthetic_message()
         if op == 'seed_media': return self.seed_media()
         if op == 'batch':
             results = []
@@ -542,7 +621,7 @@ class NativeRun:
             return {'operation':op,'mode':args['mode'],'scope':'disposable API36 display; outcome requires visual review'}
         elif op == 'open_link':
             d.adb('shell','am','start','-W','-a','android.intent.action.VIEW','-d',args['uri'],APP)
-            return {'operation':op,'uri':args['uri'],'scope':'fixed public fixture; destination requires UI review'}
+            return {'operation':op,'uri':args['uri'],'scope':'fixed UAT fixture; destination requires UI review'}
         elif op == 'force_stop':
             d.adb('shell', 'am', 'force-stop', APP)
             d.startup()

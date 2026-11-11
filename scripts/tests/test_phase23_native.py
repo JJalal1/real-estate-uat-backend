@@ -276,6 +276,69 @@ class CommandSafetyTest(unittest.TestCase):
         self.assertEqual(driver.phase23_last_input_failure['java_stage'],'root_ready')
         self.assertNotIn('private',str(driver.phase23_last_input_failure))
 
+    def test_negative_message_probe_refuses_unblocked_or_foreign_fixture_before_a_write(self):
+        run=object.__new__(NativeRun);run.sessions={'regular':Mock(token='synthetic-local-test')}
+        body={'data':{'thread':{'id':37,'property_id':106,'can_send':True,'other_user':{'id':28}},'messages':[]}}
+        with patch('run_phase23_native.http',return_value=(200,body)) as request:
+            with self.assertRaisesRegex(GateError,'observed_block'):
+                run.blocked_message_probe('regular')
+            self.assertEqual(request.call_count,1)
+        body['data']['thread'].update(id=38,can_send=False)
+        with patch('run_phase23_native.http',return_value=(200,body)) as request:
+            with self.assertRaisesRegex(GateError,'identity'):
+                run.blocked_message_probe('regular')
+            self.assertEqual(request.call_count,1)
+
+    def test_negative_message_probe_is_fixed_to_the_synthetic_pair_and_omits_content(self):
+        run=object.__new__(NativeRun);run.sessions={'regular':Mock(token='synthetic-local-test')}
+        body={'data':{'thread':{'id':37,'property_id':106,'can_send':False,'other_user':{'id':28}},
+                      'messages':[{'body':'not for export'}]}}
+        public={'data':{'id':33,'status':'published','advertiser':{'id':28}}}
+        with patch('run_phase23_native.http',side_effect=[(200,body),(403,{'private':'not for export'}),(200,public),(403,{})]) as request:
+            out=run.blocked_message_probe('regular')
+            self.assertTrue(out['rejected']);self.assertTrue(out['other_property_start']['rejected'])
+            self.assertNotIn('not for export',str(out))
+            self.assertEqual([(x.args[0],x.args[1]) for x in request.call_args_list],
+                [('GET','/messages/threads/37'),('POST','/messages/threads/37/messages'),
+                 ('GET','/properties/33'),('POST','/properties/33/conversation')])
+        with self.assertRaises(GateError):
+            validate_command(dict(self.command,op='blocked_message_probe',args={'alias':'support'}),'1234',1,'a'*64)
+
+    def test_synthetic_send_preserves_existing_messages_and_unsent_text(self):
+        run=object.__new__(NativeRun);run.actor='broker'
+        with self.assertRaisesRegex(GateError,'regular_native_actor'):
+            run.send_synthetic_message()
+        run.actor='regular';run.sessions={'regular':Mock(token='synthetic-local-test')};run.driver=Mock()
+        body={'data':{'thread':{'id':37,'property_id':106,'can_send':True,'other_user':{'id':28}},'messages':[{}]}}
+        with patch('run_phase23_native.http',return_value=(200,body)):
+            with self.assertRaisesRegex(GateError,'empty_unblocked'):
+                run.send_synthetic_message()
+        run.driver.adb.assert_not_called()
+        body['data']['messages']=[];run.driver.field.return_value={'text':'existing unsent private text'}
+        with patch('run_phase23_native.http',return_value=(200,body)):
+            with self.assertRaisesRegex(GateError,'unsent_draft_preserved'):
+                run.send_synthetic_message()
+        run.driver.set.assert_not_called();run.driver.act.assert_not_called()
+        with self.assertRaises(GateError):
+            validate_command(dict(self.command,op='send_synthetic_message',args={'body':'arbitrary'}),'1234',1,'a'*64)
+
+    def test_synthetic_send_clicks_only_the_witnessed_composer_and_returns_no_body(self):
+        run=object.__new__(NativeRun);run.actor='regular';run.sessions={'regular':Mock(token='synthetic-local-test')};run.driver=Mock()
+        message='رسالة اختبار اصطناعية للمرحلة23 على الإعلان106؛ ليست استفسارًا حقيقيًا.'
+        run.driver.field.return_value={'text':''}
+        button={'class':'android.widget.Button','clickable':True,'enabled':True,'bounds':[26,1672,152,1798],'path':'0.9','witness':'a'*64}
+        run.driver.nodes.return_value=[{'path':'0','bounds':[0,0,1080,1920]},
+            {'editable':True,'text':message},{'text':'خيارات المحادثة'},button]
+        thread={'id':37,'property_id':106,'can_send':True,'other_user':{'id':28}}
+        before={'data':{'thread':thread,'messages':[]}}
+        after={'data':{'thread':thread,'messages':[{'sender_user_id':26,'body':message}]}}
+        with patch('run_phase23_native.http',side_effect=[(200,before),(200,after)]) as request:
+            out=run.send_synthetic_message()
+            self.assertTrue(out['normal_native_send_observed']);self.assertEqual(out['after_count'],1)
+            self.assertNotIn(message,str(out));self.assertNotIn('body',str(out).replace('private_body_exported',''))
+            self.assertTrue(all(x.args[0]=='GET' for x in request.call_args_list))
+        run.driver.act.assert_called_once_with('click',button)
+
     @unittest.skipUnless(shutil.which('javac') and shutil.which('java'),'JDK17 required; available explicitly in collector CI')
     def test_actual_java_visible_label_gate_accepts_tooltips_and_rejects_hidden_foreign_nodes(self):
         source=(Path(__file__).parents[1]/'phase1_device_input/Phase1Input.java').read_text()
