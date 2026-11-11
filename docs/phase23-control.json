@@ -1,7 +1,9 @@
 {
   "run_id": "43099213137",
-  "seq": 10,
-  "challenge": "f482ff7a5779d23a3d1e5d3958d50818aaf5955fad44354ea01e1456f5193696",
-  "op": "prefetch_metrics",
-  "args": {}
+  "seq": 11,
+  "challenge": "33ebdf73481ee7556548b865c573a30106efefef0415c906fc1ba861b87eaa14",
+  "op": "login",
+  "args": {
+    "alias": "support"
+  }
 }
