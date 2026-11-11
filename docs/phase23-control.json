@@ -1,9 +1,7 @@
 {
   "run_id": "42986038827",
-  "seq": 5,
-  "challenge": "1a728a40ae8335f784ca59356e42c4df3736d7faf997a43b831975a12ef7aa7f",
-  "op": "tap",
-  "args": {
-    "label": "ذكاء اصطناعي"
-  }
+  "seq": 6,
+  "challenge": "41e094624eea0f04035b9b1473d6cf04bb8f1ab579497c2a668efbc50705bf5e",
+  "op": "observe",
+  "args": {}
 }
