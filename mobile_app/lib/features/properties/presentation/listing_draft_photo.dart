@@ -282,8 +282,10 @@ class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
     final cache = ref.read(listingPhotoCacheProvider);
     _displayBytes ??= cache.peek(_cacheKey) ?? (widget.authenticated ? null : cache.peekPublicPreview(widget.url));
     _lease = cache.acquire(_cacheKey, _fetch);
-    if (!widget.authenticated) ref.read(mediaNetworkMonitorProvider).reportPrefetch(
-      cache.prefetchRequests, cache.prefetchBytes, cache.prefetchReadyHits, scope: cache.scope);
+    if (!widget.authenticated) {
+      ref.read(mediaNetworkMonitorProvider).reportPrefetch(
+        cache.prefetchRequests, cache.prefetchBytes, cache.prefetchReadyHits, scope: cache.scope);
+    }
     return _lease!.future;
   }
   Future<Uint8List> _fetch(CancelToken cancel) async {
