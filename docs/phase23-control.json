@@ -1,36 +1,10 @@
 {
   "run_id": "42939077400",
-  "seq": 74,
-  "challenge": "6d4a3cfa6015e398114c9b1e9f2f7a24044ddc63e475a1c89dfca62efb1a0cc4",
-  "op": "batch",
+  "seq": 75,
+  "challenge": "1474109d93b86fed9e40507b0f28373c31ff5f7f8f551ea16e75163295fc7e93",
+  "op": "touch",
   "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/favorites/ids"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/favorites/ids"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "رجوع"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "العقارات"
-        }
-      }
-    ]
+    "x": 560,
+    "y": 308
   }
 }
