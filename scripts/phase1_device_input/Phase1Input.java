@@ -118,14 +118,8 @@ public final class Phase1Input extends Instrumentation {
             } else {
                 require("double-tap".equals(op) || "pinch-in".equals(op) || "pinch-out".equals(op));
                 String phase23Surface=args.getString("phase23_surface", "");
-                if ("gallery".equals(phase23Surface)) {
-                    int index=number("gallery_index",1,12), count=number("gallery_count",1,12);
-                    require(index<=count && containsVisible(root,"إغلاق الصور")
-                        && containsVisible(root,"صورة العقار "+index+" من "+count)
-                        && containsVisible(root,index+"/"+count));
-                } else if ("map".equals(phase23Surface)) {
-                    require(containsVisible(root,"البحث على الخريطة") && containsVisible(root,
-                        "Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers."));
+                if (!phase23Surface.isEmpty()) {
+                    require(phase23GestureReady(root));
                 } else {
                     require(phase23Surface.isEmpty());
                     require(contains(root, "صورة العقار 1 من 1") && contains(root, "1/1"));
@@ -199,6 +193,17 @@ public final class Phase1Input extends Instrumentation {
             finish(0, result);
         }
     }
+    private boolean phase23GestureReady(AccessibilityNodeInfo root) {
+        String surface=args.getString("phase23_surface", "");
+        if ("gallery".equals(surface)) {
+            int index=number("gallery_index",1,12), count=number("gallery_count",1,12);
+            return index<=count && containsVisible(root,"إغلاق الصور")
+                && containsVisible(root,"صورة العقار "+index+" من "+count)
+                && containsVisible(root,index+"/"+count);
+        }
+        return "map".equals(surface) && containsVisible(root,"البحث على الخريطة")
+            && containsVisible(root,"Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers.");
+    }
     private AccessibilityNodeInfo readyRoot(String op) {
         long deadline=SystemClock.uptimeMillis()+5000;
         while(SystemClock.uptimeMillis()<deadline) {
@@ -214,8 +219,12 @@ public final class Phase1Input extends Instrumentation {
             foreground=foregroundCategory(rootPackage);
             if(root!=null && rootPackage!=null && APP.contentEquals(rootPackage)) {
                 boolean query="fixture-query".equals(op)||"negative-query".equals(op)||"clear-query".equals(op)||"submit-query".equals(op)||"empty-query".equals(op);
-                if(op.startsWith("account-") || (query ? contains(root,"البحث عن عقار")||contains(root,"البحث على الخريطة")
-                         : contains(root,"صورة العقار 1 من 1")&&contains(root,"1/1"))) return root;
+                boolean gesture="double-tap".equals(op)||"pinch-in".equals(op)||"pinch-out".equals(op);
+                if(op.startsWith("account-")) return root;
+                if(query && (contains(root,"البحث عن عقار")||contains(root,"البحث على الخريطة"))) return root;
+                if(gesture && !args.getString("phase23_surface", "").isEmpty()) {
+                    if(phase23GestureReady(root)) return root;
+                } else if(gesture && contains(root,"صورة العقار 1 من 1")&&contains(root,"1/1")) return root;
             }
             SystemClock.sleep(100);
         }
