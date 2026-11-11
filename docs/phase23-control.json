@@ -1,22 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 23,
-  "challenge": "31792c2c387971a64d79956b9b10b279996813f278eb12ddc64f3a8a43c76b55",
-  "op": "batch",
+  "seq": 24,
+  "challenge": "e9ba147dc91a5f2788cb3a5c3f2564480228e35a1f060b07d4a57a38f931f9e5",
+  "op": "scroll",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "تحقيق إعلانات"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      }
-    ]
+    "direction": "forward"
   }
 }
