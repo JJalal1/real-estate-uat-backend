@@ -1,10 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 48,
-  "challenge": "667140a47ec503d70ef1fd059a3348656e097a6d6d4a17df5c01fc8316268ff8",
-  "op": "touch",
+  "seq": 49,
+  "challenge": "4948509a2bbe76d0f7dde2a5ec5a603e155269902d6f7d443e57103b4e3dad01",
+  "op": "tap",
   "args": {
-    "x": 110,
-    "y": 310
+    "label": "الخريطة"
   }
 }
