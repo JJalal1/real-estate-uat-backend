@@ -1,22 +1,10 @@
 {
   "run_id": "42939077400",
-  "seq": 5,
-  "challenge": "3cf887c87022e2007a67414eba0a6e32ad5e9a95bd2366e526fa8edc6bae1d45",
-  "op": "batch",
+  "seq": 6,
+  "challenge": "0eee893e17081037bb1431928973857b94aad0fcc0c5554286faed7a16fbf3fe",
+  "op": "api_get",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "خيارات البطاقة"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تصحيح الإعلان"
-        }
-      }
-    ]
+    "alias": "broker",
+    "path": "/properties/106"
   }
 }
