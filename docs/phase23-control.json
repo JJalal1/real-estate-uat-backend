@@ -1,9 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 38,
-  "challenge": "31a3a410767f145addea8b3907957dbccc7355eee5a2035ed7861404043094b8",
-  "op": "blocked_message_probe",
+  "seq": 39,
+  "challenge": "5e0482f57245d81ee4972f08a459fd5b57725518059e29df62e3eb1ec78633f2",
+  "op": "tap",
   "args": {
-    "alias": "broker"
+    "label": "خيارات المحادثة"
   }
 }
