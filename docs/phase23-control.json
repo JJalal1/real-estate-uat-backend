@@ -1,7 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 32,
-  "challenge": "de23be5ffbf20e8fe9225bc5800a858625919b14cf555db886dcb4b4ede8c618",
-  "op": "logout",
-  "args": {}
+  "seq": 33,
+  "challenge": "7d99de3687a9fea935c9de702586305c7077d5a401fe55db622a37fef38e2af1",
+  "op": "tap",
+  "args": {
+    "label": "المظهر"
+  }
 }
