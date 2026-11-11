@@ -1,10 +1,7 @@
 {
   "run_id": "42958167376",
-  "seq": 3,
-  "challenge": "72d1a8b3759b1ea4f13beeeb495a3a9a05703fc30bc0895c5981016faf980768",
-  "op": "double_tap",
-  "args": {
-    "x": 540,
-    "y": 960
-  }
+  "seq": 4,
+  "challenge": "30734e30d350029435be8c4ba627bbb1b184a601a1b8af03a94fef522611c48c",
+  "op": "observe",
+  "args": {}
 }
