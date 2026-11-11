@@ -61,7 +61,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(reads, 2);
     expect(mutations, isEmpty);
-    final waiting = tester.widget<IconButton>(find.byTooltip('جارٍ تحميل المفضلة'));
+    expect(find.byTooltip('جارٍ تحميل المفضلة'), findsOneWidget);
+    final waiting = tester.widget<IconButton>(find.byKey(const ValueKey('favorite-property-106')));
     expect(waiting.onPressed, isNull);
     recovery.complete({106});
     await tester.pumpAndSettle();
