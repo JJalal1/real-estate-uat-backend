@@ -1,9 +1,10 @@
 {
   "run_id": "42939077400",
-  "seq": 11,
-  "challenge": "c6daf23c653366735884d8fc8ceab3314e78ea053a132b8aca479b35e39fed57",
-  "op": "tap",
+  "seq": 12,
+  "challenge": "52d6a078bf19d5c1c48c789f7fc48a7f800f3e69d9b9c329806496e64c1b569e",
+  "op": "touch",
   "args": {
-    "label": "استبدال الصورة"
+    "x": 72,
+    "y": 128
   }
 }
