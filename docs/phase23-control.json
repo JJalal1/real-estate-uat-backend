@@ -1,30 +1,7 @@
 {
   "run_id": "43107427969",
-  "seq": 19,
-  "challenge": "58afb49b97e5f121adf00487f56cec1c44ebbaae9cbe078e6a494b51ab75956f",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/properties/106"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إضافة عقار"
-        }
-      }
-    ]
-  }
+  "seq": 20,
+  "challenge": "5c6d6430860f748e462d8a2dd838ba6ed7f2e5d41a13bf7fa598f49639493584",
+  "op": "observe",
+  "args": {}
 }
