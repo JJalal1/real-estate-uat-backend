@@ -1,9 +1,10 @@
 {
   "run_id": "42962422395",
-  "seq": 52,
-  "challenge": "3d360f475538c8759114e1e9feb02efcaa7c3383d90c3b7f0ca40057f448278a",
-  "op": "tap",
+  "seq": 53,
+  "challenge": "5a5fa572405e1053cbb6aa234a4ee29c6a53c039561b2475d8bdb00fc081f7a2",
+  "op": "touch",
   "args": {
-    "label": "تصغير الفلاتر"
+    "x": 540,
+    "y": 1065
   }
 }
