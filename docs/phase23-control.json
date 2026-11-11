@@ -1,10 +1,12 @@
 {
   "run_id": "42939077400",
-  "seq": 38,
-  "challenge": "400f4ced5116e5c06cfa384c0da6684856c09abfcf8af19fb2583571851d8803",
-  "op": "api_get",
+  "seq": 39,
+  "challenge": "e2609b670e32502764b8ddb6cc36d377e676ab0a86e0701b6680eb07f32dffbe",
+  "op": "swipe",
   "args": {
-    "alias": "support",
-    "path": "/admin/listing-review/listings/106"
+    "x1": 530,
+    "y1": 1610,
+    "x2": 530,
+    "y2": 1080
   }
 }
