@@ -1,7 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 43,
-  "challenge": "a85006ff76519abe87a0b057079eecc24a03a7fb3fdad00f868f59c70dd32484",
-  "op": "force_stop",
-  "args": {}
+  "seq": 44,
+  "challenge": "dc727c7f922adbbf507774392c14ec36bf3c76b838a5695f90716e0b4aafe03d",
+  "op": "tap",
+  "args": {
+    "label": "إضافة عقار"
+  }
 }
