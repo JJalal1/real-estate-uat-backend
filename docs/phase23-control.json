@@ -1,10 +1,9 @@
 {
   "run_id": "42958167376",
-  "seq": 18,
-  "challenge": "ab2698b2040d90ce711499f12e2e3992d59ed465eb8ff92217f12d08b1aa6e56",
-  "op": "api_get",
+  "seq": 19,
+  "challenge": "1c4c99b8eaf57e930855ed9dfd48938e992d7a6a45c2e607a87b1aa231a4785a",
+  "op": "open_link",
   "args": {
-    "alias": "regular",
-    "path": "/favorites/ids"
+    "url": "realestate://app/properties/106"
   }
 }
