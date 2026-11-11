@@ -51,7 +51,7 @@
       ],
       "fix": "Use Material surface, outline and onSurface roles in existing section panels and advertiser cards; preserve dimensions/assets and light-theme roles.",
       "ci_result": "PASS analyze and5 tests",
-      "native_fix_confirmation": "pending next APK",
+      "native_fix_confirmation": "PASS on UAT1568/source13da68f/API36: reviewed dark About/specification panels at default font checkpoint013; readable themed surfaces also at font2.4 checkpoints014–015. Broader accessibility acceptance remains open.",
       "ci_run": 42956545533,
       "implementation_commit": "0e072474908ab34741867fddc48a402927fb9731"
     }
