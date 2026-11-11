@@ -1,9 +1,30 @@
 {
   "run_id": "43113135513",
-  "seq": 4,
-  "challenge": "e17847ced611f581f573e002769d3fac04f5447c6b19eef626b47fc90186dab2",
-  "op": "login",
+  "seq": 5,
+  "challenge": "3d738a31a2e59609f2701123046ac0b0e18dbf36c6663f9e21de6726385cbf51",
+  "op": "batch",
   "args": {
-    "alias": "broker"
+    "steps": [
+      {
+        "op": "wait",
+        "args": {
+          "label": "الرئيسية",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "الرئيسية"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "ماذا تبحث عنه؟",
+          "seconds": 10
+        }
+      }
+    ]
   }
 }
