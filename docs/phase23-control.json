@@ -1,7 +1,23 @@
 {
   "run_id": "42948672743",
-  "seq": 26,
-  "challenge": "8c83ef7336d60c412afb93ddd3e27a7c38a23300754893bc251bbdebd8cdfdc3",
-  "op": "record_start",
-  "args": {}
+  "seq": 27,
+  "challenge": "d6a800cae40d6825222df6502cf33b6766b1d2b2fa7921bcff138b2c6cf4db32",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إعادة المحاولة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "صورة العقار 1 من 3",
+          "seconds": 25
+        }
+      }
+    ]
+  }
 }
