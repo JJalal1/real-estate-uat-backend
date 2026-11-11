@@ -1,9 +1,10 @@
 {
   "run_id": "42948672743",
-  "seq": 47,
-  "challenge": "00275fe82c38098ffc567cb99b36e1b6316cd6c34b23a61eb13b5f9ec6ba7309",
-  "op": "display",
+  "seq": 48,
+  "challenge": "89258a0d385434400eb35c4b442c4c6d5753185ab6ae4bdf5e172c0d7887afa7",
+  "op": "wait",
   "args": {
-    "mode": "default"
+    "label": "تطبيق الشروط",
+    "seconds": 8
   }
 }
