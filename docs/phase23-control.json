@@ -1,28 +1,34 @@
 {
   "run_id": "43113135513",
-  "seq": 53,
-  "challenge": "8b4ce71421262a2ae86b57495804e2796f42d26c5cf03e0a9b21328cabb99a7f",
+  "seq": 54,
+  "challenge": "0c996deb82cade70174c71d7bfa742773bf0191c5db7d6037868d300d1f992b7",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "api_get",
+        "op": "tap",
         "args": {
-          "alias": "regular",
-          "path": "/messages/threads/37"
+          "label": "حظر الحساب"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "خيارات المحادثة",
-          "seconds": 10
+          "label": "حظر هذا الحساب؟",
+          "seconds": 8
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "خيارات المحادثة"
+          "label": "حظر"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/messages/threads/37"
         }
       }
     ]
