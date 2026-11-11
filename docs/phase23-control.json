@@ -1,9 +1,10 @@
 {
   "run_id": "42948672743",
-  "seq": 0,
-  "challenge": "d5f99af613b48e0ad4413388324cae17bbe6476c8a2c39188e711f9812d96277",
-  "op": "open_link",
+  "seq": 1,
+  "challenge": "c25efc2ad5ea446b1b86716c29f13a240287d2b797f9e19e8afa1b917e76e6db",
+  "op": "wait",
   "args": {
-    "uri": "realestate://app/properties/106"
+    "label": "تفاصيل العقار",
+    "seconds": 12
   }
 }
