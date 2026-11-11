@@ -1,12 +1,22 @@
 {
   "run_id": "42939077400",
-  "seq": 4,
-  "challenge": "eaf10ab29e59b1a0966b96b3c84ee2964ca74f91e02debfd4854da2a60bb3ad0",
-  "op": "swipe",
+  "seq": 5,
+  "challenge": "3cf887c87022e2007a67414eba0a6e32ad5e9a95bd2366e526fa8edc6bae1d45",
+  "op": "batch",
   "args": {
-    "x1": 560,
-    "y1": 500,
-    "x2": 560,
-    "y2": 1200
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "خيارات البطاقة"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تصحيح الإعلان"
+        }
+      }
+    ]
   }
 }
