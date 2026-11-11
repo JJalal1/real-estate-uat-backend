@@ -8,6 +8,7 @@ on:
       - scripts/prepare_phase23_native.py
       - scripts/phase23_preflight.py
       - scripts/phase23_checkpoint_state.py
+      - scripts/phase1_device_input/Phase1Input.java
       - scripts/phase23_recipient.pem
       - scripts/tests/test_phase23_native.py
       - .github/actions/phase1-review/index.js

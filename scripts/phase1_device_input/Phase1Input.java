@@ -117,7 +117,19 @@ public final class Phase1Input extends Instrumentation {
                 result.putBoolean("text_matched", true);
             } else {
                 require("double-tap".equals(op) || "pinch-in".equals(op) || "pinch-out".equals(op));
-                require(contains(root, "صورة العقار 1 من 1") && contains(root, "1/1"));
+                String phase23Surface=args.getString("phase23_surface", "");
+                if ("gallery".equals(phase23Surface)) {
+                    int index=number("gallery_index",1,12), count=number("gallery_count",1,12);
+                    require(index<=count && containsVisible(root,"إغلاق الصور")
+                        && containsVisible(root,"صورة العقار "+index+" من "+count)
+                        && containsVisible(root,index+"/"+count));
+                } else if ("map".equals(phase23Surface)) {
+                    require(containsVisible(root,"البحث على الخريطة") && containsVisible(root,
+                        "Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers."));
+                } else {
+                    require(phase23Surface.isEmpty());
+                    require(contains(root, "صورة العقار 1 من 1") && contains(root, "1/1"));
+                }
                 int x = number("x", 300, 780), y = number("y", 400, 1520);
                 if ("double-tap".equals(op)) {
                     stage="double_tap";
@@ -533,6 +545,18 @@ public final class Phase1Input extends Instrumentation {
             if (value != null) for (String line : value.toString().split("\n")) if (expected.equals(line.trim())) return true;
         }
         for (int i=0; i<node.getChildCount(); i++) { AccessibilityNodeInfo child=node.getChild(i); if(child!=null && contains(child,expected)) return true; }
+        return false;
+    }
+    private static boolean containsVisible(AccessibilityNodeInfo node, String expected) {
+        if(node.isVisibleToUser() && node.getPackageName()!=null && APP.contentEquals(node.getPackageName())) {
+            for(CharSequence value:new CharSequence[]{node.getText(),node.getContentDescription()}) {
+                if(value!=null) for(String line:value.toString().split("\n")) if(expected.equals(line.trim())) return true;
+            }
+        }
+        for(int i=0;i<node.getChildCount();i++) {
+            AccessibilityNodeInfo child=node.getChild(i);
+            if(child!=null && containsVisible(child,expected)) return true;
+        }
         return false;
     }
     private static void editable(AccessibilityNodeInfo node, List<AccessibilityNodeInfo> fields) {

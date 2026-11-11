@@ -117,7 +117,7 @@ class CommandSafetyTest(unittest.TestCase):
         run.driver.has.return_value=True
         result=run.logout()
         run.driver.wait_account_logout_control.assert_not_called()
-        run.driver.wait_guest_account.assert_called_once()
+        run.driver.wait_guest_boundary.assert_called_once()
         self.assertTrue(result['native_logout_observed'])
         self.assertIsNone(run.actor)
 
@@ -132,6 +132,63 @@ class CommandSafetyTest(unittest.TestCase):
         self.assertEqual(state['current_seq'],10)
         with self.assertRaisesRegex(ValueError,'foreign'):
             advance_checkpoint(state,ob,run_id=1235,source_sha='c'*40)
+
+    def test_multiphoto_gesture_requires_exact_current_visible_counter(self):
+        driver=object.__new__(Phase23Account)
+        rows=[{'package':'com.aqer.yemen.uat','visible':True,'text':'صورة العقار 2 من 3','bounds':[0,0,1080,1920]},
+              {'package':'com.aqer.yemen.uat','visible':True,'text':'2/3'},
+              {'package':'com.aqer.yemen.uat','visible':True,'text':'إغلاق الصور'}]
+        driver.nodes=Mock(return_value=rows);driver.instrument=Mock()
+        driver.gesture('pinch-out',540,960)
+        driver.instrument.assert_called_once_with('pinch-out',x=540,y=960,phase23_surface='gallery',gallery_index=2,gallery_count=3)
+        driver.instrument.reset_mock();rows[1]['text']='1/3'
+        with self.assertRaisesRegex(Exception,'counter'):
+            driver.gesture('pinch-out',540,960)
+        driver.instrument.assert_not_called()
+        rows[1]['text']='2/3';rows.append({'text':'رمز التحقق'})
+        with self.assertRaisesRegex(Exception,'authentication'):
+            driver.gesture('pinch-out',540,960)
+        driver.instrument.assert_not_called()
+
+    def test_map_gesture_cannot_hit_the_filter_panel(self):
+        driver=object.__new__(Phase23Account)
+        rows=[{'package':'com.aqer.yemen.uat','visible':True,'text':'البحث على الخريطة'},
+              {'package':'com.aqer.yemen.uat','visible':True,'text':'Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers.','bounds':[0,210,1080,1920]},
+              {'package':'com.aqer.yemen.uat','visible':True,'text':'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها','bounds':[0,980,1080,1920]}]
+        driver.nodes=Mock(return_value=rows);driver.instrument=Mock()
+        with self.assertRaisesRegex(Exception,'outside'):
+            driver.gesture('pinch-out',540,1200)
+        driver.instrument.assert_not_called()
+        driver.gesture('pinch-out',540,600)
+        self.assertEqual(driver.instrument.call_args.kwargs['phase23_surface'],'map')
+
+    def test_guest_home_requires_a_followup_guest_account_observation(self):
+        driver=object.__new__(Phase23Account)
+        names=['العقارات','الرسائل','إعلاناتي','حسابي','ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…']
+        driver.nodes=Mock(return_value=[{'text':n,'enabled':True} for n in names])
+        driver.tap=Mock();driver.wait_guest_account=Mock()
+        driver.wait_guest_boundary(seconds=2)
+        driver.tap.assert_called_once_with('حسابي')
+        driver.wait_guest_account.assert_called_once()
+
+    def test_device_controls_and_link_are_fixed_and_bounded(self):
+        for op,args in [('network',{'state':'arbitrary'}),('display',{'mode':'huge'}),
+                        ('open_link',{'uri':'realestate://app/properties/107'}),
+                        ('open_link',{'uri':'https://example.com'}),('wait',{'label':'x','seconds':31})]:
+            with self.assertRaises(GateError):
+                validate_command(dict(self.command,op=op,args=args),'1234',1,'a'*64)
+        for op,args in [('network',{'state':'offline'}),('display',{'mode':'compact_large'}),
+                        ('open_link',{'uri':'realestate://app/properties/106'}),('wait',{'label':'x','seconds':20})]:
+            self.assertEqual(validate_command(dict(self.command,op=op,args=args),'1234',1,'a'*64)['op'],op)
+
+    def test_cleanup_restores_the_disposable_device_before_session_logout(self):
+        run=object.__new__(NativeRun);run.network_changed=True;run.display_changed=True
+        run.driver=Mock();run.sessions={};run.actor=None;run.native_auth_attempted=False
+        run.report={'cleanup':{}};run.access={};run.apply=Mock()
+        run.cleanup()
+        self.assertEqual([x.args[0]['op'] for x in run.apply.call_args_list],['network','display'])
+        self.assertTrue(run.report['cleanup']['network_restored'])
+        self.assertTrue(run.report['cleanup']['display_restored'])
 
 
 if __name__ == '__main__': unittest.main()

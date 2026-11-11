@@ -32,7 +32,8 @@ CONTROL = 'docs/phase23-control.json'
 REPO = 'JJalal1/real-estate-uat-backend'
 AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المرور', 'البريد الإلكتروني'}
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get',
-       'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch', 'batch', 'seed_media', 'finish'}
+       'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch',
+       'double_tap', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'finish'}
 
 
 class Phase23Account(NativeAccount):
@@ -62,6 +63,58 @@ class Phase23Account(NativeAccount):
     def set(self, label, value):
         self.act('set', self.field(label), value=value)
         self.dismiss_keyboard_if_shown()
+
+    def gesture(self, operation, x, y):
+        rows = self.nodes()
+        if any(field in labels(row) for row in rows for field in AUTH_FIELDS):
+            raise Blocked('authentication_gesture_refused')
+        visible = [r for r in rows if r.get('package') == APP and r.get('visible')]
+        names = set().union(*(labels(r) for r in visible)) if visible else set()
+        galleries = {tuple(map(int, m.groups())) for name in names
+                     if (m := re.fullmatch(r'صورة العقار ([0-9]+) من ([0-9]+)', name))}
+        context = {}
+        if len(galleries) == 1 and 'إغلاق الصور' in names:
+            index, count = next(iter(galleries))
+            if not (1 <= index <= count <= 12 and f'{index}/{count}' in names):
+                raise Blocked('fresh_gallery_counter_required')
+            surfaces = [r for r in visible if f'صورة العقار {index} من {count}' in labels(r)]
+            context = {'phase23_surface':'gallery', 'gallery_index':index, 'gallery_count':count}
+        elif ('البحث على الخريطة' in names and
+              'Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers.' in names):
+            surfaces = [r for r in visible if 'Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers.' in labels(r)]
+            context = {'phase23_surface':'map'}
+        else:
+            raise Blocked('fresh_gallery_or_map_context_required')
+        if len(surfaces) != 1:
+            raise Blocked('unique_gesture_surface_required')
+        a,b,c,d = surfaces[0]['bounds']
+        if context['phase23_surface'] == 'map':
+            panels = [r['bounds'][1] for r in visible if any(
+                name.startswith('اسحب لتوسيع الفلاتر والعقارات أو تصغيرها') for name in labels(r))]
+            if len(panels) != 1:
+                raise Blocked('fresh_map_panel_boundary_required')
+            d = min(d,panels[0])
+        margin = 270 if operation.startswith('pinch-') else 1
+        if not (300 <= x <= 780 and 400 <= y <= 1520 and a <= x-margin and x+margin < c and b < y < d):
+            raise Blocked('gesture_outside_observed_surface')
+        return self.instrument(operation, x=x, y=y, **context)
+
+    def wait_guest_boundary(self, seconds=60):
+        deadline = time.monotonic()+seconds
+        while time.monotonic() < deadline:
+            rows=self.nodes()
+            footer=all(self.matching(rows, name) for name in ('العقارات','الرسائل','إعلاناتي','حسابي'))
+            excluded=self.matching(rows,'تسجيل الخروج') or any(
+                name in labels(row) for row in rows for name in AUTH_FIELDS)
+            if footer and not excluded:
+                if self.matching(rows,'تسجيل الدخول أو إنشاء حساب'):
+                    return
+                if all(self.matching(rows,name) for name in ('ماذا تبحث عنه؟','ابحث عن عقار أو منطقة…')):
+                    self.tap('حسابي')
+                    self.wait_guest_account(seconds=max(1,deadline-time.monotonic()))
+                    return
+            time.sleep(.5)
+        raise Blocked('native_guest_boundary_not_observed')
 
     def scroll(self, direction='forward', *, short=False):
         if direction not in {'forward', 'backward'}:
@@ -123,6 +176,8 @@ def validate_command(value, run_id, seq, challenge):
                'api_get': {'alias', 'path'}, 'record_start': set(), 'record_stop': set(),
                'key': {'key'}, 'force_stop': set(), 'touch': {'x', 'y'},
                'swipe': {'x1', 'y1', 'x2', 'y2'}, 'pinch': {'direction', 'x', 'y'},
+               'double_tap': {'x','y'}, 'wait': {'label','seconds'}, 'network': {'state'},
+               'display': {'mode'}, 'open_link': {'uri'},
                'batch': {'steps'}, 'seed_media': set(), 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
@@ -137,14 +192,24 @@ def validate_command(value, run_id, seq, challenge):
         if not isinstance(steps, list) or not 1 <= len(steps) <= 6:
             raise GateError('bounded_semantic_batch_required')
         for step in steps:
-            if not isinstance(step, dict) or set(step) != {'op', 'args'} or step['op'] not in {'tap', 'set', 'scroll', 'api_get'}:
+            if not isinstance(step, dict) or set(step) != {'op', 'args'} or step['op'] not in {
+                    'tap','set','scroll','api_get','wait','touch','swipe','pinch','double_tap'}:
                 raise GateError('semantic_batch_operation_refused')
             validate_command(dict(value, op=step['op'], args=step['args']), run_id, seq, challenge)
     if value['op'] == 'key' and args['key'] not in {'BACK', 'ENTER'}:
         raise GateError('native_key_refused')
     if value['op'] == 'scroll' and args['direction'] not in {'forward', 'backward'}:
         raise GateError('native_scroll_refused')
-    if value['op'] in {'touch', 'swipe', 'pinch'}:
+    if value['op'] == 'wait' and (not isinstance(args['label'],str) or not 0<len(args['label'])<=200
+                                 or type(args['seconds']) is not int or not 1<=args['seconds']<=30):
+        raise GateError('bounded_native_wait_required')
+    if value['op'] == 'network' and args['state'] not in {'offline','online'}:
+        raise GateError('fixed_native_network_state_required')
+    if value['op'] == 'display' and args['mode'] not in {'default','compact_large','large'}:
+        raise GateError('fixed_native_display_mode_required')
+    if value['op'] == 'open_link' and args['uri'] != 'realestate://app/properties/106':
+        raise GateError('approved_public_fixture_link_required')
+    if value['op'] in {'touch', 'swipe', 'pinch', 'double_tap'}:
         for k, v in args.items():
             if k == 'direction':
                 if v not in {'in', 'out'}: raise GateError('native_pinch_refused')
@@ -203,6 +268,8 @@ class NativeRun:
         self.native_auth_attempted = False
         self.uploaded_videos = set()
         self.sessions = {}
+        self.network_changed = False
+        self.display_changed = False
         self.report = {'scope': 'actual API36 UAT observations; acceptance requires review',
                        'source_sha': os.environ['GITHUB_SHA'], 'api': API,
                        'run_id': os.environ['GITHUB_RUN_ID'], 'actions': [],
@@ -343,8 +410,7 @@ class NativeRun:
             d.wait_account_logout_control(seconds=30)
             d.tap('تسجيل الخروج', seek=False)
         d.authenticated = False
-        # The app intentionally retains the Account tab after logout.
-        d.wait_guest_account()
+        d.wait_guest_boundary()
         self.actor = None
         self.native_auth_attempted = False
         return {'native_logout_observed': True, 'already_guest': already_guest}
@@ -366,14 +432,35 @@ class NativeRun:
         elif op == 'scroll': d.scroll(args['direction'])
         elif op == 'back': d.adb('shell', 'input', 'keyevent', '4')
         elif op == 'key': d.adb('shell', 'input', 'keyevent', '4' if args['key'] == 'BACK' else '66')
-        elif op in {'touch', 'swipe', 'pinch'}:
+        elif op == 'wait': d.wait(args['label'],seconds=args['seconds'])
+        elif op in {'touch', 'swipe', 'pinch', 'double_tap'}:
             rows, temporary_frame, protected = self.observe()
             if temporary_frame: temporary_frame.unlink()
             if protected or any(field in labels(r) for field in AUTH_FIELDS for r in rows):
                 raise GateError('coordinate_authentication_input_refused')
             if op == 'touch': d.adb('shell', 'input', 'tap', args['x'], args['y'])
             elif op == 'swipe': d.adb('shell', 'input', 'swipe', args['x1'], args['y1'], args['x2'], args['y2'], 500)
-            else: d.instrument('pinch-' + args['direction'], x=args['x'], y=args['y'])
+            elif op == 'pinch': d.gesture('pinch-' + args['direction'],args['x'],args['y'])
+            else: d.gesture('double-tap',args['x'],args['y'])
+        elif op == 'network':
+            d.require_preauth_runtime()
+            enabled = args['state'] == 'online'
+            if not enabled: self.network_changed = True
+            for service in ('wifi','data'):
+                d.adb('shell','svc',service,'enable' if enabled else 'disable')
+            if enabled: self.network_changed = False
+            return {'operation':op,'requested_state':args['state'],'scope':'disposable API36 device only; outcome requires UI review'}
+        elif op == 'display':
+            d.require_preauth_runtime()
+            if args['mode'] != 'default': self.display_changed = True
+            d.adb('shell','settings','put','system','font_scale','1.0' if args['mode']=='default' else '2.4')
+            if args['mode']=='compact_large': d.adb('shell','wm','size','840x1493')
+            else: d.adb('shell','wm','size','reset')
+            if args['mode']=='default': self.display_changed = False
+            return {'operation':op,'mode':args['mode'],'scope':'disposable API36 display; outcome requires visual review'}
+        elif op == 'open_link':
+            d.adb('shell','am','start','-W','-a','android.intent.action.VIEW','-d',args['uri'],APP)
+            return {'operation':op,'uri':args['uri'],'scope':'fixed public fixture; destination requires UI review'}
         elif op == 'force_stop':
             d.adb('shell', 'am', 'force-stop', APP)
             d.startup()
@@ -416,6 +503,16 @@ class NativeRun:
                 'scope': 'disposable OS picker only; no property upload'}
 
     def cleanup(self):
+        if self.network_changed:
+            try:
+                self.apply({'op':'network','args':{'state':'online'}})
+                self.report['cleanup']['network_restored'] = True
+            except Exception: self.report['cleanup']['network_restored'] = False
+        if self.display_changed:
+            try:
+                self.apply({'op':'display','args':{'mode':'default'}})
+                self.report['cleanup']['display_restored'] = True
+            except Exception: self.report['cleanup']['display_restored'] = False
         try:
             self.driver.record_stop(export=False)
         except Exception:
