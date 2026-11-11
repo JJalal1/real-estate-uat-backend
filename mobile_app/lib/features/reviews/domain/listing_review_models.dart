@@ -364,6 +364,15 @@ class ReviewHistoryItem {
       this.actorName,
       this.createdAt});
   final String action;
+  String get actionLabel => switch (action) {
+    'submitted' => 'أُرسل للمراجعة',
+    'review_started' => 'بدأت المراجعة',
+    'returned_for_correction' => 'أُعيد للتصحيح',
+    'approved' => 'اعتُمد ونُشر',
+    'rejected_blocked' => 'رُفض وحُظر النشر',
+    'media_relevance_review' => 'مراجعة صلة الصورة بالعقار',
+    _ => 'تحديث المراجعة',
+  };
   final String? fromStatus;
   final String? toStatus;
   final String? reason;

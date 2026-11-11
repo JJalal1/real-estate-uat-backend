@@ -309,7 +309,7 @@ class _ListingReviewCaseScreenState
               _InfoRow(label: 'نوع الحساب', value: _verificationType(item.ownerVerificationType)),
               _InfoRow(label: 'حالة التحقق', value: _verificationStatus(item.ownerVerificationStatus)),
               _InfoRow(label: 'الغرض', value: item.purpose == 'sale' ? 'بيع' : 'إيجار'),
-              _InfoRow(label: 'النوع', value: item.type),
+              _InfoRow(label: 'النوع', value: propertyTypeLabels[item.type] ?? 'غير محدد'),
               _InfoRow(label: 'السعر', value: item.price.toStringAsFixed(0)),
               _InfoRow(label: 'العنوان', value: item.address),
               _InfoRow(
@@ -419,7 +419,7 @@ class _ListingReviewCaseScreenState
                   children: [
                     for (var i = 0; i < item.reviewHistory.length; i++) ...[
                       AppListRow(
-                        title: item.reviewHistory[i].action == 'media_relevance_review' ? 'مراجعة صلة الصورة بالعقار' : item.reviewHistory[i].action,
+                        title: item.reviewHistory[i].actionLabel,
                         subtitle: [
                           if (item.reviewHistory[i].actorName != null)
                             item.reviewHistory[i].actorName!,

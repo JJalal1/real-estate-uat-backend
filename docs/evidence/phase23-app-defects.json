@@ -1,0 +1,31 @@
+{
+  "scope": "Phase23 product fixes; acceptance remains open",
+  "items": [
+    {
+      "id": "P23-APP-001",
+      "severity": "medium",
+      "problem": "Opening an owned listing task enters the general review queue; returning from it leaves the task list stale",
+      "evidence": [
+        "UAT1558 checkpoints69/70",
+        "UAT1558 checkpoint88"
+      ],
+      "fix": "Open the task source listing directly in the actor-bound case and await its return before refreshing tasks",
+      "implementation_commit": "af60708973722af2d83eceeaa66f18ac7df24019",
+      "ci_run": 42931272840,
+      "ci_result": "PASS",
+      "native_fix_confirmation": "pending new APK"
+    },
+    {
+      "id": "P23-APP-002",
+      "severity": "low",
+      "problem": "Listing investigation displays raw type and history action codes instead of Arabic labels",
+      "evidence": [
+        "UAT1558 checkpoint80",
+        "UAT1558 checkpoint82"
+      ],
+      "fix": "Use shared property display labels and review history action labels without changing stored codes",
+      "ci_result": "pending",
+      "native_fix_confirmation": "pending new APK"
+    }
+  ]
+}

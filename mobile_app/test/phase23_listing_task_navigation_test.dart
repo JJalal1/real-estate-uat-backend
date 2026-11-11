@@ -34,6 +34,8 @@ class _Actor extends AuthController {
 }
 
 class _Tasks implements SupportWorkspaceRepository {
+  bool completed = false;
+  int loads = 0;
   @override
   Future<List<SupportTaskItem>> tasks({
     String scope = 'inbox',
@@ -46,7 +48,10 @@ class _Tasks implements SupportWorkspaceRepository {
     DateTime? createdTo,
     bool overdue = false,
     bool actingAsAgent = false,
-  }) async => [
+  }) async {
+    loads++;
+    if (completed) return [];
+    return [
         SupportTaskItem.fromJson({
           'id': 700,
           'source_type': 'listing_review',
@@ -59,6 +64,7 @@ class _Tasks implements SupportWorkspaceRepository {
           'is_overdue': false,
         }),
       ];
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -80,6 +86,10 @@ class _Reviews implements ListingReviewRepository {
           'owner': {'name': 'Synthetic publisher'},
           'latitude': 15.3694,
           'longitude': 44.191,
+          'review_history': [
+            {'action': 'submitted', 'actor_name': 'Synthetic publisher'},
+            {'action': 'review_started', 'actor_name': 'Synthetic reviewer'},
+          ],
         }),
         <ListingDuplicateCandidate>[],
       );
@@ -98,10 +108,10 @@ class _Reviews implements ListingReviewRepository {
 }
 
 Future<ProviderContainer> _openTasks(
-    WidgetTester tester, _Reviews reviews) async {
+    WidgetTester tester, _Reviews reviews, {_Tasks? tasks}) async {
   final container = ProviderContainer(overrides: [
     authControllerProvider.overrideWith(_Actor.new),
-    supportWorkspaceRepositoryProvider.overrideWithValue(_Tasks()),
+    supportWorkspaceRepositoryProvider.overrideWithValue(tasks ?? _Tasks()),
     listingReviewRepositoryProvider.overrideWithValue(reviews),
   ]);
   await container.read(authControllerProvider.future);
@@ -117,17 +127,31 @@ Future<ProviderContainer> _openTasks(
 }
 
 void main() {
-  testWidgets('owned listing task opens its case without the general queue',
+  testWidgets('owned task opens its exact case and refreshes after returning',
       (tester) async {
     final reviews = _Reviews();
-    final container = await _openTasks(tester, reviews);
+    final tasks = _Tasks();
+    final container = await _openTasks(tester, reviews, tasks: tasks);
     addTearDown(container.dispose);
     await tester.ensureVisible(find.text('فتح'));
     await tester.tap(find.text('فتح'));
     await tester.pumpAndSettle();
     expect(reviews.requestedIds, [106]);
     expect(find.text('Private case for listing 106'), findsOneWidget);
+    expect(find.text('شقة'), findsOneWidget);
+    expect(find.text('apartment'), findsNothing);
     expect(find.text('طلبات التحقيق'), findsNothing);
+    await tester.scrollUntilVisible(find.text('أُرسل للمراجعة'), 300,
+        scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    expect(find.text('أُرسل للمراجعة'), findsOneWidget);
+    expect(find.text('submitted'), findsNothing);
+    expect(find.text('review_started'), findsNothing);
+    tasks.completed = true;
+    Navigator.of(tester.element(find.text('أُرسل للمراجعة'))).pop(true);
+    await tester.pumpAndSettle();
+    expect(tasks.loads, 2);
+    expect(find.text('Owned listing verification task'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

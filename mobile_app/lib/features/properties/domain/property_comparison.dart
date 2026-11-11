@@ -20,8 +20,7 @@ List<ComparisonFact> propertyComparisonFacts(List<PropertyDetails?> properties, 
     if(values.any((v)=>v!=null && v.isNotEmpty))rows.add(ComparisonFact(group,label,values));
   }
   String? boolean(bool? value)=>value==null?null:value?'نعم':'لا';
-  const types={'apartment':'شقة','floor':'شقة','house':'منزل','villa':'فيلا','building':'عمارة','land':'أرض','farm':'مزرعة','shop':'محل','office':'مكتب'};
-  add('معلومات أساسية','نوع العقار',(p)=>types[p.type]);
+  add('معلومات أساسية','نوع العقار',(p)=>propertyTypeLabels[p.type]);
   add('معلومات أساسية','الغرض',(p)=>p.purpose=='rent'?'للإيجار':'للبيع');
   add('معلومات أساسية','المساحة',(p)=>p.areaValue!=null?'${formatPropertyAreaValue(p.areaValue!)} ${propertyAreaUnitLabel(p.areaUnit)}':p.areaM2==null?null:'${p.areaM2} م²',key:'area_value');
   add('السعر والتكاليف','السعر',comparisonMoney);

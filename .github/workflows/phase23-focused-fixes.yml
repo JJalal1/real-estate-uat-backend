@@ -5,6 +5,10 @@ on:
     paths:
       - .github/workflows/phase23-focused-fixes.yml
       - mobile_app/lib/features/support/presentation/support_tasks_screen.dart
+      - mobile_app/lib/features/reviews/presentation/listing_review_workspace_screen.dart
+      - mobile_app/lib/features/reviews/domain/listing_review_models.dart
+      - mobile_app/lib/features/properties/domain/property_field_options.dart
+      - mobile_app/lib/features/properties/domain/property_comparison.dart
       - mobile_app/test/phase23_listing_task_navigation_test.dart
       - mobile_app/test/uat_listing_support_claim_ux_test.dart
 permissions:
@@ -32,7 +36,9 @@ jobs:
           flutter pub get --enforce-lockfile
       - name: Analyze the changed support flow
         working-directory: mobile_app
-        run: flutter analyze --fatal-infos lib/features/support/presentation/support_tasks_screen.dart test/phase23_listing_task_navigation_test.dart test/uat_listing_support_claim_ux_test.dart
+        run: flutter analyze --fatal-infos lib/features/support/presentation/support_tasks_screen.dart lib/features/reviews/presentation/listing_review_workspace_screen.dart lib/features/reviews/domain/listing_review_models.dart lib/features/properties/domain/property_field_options.dart lib/features/properties/domain/property_comparison.dart test/phase23_listing_task_navigation_test.dart test/uat_listing_support_claim_ux_test.dart
       - name: Verify exact case navigation and account isolation
         working-directory: mobile_app
-        run: flutter test --no-pub test/phase23_listing_task_navigation_test.dart test/uat_listing_support_claim_ux_test.dart test/support_manager_agent_workflow_test.dart test/support_completed_inbox_flow_test.dart
+        run: |
+          flutter test --no-pub test/phase23_listing_task_navigation_test.dart test/uat_listing_support_claim_ux_test.dart test/support_manager_agent_workflow_test.dart test/support_completed_inbox_flow_test.dart
+          flutter test --no-pub test/wave6_product_contract_test.dart --plain-name 'comparison uses only real comparable money'
