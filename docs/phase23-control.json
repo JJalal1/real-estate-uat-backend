@@ -1,9 +1,35 @@
 {
   "run_id": "42948672743",
-  "seq": 42,
-  "challenge": "cc1d8f40cd596bda7b824655fdd4939403ca892b81b63ce4cf6dcc101d742eed",
-  "op": "display",
+  "seq": 43,
+  "challenge": "f8170c7b717279dfe2e587586cab6d5447a17af1ce0facfb5b3852b1c22ca488",
+  "op": "batch",
   "args": {
-    "mode": "large"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "رجوع"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "البحث عن عقار",
+          "seconds": 8
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "backward"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تصفية"
+        }
+      }
+    ]
   }
 }
