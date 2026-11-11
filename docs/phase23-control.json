@@ -1,9 +1,29 @@
 {
   "run_id": "42986038827",
-  "seq": 31,
-  "challenge": "13b03df7b087f13f9b3560fde49edeff16703bdad5ed38b6e56d3d2a3420f6fe",
-  "op": "scroll",
+  "seq": 32,
+  "challenge": "436e499bc4817d3660bcffc3ec5cdd9df89553b9585ec5a9e74f6c2453c45ed4",
+  "op": "batch",
   "args": {
-    "direction": "forward"
+    "steps": [
+      {
+        "op": "set",
+        "args": {
+          "label": "الشارع",
+          "value": "شارع اختبار المرحلة23"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "التالي"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "التالي"
+        }
+      }
+    ]
   }
 }
