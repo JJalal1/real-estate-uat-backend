@@ -1,36 +1,9 @@
 {
   "run_id": "43087697204",
-  "seq": 2,
-  "challenge": "1d0f2210af62d67d43aeca4fc60fed506234e9141eb0dbcf09409c6514f14b3b",
-  "op": "batch",
+  "seq": 3,
+  "challenge": "a2a2652150b525c4da628f08ef36c9a8e1b69775dfe7672b2227145213a11d9b",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "الوارد"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "بلاغات",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "بلاغات"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "Conversation complaint",
-          "seconds": 20
-        }
-      }
-    ]
+    "label": "استلام"
   }
 }
