@@ -1,9 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 36,
-  "challenge": "3ab26d29ec4cf84da6b693106a7cc032972bf3dfbfb98a1c7ec9ef4e87e4e41a",
-  "op": "tap",
+  "seq": 37,
+  "challenge": "b0062363f594974107734fb74e29b61458c4768696079f08edfd46c3da3bf2c5",
+  "op": "blocked_message_probe",
   "args": {
-    "label": "حظر"
+    "alias": "regular"
   }
 }
