@@ -1,23 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 50,
-  "challenge": "52ea3d9d3a19ca618b7cf2d1c481df137c62d1d39917276d5e50f612a57679e1",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "شقة النور اختبار المرحلة23",
-          "seconds": 15
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "مشاركة العقار"
-        }
-      }
-    ]
-  }
+  "seq": 51,
+  "challenge": "e063595bc29d45c6041a157123501b860c98e79d1f2b3bb0cf0b04c10cdc9baa",
+  "op": "back",
+  "args": {}
 }
