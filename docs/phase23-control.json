@@ -1,7 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 87,
-  "challenge": "a33aa18b9aaaf56b60735339258550acac41a76bd21e5529b573301d49df3426",
-  "op": "back",
-  "args": {}
+  "seq": 88,
+  "challenge": "44ae6ee0a9232e396d4e1d5a565a1c1cadfd3b9022547b65a9cb800f8598bd53",
+  "op": "tap",
+  "args": {
+    "label": "حسابي"
+  }
 }
