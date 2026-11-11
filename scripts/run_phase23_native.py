@@ -31,6 +31,7 @@ from probe_phase1_native_account import NativeAccount, Blocked, APP, labels
 CONTROL = 'docs/phase23-control.json'
 REPO = 'JJalal1/real-estate-uat-backend'
 AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المرور', 'البريد الإلكتروني'}
+CONTACT_PATTERN = r'(?<![\d.])(?:(?:\+?967|00967)?7[0-9]{8}|٧[٠-٩]{٨})(?![\d.])'
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get', 'fixture_contact',
        'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch',
        'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'finish'}
@@ -320,6 +321,7 @@ class NativeRun:
         if isinstance(value, str):
             for s in self.private_values:
                 if s: value = value.replace(s, '[REDACTED]')
+            value=re.sub(CONTACT_PATTERN,'[REDACTED_PHONE]',value)
         return value
 
     PRIVATE_UI_CONTROLS = frozenset({
@@ -337,6 +339,7 @@ class NativeRun:
         'SUP-261111-QYLXJRN','Conversation complaint','جديدة','مفتوحة',
     })
     PRIVATE_UI_ANCHORS = frozenset({
+        'لوحة الدعم',
         'خيارات المحادثة','اكتب رسالة...','حظر الحساب','إلغاء الحظر',
         'حظر هذا الحساب؟','إلغاء الحظر؟','بلاغ عن المحادثة','تفاصيل البلاغ',
         'شوهد مؤخرًا','تعديل الملف الشخصي','الأمان والخصوصية','مظهر التطبيق',
@@ -499,6 +502,7 @@ class NativeRun:
                  'com.android.systemui'}
         protected = bool(packages - known) or any(s and s in visible for s in self.private_values) or any(
             field in labels(r) for field in AUTH_FIELDS for r in rows)
+        protected = protected or bool(re.search(CONTACT_PATTERN,visible)) or any('رقم الاتصال *' in labels(r) for r in rows)
         # Modal routes can omit the background Account/conversation from AX
         # while still showing it in the screenshot. Retain the privacy boundary
         # through popups/details until a full public Home is witnessed again.

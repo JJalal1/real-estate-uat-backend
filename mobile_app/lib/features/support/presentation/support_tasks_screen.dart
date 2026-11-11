@@ -1530,9 +1530,11 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                         if (widget.onDealResolution == null) const PopupMenuItem(
                             value: 'dismissed', child: Text('رفض / إغلاق')),
                       ],
-                      child: const Chip(
-                          label: Text('تغيير الحالة'),
-                          avatar: EbrokerIcon(Icons.sync_alt, size: 18)),
+                      child: const IgnorePointer(
+                        child: Chip(
+                            label: Text('تغيير الحالة'),
+                            avatar: EbrokerIcon(Icons.sync_alt, size: 18)),
+                      ),
                     ),
                   ],
                 ),

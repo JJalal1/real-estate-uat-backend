@@ -289,6 +289,20 @@ class CommandSafetyTest(unittest.TestCase):
         command={'run_id':'1234','seq':1,'challenge':'a'*64,'op':'fixture_contact','args':{'value':'not allowed'}}
         with self.assertRaises(GateError):validate_command(command,'1234',1,'a'*64)
 
+    def test_contact_not_in_login_configuration_still_cannot_be_exported(self):
+        run=object.__new__(NativeRun);run.private_values=set();run.seq=1
+        run.driver=Mock(recorder=None)
+        run.driver.nodes.return_value=[{'text':'771234567','hint':'رقم الاتصال *','editable':True}]
+        rows,frame,protected=run.observe()
+        self.assertTrue(protected);self.assertIsNone(frame)
+        self.assertNotIn('771234567',str(rows));run.driver.adb.assert_not_called()
+
+    def test_support_shell_always_exports_controls_only(self):
+        rows=[{'description':'لوحة الدعم'},{'text':'unrelated private requester'}]
+        exported,protected=NativeRun.private_ui_controls(rows)
+        self.assertTrue(protected)
+        self.assertEqual([r['description'] for r in exported],['لوحة الدعم'])
+
     def test_fixed_closed_drawing_requires_the_fresh_default_canvas(self):
         driver=object.__new__(Phase23Account)
         rows=[{'path':'0','package':'com.aqer.yemen.uat','visible':True,'bounds':[0,0,1080,1920]},

@@ -91,6 +91,19 @@
       "ci_run": 42988536319,
       "ci_result": "PASS four final source gates; focused SQLite/PostGIS run42988536299 also PASS",
       "native_fix_confirmation": "OPEN: candidate backend e36417aca4233488220a6c8e2951ea0709f601a0 is not deployed to existing UAT runtime; no live fix acceptance claimed"
+    },
+    {
+      "id": "P23-APP-008",
+      "severity": "high",
+      "problem": "Physical Native taps on the claimed report status Chip did not open its popup menu.",
+      "evidence": [
+        "run43087697204 checkpoints5–7: owned report9 was in_progress; two taps delivered but popup did not appear."
+      ],
+      "fix": "Let the parent PopupMenuButton receive physical taps by ignoring pointer input in its decorative Chip. Add a real report-dialog widget regression selecting dismissed for the owned case.",
+      "implementation_commit": null,
+      "ci_run": null,
+      "ci_result": "PENDING",
+      "native_fix_confirmation": "OPEN: executor disconnected; Native verification must use corrected product tree after recovery."
     }
   ]
 }
