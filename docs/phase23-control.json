@@ -1,9 +1,9 @@
 {
   "run_id": "43113135513",
-  "seq": 16,
-  "challenge": "4b3e953b7c275ad5838ac8970c0532a49a54f58f58852e709f0984bed92c642c",
-  "op": "scroll",
+  "seq": 17,
+  "challenge": "078a0315eceb3f94081f91e606e56cc39d91c2ada766cca2e674dfa58489a984",
+  "op": "tap",
   "args": {
-    "direction": "forward"
+    "label": "العودة إلى النواقص"
   }
 }
