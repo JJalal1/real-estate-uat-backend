@@ -1,14 +1,15 @@
 {
   "run_id": "42978036876",
-  "seq": 21,
-  "challenge": "f80df4dff2e61147672efe50266488454e9fe00bff53cea447ba0e38e4f0fb7d",
+  "seq": 22,
+  "challenge": "be0b2da89f49505ab667f9c57b06b3e5fe9c16b4c273edd31dbfc565916bff5f",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
+        "op": "touch",
         "args": {
-          "label": "Don’t allow"
+          "x": 540,
+          "y": 1255
         }
       },
       {
