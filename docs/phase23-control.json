@@ -1,9 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 0,
-  "challenge": "0a38110a5c13780825ffde5a86b8ac5782e57a87020eba3246cb2ed47fa64c31",
-  "op": "login",
+  "seq": 1,
+  "challenge": "ddf7fa8a3fe44c86d531664bf9424af9a5f8c62b1acb0da20d62fbf6413d1b8e",
+  "op": "tap",
   "args": {
-    "alias": "broker"
+    "label": "عملي"
   }
 }
