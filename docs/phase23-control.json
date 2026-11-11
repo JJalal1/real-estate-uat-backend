@@ -1,26 +1,21 @@
 {
   "run_id": "42948672743",
-  "seq": 44,
-  "challenge": "fef81746e70eab8dd6a80399989f21ea2c0adf141035b61192d373aff0d17dbc",
+  "seq": 45,
+  "challenge": "28130eb2a8f0716f5e953e85be8e8694285ebe737cfd3180b360332c2d26f67f",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
+        "op": "set",
         "args": {
-          "label": "شقة"
+          "label": "من إيجار شهري",
+          "value": "150000"
         }
       },
       {
-        "op": "tap",
+        "op": "scroll",
         "args": {
-          "label": "منزل"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إيجار"
+          "direction": "forward"
         }
       }
     ]
