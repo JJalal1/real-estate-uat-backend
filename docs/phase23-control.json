@@ -1,10 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 57,
-  "challenge": "822fd1d9f1d1f0ce8b13bb2040d8057903c15e1f72d50b922b30c395578630f0",
-  "op": "wait",
+  "seq": 58,
+  "challenge": "40e806af8939d73ff49688b81df259344169d2e957d8fc41a54f655bdd3fbf9f",
+  "op": "tap",
   "args": {
-    "label": "اسحب لتوسيع الفلاتر والعقارات أو تصغيرها",
-    "seconds": 12
+    "label": "رسم منطقة على الخريطة"
   }
 }
