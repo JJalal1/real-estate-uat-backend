@@ -1,36 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 65,
-  "challenge": "2c0c3310d1f895d994c02f3f0c3df22b904394ec33553e29231efbc72fd74731",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "حسابي"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "شوهد مؤخرًا"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "شقة عائلية مشرقة في حدة",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "شقة النور اختبار المرحلة23",
-          "seconds": 10
-        }
-      }
-    ]
-  }
+  "seq": 66,
+  "challenge": "8598c17df9f16075ea8ff262790a674e984f3715207769dad7ebf53ae6b3f137",
+  "op": "logout",
+  "args": {}
 }
