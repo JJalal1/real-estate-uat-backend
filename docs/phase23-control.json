@@ -1,9 +1,10 @@
 {
   "run_id": "42986038827",
-  "seq": 2,
-  "challenge": "431c69a2d61154d65557defe9df0c5f01f5372a60596780ba395c74e63084121",
-  "op": "tap",
+  "seq": 3,
+  "challenge": "d172630f580e4b1a1d22609b568ccf405534a83f8d2348c22416dc80939af788",
+  "op": "api_get",
   "args": {
-    "label": "عقاراتي"
+    "alias": "regular",
+    "path": "/support/cases/mine?per_page=5"
   }
 }
