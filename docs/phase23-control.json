@@ -1,9 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 46,
-  "challenge": "f9c14693dde01516a11b490c8316bd3ca67b65d7069067e96c03fe99d90635ac",
+  "seq": 47,
+  "challenge": "f7ea3a0a0af5ae04c3d33cf00dfcc96fd8d0b0ec620fb1af4ac60b83a7a6744f",
   "op": "tap",
   "args": {
-    "label": "متابعة الإعلان"
+    "label": "السابق"
   }
 }
