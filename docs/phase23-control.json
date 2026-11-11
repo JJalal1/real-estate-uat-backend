@@ -1,9 +1,10 @@
 {
   "run_id": "42986038827",
-  "seq": 48,
-  "challenge": "75ffb125e06f42cea8b4a9f9f6c469f9e039038d6b18e0fccc0d992e02a4aa95",
-  "op": "tap",
+  "seq": 49,
+  "challenge": "9e9ced14855328ea6e221c19d8630ad3b45da1b38849efb54052040fd068b27d",
+  "op": "set",
   "args": {
-    "label": "السابق"
+    "label": "شرقية مرحلة23",
+    "value": "غربية 2 مرحلة23"
   }
 }
