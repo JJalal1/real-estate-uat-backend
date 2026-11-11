@@ -1,9 +1,10 @@
 {
   "run_id": "42958167376",
-  "seq": 17,
-  "challenge": "3c9af1437843cd0478f405260eddb5b90909b484fcbcbf712665215ee299d1ff",
-  "op": "login",
+  "seq": 18,
+  "challenge": "ab2698b2040d90ce711499f12e2e3992d59ed465eb8ff92217f12d08b1aa6e56",
+  "op": "api_get",
   "args": {
-    "alias": "regular"
+    "alias": "regular",
+    "path": "/favorites/ids"
   }
 }
