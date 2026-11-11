@@ -1,22 +1,10 @@
 {
   "run_id": "42939077400",
-  "seq": 48,
-  "challenge": "77bdb01cd5473f9bda4fa397125c77c075f649b13a55f37c55cc69e417811418",
-  "op": "batch",
+  "seq": 49,
+  "challenge": "7b220586b944b3d90939d11f3123be44f33371bc6a1078ce1f07dade8a5bb743",
+  "op": "touch",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "العقارات"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "ابحث عن عقار أو منطقة…"
-        }
-      }
-    ]
+    "x": 560,
+    "y": 308
   }
 }
