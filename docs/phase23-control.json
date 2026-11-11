@@ -1,10 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 24,
-  "challenge": "606678b7b029766b292e6f6d3630847cc7797277fcc8851187007c8233374071",
-  "op": "api_get",
-  "args": {
-    "alias": "broker",
-    "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
-  }
+  "seq": 25,
+  "challenge": "77507cab2729eb531e79b37110b4c609a074a9e842b4c0c427c17e1cbc6538e2",
+  "op": "back",
+  "args": {}
 }
