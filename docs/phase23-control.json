@@ -1,29 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 68,
-  "challenge": "121af912ebc81f788d8e4ae046e2e28e2c26cabb675dce689caa097fc3acc102",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "حسابي"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "شوهد مؤخرًا"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "ما شاهدت عقارات بعد",
-          "seconds": 10
-        }
-      }
-    ]
-  }
+  "seq": 69,
+  "challenge": "1bc640c6b8a7a2df58e1a14f5d61c1439653aa6e25950f239299e3aa4d0a7ff4",
+  "op": "finish",
+  "args": {}
 }
