@@ -1,24 +1,10 @@
 {
   "run_id": "42986038827",
-  "seq": 25,
-  "challenge": "1188dc311b4c201abb46b6dff60884c1e3decf099f0edb23ebebb96db0a8a45d",
-  "op": "batch",
+  "seq": 26,
+  "challenge": "6a1690e9d2d7ea480cbc971380d69f9f48695960403fa0deee3608182df44081",
+  "op": "set",
   "args": {
-    "steps": [
-      {
-        "op": "set",
-        "args": {
-          "label": "مقدار السعي بالريال اليمني",
-          "value": "10000"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
-        }
-      }
-    ]
+    "label": "0",
+    "value": "10000"
   }
 }
