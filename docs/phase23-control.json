@@ -1,7 +1,9 @@
 {
   "run_id": "43113135513",
-  "seq": 51,
-  "challenge": "e063595bc29d45c6041a157123501b860c98e79d1f2b3bb0cf0b04c10cdc9baa",
-  "op": "back",
-  "args": {}
+  "seq": 52,
+  "challenge": "69f4cee682328957518feae5cc79b0a8a3dff9772f4e813bf2fa54338dbe13d6",
+  "op": "open_link",
+  "args": {
+    "uri": "realestate://app/messages/37"
+  }
 }
