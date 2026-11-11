@@ -1,9 +1,24 @@
 {
   "run_id": "43113135513",
-  "seq": 12,
-  "challenge": "50cd5247556ffe76a52aed6df9932f799965c58f2f3929773d8dbe1c291414fe",
-  "op": "tap",
+  "seq": 13,
+  "challenge": "6ff15a3dc8d0035d23cab6ef89a91925c3cda627dddfb02a1b5b1a011268152b",
+  "op": "batch",
   "args": {
-    "label": "phase23-property.jpg"
+    "steps": [
+      {
+        "op": "touch",
+        "args": {
+          "x": 500,
+          "y": 680
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "خيارات الصورة",
+          "seconds": 15
+        }
+      }
+    ]
   }
 }
