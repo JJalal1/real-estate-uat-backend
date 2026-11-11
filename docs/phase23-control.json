@@ -1,23 +1,10 @@
 {
   "run_id": "42948672743",
-  "seq": 56,
-  "challenge": "c038e94b5a49f9cf754112c7c3b9cfa76139bde1bc7650ce02efb5dc6a8ac5d8",
-  "op": "batch",
+  "seq": 57,
+  "challenge": "822fd1d9f1d1f0ce8b13bb2040d8057903c15e1f72d50b922b30c395578630f0",
+  "op": "wait",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "عرض على الخريطة"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "البحث على الخريطة",
-          "seconds": 12
-        }
-      }
-    ]
+    "label": "اسحب لتوسيع الفلاتر والعقارات أو تصغيرها",
+    "seconds": 12
   }
 }
