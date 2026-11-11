@@ -191,9 +191,50 @@ class CommandSafetyTest(unittest.TestCase):
         self.assertTrue(run.report['cleanup']['display_restored'])
 
     def test_reviewed_tap_does_not_scroll_unrelated_screens_for_a_missing_control(self):
-        run=object.__new__(NativeRun);run.driver=Mock()
+        run=object.__new__(NativeRun);run.driver=Mock(recorder=None)
         run.apply({'op':'tap','args':{'label':'تنفيذ'}})
         run.driver.tap.assert_called_once_with('تنفيذ',seek=False)
+
+    def test_private_conversation_exports_only_fixed_controls_and_no_frame_content(self):
+        rows=[{'description':'خيارات المحادثة','bounds':[0,0,100,100]},
+              {'description':'A participant name'}, {'text':'A private message'},
+              {'text':'A typed draft','hint':'اكتب رسالة...','editable':True,'bounds':[0,100,100,200]}]
+        controls,protected=NativeRun.private_ui_controls(rows)
+        self.assertTrue(protected)
+        self.assertEqual({r['description'] for r in controls},{'خيارات المحادثة','اكتب رسالة...'})
+        self.assertNotIn('private message',str(controls))
+        self.assertNotIn('participant',str(controls))
+        self.assertNotIn('typed draft',str(controls))
+        self.assertEqual(NativeRun.private_ui_controls([{'description':'تفاصيل العقار'}])[1],False)
+        run=object.__new__(NativeRun);run.private_values=set()
+        run.driver=Mock(recorder=None);run.driver.nodes.return_value=rows
+        exported,frame,protected=run.observe()
+        self.assertTrue(protected);self.assertIsNone(frame)
+        run.driver.adb.assert_not_called()
+        self.assertNotIn('private message',str(exported))
+        self.assertNotIn('participant',str(exported))
+
+    def test_synthetic_thread_read_exports_only_bound_metadata(self):
+        body={'data':{'thread':{'id':37,'property_id':106,'other_user':{'id':28,'name':'private'},
+                              'can_send':True,'blocked_by_me':False,'last_message_preview':'secret'},
+                      'messages':[{'body':'secret','sender_name':'private'}]}}
+        out=NativeRun.synthetic_thread_metadata(body)
+        self.assertEqual(out['data']['message_count_on_page'],1)
+        self.assertNotIn('secret',str(out));self.assertNotIn('private',str(out))
+        body['data']['thread']['id']=38
+        with self.assertRaisesRegex(GateError,'identity'):
+            NativeRun.synthetic_thread_metadata(body)
+
+    def test_private_index_cannot_be_fetched_or_recorded(self):
+        run=object.__new__(NativeRun);run.access={'phones':{'regular':'not-a-credential'}}
+        run.actor='regular';run.driver=Mock(recorder=None);run.observe=Mock(return_value=([],None,True))
+        with patch('run_phase23_native.http') as request:
+            with self.assertRaisesRegex(GateError,'export_refused'):
+                run.apply({'op':'api_get','args':{'alias':'regular','path':'/messages/threads'}})
+            request.assert_not_called()
+        with self.assertRaisesRegex(GateError,'private_surface'):
+            run.apply({'op':'record_start','args':{}})
+        run.driver.record_start.assert_not_called()
 
 
 if __name__ == '__main__': unittest.main()

@@ -288,6 +288,39 @@ class NativeRun:
                 if s: value = value.replace(s, '[REDACTED]')
         return value
 
+    PRIVATE_UI_CONTROLS = frozenset({
+        'رجوع','تحديث','بلاغ','خيارات المحادثة','حظر الحساب','إلغاء الحظر',
+        'حظر هذا الحساب؟','إلغاء الحظر؟','حظر','إلغاء','بلاغ عن المحادثة',
+        'تفاصيل البلاغ','إرسال البلاغ','أخرى','اكتب رسالة...','ردود سريعة',
+    })
+    PRIVATE_UI_ANCHORS = frozenset({
+        'خيارات المحادثة','اكتب رسالة...','حظر الحساب','إلغاء الحظر',
+        'حظر هذا الحساب؟','إلغاء الحظر؟','بلاغ عن المحادثة','تفاصيل البلاغ',
+    })
+
+    @classmethod
+    def private_ui_controls(cls, rows):
+        if not any(cls.PRIVATE_UI_ANCHORS & labels(row) for row in rows):
+            return rows, False
+        controls=[]
+        for row in rows:
+            names=cls.PRIVATE_UI_CONTROLS & labels(row)
+            if names:
+                controls.append({'description':'\n'.join(sorted(names)),
+                                 'bounds':row.get('bounds'),'editable':row.get('editable',False)})
+        return controls, True
+
+    @staticmethod
+    def synthetic_thread_metadata(body):
+        data=body.get('data',{}) if isinstance(body,dict) else {}
+        thread=data.get('thread',{})
+        other=thread.get('other_user',{})
+        if thread.get('id')!=37 or thread.get('property_id')!=106 or other.get('id') not in {26,28}:
+            raise GateError('synthetic_thread_identity_required')
+        return {'data':{key:thread[key] for key in
+                ('id','property_id','can_send','blocked_by_me') if key in thread} |
+                {'other_user_id':other['id'],'message_count_on_page':len(data.get('messages',[]))}}
+
     def observe(self):
         try:
             rows = self.driver.nodes()
@@ -308,6 +341,8 @@ class NativeRun:
                  'com.android.systemui'}
         protected = bool(packages - known) or any(s and s in visible for s in self.private_values) or any(
             field in labels(r) for field in AUTH_FIELDS for r in rows)
+        rows, private_ui = self.private_ui_controls(rows)
+        protected = protected or private_ui
         if protected and self.driver.recorder is not None:
             self.driver.record_tainted = True
         frame = None
@@ -421,6 +456,9 @@ class NativeRun:
 
     def apply(self, command):
         op, args, d = command['op'], command['args'], self.driver
+        if d.recorder is not None:
+            _, temporary_frame, _ = self.observe()
+            if temporary_frame: temporary_frame.unlink()
         if op == 'observe': return {'operation': op}
         if op == 'seed_media': return self.seed_media()
         if op == 'batch':
@@ -472,17 +510,25 @@ class NativeRun:
         elif op == 'logout': return self.logout()
         elif op == 'record_start':
             if not self.actor: raise GateError('authenticated_recording_required')
+            rows, temporary_frame, protected = self.observe()
+            if temporary_frame: temporary_frame.unlink()
+            if protected: raise GateError('recording_private_surface_refused')
             d.record_start('C1-phase23-' + str(self.seq))
         elif op == 'record_stop': d.record_stop(export=True)
         elif op == 'api_get':
             alias, path = args['alias'], args['path']
             if alias not in self.access['phones'] or not isinstance(path, str) or not re.fullmatch(r'/[A-Za-z0-9_/?=&%.,\[\]-]{1,300}', path):
                 raise GateError('bounded_api_read_required')
+            private_path=path.startswith(('/messages/threads','/admin/messages'))
+            if private_path and path!='/messages/threads/37':
+                raise GateError('private_conversation_export_refused')
             if alias not in self.sessions:
                 self.sessions[alias] = Session(alias, self.access)
                 self.sessions[alias].login()
             session = self.sessions[alias]
             code, body = http('GET', path, token=session.token)
+            if private_path:
+                body=self.synthetic_thread_metadata(body) if code==200 else {'http_error':code}
             return {'operation': op, 'alias': alias, 'identity': session.identity,
                     'path': path, 'http': code, 'response': self.redact(body)}
         elif op == 'finish': self.running = False
