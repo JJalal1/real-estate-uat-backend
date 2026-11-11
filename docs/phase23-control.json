@@ -1,9 +1,22 @@
 {
   "run_id": "42939077400",
-  "seq": 72,
-  "challenge": "841fdeb20c8eb877e43a2ec80d13cd7b175c8b1c8ae0ad5fff5f7cc499727d61",
-  "op": "login",
+  "seq": 73,
+  "challenge": "e904149fa9202fa45035395b889e838cdb07f0194801321dcf3adbd6e65cd441",
+  "op": "batch",
   "args": {
-    "alias": "regular"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "حسابي"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "شوهد مؤخرًا"
+        }
+      }
+    ]
   }
 }
