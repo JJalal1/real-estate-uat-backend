@@ -1,24 +1,9 @@
 {
   "run_id": "42978036876",
-  "seq": 22,
-  "challenge": "be0b2da89f49505ab667f9c57b06b3e5fe9c16b4c273edd31dbfc565916bff5f",
-  "op": "batch",
+  "seq": 23,
+  "challenge": "41e9b37bd792b3bda4c8eff54193d55d15ce561adb7421513bd05c6d887916af",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "touch",
-        "args": {
-          "x": 540,
-          "y": 1255
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تحديث",
-          "seconds": 20
-        }
-      }
-    ]
+    "label": "أكمل بحثك بالصوت"
   }
 }
