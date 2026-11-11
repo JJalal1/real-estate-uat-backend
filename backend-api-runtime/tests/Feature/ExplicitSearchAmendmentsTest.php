@@ -116,14 +116,16 @@ class ExplicitSearchAmendmentsTest extends TestCase
             ->assertJsonPath('data.filters.types', ['apartment', 'villa']);
     }
 
-    public function test_explicit_english_type_followups_are_not_discarded_by_the_grounding_guard(): void
+    public function test_explicit_english_and_arabic_accusative_type_followups_are_not_discarded_by_the_grounding_guard(): void
     {
-        $this->model(['set' => ['type' => 'land'], 'remove' => []]);
-        $filters = $this->postJson('/api/ai/search', ['message' => 'change type to LAND',
+        foreach ([['change type to LAND', 'land'], ['أريد أرضًا', 'land'], ['أريد بيتًا للإيجار', 'house']] as [$message, $type]) {
+        $this->model(['set' => ['type' => $type], 'remove' => []]);
+        $filters = $this->postJson('/api/ai/search', ['message' => $message,
             'filters' => $this->context(), 'revision' => 1])
-            ->assertOk()->assertJsonPath('data.filters.type', 'land')
+            ->assertOk()->assertJsonPath('data.filters.type', $type)
             ->assertJsonMissingPath('data.filters.types')->assertJsonPath('data.filters.purpose', 'rent')->json('data.filters');
         $this->assertSame($this->context()['area_polygon'], $filters['area_polygon']);
+        }
     }
 
     public function test_invalid_model_values_still_fail_before_literal_reconciliation(): void
