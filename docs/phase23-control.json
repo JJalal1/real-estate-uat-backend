@@ -1,22 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 33,
-  "challenge": "d9ec24db461cf32d91b6f3209ce10fd0e9e5f1ba0441b7a3c99a4edda867d007",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "العقارات"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "صف ما تحتاجه بالنص أو الصوت"
-        }
-      }
-    ]
-  }
+  "seq": 34,
+  "challenge": "503e198cc153272fa55e82f8dc79190e7ccbf37b4f36d198e61b8bc4727e9e5c",
+  "op": "back",
+  "args": {}
 }
