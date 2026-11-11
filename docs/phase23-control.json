@@ -1,9 +1,22 @@
 {
   "run_id": "43113135513",
-  "seq": 10,
-  "challenge": "08d340ff766acca53ee54c222317ddaed1cbbe6ae9b28f3daa068f670b1e4478",
-  "op": "scroll",
+  "seq": 11,
+  "challenge": "e7394851edd3af5b0df89c5f3458e10b2f1bb94499dc3248ee670b0c372ecc7a",
+  "op": "batch",
   "args": {
-    "direction": "forward"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إزالة الصورة"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إضافة صور"
+        }
+      }
+    ]
   }
 }
