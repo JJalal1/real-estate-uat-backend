@@ -1,9 +1,9 @@
 {
   "run_id": "43099213137",
-  "seq": 18,
-  "challenge": "0013ce369ee09e51c509b18dfed3ccdc65b40a88901974b1be37e85ed07a20b0",
-  "op": "tap",
+  "seq": 19,
+  "challenge": "5f2059f38f8dcb388ad8a56998f483aa1f8838419dc332d566cb59ae3f01d3ff",
+  "op": "scroll",
   "args": {
-    "label": "حسابي"
+    "direction": "forward"
   }
 }
