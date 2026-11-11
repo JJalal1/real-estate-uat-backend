@@ -1,9 +1,10 @@
 {
   "run_id": "42939077400",
-  "seq": 17,
-  "challenge": "942f757ce1e3570237aefc35b46743ff6290dd70bbecbc4304a8da141e7e4eb4",
-  "op": "tap",
+  "seq": 18,
+  "challenge": "a07cdd3e0f596cf9306cf79a43744263f8fe3198653c8a76b1798b45b7eb279d",
+  "op": "api_get",
   "args": {
-    "label": "حفظ وإرسال"
+    "alias": "broker",
+    "path": "/properties/106"
   }
 }
