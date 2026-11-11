@@ -190,5 +190,10 @@ class CommandSafetyTest(unittest.TestCase):
         self.assertTrue(run.report['cleanup']['network_restored'])
         self.assertTrue(run.report['cleanup']['display_restored'])
 
+    def test_reviewed_tap_does_not_scroll_unrelated_screens_for_a_missing_control(self):
+        run=object.__new__(NativeRun);run.driver=Mock()
+        run.apply({'op':'tap','args':{'label':'تنفيذ'}})
+        run.driver.tap.assert_called_once_with('تنفيذ',seek=False)
+
 
 if __name__ == '__main__': unittest.main()

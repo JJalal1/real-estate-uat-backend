@@ -427,7 +427,7 @@ class NativeRun:
                     return {'operation': op, 'status': 'BLOCKED', 'completed_steps': results,
                             'stopped_at': len(results), 'reason': str(error) if isinstance(error, (Blocked, GateError)) else type(error).__name__}
             return {'operation': op, 'completed_steps': results, 'product_acceptance_claimed': False}
-        if op == 'tap': d.tap(args['label'])
+        if op == 'tap': d.tap(args['label'],seek=False)
         elif op == 'set': d.set(args['label'], args['value'])
         elif op == 'scroll': d.scroll(args['direction'])
         elif op == 'back': d.adb('shell', 'input', 'keyevent', '4')
