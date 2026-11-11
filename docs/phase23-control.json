@@ -1,28 +1,14 @@
 {
   "run_id": "42958167376",
-  "seq": 8,
-  "challenge": "626a9d7c061027254650ed463d1f9f4d4cfa6d349a149f52e626fb982b3433db",
+  "seq": 9,
+  "challenge": "16cb9d064a985543c0d8a2b45510f2f62034efa52d908f99ef773f75d4c4d455",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "داكن"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "المظهر",
-          "seconds": 8
-        }
-      },
-      {
-        "op": "touch",
-        "args": {
-          "x": 965,
-          "y": 1745
+          "label": "العقارات"
         }
       },
       {
