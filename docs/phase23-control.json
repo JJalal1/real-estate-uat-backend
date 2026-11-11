@@ -1,9 +1,30 @@
 {
   "run_id": "43113135513",
-  "seq": 52,
-  "challenge": "69f4cee682328957518feae5cc79b0a8a3dff9772f4e813bf2fa54338dbe13d6",
-  "op": "open_link",
+  "seq": 53,
+  "challenge": "8b4ce71421262a2ae86b57495804e2796f42d26c5cf03e0a9b21328cabb99a7f",
+  "op": "batch",
   "args": {
-    "uri": "realestate://app/messages/37"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/messages/threads/37"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "خيارات المحادثة",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "خيارات المحادثة"
+        }
+      }
+    ]
   }
 }
