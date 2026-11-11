@@ -1,9 +1,34 @@
 {
   "run_id": "42986038827",
-  "seq": 37,
-  "challenge": "998b44aae0c0a802990d291c335379514f1040f4b0f63750d47cf7db9e746b54",
-  "op": "tap",
+  "seq": 38,
+  "challenge": "00ac5b62036a946440ee299d22171ccd3af2588acd0b60b9ea6fdf5ab3f1e111",
+  "op": "batch",
   "args": {
-    "label": "الفلاتر"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "شقة"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "فيلا"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إيجار"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      }
+    ]
   }
 }
