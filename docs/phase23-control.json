@@ -1,9 +1,23 @@
 {
   "run_id": "42986038827",
-  "seq": 13,
-  "challenge": "a3d06d037c2198666565b12df2ca6a794fed7c3424d1e1d4015e8fd657f529e1",
-  "op": "tap",
+  "seq": 14,
+  "challenge": "725a888960ffc7106b4cb2a32da2b683f2c829edae50ead150410ceb8ee5b024",
+  "op": "batch",
   "args": {
-    "label": "استخدام البيانات والمتابعة"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "تأكيد الموقع على الخريطة"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts"
+        }
+      }
+    ]
   }
 }
