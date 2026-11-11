@@ -242,5 +242,30 @@ class CommandSafetyTest(unittest.TestCase):
             run.apply({'op':'record_start','args':{}})
         run.driver.record_start.assert_not_called()
 
+    def test_fixed_closed_drawing_requires_the_fresh_default_canvas(self):
+        driver=object.__new__(Phase23Account)
+        rows=[{'path':'0','package':'com.aqer.yemen.uat','visible':True,'bounds':[0,0,1080,1920]},
+              {'package':'com.aqer.yemen.uat','visible':True,'text':'البحث على الخريطة'},
+              {'package':'com.aqer.yemen.uat','visible':True,'text':driver.DRAWING_INSTRUCTION},
+              {'package':'com.aqer.yemen.uat','visible':True,'text':'Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers.'},
+              {'package':'com.aqer.yemen.uat','visible':True,'text':'إلغاء','bounds':[713,1651,1033,1787]}]
+        driver.nodes=Mock(return_value=rows);driver.instrument=Mock()
+        driver.draw_area()
+        driver.instrument.assert_called_once_with('phase23-draw-area',phase23_surface='drawing')
+        driver.instrument.reset_mock();rows[0]['bounds']=[0,0,840,1493]
+        with self.assertRaisesRegex(Exception,'drawing_surface'):
+            driver.draw_area()
+        driver.instrument.assert_not_called()
+        rows[0]['bounds']=[0,0,1080,1920];rows[2]['text']='ordinary map'
+        with self.assertRaisesRegex(Exception,'drawing_surface'):
+            driver.draw_area()
+        driver.instrument.assert_not_called()
+        rows[2]['text']=driver.DRAWING_INSTRUCTION;rows.append({'text':'رمز التحقق'})
+        with self.assertRaisesRegex(Exception,'authentication'):
+            driver.draw_area()
+        driver.instrument.assert_not_called()
+        with self.assertRaises(GateError):
+            validate_command(dict(self.command,op='draw_area',args={'points':[[1,2]]}),'1234',1,'a'*64)
+
 
 if __name__ == '__main__': unittest.main()

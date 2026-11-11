@@ -33,10 +33,27 @@ REPO = 'JJalal1/real-estate-uat-backend'
 AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المرور', 'البريد الإلكتروني'}
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get',
        'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch',
-       'double_tap', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'finish'}
+       'double_tap', 'draw_area', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'finish'}
 
 
 class Phase23Account(NativeAccount):
+    DRAWING_INSTRUCTION = 'ارسم بإصبعك حدود المنطقة المطلوبة مثل القلم. عند رفع إصبعك سيتم عرض العقارات داخل الرسم فقط.'
+
+    def draw_area(self):
+        rows=self.nodes()
+        if any(field in labels(row) for row in rows for field in AUTH_FIELDS):
+            raise Blocked('authentication_gesture_refused')
+        visible=[r for r in rows if r.get('package')==APP and r.get('visible')]
+        roots=[r for r in visible if r.get('path')=='0' and r.get('bounds')==[0,0,1080,1920]]
+        names=set().union(*(labels(r) for r in visible)) if visible else set()
+        cancel=[r for r in visible if 'إلغاء' in labels(r)]
+        if len(roots)!=1 or len(cancel)!=1 or cancel[0]['bounds'][1]<1500 or not {
+                'البحث على الخريطة',self.DRAWING_INSTRUCTION,
+                'Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers.'}<=names:
+            raise Blocked('fresh_default_drawing_surface_required')
+        # Fixed closed stroke, within the observed canvas and outside its controls.
+        return self.instrument('phase23-draw-area',phase23_surface='drawing')
+
     """Keep the historical Phase1 executor unchanged; handle current role shells."""
 
     def startup_home_binding(self, rows):
@@ -177,7 +194,7 @@ def validate_command(value, run_id, seq, challenge):
                'key': {'key'}, 'force_stop': set(), 'touch': {'x', 'y'},
                'swipe': {'x1', 'y1', 'x2', 'y2'}, 'pinch': {'direction', 'x', 'y'},
                'double_tap': {'x','y'}, 'wait': {'label','seconds'}, 'network': {'state'},
-               'display': {'mode'}, 'open_link': {'uri'},
+               'display': {'mode'}, 'open_link': {'uri'}, 'draw_area': set(),
                'batch': {'steps'}, 'seed_media': set(), 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
@@ -481,6 +498,7 @@ class NativeRun:
         elif op == 'back': d.adb('shell', 'input', 'keyevent', '4')
         elif op == 'key': d.adb('shell', 'input', 'keyevent', '4' if args['key'] == 'BACK' else '66')
         elif op == 'wait': d.wait(args['label'],seconds=args['seconds'])
+        elif op == 'draw_area': d.draw_area()
         elif op in {'touch', 'swipe', 'pinch', 'double_tap'}:
             rows, temporary_frame, protected = self.observe()
             if temporary_frame: temporary_frame.unlink()
