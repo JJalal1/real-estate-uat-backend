@@ -1,23 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 27,
-  "challenge": "8ad7f197143306375ea8c20bec2b6380bc9828c1e555680e7c7a82af35808bff",
-  "op": "batch",
+  "seq": 28,
+  "challenge": "a44cdf5dac0bfb7f1140d19d714477391ede45f1b63a70b55c72c023cef4b64a",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "السابق"
-        }
-      }
-    ]
+    "label": "التالي"
   }
 }
