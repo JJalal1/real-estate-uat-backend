@@ -1,22 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 44,
-  "challenge": "1d0aca8b94bbda25b101690731fa9c09d696b91666157abf3427fb5fa813fbb0",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "بدء بحث جديد"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "الخريطة"
-        }
-      }
-    ]
-  }
+  "seq": 45,
+  "challenge": "19fd2fd825b841b09c0fcf6bece69551a8b04fd3d9393cd5f8f9644995cf3fdb",
+  "op": "prefetch_metrics",
+  "args": {}
 }
