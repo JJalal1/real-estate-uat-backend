@@ -1,9 +1,30 @@
 {
   "run_id": "42948672743",
-  "seq": 30,
-  "challenge": "b83c947603229c6dc367087b02e9755d6d52a32c6b911ce381eee34721101172",
-  "op": "tap",
+  "seq": 31,
+  "challenge": "12b731831db3edc0a4a6fced85e0849f9aaccdd6671b89867bc34a6dfdc4d27d",
+  "op": "batch",
   "args": {
-    "label": "حفظ في المفضلة"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إزالة من المفضلة"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/favorites/ids"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/favorites/ids"
+        }
+      }
+    ]
   }
 }
