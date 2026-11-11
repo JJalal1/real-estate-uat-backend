@@ -1,10 +1,9 @@
 {
   "run_id": "43113135513",
-  "seq": 9,
-  "challenge": "93aa13c776ad38a941af8b976bcf08642624d99729c7554b9fb54c2605436bd8",
-  "op": "wait",
+  "seq": 10,
+  "challenge": "08d340ff766acca53ee54c222317ddaed1cbbe6ae9b28f3daa068f670b1e4478",
+  "op": "scroll",
   "args": {
-    "label": "عنوان الإعلان *",
-    "seconds": 15
+    "direction": "forward"
   }
 }
