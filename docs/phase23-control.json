@@ -1,9 +1,9 @@
 {
   "run_id": "43099213137",
-  "seq": 12,
-  "challenge": "845245b5cdfc7075912d5047d19bad16b77f30c03f5d8ef91e1aa66eeb47b962",
+  "seq": 13,
+  "challenge": "8a5be219908f63dfb65c4ff91c1ad3f19be6d2174d351e9f338f0a459e4767b7",
   "op": "tap",
   "args": {
-    "label": "مهامي"
+    "label": "فتح"
   }
 }
