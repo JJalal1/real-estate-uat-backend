@@ -1,10 +1,24 @@
 {
   "run_id": "42986038827",
-  "seq": 24,
-  "challenge": "0fe38ed118d214be7371e39e087ecc237362efc3dfa5ac317a59c24087062a0f",
-  "op": "touch",
+  "seq": 25,
+  "challenge": "1188dc311b4c201abb46b6dff60884c1e3decf099f0edb23ebebb96db0a8a45d",
+  "op": "batch",
   "args": {
-    "x": 155,
-    "y": 655
+    "steps": [
+      {
+        "op": "set",
+        "args": {
+          "label": "مقدار السعي بالريال اليمني",
+          "value": "10000"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
+        }
+      }
+    ]
   }
 }
