@@ -50,8 +50,10 @@
         "UAT1562 checkpoint043 native dark/font2.4 details"
       ],
       "fix": "Use Material surface, outline and onSurface roles in existing section panels and advertiser cards; preserve dimensions/assets and light-theme roles.",
-      "ci_result": "pending focused theme tests",
-      "native_fix_confirmation": "pending next APK"
+      "ci_result": "PASS analyze and5 tests",
+      "native_fix_confirmation": "pending next APK",
+      "ci_run": 42956545533,
+      "implementation_commit": "0e072474908ab34741867fddc48a402927fb9731"
     }
   ]
 }
