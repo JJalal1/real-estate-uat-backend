@@ -1,42 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 56,
-  "challenge": "32b279399e750b32fa7114d08bd077e6cc5378023062e676f2dd7659fff4d552",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "خيارات المحادثة"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إلغاء الحظر"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "إلغاء الحظر؟",
-          "seconds": 8
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إلغاء الحظر"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/messages/threads/37"
-        }
-      }
-    ]
-  }
+  "seq": 57,
+  "challenge": "173983208daf508ffeaf246d55b2ff5d47d38d0a2d627e1d3b72164ce7092782",
+  "op": "force_stop",
+  "args": {}
 }
