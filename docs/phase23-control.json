@@ -1,10 +1,10 @@
 {
   "run_id": "42978036876",
-  "seq": 0,
-  "challenge": "afdcdcbfd2cdae9117a6392dcaa6a8c63195bb119df259b3d46b61f03dcc1363",
-  "op": "touch",
+  "seq": 1,
+  "challenge": "510928393afe12a64f3b9ba66cfec5a490aa44a8a31e09f9f90807b856c1fa7b",
+  "op": "wait",
   "args": {
-    "x": 110,
-    "y": 308
+    "label": "البحث على الخريطة",
+    "seconds": 30
   }
 }
