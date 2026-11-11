@@ -1,23 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 2,
-  "challenge": "2e95ade0d6a261dcafb64f5380237c07dce47a097bc4665c0c365dfc4ff92ffb",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "رفض / إغلاق"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "support",
-          "path": "/admin/support/cases/9"
-        }
-      }
-    ]
-  }
+  "seq": 3,
+  "challenge": "6561e9d7b6268ea20e11c3c8a826fdb5edb7482e01102b951c8ca785e9fddb27",
+  "op": "logout",
+  "args": {}
 }
