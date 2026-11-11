@@ -1,22 +1,7 @@
 {
   "run_id": "42939077400",
-  "seq": 46,
-  "challenge": "6d5a24f4a59040d7441e4728b42214ec299a29fa3a499e015f8040a3c2e7716b",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "حسابي"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تسجيل الخروج"
-        }
-      }
-    ]
-  }
+  "seq": 47,
+  "challenge": "ddd5b5cef8183a39e2b321c9f8380e8b127a827d6cadd56f3deffc647e6d01ec",
+  "op": "logout",
+  "args": {}
 }
