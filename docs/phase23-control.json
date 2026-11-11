@@ -1,42 +1,10 @@
 {
   "run_id": "43113135513",
-  "seq": 27,
-  "challenge": "7f8965f18011aa02a95a21a1e7cc62f627d4f32dd6445a43f385917be8783ee4",
-  "op": "batch",
+  "seq": 28,
+  "challenge": "4c15401422eb5a44a0d34d16803dad310142824a08b6f4f0ed8ef47828dea7bb",
+  "op": "wait",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "الرئيسية",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إضافة عقار"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تعبئة يدوي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "متابعة الإعلان",
-          "seconds": 12
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "متابعة الإعلان"
-        }
-      }
-    ]
+    "label": "المواصفات",
+    "seconds": 15
   }
 }
