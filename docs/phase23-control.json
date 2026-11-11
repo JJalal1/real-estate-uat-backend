@@ -1,50 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 31,
-  "challenge": "4fedf7a4626a4cdb17d3f0da028c2625c8d126851cdaaa70a3284d5df29730df",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "حسابي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "شوهد مؤخرًا",
-          "seconds": 8
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "شوهد مؤخرًا"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "ما شاهدت عقارات بعد",
-          "seconds": 8
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/support/cases/9"
-        }
-      }
-    ]
-  }
+  "seq": 32,
+  "challenge": "91dbe2ead02a53ff57cf8934bfc3a300ffb242e7fa9cabb3da411654ee4d5c8e",
+  "op": "back",
+  "args": {}
 }
