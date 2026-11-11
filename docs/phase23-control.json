@@ -1,10 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 30,
-  "challenge": "bbe990fbeb6c800e299e852dbd4d7141f0683bb259c196b416c379592bef4f68",
-  "op": "set",
+  "seq": 63,
+  "challenge": "e390283bd0d08ee9f6c95426618d9f987fc55b5a1500af8a6faf699bce19f5b5",
+  "op": "touch",
   "args": {
-    "label": "مقدار السعي بالريال اليمني",
-    "value": "10000"
+    "x": 804,
+    "y": 1765
   }
 }
