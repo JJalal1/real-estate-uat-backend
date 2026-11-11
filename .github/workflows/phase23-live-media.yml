@@ -1,0 +1,51 @@
+name: Phase23 existing live UAT media proof
+on:
+  push:
+    branches: [work/phase23-live-media-evidence-20261112]
+    paths:
+      - .github/workflows/phase23-live-media.yml
+      - mobile_app/test/viewport_network_measurement_test.dart
+permissions:
+  contents: read
+jobs:
+  live-media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify identical compiled product source to the final Native build
+        run: git diff --exit-code 9e200a0e969dff67e56f8e402f537947e27f8d65 -- mobile_app/lib mobile_app/android mobile_app/assets mobile_app/pubspec.yaml mobile_app/pubspec.lock docs/ui-transplant-v3/pubspec_overrides.yaml
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve only the approved locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Read the three current public watermarked images from the accepted anchor
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/viewport_network_measurement_test.dart
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=AQER_VIEWPORT_HTTP_PROBE=true
+          --dart-define=AQER_EXPECT_VIEWPORT_GATING=true
+          --dart-define=AQER_VIEWPORT_FIXTURE_PROPERTY_ID=106
+          --plain-name 'count real UAT image HTTP transfers for hidden images and return'
+          --reporter expanded
+      - name: Keep application source unchanged
+        run: git diff --exit-code -- mobile_app/lib mobile_app/android mobile_app/assets mobile_app/pubspec.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-live-media-${{ github.run_id }}
+          path: mobile_app/viewport-uat-metrics.json
+          if-no-files-found: warn
+          retention-days: 30

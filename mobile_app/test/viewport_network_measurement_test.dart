@@ -184,12 +184,20 @@ void main() {
       connectTimeout: const Duration(seconds: 80), receiveTimeout: const Duration(seconds: 80)));
     addTearDown(() => dio.close(force: true));
     final urls = <String>[];
+    const sharedFixtureProperty = int.fromEnvironment('AQER_VIEWPORT_FIXTURE_PROPERTY_ID');
     await tester.runAsync(() async {
-      for (final id in [60, 61, 62]) {
-        final data = (await dio.get<dynamic>('/properties/$id')).data['data'] as Map;
+      if (sharedFixtureProperty > 0) {
+        final data = (await dio.get<dynamic>('/properties/$sharedFixtureProperty')).data['data'] as Map;
         expect(data['status'], 'published');
-        urls.add((data['images'] as List).first['url'] as String);
+        urls.addAll((data['images'] as List).map((row) => (row as Map)['url'] as String).toSet().take(3));
+      } else {
+        for (final id in [60, 61, 62]) {
+          final data = (await dio.get<dynamic>('/properties/$id')).data['data'] as Map;
+          expect(data['status'], 'published');
+          urls.add((data['images'] as List).first['url'] as String);
+        }
       }
+      expect(urls.toSet(), hasLength(3));
     });
     var requests = 0, bytes = 0, completed = 0;
     dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
@@ -223,6 +231,7 @@ void main() {
     scroll.jumpTo(0);
     await _networkFrames(tester, frames: 12);
     final report = {'network': 'real UAT Laravel to private Supabase Storage', 'gating_required': _required,
+      'fixture_property_ids': sharedFixtureProperty > 0 ? [sharedFixtureProperty] : [60, 61, 62], 'unique_fixture_images': urls.toSet().length,
       'initial_image_requests': initial, 'initial_image_bytes': initialBytes,
       'after_scroll_requests': afterScroll, 'return_image_requests': requests - afterScroll, 'total_image_bytes': bytes};
     if (_required) { expect(initial, 1); expect(afterScroll, 2); expect(requests - afterScroll, 0); }
