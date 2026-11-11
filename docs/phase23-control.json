@@ -1,36 +1,7 @@
 {
   "run_id": "42986038827",
-  "seq": 33,
-  "challenge": "1977ac9d91cff90d5bcb595f25d34d85453e935901539fa7bc4b770f02f1cad0",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "العودة إلى النواقص"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "معاينة الإعلان",
-          "seconds": 15
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "معاينة الإعلان"
-        }
-      }
-    ]
-  }
+  "seq": 34,
+  "challenge": "f14b0060d5591477208ee2797cc69d668ade426ce632b9c3d3cbbd3f410685e4",
+  "op": "force_stop",
+  "args": {}
 }
