@@ -162,7 +162,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
+    try {
     final tasks = _Tasks(report: true);
     final cases = _Cases(tasks);
     final container = await _openTasks(tester, _Reviews(), tasks: tasks, cases: cases);
@@ -183,6 +183,9 @@ void main() {
     await tester.tap(find.text('رفض / إغلاق'));await tester.pumpAndSettle();
     expect(cases.decisions, [(9, 'dismissed')]);
     expect(tester.takeException(), isNull);
+    } finally {
+      semantics.dispose();
+    }
   });
   testWidgets('owned task opens its exact case and refreshes after returning',
       (tester) async {
