@@ -1,9 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 1,
-  "challenge": "ddf7fa8a3fe44c86d531664bf9424af9a5f8c62b1acb0da20d62fbf6413d1b8e",
+  "seq": 2,
+  "challenge": "431c69a2d61154d65557defe9df0c5f01f5372a60596780ba395c74e63084121",
   "op": "tap",
   "args": {
-    "label": "عملي"
+    "label": "عقاراتي"
   }
 }
