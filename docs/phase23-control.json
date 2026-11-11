@@ -1,31 +1,10 @@
 {
   "run_id": "42948672743",
-  "seq": 10,
-  "challenge": "658b81fd32036bef727ce6bf524a7ceb41ec0dea9c92f37051d36005d15c6a13",
-  "op": "batch",
+  "seq": 11,
+  "challenge": "ddec6e75356aa7db86844d2e15afd25caf09a749c78ff8b34d631bb83768cb40",
+  "op": "touch",
   "args": {
-    "steps": [
-      {
-        "op": "touch",
-        "args": {
-          "x": 580,
-          "y": 620
-        }
-      },
-      {
-        "op": "touch",
-        "args": {
-          "x": 580,
-          "y": 1165
-        }
-      },
-      {
-        "op": "touch",
-        "args": {
-          "x": 580,
-          "y": 1655
-        }
-      }
-    ]
+    "x": 580,
+    "y": 1614
   }
 }
