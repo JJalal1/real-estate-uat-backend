@@ -335,6 +335,10 @@ class NativeRun:
         with zipfile.ZipFile(plain, 'w', zipfile.ZIP_DEFLATED) as bundle:
             bundle.writestr('OBSERVATION.json', json.dumps(payload, ensure_ascii=False, indent=2))
             if frame: bundle.write(frame, frame.name)
+            if self.seq == 0:
+                for name in ['phase23-property.jpg','phase23-rotated-exif.jpg','phase23-unsuitable.jpg','phase23-large.jpg']:
+                    source=PRIVATE/name
+                    if source.is_file(): bundle.write(source,'INPUT-'+name)
             for video in new_videos:
                 path = self.driver.out / video['file']
                 if path.is_file(): bundle.write(path, path.name)
@@ -490,7 +494,7 @@ class NativeRun:
         d.require_preauth_runtime()
         d.adb('shell', 'mkdir', '-p', '/sdcard/Download')
         files = []
-        for name in ['phase23-property.jpg', 'phase23-rotated-exif.jpg', 'phase23-unsuitable.jpg']:
+        for name in ['phase23-property.jpg', 'phase23-rotated-exif.jpg', 'phase23-unsuitable.jpg', 'phase23-large.jpg']:
             path = PRIVATE / name
             if not path.is_file(): raise GateError('synthetic_media_source_missing')
             target = '/sdcard/Download/' + name

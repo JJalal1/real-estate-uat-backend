@@ -52,14 +52,14 @@ class CommandSafetyTest(unittest.TestCase):
                 return ''
         with tempfile.TemporaryDirectory() as folder:
             private = Path(folder)
-            for name in ['phase23-property.jpg', 'phase23-rotated-exif.jpg', 'phase23-unsuitable.jpg']:
+            for name in ['phase23-property.jpg', 'phase23-rotated-exif.jpg', 'phase23-unsuitable.jpg', 'phase23-large.jpg']:
                 (private / name).write_bytes(b'synthetic test bytes')
             run = object.__new__(NativeRun)
             run.driver = Device()
             with patch('run_phase23_native.PRIVATE', private):
                 receipt = run.seed_media()
-            self.assertEqual(len(receipt['files']), 3)
-            self.assertEqual(len(run.driver.writes), 3)
+            self.assertEqual(len(receipt['files']), 4)
+            self.assertEqual(len(run.driver.writes), 4)
             self.assertTrue(all(p.startswith('/sdcard/Download/phase23-') for p in run.driver.writes))
 
     def test_video_recorder_cannot_consume_supervisor_acknowledgements(self):

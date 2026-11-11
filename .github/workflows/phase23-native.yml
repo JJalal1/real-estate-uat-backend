@@ -177,6 +177,8 @@ jobs:
           for x in range(0,800,40): pen.line((x,0,800-x,600),fill='#ffff00',width=8)
           pen.text((30,30),'SYNTHETIC UNSUITABLE MEDIA TEST',fill='white')
           wrong.save(folder/'phase23-unsuitable.jpg',quality=85)
+          large=Image.effect_noise((2048,1536),80).convert('RGB')
+          large.save(folder/'phase23-large.jpg',quality=94)
           PY
       - name: Review and execute bounded UAT native commands
         uses: ./.github/actions/phase1-review
