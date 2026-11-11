@@ -1,9 +1,22 @@
 {
   "run_id": "42939077400",
-  "seq": 70,
-  "challenge": "b9b7c87998c966c8a41ae43734323c13ab195f7b28d4e68f18e74f6abd136a80",
-  "op": "tap",
+  "seq": 71,
+  "challenge": "af70a47d1560097c2ae6f680a613c323a784ef6525ba4455c207843aaef525c7",
+  "op": "batch",
   "args": {
-    "label": "متابعة التصفح"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "رجوع"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "العودة للرئيسية"
+        }
+      }
+    ]
   }
 }
