@@ -1,28 +1,20 @@
 {
   "run_id": "43113135513",
-  "seq": 43,
-  "challenge": "cfbe035300c2e4233549e89f75b3a30819e908895ebfc81a6b2a166585c3c19a",
+  "seq": 44,
+  "challenge": "1d0aca8b94bbda25b101690731fa9c09d696b91666157abf3427fb5fa813fbb0",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "إزالة حد السعر"
+          "label": "بدء بحث جديد"
         }
       },
       {
-        "op": "wait",
+        "op": "tap",
         "args": {
-          "label": "شقة النور اختبار المرحلة23",
-          "seconds": 15
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/properties?per_page=1"
+          "label": "الخريطة"
         }
       }
     ]
