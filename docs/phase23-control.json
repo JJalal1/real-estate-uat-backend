@@ -1,23 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 30,
-  "challenge": "b9a74a0ef6fadb919f4607c692324eec545051d92f4a957e42c7d7b6668129b8",
-  "op": "batch",
+  "seq": 31,
+  "challenge": "13b03df7b087f13f9b3560fde49edeff16703bdad5ed38b6e56d3d2a3420f6fe",
+  "op": "scroll",
   "args": {
-    "steps": [
-      {
-        "op": "set",
-        "args": {
-          "label": "مثال: 7 أو شمالية أو أمامية",
-          "value": "شرقية مرحلة23"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "السابق"
-        }
-      }
-    ]
+    "direction": "forward"
   }
 }
