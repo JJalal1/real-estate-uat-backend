@@ -1,32 +1,27 @@
 {
   "run_id": "42986038827",
-  "seq": 38,
-  "challenge": "00ac5b62036a946440ee299d22171ccd3af2588acd0b60b9ea6fdf5ab3f1e111",
+  "seq": 39,
+  "challenge": "e610f8cb52d76e03c2f7fe21e714782d8b7290fb46e2301cbbc94529d1eea9c0",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "شقة"
+          "label": "تطبيق الشروط"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "القائمة",
+          "seconds": 15
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "فيلا"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إيجار"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
+          "label": "القائمة"
         }
       }
     ]
