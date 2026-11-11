@@ -1,7 +1,9 @@
 {
   "run_id": "42978036876",
-  "seq": 26,
-  "challenge": "8116863afeca4be83a90409378867cfffdb2102d08b2d1dc44364fcef0d1a79d",
-  "op": "force_stop",
-  "args": {}
+  "seq": 27,
+  "challenge": "33a737b2a1222a7e45a5bfad067f7704b3ef08970ced0af72aaff19d4f64de6d",
+  "op": "login",
+  "args": {
+    "actor": "broker"
+  }
 }
