@@ -1,7 +1,9 @@
 {
   "run_id": "43107427969",
-  "seq": 3,
-  "challenge": "1768f7f74fdf9c46291806047755c726486745d354e71e312b32023d91306d2a",
-  "op": "back",
-  "args": {}
+  "seq": 4,
+  "challenge": "382cb2d3b6073f61fb3bad4e2a3b767ce7c7b6f3603e91b1b71bcb87d2138ac9",
+  "op": "tap",
+  "args": {
+    "label": "مهامي"
+  }
 }
