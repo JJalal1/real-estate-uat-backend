@@ -1,21 +1,21 @@
 {
   "run_id": "42939077400",
-  "seq": 42,
-  "challenge": "4f736299b70485ee0709737c5943edb60f90b54eb4d56813ad810b1a0d72286c",
+  "seq": 43,
+  "challenge": "e568226e6154a9c459d3b7de00a8a74628cd076247558928abe57698d30be159",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "api_get",
+        "op": "set",
         "args": {
-          "alias": "support",
-          "path": "/admin/listing-review/listings/106"
+          "label": "ملاحظة اعتماد (اختياري)",
+          "value": "اعتماد إعلان UAT الاصطناعي 106 بعد استبدال الصورة 174 بالصورة 175، ومراجعة الصور الحالية الثلاث. اختبار المرحلة23."
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "قبول ونشر"
+          "label": "اعتماد ونشر"
         }
       }
     ]
