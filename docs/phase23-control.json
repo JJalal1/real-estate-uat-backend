@@ -1,9 +1,23 @@
 {
   "run_id": "42986038827",
-  "seq": 15,
-  "challenge": "106a3b77b14e0931d400c7b4a0c25cb807b9c21707130b141b241747e086a7e2",
-  "op": "tap",
+  "seq": 16,
+  "challenge": "a795b62653bc355b2372db12611ec36c9ad5566d1a55a156cf3f6ada65015fbd",
+  "op": "batch",
   "args": {
-    "label": "تأكيد هذا الموقع"
+    "steps": [
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
+        }
+      }
+    ]
   }
 }
