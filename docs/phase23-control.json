@@ -1,9 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 7,
-  "challenge": "e4726d55277163911e55a57fbc31d75012b2db8c4e4e33241413eb2fb5518f46",
-  "op": "tap",
+  "seq": 8,
+  "challenge": "12b819cdb4e06572e4fc204123da4683526c81a724c1bc542c9fa2ee4ac7d035",
+  "op": "scroll",
   "args": {
-    "label": "السابق"
+    "direction": "forward"
   }
 }
