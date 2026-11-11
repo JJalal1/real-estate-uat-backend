@@ -1,20 +1,20 @@
 {
   "run_id": "42986038827",
-  "seq": 19,
-  "challenge": "3f9d2041d6790937a4da27bfc3c74246147df947c9a0b5ed9771ff20c85d34dc",
+  "seq": 20,
+  "challenge": "e2ac5e0ce430affb9c7a7e3d10712e64e026eaa30b865db7119500e87ce4cb4c",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "لا يوجد"
+          "label": "شمالية"
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "واجهة البناء *"
+          "label": "إضافة صور"
         }
       }
     ]
