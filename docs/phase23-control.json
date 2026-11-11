@@ -1,9 +1,23 @@
 {
   "run_id": "43113135513",
-  "seq": 49,
-  "challenge": "0bb1515e1cd0d0675218dbf297437ca10c5534ed6d9962b7abb82a6dd78e1ffa",
-  "op": "open_link",
+  "seq": 50,
+  "challenge": "52ea3d9d3a19ca618b7cf2d1c481df137c62d1d39917276d5e50f612a57679e1",
+  "op": "batch",
   "args": {
-    "uri": "realestate://app/properties/106"
+    "steps": [
+      {
+        "op": "wait",
+        "args": {
+          "label": "شقة النور اختبار المرحلة23",
+          "seconds": 15
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "مشاركة العقار"
+        }
+      }
+    ]
   }
 }
