@@ -79,7 +79,7 @@ class _Cases implements SupportRepository {
   _Cases(this.tasks);
   final _Tasks tasks;
   final decisions = <(int, String)>[];
-  SupportCaseDetails details(String status) => SupportCaseDetails.fromJson({
+  SupportCaseDetails _snapshot(String status) => SupportCaseDetails.fromJson({
     'id': 9, 'reference': 'SYNTHETIC-9', 'kind': 'report',
     'subject': 'Synthetic conversation report', 'target_type': 'conversation_thread',
     'target_id': 37, 'status': status, 'priority': 'normal',
@@ -88,10 +88,10 @@ class _Cases implements SupportRepository {
     'messages': <Map<String, dynamic>>[], 'events': <Map<String, dynamic>>[],
   });
   @override
-  Future<SupportCaseDetails> adminDetails(int id) async => details('in_progress');
+  Future<SupportCaseDetails> adminDetails(int id) async => _snapshot('in_progress');
   @override
   Future<SupportCaseDetails> setStatus(int id, String status) async {
-    decisions.add((id, status));tasks.completed = true;return details(status);
+    decisions.add((id, status));tasks.completed = true;return _snapshot(status);
   }
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
