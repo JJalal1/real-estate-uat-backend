@@ -1,10 +1,7 @@
 {
   "run_id": "43107427969",
-  "seq": 14,
-  "challenge": "204bc4f231770f0ac60cabec6f9876f0432b842039ea01f2a32c4a2125bd3389",
-  "op": "wait",
-  "args": {
-    "label": "تسجيل الدخول أو إنشاء حساب",
-    "seconds": 8
-  }
+  "seq": 15,
+  "challenge": "d68a12294d1be553e26918b90983dfd1ea75f8083c44ea5fc2b006cada93a675",
+  "op": "logout",
+  "args": {}
 }
