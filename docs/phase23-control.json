@@ -1,15 +1,21 @@
 {
   "run_id": "42962422395",
-  "seq": 2,
-  "challenge": "f67b777d426ea2feff2639ed4475d010f35544523157bdef9ef07e3bab98f244",
+  "seq": 3,
+  "challenge": "e4feba9fd5247f26988837e8bcdff69beb51f75e147147db13364ec4c763f5c9",
   "op": "batch",
   "args": {
     "steps": [
       {
+        "op": "tap",
+        "args": {
+          "label": "حفظ في المفضلة"
+        }
+      },
+      {
         "op": "wait",
         "args": {
-          "label": "تفاصيل العقار",
-          "seconds": 25
+          "label": "إزالة من المفضلة",
+          "seconds": 20
         }
       },
       {
