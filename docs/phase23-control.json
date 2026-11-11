@@ -1,9 +1,22 @@
 {
   "run_id": "42986038827",
-  "seq": 18,
-  "challenge": "d88b3a4c701ca566f28aa802ebc16ba7cfd217925eeda30704597a728756282f",
-  "op": "tap",
+  "seq": 19,
+  "challenge": "3f9d2041d6790937a4da27bfc3c74246147df947c9a0b5ed9771ff20c85d34dc",
+  "op": "batch",
   "args": {
-    "label": "موقف السيارة *"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "لا يوجد"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "واجهة البناء *"
+        }
+      }
+    ]
   }
 }
