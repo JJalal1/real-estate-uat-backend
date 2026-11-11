@@ -1,10 +1,22 @@
 {
   "run_id": "42939077400",
-  "seq": 30,
-  "challenge": "338c93207f1c7fb197a3de3c2025148967470cf12857eb59c9d114b160c85815",
-  "op": "touch",
+  "seq": 31,
+  "challenge": "4bc932f1e53ba7286597a95e232bdf96af0b25c83e7dbf9f62e997436a295cbe",
+  "op": "batch",
   "args": {
-    "x": 530,
-    "y": 700
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "تحتاج توضيحًا"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "مرتبطة بالعقار"
+        }
+      }
+    ]
   }
 }
