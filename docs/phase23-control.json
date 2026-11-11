@@ -1,23 +1,9 @@
 {
   "run_id": "42986038827",
-  "seq": 14,
-  "challenge": "725a888960ffc7106b4cb2a32da2b683f2c829edae50ead150410ceb8ee5b024",
-  "op": "batch",
+  "seq": 15,
+  "challenge": "106a3b77b14e0931d400c7b4a0c25cb807b9c21707130b141b241747e086a7e2",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "تأكيد الموقع على الخريطة"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts"
-        }
-      }
-    ]
+    "label": "تأكيد هذا الموقع"
   }
 }
