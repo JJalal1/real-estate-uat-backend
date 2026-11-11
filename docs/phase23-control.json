@@ -1,10 +1,10 @@
 {
   "run_id": "43099213137",
-  "seq": 15,
-  "challenge": "90d56505d718304f93b0f4556f5a2b6e77b73e96710d9d134113a08f84a061b6",
+  "seq": 16,
+  "challenge": "39d1e2cbffcc6e774ac762576d860f5771cb24ba3809df06276c402153492c33",
   "op": "wait",
   "args": {
-    "label": "رفض/إغلاق",
-    "seconds": 10
+    "label": "رفض / إغلاق",
+    "seconds": 5
   }
 }
