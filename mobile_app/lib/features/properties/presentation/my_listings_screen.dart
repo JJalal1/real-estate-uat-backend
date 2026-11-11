@@ -538,6 +538,7 @@ class _ListingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = _listingState(property.reviewStatus);
     final nextAction = _nextAction(property);
+    final summary = property.toSummary();
 
     return AppSurface(
       padding: EdgeInsets.zero,
@@ -546,9 +547,9 @@ class _ListingCard extends StatelessWidget {
         children: [
           EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
             price: _formatPrice(property.price), currency: property.currency,
-            categoryLabel: ebrokerPropertyTypeLabel(property.type), facts: summaryPropertyFacts(property.toSummary()),
+            categoryLabel: ebrokerPropertyTypeLabel(property.type), facts: summaryPropertyFacts(summary),
             purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-            imageUrl: property.mainImage, imageUrls: property.imageUrls, authenticatedImages: property.status != 'published',
+            imageUrl: summary.mainImage, imageUrls: summary.imageUrls, authenticatedImages: property.status != 'published',
             isSpotlight: property.isSpotlight, location: property.address, onTap: onOpen),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Wrap(spacing: AppSpacing.s8, runSpacing: AppSpacing.s4, children: [
