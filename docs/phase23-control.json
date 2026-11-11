@@ -1,15 +1,14 @@
 {
   "run_id": "42958167376",
-  "seq": 7,
-  "challenge": "cff0091de9de5190dcf400480b0bf901c5e852ce12f1f6646bc6a860a99c0970",
+  "seq": 8,
+  "challenge": "626a9d7c061027254650ed463d1f9f4d4cfa6d349a149f52e626fb982b3433db",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "touch",
+        "op": "tap",
         "args": {
-          "x": 115,
-          "y": 1745
+          "label": "داكن"
         }
       },
       {
@@ -20,15 +19,16 @@
         }
       },
       {
-        "op": "tap",
+        "op": "touch",
         "args": {
-          "label": "المظهر"
+          "x": 965,
+          "y": 1745
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "داكن",
+          "label": "ماذا تبحث عنه؟",
           "seconds": 8
         }
       }
