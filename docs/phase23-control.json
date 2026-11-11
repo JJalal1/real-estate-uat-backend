@@ -1,33 +1,21 @@
 {
   "run_id": "42939077400",
-  "seq": 41,
-  "challenge": "8b2c3160e3f1c4ed43126a576c47a5c1d6e0fd72346210700c5b7968a1576a0c",
+  "seq": 42,
+  "challenge": "4f736299b70485ee0709737c5943edb60f90b54eb4d56813ad810b1a0d72286c",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
+        "op": "api_get",
         "args": {
-          "label": "تحتاج توضيحًا"
+          "alias": "support",
+          "path": "/admin/listing-review/listings/106"
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "مرتبطة بالعقار"
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "سبب المراجعة",
-          "value": "الصورة الرئيسية تظهر المبنى الاصطناعي المستخدم في إعلان الاختبار، وليست نمطًا زخرفيًا."
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "حفظ المراجعة"
+          "label": "قبول ونشر"
         }
       }
     ]
