@@ -1,7 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 67,
-  "challenge": "a8034c6b1596882910af1d1456914dba185de9c343634bf2376c2ad9172ce663",
-  "op": "back",
-  "args": {}
+  "seq": 68,
+  "challenge": "61ab55db0ac634c996d839815b23d27b55640abe0461e84f6ec60b970047e82d",
+  "op": "tap",
+  "args": {
+    "label": "حفظ في المفضلة"
+  }
 }
