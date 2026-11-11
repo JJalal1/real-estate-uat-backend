@@ -1,20 +1,21 @@
 {
   "run_id": "42978036876",
-  "seq": 5,
-  "challenge": "44d4e6741653c6d1c0c72768c6dad1eb9f02bdd68f1a21b620682be7ff9d6bd5",
+  "seq": 6,
+  "challenge": "30f94edcb5042a6a96e137c26c651aa08580f890f8353ecd4d162517271362e8",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
+        "op": "touch",
         "args": {
-          "label": "تصغير الفلاتر"
+          "x": 540,
+          "y": 1065
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "فتح الفلاتر",
+          "label": "شقة النور اختبار المرحلة23",
           "seconds": 20
         }
       }
