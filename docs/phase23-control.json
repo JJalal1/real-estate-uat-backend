@@ -1,7 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 33,
-  "challenge": "9ac7967348e6eeee3e8c3f0af75aa9e31d55c167c3bcf0cf4ba4006c1b13116b",
-  "op": "send_synthetic_message",
-  "args": {}
+  "seq": 34,
+  "challenge": "e2ef59fb20f83ee869348888ee1fd3c5e402ac95c6c52cff8794a4d0008aab1e",
+  "op": "tap",
+  "args": {
+    "label": "خيارات المحادثة"
+  }
 }
