@@ -1,9 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 13,
-  "challenge": "49609f1979831ab6f9289af459dca6ae1d0625639416b1860575b6a4fddea4ce",
-  "op": "network",
+  "seq": 14,
+  "challenge": "47e88db1812ef14f1933173a73cbe7d374a8d9a60880a0c3cffa3990bf6cce1a",
+  "op": "tap",
   "args": {
-    "state": "offline"
+    "label": "شوهد مؤخرًا"
   }
 }
