@@ -1,9 +1,10 @@
 {
   "run_id": "42948672743",
-  "seq": 15,
-  "challenge": "0ab6fe3f167a28db1042f25328c758d5190d01f370ecd181ea97abd7ca784630",
-  "op": "tap",
+  "seq": 16,
+  "challenge": "8a6d69f8ba540526085fa9f38404515f3d1007711363635646d47240c83429d6",
+  "op": "wait",
   "args": {
-    "label": "محادثة"
+    "label": "اكتب رسالة...",
+    "seconds": 20
   }
 }
