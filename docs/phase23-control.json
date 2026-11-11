@@ -1,10 +1,26 @@
 {
   "run_id": "42978036876",
-  "seq": 9,
-  "challenge": "7c46e3c5313340e9b6a676f242f0d58f83fab811501910394c8b20f2400233ca",
-  "op": "wait",
+  "seq": 10,
+  "challenge": "4d96a5cfac6884a7bbbc70cb933d578615fb898aae3014a2137a0a4bcb9de531",
+  "op": "batch",
   "args": {
-    "label": "البحث على الخريطة",
-    "seconds": 20
+    "steps": [
+      {
+        "op": "swipe",
+        "args": {
+          "x1": 540,
+          "y1": 1118,
+          "x2": 540,
+          "y2": 480
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "البحث الذكي",
+          "seconds": 20
+        }
+      }
+    ]
   }
 }
