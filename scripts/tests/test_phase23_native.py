@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 from run_phase23_native import validate_command, GateError
 from run_phase23_native import NativeRun
 from run_phase23_native import Phase23Account
+from run_phase23_native import prefetch_metric_rows
 from phase23_checkpoint_state import advance_checkpoint
 from probe_phase1_native_account import NativeAccount
 
@@ -190,6 +191,42 @@ class CommandSafetyTest(unittest.TestCase):
         self.assertEqual([x.args[0]['op'] for x in run.apply.call_args_list],['network','display'])
         self.assertTrue(run.report['cleanup']['network_restored'])
         self.assertTrue(run.report['cleanup']['display_restored'])
+
+    def test_prefetch_observation_drops_unreviewed_fields_and_malformed_counters(self):
+        import json
+        good = {'enabled': True, 'requests': 2, 'bytes': 4096, 'readyHits': 1,
+                'scope': 3, 'metered': 0, 'dataSaver': False, 'eligible': True,
+                'url': 'private content', 'account': 26, 'token': 'not exported'}
+        lines = ['unrelated private line', 'I AQER_PREFETCH: invalid',
+                 'I AQER_PREFETCH: ' + json.dumps(dict(good, bytes='private')),
+                 'I AQER_PREFETCH: ' + json.dumps(good)]
+        rows = prefetch_metric_rows('\n'.join(lines))
+        self.assertEqual(rows, [{k: v for k, v in good.items() if k not in {'url', 'account', 'token'}}])
+        self.assertEqual(prefetch_metric_rows('I OTHER: ' + json.dumps(good)), [])
+        with self.assertRaises(GateError):
+            validate_command(dict(self.command, op='prefetch_metrics', args={'tag':'arbitrary'}),
+                             '1234', 1, 'a' * 64)
+        for enabled in [1, 'true', None]:
+            with self.assertRaises(GateError):
+                validate_command(dict(self.command, op='prefetch_data_saver', args={'enabled':enabled}),
+                                 '1234', 1, 'a' * 64)
+
+    def test_data_saver_changes_only_a_validated_disposable_device_and_restores_original(self):
+        run = object.__new__(NativeRun)
+        run.driver = Mock(recorder=None)
+        run.data_saver_original = None
+        run.driver.adb.side_effect = ['Restrict background status: disabled\n', '',
+                                      'Restrict background status: enabled\n']
+        result = run.apply({'op':'prefetch_data_saver', 'args':{'enabled':True}})
+        self.assertTrue(result['enabled'])
+        self.assertFalse(run.data_saver_original)
+        run.driver.require_preauth_runtime.assert_called_once()
+        run.driver.adb.assert_any_call('shell', 'cmd', 'netpolicy', 'set', 'restrict-background', 'true')
+        run.network_changed = run.display_changed = run.native_auth_attempted = False
+        run.sessions = {}; run.actor = None; run.access = {}; run.report = {'cleanup':{}}
+        run.driver.adb.side_effect = ['', 'Restrict background status: disabled\n']
+        run.cleanup()
+        self.assertTrue(run.report['cleanup']['data_saver_restored'])
 
     def test_reviewed_tap_does_not_scroll_unrelated_screens_for_a_missing_control(self):
         run=object.__new__(NativeRun);run.driver=Mock(recorder=None)

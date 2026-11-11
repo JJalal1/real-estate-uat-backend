@@ -34,7 +34,36 @@ AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المر�
 CONTACT_PATTERN = r'(?<![\d.])(?:(?:\+?967|00967)?7[0-9]{8}|٧[٠-٩]{٨})(?![\d.])'
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get', 'fixture_contact',
        'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch',
-       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'finish'}
+       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'prefetch_metrics', 'prefetch_data_saver', 'finish'}
+
+
+def prefetch_metric_rows(log):
+    """Export only the reviewed UAT counter schema, never general logcat text."""
+    rows = []
+    for line in log.splitlines():
+        if 'AQER_PREFETCH' not in line or '{' not in line:
+            continue
+        try:
+            value = json.loads(line[line.index('{'):])
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(value, dict) or value.get('enabled') is not True:
+            continue
+        row = {'enabled': True}
+        for key in ('requests', 'bytes', 'readyHits', 'scope'):
+            number = value.get(key)
+            if type(number) is int and 0 <= number <= 1_000_000_000:
+                row[key] = number
+        if not {'requests', 'bytes', 'readyHits', 'scope'} <= row.keys():
+            continue
+        if type(value.get('metered')) is int and value['metered'] in (-1, 0, 1):
+            row['metered'] = value['metered']
+        for key in ('dataSaver', 'eligible'):
+            if type(value.get(key)) is bool:
+                row[key] = value[key]
+        if not rows or row != rows[-1]:
+            rows.append(row)
+    return rows[-160:]
 
 
 class Phase23Account(NativeAccount):
@@ -210,7 +239,8 @@ def validate_command(value, run_id, seq, challenge):
                'swipe': {'x1', 'y1', 'x2', 'y2'}, 'pinch': {'direction', 'x', 'y'},
                'double_tap': {'x','y'}, 'wait': {'label','seconds'}, 'network': {'state'},
                'display': {'mode'}, 'open_link': {'uri'}, 'draw_area': set(), 'blocked_message_probe': {'alias'}, 'send_synthetic_message': set(),
-               'batch': {'steps'}, 'seed_media': set(), 'fixture_contact': set(), 'finish': set()}
+               'batch': {'steps'}, 'seed_media': set(), 'fixture_contact': set(),
+               'prefetch_metrics': set(), 'prefetch_data_saver': {'enabled'}, 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
     if value['op'] == 'set' and args['label'] in AUTH_FIELDS:
@@ -237,6 +267,8 @@ def validate_command(value, run_id, seq, challenge):
         raise GateError('bounded_native_wait_required')
     if value['op'] == 'network' and args['state'] not in {'offline','online'}:
         raise GateError('fixed_native_network_state_required')
+    if value['op'] == 'prefetch_data_saver' and type(args['enabled']) is not bool:
+        raise GateError('fixed_native_data_saver_state_required')
     if value['op'] == 'display' and args['mode'] not in {'default','compact_large','large'}:
         raise GateError('fixed_native_display_mode_required')
     if value['op'] == 'open_link' and args['uri'] not in {'realestate://app/properties/106','realestate://app/messages/37'}:
@@ -304,6 +336,7 @@ class NativeRun:
         self.sessions = {}
         self.network_changed = False
         self.display_changed = False
+        self.data_saver_original = None
         self.private_surface_open = False
         self.report = {'scope': 'actual API36 UAT observations; acceptance requires review',
                        'source_sha': os.environ['GITHUB_SHA'], 'api': API,
@@ -631,6 +664,23 @@ class NativeRun:
             _, temporary_frame, _ = self.observe()
             if temporary_frame: temporary_frame.unlink()
         if op == 'observe': return {'operation': op}
+        if op == 'prefetch_metrics':
+            d.require_preauth_runtime()
+            rows = prefetch_metric_rows(d.adb('logcat', '-d', '-s', 'AQER_PREFETCH:I'))
+            return {'operation': op, 'samples': rows, 'sample_count': len(rows),
+                    'scope': 'UAT aggregate counters only; no URLs, account IDs or content'}
+        if op == 'prefetch_data_saver':
+            d.require_preauth_runtime()
+            before = self.read_data_saver()
+            if self.data_saver_original is None:
+                self.data_saver_original = before
+            d.adb('shell', 'cmd', 'netpolicy', 'set', 'restrict-background',
+                  'true' if args['enabled'] else 'false')
+            after = self.read_data_saver()
+            if after != args['enabled']:
+                raise GateError('native_data_saver_state_not_applied')
+            return {'operation': op, 'before': before, 'enabled': after,
+                    'scope': 'disposable API36 device only; app response requires observation'}
         if op == 'fixture_contact': return self.fixture_contact()
         if op == 'blocked_message_probe': return self.blocked_message_probe(args['alias'])
         if op == 'send_synthetic_message': return self.send_synthetic_message()
@@ -733,7 +783,22 @@ class NativeRun:
         return {'operation': 'seed_media', 'status': 'OBSERVED', 'files': files,
                 'scope': 'disposable OS picker only; no property upload'}
 
+    def read_data_saver(self):
+        state = self.driver.adb('shell', 'cmd', 'netpolicy', 'get', 'restrict-background')
+        match = re.fullmatch(r'\s*Restrict background status: (enabled|disabled)\s*', state)
+        if not match:
+            raise GateError('native_data_saver_state_unobserved')
+        return match[1] == 'enabled'
+
     def cleanup(self):
+        if getattr(self, 'data_saver_original', None) is not None:
+            try:
+                self.driver.require_preauth_runtime()
+                self.driver.adb('shell', 'cmd', 'netpolicy', 'set', 'restrict-background',
+                                'true' if self.data_saver_original else 'false')
+                self.report['cleanup']['data_saver_restored'] = self.read_data_saver() == self.data_saver_original
+            except Exception:
+                self.report['cleanup']['data_saver_restored'] = False
         if self.network_changed:
             try:
                 self.apply({'op':'network','args':{'state':'online'}})
