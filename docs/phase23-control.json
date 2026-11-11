@@ -1,38 +1,7 @@
 {
   "run_id": "42919221669",
-  "seq": 86,
-  "challenge": "e19e3a9b5f73b635142b0b645f3f1fabd121d4b59ba0f4292e281fb0be87f7f5",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "support",
-          "path": "/admin/listing-review/listings/106"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/properties/106"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/properties/106"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/notifications"
-        }
-      }
-    ]
-  }
+  "seq": 87,
+  "challenge": "a33aa18b9aaaf56b60735339258550acac41a76bd21e5529b573301d49df3426",
+  "op": "back",
+  "args": {}
 }
