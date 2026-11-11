@@ -37,6 +37,20 @@ OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get',
 
 
 class Phase23Account(NativeAccount):
+    def c4_prepare_input_failure(self, op, result, output, reason):
+        # The original driver drops P23 diagnostics. Retain only fixed identifiers
+        # and bounded counts from the first attempt; never replay a failed input.
+        stage=result.get('stage','')
+        self.phase23_last_input_failure={
+            'op':op if re.fullmatch(r'[a-z0-9-]{1,40}',op) else 'invalid',
+            'java_stage':stage if re.fullmatch(r'[a-z_]{1,50}',stage) else 'unobserved',
+            'passed':result.get('passed')=='true',
+            'foreground':result.get('foreground_category') if result.get('foreground_category') in
+                {'APP','PERMISSION_CONTROLLER','DOCUMENT_PICKER','SYSTEM_UI','UNOBSERVED','OTHER'} else 'UNOBSERVED',
+            'events':int(result['events']) if re.fullmatch(r'[0-9]{1,3}',result.get('events','')) and int(result['events'])<=100 else None,
+            'instrumentation_success_code':bool(re.search(r'^INSTRUMENTATION_CODE: -1\s*$',output,re.M)),
+        }
+
     DRAWING_INSTRUCTION = 'ارسم بإصبعك حدود المنطقة المطلوبة مثل القلم. عند رفع إصبعك سيتم عرض العقارات داخل الرسم فقط.'
 
     def draw_area(self):
@@ -317,7 +331,7 @@ class NativeRun:
     PRIVATE_UI_ANCHORS = frozenset({
         'خيارات المحادثة','اكتب رسالة...','حظر الحساب','إلغاء الحظر',
         'حظر هذا الحساب؟','إلغاء الحظر؟','بلاغ عن المحادثة','تفاصيل البلاغ',
-        'شوهد مؤخرًا','تعديل الملف الشخصي','الأمان والخصوصية',
+        'شوهد مؤخرًا','تعديل الملف الشخصي','الأمان والخصوصية','مظهر التطبيق',
     })
 
     @classmethod
@@ -479,6 +493,7 @@ class NativeRun:
 
     def apply(self, command):
         op, args, d = command['op'], command['args'], self.driver
+        d.phase23_last_input_failure=None
         if d.recorder is not None:
             _, temporary_frame, _ = self.observe()
             if temporary_frame: temporary_frame.unlink()
@@ -490,7 +505,8 @@ class NativeRun:
                 try: results.append(self.apply(step))
                 except Exception as error:
                     return {'operation': op, 'status': 'BLOCKED', 'completed_steps': results,
-                            'stopped_at': len(results), 'reason': str(error) if isinstance(error, (Blocked, GateError)) else type(error).__name__}
+                            'stopped_at': len(results), 'reason': str(error) if isinstance(error, (Blocked, GateError)) else type(error).__name__,
+                            'input_failure':d.phase23_last_input_failure}
             return {'operation': op, 'completed_steps': results, 'product_acceptance_claimed': False}
         if op == 'tap': d.tap(args['label'],seek=False)
         elif op == 'set': d.set(args['label'], args['value'])
@@ -628,7 +644,8 @@ class NativeRun:
                     outcome.setdefault('status', 'OBSERVED')
                 except Exception as error:
                     outcome = {'operation': command['op'], 'status': 'BLOCKED',
-                               'reason': str(error) if isinstance(error, (Blocked, GateError)) else type(error).__name__}
+                               'reason': str(error) if isinstance(error, (Blocked, GateError)) else type(error).__name__,
+                               'input_failure':self.driver.phase23_last_input_failure}
                 self.report['actions'].append({'seq': self.seq, **self.redact(outcome)})
             if self.running: raise GateError('review_deadline_reached')
         except Exception as error:

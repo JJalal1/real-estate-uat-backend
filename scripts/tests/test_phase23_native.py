@@ -4,6 +4,7 @@ from pathlib import Path
 import unittest
 import tempfile
 import subprocess
+import shutil
 from unittest.mock import Mock
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -266,6 +267,51 @@ class CommandSafetyTest(unittest.TestCase):
         driver.instrument.assert_not_called()
         with self.assertRaises(GateError):
             validate_command(dict(self.command,op='draw_area',args={'points':[[1,2]]}),'1234',1,'a'*64)
+
+    def test_input_failure_receipt_contains_no_arbitrary_output_or_field_values(self):
+        driver=object.__new__(Phase23Account)
+        driver.c4_prepare_input_failure('pinch-out',{'stage':'root_ready','events':'0','passed':'false',
+            'foreground_category':'APP','private_body':'not for export'},'arbitrary private stdout','native_input_not_delivered')
+        self.assertEqual(driver.phase23_last_input_failure['events'],0)
+        self.assertEqual(driver.phase23_last_input_failure['java_stage'],'root_ready')
+        self.assertNotIn('private',str(driver.phase23_last_input_failure))
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'),'JDK17 required; available explicitly in collector CI')
+    def test_actual_java_visible_label_gate_accepts_tooltips_and_rejects_hidden_foreign_nodes(self):
+        source=(Path(__file__).parents[1]/'phase1_device_input/Phase1Input.java').read_text()
+        def method(signature):
+            start=source.index(signature);brace=source.index('{',start);depth=1;end=brace+1
+            while depth:
+                depth+=(source[end]=='{')-(source[end]=='}');end+=1
+            return source[start:end]
+        methods='\n'.join(method(s) for s in ['private static String plain(',
+            'private static String accessibleDescription(','private static boolean containsVisible('])
+        fixture='''
+import java.util.*;
+public class LabelGateProbe {
+static final String APP="com.aqer.yemen.uat";
+static class AccessibilityNodeInfo {
+ String p=APP,t="",d="",tip="";boolean v=true;List<AccessibilityNodeInfo> children=new ArrayList<>();
+ boolean isVisibleToUser(){return v;} CharSequence getPackageName(){return p;}
+ CharSequence getText(){return t;} CharSequence getContentDescription(){return d;}
+ CharSequence getTooltipText(){return tip;} int getChildCount(){return children.size();}
+ AccessibilityNodeInfo getChild(int i){return children.get(i);}
+}
+METHODS
+public static void main(String[] args){
+ AccessibilityNodeInfo n=new AccessibilityNodeInfo();n.tip="إغلاق الصور";
+ if(!containsVisible(n,"إغلاق الصور"))throw new AssertionError("visible tooltip");
+ n.v=false;if(containsVisible(n,"إغلاق الصور"))throw new AssertionError("hidden");
+ n.v=true;n.p="other.app";if(containsVisible(n,"إغلاق الصور"))throw new AssertionError("foreign");
+ n.p=APP;n.tip="إغلاق الصور لاحقًا";if(containsVisible(n,"إغلاق الصور"))throw new AssertionError("exact");
+ AccessibilityNodeInfo root=new AccessibilityNodeInfo();n.tip="إغلاق الصور";root.children.add(n);
+ if(!containsVisible(root,"إغلاق الصور"))throw new AssertionError("nested");
+}
+}'''.replace('METHODS',methods)
+        with tempfile.TemporaryDirectory() as folder:
+            p=Path(folder)/'LabelGateProbe.java';p.write_text(fixture)
+            subprocess.run(['javac','-encoding','UTF-8',str(p)],check=True,capture_output=True)
+            subprocess.run(['java','-cp',folder,'LabelGateProbe'],check=True,capture_output=True)
 
 
 if __name__ == '__main__': unittest.main()

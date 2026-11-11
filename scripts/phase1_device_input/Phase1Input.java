@@ -232,7 +232,7 @@ public final class Phase1Input extends Instrumentation {
     private AccessibilityNodeInfo readyRoot(String op) {
         long deadline=SystemClock.uptimeMillis()+5000;
         while(SystemClock.uptimeMillis()<deadline) {
-            if(op.startsWith("account-")) {
+            if(op.startsWith("account-") || !args.getString("phase23_surface", "").isEmpty()) {
                 stage="account_cache_clear";
                 // A preceding OS uiautomator dump may still be releasing its
                 // connection. Observe readiness before any account operation;
@@ -583,7 +583,7 @@ public final class Phase1Input extends Instrumentation {
     }
     private static boolean containsVisible(AccessibilityNodeInfo node, String expected) {
         if(node.isVisibleToUser() && node.getPackageName()!=null && APP.contentEquals(node.getPackageName())) {
-            for(CharSequence value:new CharSequence[]{node.getText(),node.getContentDescription()}) {
+            for(CharSequence value:new CharSequence[]{node.getText(),accessibleDescription(node)}) {
                 if(value!=null) for(String line:value.toString().split("\n")) if(expected.equals(line.trim())) return true;
             }
         }
