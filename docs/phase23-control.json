@@ -1,23 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 45,
-  "challenge": "28130eb2a8f0716f5e953e85be8e8694285ebe737cfd3180b360332c2d26f67f",
-  "op": "batch",
+  "seq": 46,
+  "challenge": "7ba3a35e843de3d63693070036ad7bd0e33545d979d769325fd579308f17b4cb",
+  "op": "scroll",
   "args": {
-    "steps": [
-      {
-        "op": "set",
-        "args": {
-          "label": "من إيجار شهري",
-          "value": "150000"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      }
-    ]
+    "direction": "forward"
   }
 }
