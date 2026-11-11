@@ -1441,6 +1441,7 @@ class _SupportCaseDialog extends StatefulWidget {
 
 class _SupportCaseDialogState extends State<_SupportCaseDialog> {
   bool _busy = false;
+  final _statusMenuKey = GlobalKey<PopupMenuButtonState<String>>();
 
   @override
   Widget build(BuildContext context) {
@@ -1517,6 +1518,8 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                       label: Text('ملاحظة داخلية'),
                     ),
                     PopupMenuButton<String>(
+                      key: _statusMenuKey,
+                      tooltip: 'تغيير الحالة',
                       enabled: !_busy,
                       onSelected: _setStatus,
                       itemBuilder: (_) => [
@@ -1530,10 +1533,12 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                         if (widget.onDealResolution == null) const PopupMenuItem(
                             value: 'dismissed', child: Text('رفض / إغلاق')),
                       ],
-                      child: const IgnorePointer(
-                        child: Chip(
-                            label: Text('تغيير الحالة'),
-                            avatar: EbrokerIcon(Icons.sync_alt, size: 18)),
+                      child: EbrokerOutlinedButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () => _statusMenuKey.currentState?.showButtonMenu(),
+                        icon: const EbrokerIcon(Icons.sync_alt, size: 18),
+                        label: const Text('تغيير الحالة'),
                       ),
                     ),
                   ],

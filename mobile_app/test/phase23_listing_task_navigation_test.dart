@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsAction, SemanticsFlag;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -160,6 +161,8 @@ void main() {
     tester.view.devicePixelRatio = 2.625;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    final semantics = tester.ensureSemantics();
+    addTearDown(semantics.dispose);
     final tasks = _Tasks(report: true);
     final cases = _Cases(tasks);
     final container = await _openTasks(tester, _Reviews(), tasks: tasks, cases: cases);
@@ -167,7 +170,15 @@ void main() {
     await tester.ensureVisible(find.text('فتح'));
     await tester.tap(find.text('فتح'));await tester.pumpAndSettle();
     expect(find.text('Synthetic conversation report'), findsOneWidget);
-    await tester.tap(find.text('تغيير الحالة'));await tester.pumpAndSettle();
+    final statusButton = find.ancestor(
+      of: find.text('تغيير الحالة'),
+      matching: find.byWidgetPredicate((widget) => widget is OutlinedButton),
+    );
+    expect(statusButton, findsOneWidget);
+    final statusSemantics = tester.getSemantics(statusButton).getSemanticsData();
+    expect(statusSemantics.hasAction(SemanticsAction.tap), isTrue);
+    expect(statusSemantics.hasFlag(SemanticsFlag.isButton), isTrue);
+    await tester.tap(statusButton);await tester.pumpAndSettle();
     expect(find.text('رفض / إغلاق'), findsOneWidget);
     await tester.tap(find.text('رفض / إغلاق'));await tester.pumpAndSettle();
     expect(cases.decisions, [(9, 'dismissed')]);
