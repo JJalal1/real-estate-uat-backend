@@ -265,6 +265,30 @@ class CommandSafetyTest(unittest.TestCase):
             run.apply({'op':'record_start','args':{}})
         run.driver.record_start.assert_not_called()
 
+    def test_known_report_metadata_excludes_case_and_conversation_content(self):
+        body={'data':{'id':9,'target_type':'conversation_thread','target_id':37,
+            'requester':{'id':26,'name':'private person'},'status':'open',
+            'assigned_to_user_id':6,'description':'private report body',
+            'messages':[{'body':'private note'}],
+            'events':[{'id':10,'actor_name':'private agent','metadata':{'text':'private'},
+                'from_status':'open','to_status':'in_progress'}]}}
+        result=NativeRun.synthetic_case9_metadata(body)
+        self.assertEqual(result['data']['message_count'],1)
+        self.assertNotIn('private',str(result))
+        body['data']['target_id']=38
+        with self.assertRaisesRegex(GateError,'identity'):
+            NativeRun.synthetic_case9_metadata(body)
+
+    def test_support_inbox_export_and_contact_command_values_are_refused(self):
+        run=object.__new__(NativeRun);run.access={'phones':{'support':'fixture'}}
+        run.driver=Mock(recorder=None)
+        with patch('run_phase23_native.http') as request:
+            with self.assertRaisesRegex(GateError,'support_export_refused'):
+                run.apply({'op':'api_get','args':{'alias':'support','path':'/admin/workspace/tasks'}})
+            request.assert_not_called()
+        command={'run_id':'1234','seq':1,'challenge':'a'*64,'op':'fixture_contact','args':{'value':'not allowed'}}
+        with self.assertRaises(GateError):validate_command(command,'1234',1,'a'*64)
+
     def test_fixed_closed_drawing_requires_the_fresh_default_canvas(self):
         driver=object.__new__(Phase23Account)
         rows=[{'path':'0','package':'com.aqer.yemen.uat','visible':True,'bounds':[0,0,1080,1920]},

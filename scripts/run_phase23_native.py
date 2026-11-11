@@ -31,7 +31,7 @@ from probe_phase1_native_account import NativeAccount, Blocked, APP, labels
 CONTROL = 'docs/phase23-control.json'
 REPO = 'JJalal1/real-estate-uat-backend'
 AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المرور', 'البريد الإلكتروني'}
-OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get',
+OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get', 'fixture_contact',
        'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch',
        'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'finish'}
 
@@ -209,7 +209,7 @@ def validate_command(value, run_id, seq, challenge):
                'swipe': {'x1', 'y1', 'x2', 'y2'}, 'pinch': {'direction', 'x', 'y'},
                'double_tap': {'x','y'}, 'wait': {'label','seconds'}, 'network': {'state'},
                'display': {'mode'}, 'open_link': {'uri'}, 'draw_area': set(), 'blocked_message_probe': {'alias'}, 'send_synthetic_message': set(),
-               'batch': {'steps'}, 'seed_media': set(), 'finish': set()}
+               'batch': {'steps'}, 'seed_media': set(), 'fixture_contact': set(), 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
     if value['op'] == 'set' and args['label'] in AUTH_FIELDS:
@@ -330,6 +330,11 @@ class NativeRun:
         'الأمان والخصوصية','تعديل الملف الشخصي','الملف الشخصي','المفضلة',
         'تسجيل الخروج','الخدمات والأدوات','المساعدة والدعم','نشاطي',
         'العقارات','حسابي','الرسائل','إعلاناتي','إضافة عقار',
+        'لوحة الدعم','الوارد','مهامي','البلاغات','بلاغات','الوارد الجديد',
+        'استلام','فتح','بعد الاستلام','إغلاق','إلغاء','رجوع','حفظ','تحديث',
+        'بدء المعالجة','قيد المعالجة','انتظار المستخدم','إغلاق كمحلولة',
+        'رفض البلاغ','رفض / إغلاق','ملاحظة داخلية','تغيير الحالة','حفظ الملاحظة',
+        'SUP-261111-QYLXJRN','Conversation complaint','جديدة','مفتوحة',
     })
     PRIVATE_UI_ANCHORS = frozenset({
         'خيارات المحادثة','اكتب رسالة...','حظر الحساب','إلغاء الحظر',
@@ -388,6 +393,44 @@ class NativeRun:
             else:
                 result['other_property_start']={'property_id':33,'status':'NOT_TESTED','reason':'same-advertiser public fixture unavailable'}
         return result
+
+    @staticmethod
+    def synthetic_case9_metadata(body):
+        data=body.get('data',{}) if isinstance(body,dict) else {}
+        if not (data.get('id')==9 and data.get('target_type')=='conversation_thread' and
+                data.get('target_id')==37 and data.get('requester',{}).get('id')==26):
+            raise GateError('synthetic_case9_identity_required')
+        states={'open','in_progress','waiting_requester','resolved','dismissed'}
+        return {'data':{'id':9,'target_id':37,'status':data.get('status') if data.get('status') in states else 'unknown',
+            'assigned_to_user_id':data.get('assigned_to_user_id') if data.get('assigned_to_user_id') in (None,6) else 'other',
+            'message_count':len(data.get('messages',[])),
+            'events':[{'id':e.get('id'),'from_status':e.get('from_status') if e.get('from_status') in states else None,
+                'to_status':e.get('to_status') if e.get('to_status') in states else None}
+                for e in data.get('events',[])[:100]]}}
+
+    def fixture_contact(self):
+        if self.actor!='broker' or not self.driver.has('إضافة عقار'):
+            raise GateError('synthetic_broker_editor_required')
+        if 'broker' not in self.sessions:
+            self.sessions['broker']=Session('broker',self.access);self.sessions['broker'].login()
+        session=self.sessions['broker']
+        code,body=http('GET','/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803',token=session.token)
+        data=body.get('data',{})
+        if code!=200 or data.get('property_id') is not None or data.get('title')!='شقة النور الغربية اختبار المرحلة23':
+            raise GateError('owned_unsubmitted_fixture_draft_required')
+        code,body=http('GET','/properties/106/contact',token=session.token)
+        raw=body.get('data',{}).get('phone','')
+        value=raw.translate(str.maketrans('٠١٢٣٤٥٦٧٨٩','0123456789')) if isinstance(raw,str) else ''
+        value=re.sub(r'[\s()\-]','',value.strip())
+        value=value[4:] if value.startswith('+967') else value[5:] if value.startswith('00967') else value
+        if code!=200 or not re.fullmatch(r'7[0-9]{8}',value) or value[:2] not in {'70','71','73','77','78'}:
+            raise GateError('known_fixture_contact_must_be_valid')
+        self.private_values.update({raw,value});self.driver.private_values.update({raw,value})
+        try:self.driver.set('رقم الاتصال *',value)
+        except Blocked:
+            return {'operation':'fixture_contact','status':'BLOCKED','reason':'contact_field_input_guard',
+                'input_failure':self.driver.phase23_last_input_failure,'number_exported':False}
+        return {'operation':'fixture_contact','source_property_id':106,'native_input_delivered':True,'number_exported':False}
 
     def send_synthetic_message(self):
         if self.actor!='regular': raise GateError('synthetic_regular_native_actor_required')
@@ -584,6 +627,7 @@ class NativeRun:
             _, temporary_frame, _ = self.observe()
             if temporary_frame: temporary_frame.unlink()
         if op == 'observe': return {'operation': op}
+        if op == 'fixture_contact': return self.fixture_contact()
         if op == 'blocked_message_probe': return self.blocked_message_probe(args['alias'])
         if op == 'send_synthetic_message': return self.send_synthetic_message()
         if op == 'seed_media': return self.seed_media()
@@ -650,6 +694,9 @@ class NativeRun:
             private_path=path.startswith(('/messages/threads','/admin/messages'))
             if private_path and path!='/messages/threads/37':
                 raise GateError('private_conversation_export_refused')
+            support_path=path.startswith(('/admin/support','/admin/workspace','/support/cases'))
+            if support_path and path not in {'/admin/support/cases/9','/support/cases/9'}:
+                raise GateError('private_support_export_refused')
             if alias not in self.sessions:
                 self.sessions[alias] = Session(alias, self.access)
                 self.sessions[alias].login()
@@ -657,6 +704,8 @@ class NativeRun:
             code, body = http('GET', path, token=session.token)
             if private_path:
                 body=self.synthetic_thread_metadata(body) if code==200 else {'http_error':code}
+            if support_path:
+                body=self.synthetic_case9_metadata(body) if code==200 else {'http_error':code}
             return {'operation': op, 'alias': alias, 'identity': session.identity,
                     'path': path, 'http': code, 'response': self.redact(body)}
         elif op == 'finish': self.running = False
@@ -702,8 +751,9 @@ class NativeRun:
             try:
                 self.logout()
                 self.report['cleanup']['native_logout'] = True
-            except Exception:
+            except Exception as error:
                 self.report['cleanup']['native_logout'] = False
+                self.report['cleanup']['native_logout_error_type'] = type(error).__name__
         self.access.clear()
 
     def execute(self):
