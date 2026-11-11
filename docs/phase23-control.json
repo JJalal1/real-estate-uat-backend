@@ -1,9 +1,10 @@
 {
   "run_id": "43087697204",
-  "seq": 3,
-  "challenge": "a2a2652150b525c4da628f08ef36c9a8e1b69775dfe7672b2227145213a11d9b",
-  "op": "tap",
+  "seq": 4,
+  "challenge": "96e2961b1580fbdb74c8121d632e44e48491b7a650beb0734be19cf021337113",
+  "op": "api_get",
   "args": {
-    "label": "استلام"
+    "alias": "support",
+    "path": "/admin/support/cases/9"
   }
 }
