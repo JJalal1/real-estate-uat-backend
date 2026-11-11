@@ -1,37 +1,7 @@
 {
   "run_id": "43113135513",
-  "seq": 14,
-  "challenge": "60756134ab788d6ef8c757287810637b1b3b991ec62c7e7cfd2f9f7ccc282788",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "مكتمل",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "التالي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "حفظ مسودة",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
-        }
-      }
-    ]
-  }
+  "seq": 15,
+  "challenge": "e09496b434109d3a485a49fb3a4f035eefcee2421696a9c4ae3176e4f81f2960",
+  "op": "fixture_contact",
+  "args": {}
 }
