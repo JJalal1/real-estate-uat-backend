@@ -27,7 +27,9 @@ class PublicPhotoLoader {
       cancelToken: cancelToken, onReceiveProgress: (received, total) {
         onReceivedBytes?.call(received);
         if (backgroundByteLimit != null && (received > backgroundByteLimit || total > backgroundByteLimit) &&
-            foregroundAttached?.call() != true) cancelToken.cancel('Conditional prefetch byte limit');
+            foregroundAttached?.call() != true) {
+          cancelToken.cancel('Conditional prefetch byte limit');
+        }
       }).timeout(const Duration(seconds: 25), onTimeout: () {
         cancelToken.cancel('Image deadline'); throw TimeoutException('Image unavailable');
       });
