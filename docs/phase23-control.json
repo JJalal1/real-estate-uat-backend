@@ -1,27 +1,28 @@
 {
   "run_id": "43113135513",
-  "seq": 20,
-  "challenge": "0dc027f133d3fecbec1af7a393bdd3af1b2006fce24bab15bb85996eebe029c6",
+  "seq": 21,
+  "challenge": "55bf69ba5dff13623f0a004e19f2faa021d7e67cf04ec2f8202769f42f56b306",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "set",
+        "op": "tap",
         "args": {
-          "label": "عنوان الإعلان *",
-          "value": "شقة النور الغربية اختبار المرحلة23 - استعادة الشبكة"
+          "label": "حفظ مسودة"
         }
       },
       {
-        "op": "tap",
+        "op": "wait",
         "args": {
-          "label": "العودة إلى النواقص"
+          "label": "تعذر الحفظ على الحساب. تقدمك محفوظ على الجهاز. أعد المحاولة.",
+          "seconds": 15
         }
       },
       {
-        "op": "tap",
+        "op": "api_get",
         "args": {
-          "label": "خيارات المسودة"
+          "alias": "broker",
+          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
         }
       }
     ]
