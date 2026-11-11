@@ -1,9 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 74,
-  "challenge": "c088d43c678b9645d84d4b76a81814a5f7549fc023a323b71f55bde03c7e18b4",
+  "seq": 75,
+  "challenge": "9b81a3f6f54b0c7e435f887d9afcdd035a801401d92a55a627d5a28d0f779a9f",
   "op": "tap",
   "args": {
-    "label": "تحتاج توضيحًا"
+    "label": "غير مرتبطة"
   }
 }
