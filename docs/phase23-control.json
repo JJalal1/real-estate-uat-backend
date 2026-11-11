@@ -1,10 +1,10 @@
 {
   "run_id": "42948672743",
-  "seq": 50,
-  "challenge": "60c8ca823e98ea594d16b1b951dc7c0f488555ed3bbea689d5eea2553e326e1e",
-  "op": "touch",
+  "seq": 51,
+  "challenge": "aab1380dc46bd7c3dd3173c07761e3b51092761f0739838e6caa45d24ec182c9",
+  "op": "set",
   "args": {
-    "x": 540,
-    "y": 450
+    "label": "حتى إيجار شهري",
+    "value": "200000"
   }
 }
