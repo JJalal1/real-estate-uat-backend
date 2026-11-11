@@ -1,10 +1,7 @@
 {
   "run_id": "43099213137",
-  "seq": 8,
-  "challenge": "b7df314cdbfe30f1e69c6e0c5d9cd155599deaff9e5f31926468d2f3a28dfd3b",
-  "op": "wait",
-  "args": {
-    "label": "عن العقار",
-    "seconds": 25
-  }
+  "seq": 9,
+  "challenge": "4b4eff212dde47d83291aef5b1418f6003885ec464a45a3bd84cfe1536fa65ad",
+  "op": "back",
+  "args": {}
 }
