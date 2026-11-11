@@ -1,5 +1,5 @@
 {
-  "scope": "Phase23 product fixes; acceptance remains open",
+  "scope": "Phase23 product fixes; live rollout and remaining acceptance gates are OPEN",
   "items": [
     {
       "id": "P23-APP-001",
@@ -54,6 +54,43 @@
       "native_fix_confirmation": "PASS on UAT1568/source13da68f/API36: reviewed dark About/specification panels at default font checkpoint013; readable themed surfaces also at font2.4 checkpoints014–015. Broader accessibility acceptance remains open.",
       "ci_run": 42956545533,
       "implementation_commit": "0e072474908ab34741867fddc48a402927fb9731"
+    },
+    {
+      "id": "P23-APP-005",
+      "severity": "low",
+      "problem": "Owned cards count distinct adaptive URLs as distinct physical photos",
+      "fix": "Reuse canonical PropertySummary image list in the existing card",
+      "implementation_commit": "076dd3a8807ce08874f32732462f9260e8207de0",
+      "ci_run": 42980206169,
+      "ci_result": "PASS analysis and14 focused tests",
+      "native_fix_confirmation": "PASS on APK1573/source63a3342, run42986038827 checkpoints3–4: property106 shows three canonical photos; loaded image visually reviewed"
+    },
+    {
+      "id": "P23-APP-006",
+      "severity": "medium",
+      "problem": "AI query summary hides selected apartment/villa type chips",
+      "evidence": [
+        "run42978036876 checkpoints14–16"
+      ],
+      "fix": "Expand selected type chips in ordered summary with OR label and edit/remove semantics",
+      "implementation_commit": "8ff71b375e25ad13e0703252c2e1b9b3f64e1795",
+      "ci_run": 42981925472,
+      "ci_result": "PASS analysis and normal/RTL320 dark2.4 behavioral tests",
+      "native_fix_confirmation": "PASS on final APK1573/API36, run42986038827 checkpoints40–42: apartment OR villa both editable, RTL320/font2.4 inspected, removing villa retains apartment/rent/map scope."
+    },
+    {
+      "id": "P23-APP-007",
+      "severity": "high",
+      "problem": "A real AI followup turned a200000 rental ceiling into a minimum, dropped two-type selection and omitted two bathrooms",
+      "evidence": [
+        "run42978036876 checkpoints18–19"
+      ],
+      "fix": "Reconcile only a successful validated model patch with explicit ceiling/count facts; retain unmentioned types/source constraints. Explicit Arabic accusative and English type changes remain supported. Provider failures remain503.",
+      "implementation_commit": "c8c25bbc96ac9794c8f8c623e525c153eb43eb32",
+      "language_followup_commit": "5315a9ef96b6564337ff6f959fb53b63cc91b633",
+      "ci_run": 42988536319,
+      "ci_result": "PASS four final source gates; focused SQLite/PostGIS run42988536299 also PASS",
+      "native_fix_confirmation": "OPEN: candidate backend e36417aca4233488220a6c8e2951ea0709f601a0 is not deployed to existing UAT runtime; no live fix acceptance claimed"
     }
   ]
 }
