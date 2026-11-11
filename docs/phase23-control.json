@@ -1,10 +1,7 @@
 {
   "run_id": "43107427969",
-  "seq": 2,
-  "challenge": "a130e46105260cef10d39dd5c4196b0bb268d3fe2a2a496fe143bb57d8e2826a",
-  "op": "wait",
-  "args": {
-    "label": "SUP-261111-QYLXJRN",
-    "seconds": 15
-  }
+  "seq": 3,
+  "challenge": "1768f7f74fdf9c46291806047755c726486745d354e71e312b32023d91306d2a",
+  "op": "back",
+  "args": {}
 }
