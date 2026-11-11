@@ -15,14 +15,20 @@ class PublicPhotoLoader {
   final Dio dio;
   final PublicPhotoDiskCache disk;
 
-  Future<PublicPhotoTransfer> load(String url, {required CancelToken cancelToken}) async {
+  Future<PublicPhotoTransfer> load(String url, {required CancelToken cancelToken,
+    int? backgroundByteLimit, bool Function()? foregroundAttached,
+    void Function(int)? onReceivedBytes, bool requirePublicResponse = false}) async {
     final epoch = disk.epoch;
     final cached = await disk.read(url).timeout(const Duration(milliseconds: 300), onTimeout: () => null);
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
     final response = await dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes,
       headers: {if (cached != null) 'If-None-Match': cached.etag}, followRedirects: false,
       validateStatus: (status) => status == 200 || (status == 304 && cached != null) || const [401,403,404].contains(status)),
-      cancelToken: cancelToken).timeout(const Duration(seconds: 25), onTimeout: () {
+      cancelToken: cancelToken, onReceiveProgress: (received, total) {
+        onReceivedBytes?.call(received);
+        if (backgroundByteLimit != null && (received > backgroundByteLimit || total > backgroundByteLimit) &&
+            foregroundAttached?.call() != true) cancelToken.cancel('Conditional prefetch byte limit');
+      }).timeout(const Duration(seconds: 25), onTimeout: () {
         cancelToken.cancel('Image deadline'); throw TimeoutException('Image unavailable');
       });
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
@@ -31,6 +37,9 @@ class PublicPhotoLoader {
       throw DioException.badResponse(statusCode: response.statusCode!, requestOptions: response.requestOptions, response: response);
     }
     if (!disk.accepts(response.headers)) unawaited(disk.forget(url));
+    if (requirePublicResponse && !disk.accepts(response.headers) && foregroundAttached?.call() != true) {
+      throw StateError('Speculative image response is not publicly cacheable');
+    }
     // Disk bytes are never displayed before the server has revalidated public
     // visibility. Unpublication/authorization failure wins over a cached ETag.
     if (response.statusCode == 304 && cached != null) {

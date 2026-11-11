@@ -19,6 +19,7 @@ concurrency:
   cancel-in-progress: ${{ contains(github.event.head_commit.message, '[replace-stalled-native]') }}
 env:
   UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+  PHASE23_PREFETCH_ON: 'true'
 jobs:
   collector-safety:
     runs-on: ubuntu-latest
@@ -111,7 +112,8 @@ jobs:
           flutter build apk --flavor uat --release --no-pub --build-number="$PHASE23_BUILD" \
             --dart-define=APP_BUILD_NUMBER="$PHASE23_BUILD" --dart-define=APP_ENVIRONMENT=uat \
             --dart-define=API_BASE_URL="$UAT_API_BASE_URL" \
-            --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com
+            --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
+            --dart-define=AQER_CONDITIONAL_PREFETCH="$PHASE23_PREFETCH_ON"
           git diff --exit-code -- lib android assets pubspec.yaml
       - name: Verify and encrypt the exact installer
         run: python3 -B scripts/prepare_phase23_native.py

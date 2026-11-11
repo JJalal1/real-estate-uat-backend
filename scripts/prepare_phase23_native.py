@@ -62,7 +62,8 @@ def prepare():
                'sha256': sha(apk), 'bytes': apk.stat().st_size,
                'certificate_sha256': certificate[1].lower(), 'api': API,
                'target_sdk': 36, 'min_sdk': 23, 'signing': 'disposable UAT release signing',
-               'input_driver': {'sha256': sha(helper)}}
+               'input_driver': {'sha256': sha(helper)},
+               'experiments': {'conditional_prefetch': os.environ.get('PHASE23_PREFETCH_ON') == 'true'}}
     (PRIVATE / 'APK_VERIFICATION.json').write_text(json.dumps(receipt, indent=2) + '\n')
     out = ROOT / 'phase23-installer-sealed'
     out.mkdir(mode=0o700)

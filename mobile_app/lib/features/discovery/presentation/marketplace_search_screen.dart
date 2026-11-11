@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_components.dart';
+import '../../../core/network/conditional_image_prefetch.dart';
 import '../../properties/presentation/property_summary_card.dart';
 import '../data/marketplace_search_session.dart';
 import '../data/smart_search_session.dart';
@@ -65,7 +66,8 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
           onPressed: () => context.pop(), icon: const Icon(Icons.arrow_back, size: 20))),
       body: RefreshIndicator(onRefresh: controller.refresh, child: CustomScrollView(
         key: const PageStorageKey('home-search-results'), controller: _scroll,
-        cacheExtent: 0, physics: const AlwaysScrollableScrollPhysics(), slivers: [
+        cacheExtent: ConditionalImagePrefetch.enabled ? ConditionalImagePrefetch.extent : 0,
+        physics: const AlwaysScrollableScrollPhysics(), slivers: [
         SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
           child: MarketplaceSearchPanel(openFilters: widget.openFilters))),
         SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: Wrap(

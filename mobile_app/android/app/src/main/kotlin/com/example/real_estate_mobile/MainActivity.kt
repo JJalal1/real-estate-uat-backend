@@ -10,6 +10,8 @@ import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.util.Log
+import org.json.JSONObject
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -47,7 +49,16 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "real_estate/network")
             .setMethodCallHandler { call, result ->
-                if (call.method != "imageNetworkState") {
+                if (call.method == "imagePrefetchMetrics" && BuildConfig.FLAVOR == "uat") {
+                    val values = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
+                    val metrics = JSONObject()
+                    for (key in listOf("enabled", "requests", "bytes", "readyHits", "scope", "metered", "dataSaver", "eligible")) {
+                        val value = values[key]
+                        if (value is Boolean || (value is Number && value.toLong() in -1L..1000000000L)) metrics.put(key, value)
+                    }
+                    Log.i("AQER_PREFETCH", metrics.toString())
+                    result.success(null)
+                } else if (call.method != "imageNetworkState") {
                     result.notImplemented()
                 } else {
                     val manager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager

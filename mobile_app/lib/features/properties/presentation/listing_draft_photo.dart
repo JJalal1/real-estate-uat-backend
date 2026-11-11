@@ -10,6 +10,7 @@ import '../../account/data/auth_controller.dart';
 import 'dart:async';
 import 'package:dio/dio.dart';
 import '../../../core/network/adaptive_image_policy.dart';
+import '../../../core/network/conditional_image_prefetch.dart';
 import '../../../core/platform/media_network_monitor.dart';
 import '../../../core/widgets/viewport_media.dart';
 
@@ -21,8 +22,16 @@ final listingPhotoCacheProvider = Provider<ListingPhotoCache>((ref) {
   return cache;
 });
 
+final photoPrefetchBudgetProvider = Provider<PhotoPrefetchBudget>((ref) {
+  ref.watch(authControllerProvider.select((s) => (s.asData?.value?.id,
+    s.asData?.value?.isActive, s.asData?.value?.permissions.toString())));
+  final budget = PhotoPrefetchBudget();ref.onDispose(budget.dispose);return budget;
+});
+
 /// No disk storage; successes only, deduplicated requests and bounded account-session memory.
 class ListingPhotoCache {
+  static int _nextScope = 0;
+  final int scope = ++_nextScope;
   ListingPhotoCache({this.maxEntries = 18, this.maxBytes = 24 * 1024 * 1024,
     this.maxImageBytes = 8 * 1024 * 1024,
     this.ttl = const Duration(minutes: 2), DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
@@ -32,6 +41,8 @@ class ListingPhotoCache {
   final _entries = <String, _PhotoEntry>{};
   int _epoch = 0;
   int memoryHits = 0, deduplicatedLoads = 0, networkRequests = 0, networkBytes = 0, notModified = 0;
+  int prefetchRequests = 0, prefetchBytes = 0, prefetchReadyHits = 0;
+  bool hasForegroundLease(String key) => (_entries[key]?.foregroundReferences ?? 0) > 0;
   Uint8List? peek(String key) => _entries[key]?.data;
   Uint8List? peekPublicPreview(String url) {
     if (!AdaptiveImagePolicy.supportsVariants(url)) return null;
@@ -49,12 +60,20 @@ class ListingPhotoCache {
     }
     _entries.clear();
   }
-  ListingPhotoLease acquire(String key, Future<Uint8List> Function(CancelToken) loader) {
+  ListingPhotoLease acquire(String key, Future<Uint8List> Function(CancelToken) loader, {bool prefetch = false}) {
+    if (_entries[key]?.cancellation?.isCancelled == true && _entries[key]?.completedAt == null) _entries.remove(key);
+    final fresh = !_entries.containsKey(key);
     final cancellation = CancelToken();
     final future = load(key, () => loader(cancellation), cancellation: cancellation, retain: true);
     final entry = _entries[key]!;
+    if (prefetch && fresh) entry.prefetched = true;
+    if (!prefetch) {
+      entry.foregroundReferences++;
+      if (entry.prefetched && entry.data != null) prefetchReadyHits++;
+    }
     return ListingPhotoLease(future, () {
       entry.references--;
+      if (!prefetch) entry.foregroundReferences--;
       if (entry.references == 0 && entry.completedAt == null) {
         entry.cancellation?.cancel('Image left viewport');
         if (identical(_entries[key], entry)) _entries.remove(key);
@@ -118,19 +137,120 @@ class _PhotoEntry {
   Uint8List? data;
   CancelToken? cancellation;
   int references = 0;
+  int foregroundReferences = 0;
+  bool prefetched = false;
 }
 
-class ListingDraftPhoto extends StatelessWidget {
-  const ListingDraftPhoto({required this.url, this.authenticated = true, this.fit = BoxFit.cover, this.cacheWidth = 500, this.network, this.onRetry, super.key});
+class ListingDraftPhoto extends ConsumerStatefulWidget {
+  const ListingDraftPhoto({required this.url, this.authenticated = true, this.fit = BoxFit.cover,
+    this.cacheWidth = 500, this.network, this.onRetry, this.allowPrefetch = false, super.key});
   final String url;
   final bool authenticated;
   final BoxFit fit;
   final int? cacheWidth;
   final ImageNetworkConditions? network;
   final VoidCallback? onRetry;
+  final bool allowPrefetch;
   @override
-  Widget build(BuildContext context) => ViewportMedia(builder: (_) => _VisibleListingDraftPhoto(
-    url: url, authenticated: authenticated, fit: fit, cacheWidth: cacheWidth, network: network, onRetry: onRetry));
+  ConsumerState<ListingDraftPhoto> createState() => _ListingDraftPhotoSlotState();
+}
+
+class _ListingDraftPhotoSlotState extends ConsumerState<ListingDraftPhoto> {
+  final _owner = Object();
+  Timer? _dwell, _poll;
+  ListingPhotoLease? _prefetch;
+  PhotoPrefetchBudget? _budget;
+  bool _nearby = false, _checking = false;
+  int _generation = 0;
+  String? _failedNetwork;
+
+  bool get _enabled => ref.read(conditionalPrefetchEnabledProvider) &&
+    widget.allowPrefetch && !widget.authenticated && widget.network != null &&
+    ConditionalImagePrefetch.eligibleUrl(widget.url, Uri.parse(ref.read(dioProvider).options.baseUrl));
+
+  void _release() {
+    _generation++;
+    _prefetch?.close();_prefetch = null;
+    _budget?.release(_owner);_budget = null;
+  }
+  void _stop() {
+    _generation++;_nearby = false;_dwell?.cancel();_dwell = null;
+    _poll?.cancel();_poll = null;_release();
+  }
+  void _viewport(bool nearby, bool visible, bool scrolling) {
+    if (visible && _prefetch != null && !scrolling && _enabled) {
+      _generation++;_nearby = false;_dwell?.cancel();_dwell = null;_poll?.cancel();_poll = null;
+      // The visible child acquires its foreground lease in the next build.
+      // Release speculative ownership afterwards so an in-flight transfer is shared.
+      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && !_nearby) _release(); });
+      WidgetsBinding.instance.scheduleFrame();return;
+    }
+    if (!nearby || scrolling || !_enabled) { if (_nearby || _prefetch != null) _stop();return; }
+    _nearby = true;
+    _poll ??= Timer.periodic(ConditionalImagePrefetch.recheck, (_) => unawaited(_check()));
+    _dwell ??= Timer(ConditionalImagePrefetch.dwell, () { unawaited(_check()); });
+  }
+  Future<void> _check() async {
+    if (_checking || !_nearby || !mounted || !_enabled) return;
+    _checking = true;final generation = _generation;
+    try {
+      final monitor = ref.read(mediaNetworkMonitorProvider);
+      final network = await monitor.snapshot(refresh: true);
+      if (!mounted || generation != _generation || !_nearby || !_enabled) return;
+      final cache = ref.read(listingPhotoCacheProvider);
+      if (!monitor.policy.canPrefetch(network)) {
+        _release();monitor.reportPrefetch(cache.prefetchRequests, cache.prefetchBytes, cache.prefetchReadyHits,
+          network: network, eligible: false, scope: cache.scope);return;
+      }
+      if (_prefetch != null || _failedNetwork == network.networkKey) return;
+      final key = 'public:${widget.url}';
+      if (cache.peek(key) != null) return;
+      final budget = ref.read(photoPrefetchBudgetProvider);
+      if (!budget.reserve(_owner)) return;
+      _budget = budget;
+      _prefetch = cache.acquire(key, (cancel) async {
+        cache.prefetchRequests++;cache.networkRequests++;
+        var received = 0;
+        void counted(int count) {
+          if (count > received) { cache.prefetchBytes += count - received;cache.networkBytes += count - received;received = count; }
+        }
+        try {
+          final transfer = await PublicPhotoLoader(ref.read(dioProvider), ref.read(publicPhotoDiskCacheProvider)).load(widget.url,
+            cancelToken: cancel, backgroundByteLimit: ConditionalImagePrefetch.maxImageBytes,
+            foregroundAttached: () => cache.hasForegroundLease(key), onReceivedBytes: counted, requirePublicResponse: true);
+          counted(transfer.downloadedBytes);
+          if (transfer.notModified) cache.notModified++;
+          return transfer.bytes;
+        } finally {
+          monitor.reportPrefetch(cache.prefetchRequests, cache.prefetchBytes, cache.prefetchReadyHits,
+            network: network, eligible: true, scope: cache.scope);
+        }
+      }, prefetch: true);
+      unawaited(_prefetch!.future.then<void>((_) {}, onError: (Object _) {
+        if (mounted && generation == _generation) { _failedNetwork = network.networkKey;_release(); }
+      }));
+    } finally { _checking = false; }
+  }
+  @override
+  void didUpdateWidget(ListingDraftPhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url || oldWidget.authenticated != widget.authenticated ||
+        oldWidget.allowPrefetch != widget.allowPrefetch) { _stop();_failedNetwork = null; }
+  }
+  @override
+  void dispose() { _stop();super.dispose(); }
+  @override
+  Widget build(BuildContext context) {
+    ref.watch(conditionalPrefetchEnabledProvider);
+    if (_enabled) {
+      ref.watch(listingPhotoCacheProvider);
+      ref.listen(authControllerProvider.select((s) => (s.asData?.value?.id,
+        s.asData?.value?.isActive, s.asData?.value?.permissions.toString())), (_, __) => _stop());
+    }
+    return ViewportMedia(onPrefetchChanged: _enabled ? _viewport : null,
+      builder: (_) => _VisibleListingDraftPhoto(url: widget.url, authenticated: widget.authenticated,
+        fit: widget.fit, cacheWidth: widget.cacheWidth, network: widget.network, onRetry: widget.onRetry));
+  }
 }
 
 class _VisibleListingDraftPhoto extends ConsumerStatefulWidget {
@@ -162,6 +282,8 @@ class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
     final cache = ref.read(listingPhotoCacheProvider);
     _displayBytes ??= cache.peek(_cacheKey) ?? (widget.authenticated ? null : cache.peekPublicPreview(widget.url));
     _lease = cache.acquire(_cacheKey, _fetch);
+    if (!widget.authenticated) ref.read(mediaNetworkMonitorProvider).reportPrefetch(
+      cache.prefetchRequests, cache.prefetchBytes, cache.prefetchReadyHits, scope: cache.scope);
     return _lease!.future;
   }
   Future<Uint8List> _fetch(CancelToken cancel) async {
