@@ -12,7 +12,7 @@ permissions:
   contents: read
 concurrency:
   group: phase23-closure-images
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   image-policy:
     runs-on: ubuntu-latest

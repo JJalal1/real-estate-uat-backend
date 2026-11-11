@@ -184,7 +184,7 @@ void main() {
         'prefetch_ready_hits': cache.prefetchReadyHits})}');
       } finally {
         await tester.pumpWidget(const SizedBox());await tester.pump();
-        await closeFixture();
+        await tester.runAsync(closeFixture);
       }
     }, skip: !_probe, timeout: const Timeout(Duration(minutes: 2)));
   }
@@ -221,7 +221,7 @@ void main() {
       stdout.writeln('AQER_PREFETCH_BLOCKED ${jsonEncode({'condition':entry.key,'image_requests':requested.length,'speculative_requests':0})}');
       } finally {
         await tester.pumpWidget(const SizedBox());await tester.pump();
-        await closeFixture();
+        await tester.runAsync(closeFixture);
       }
     },skip:!_probe,timeout:const Timeout(Duration(minutes:2)));
   }
