@@ -1,9 +1,10 @@
 {
   "run_id": "42948672743",
-  "seq": 53,
-  "challenge": "d8a3b42ef9ee4f94ab3bf905fb06c6a6abe5d675520c421060b7eee167787399",
-  "op": "tap",
+  "seq": 54,
+  "challenge": "14ad2e7b1bd0d3a15e096571f175be02ebc6893f0300c4d9361c96a474c35a4c",
+  "op": "touch",
   "args": {
-    "label": "ريال يمني"
+    "x": 383,
+    "y": 935
   }
 }
