@@ -1,9 +1,38 @@
 {
   "run_id": "42919221669",
-  "seq": 85,
-  "challenge": "c8489abec83d03fc9cc7ee1ecdba71592b301161b1cedba4fdb6654f4f2bc44d",
-  "op": "tap",
+  "seq": 86,
+  "challenge": "e19e3a9b5f73b635142b0b645f3f1fabd121d4b59ba0f4292e281fb0be87f7f5",
+  "op": "batch",
   "args": {
-    "label": "تأكيد"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "support",
+          "path": "/admin/listing-review/listings/106"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/properties/106"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/properties/106"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/notifications"
+        }
+      }
+    ]
   }
 }
