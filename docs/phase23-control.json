@@ -1,9 +1,9 @@
 {
   "run_id": "43113135513",
-  "seq": 17,
-  "challenge": "078a0315eceb3f94081f91e606e56cc39d91c2ada766cca2e674dfa58489a984",
-  "op": "tap",
+  "seq": 18,
+  "challenge": "557294e6ad7aa28c9f3b4cc5730f662872ab296b5a3202d6f7870d48d039e7ac",
+  "op": "network",
   "args": {
-    "label": "العودة إلى النواقص"
+    "state": "offline"
   }
 }
