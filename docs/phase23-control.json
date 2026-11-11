@@ -1,9 +1,10 @@
 {
   "run_id": "42919221669",
-  "seq": 75,
-  "challenge": "9b81a3f6f54b0c7e435f887d9afcdd035a801401d92a55a627d5a28d0f779a9f",
-  "op": "tap",
+  "seq": 76,
+  "challenge": "5a7617497c6d69283f249712ca2ae55a517db0a07de4f23194d420d20c6f1af1",
+  "op": "touch",
   "args": {
-    "label": "غير مرتبطة"
+    "x": 540,
+    "y": 1230
   }
 }
