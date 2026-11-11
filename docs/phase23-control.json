@@ -1,9 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 12,
-  "challenge": "13f80a2992c1572b99b907cef4798fa5d0ea7d93ab30fa479389eac0f3d02c07",
-  "op": "tap",
+  "seq": 13,
+  "challenge": "49609f1979831ab6f9289af459dca6ae1d0625639416b1860575b6a4fddea4ce",
+  "op": "network",
   "args": {
-    "label": "حسابي"
+    "state": "offline"
   }
 }
