@@ -1,9 +1,10 @@
 {
   "run_id": "42939077400",
-  "seq": 37,
-  "challenge": "119d1d4c0f0c18079fcbd8002f99bd8eba49d549ddc4dac3faecb4b838c157cd",
-  "op": "tap",
+  "seq": 38,
+  "challenge": "400f4ced5116e5c06cfa384c0da6684856c09abfcf8af19fb2583571851d8803",
+  "op": "api_get",
   "args": {
-    "label": "حفظ المراجعة"
+    "alias": "support",
+    "path": "/admin/listing-review/listings/106"
   }
 }
