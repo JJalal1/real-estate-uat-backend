@@ -151,7 +151,15 @@ void main() {
         conditionalPrefetchEnabledProvider.overrideWithValue(enabled),
         mediaNetworkMonitorProvider.overrideWithValue(_Network(_wifi)),
       ]);
-      addTearDown(() async { container.dispose();scroll.dispose();dio.close(force: true);await server.close(force: true); });
+      var fixtureClosed = false;
+      Future<void> closeFixture() async {
+        if (fixtureClosed) return;
+        fixtureClosed = true;
+        container.dispose();scroll.dispose();dio.close(force: true);
+        await server.close(force: true);
+      }
+      addTearDown(closeFixture);
+      try {
       await tester.pumpWidget(UncontrolledProviderScope(container: container, child: MaterialApp(home: Scaffold(
         body: ListView.builder(controller: scroll, padding: EdgeInsets.zero, cacheExtent: 480,
           itemExtent: 160, itemCount: 20, itemBuilder: (_, i) => SizedBox(key: ValueKey('card-${i+1}'),
@@ -174,7 +182,10 @@ void main() {
         'extra_visible_requests_on_arrival': afterArrival-beforeArrival, 'ready_image_on_arrival': readyOnArrival,
         'prefetch_requests': cache.prefetchRequests, 'prefetch_payload_bytes': cache.prefetchBytes,
         'prefetch_ready_hits': cache.prefetchReadyHits})}');
-      await tester.pumpWidget(const SizedBox());await tester.pump();
+      } finally {
+        await tester.pumpWidget(const SizedBox());await tester.pump();
+        await closeFixture();
+      }
     }, skip: !_probe, timeout: const Timeout(Duration(minutes: 2)));
   }
   for (final entry in <String, ImageNetworkConditions>{
@@ -194,13 +205,24 @@ void main() {
       final container=ProviderContainer(overrides:[dioProvider.overrideWithValue(dio),
         authControllerProvider.overrideWith(_Guest.new),conditionalPrefetchEnabledProvider.overrideWithValue(true),
         mediaNetworkMonitorProvider.overrideWithValue(_Network(entry.value))]);
-      addTearDown(() async {container.dispose();dio.close(force:true);await server.close(force:true);});
+      var fixtureClosed = false;
+      Future<void> closeFixture() async {
+        if (fixtureClosed) return;
+        fixtureClosed = true;
+        container.dispose();dio.close(force: true);
+        await server.close(force: true);
+      }
+      addTearDown(closeFixture);
+      try {
       await tester.pumpWidget(UncontrolledProviderScope(container:container,child:MaterialApp(home:Scaffold(body:ListView.builder(
         padding:EdgeInsets.zero,cacheExtent:480,itemExtent:160,itemCount:20,itemBuilder:(_,i)=>AdaptivePropertyPhoto(url:'$origin/api/property-media/${i+1}?variant=card'))))));
       await _frames(tester);expect(requested.toSet(),{1,2});expect(requested.length,2);
       expect(container.read(listingPhotoCacheProvider).prefetchRequests,0);
       stdout.writeln('AQER_PREFETCH_BLOCKED ${jsonEncode({'condition':entry.key,'image_requests':requested.length,'speculative_requests':0})}');
-      await tester.pumpWidget(const SizedBox());await tester.pump();
+      } finally {
+        await tester.pumpWidget(const SizedBox());await tester.pump();
+        await closeFixture();
+      }
     },skip:!_probe,timeout:const Timeout(Duration(minutes:2)));
   }
 }

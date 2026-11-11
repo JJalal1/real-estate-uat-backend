@@ -7,6 +7,7 @@ on:
       - mobile_app/lib/core/network/conditional_image_prefetch.dart
       - mobile_app/lib/features/properties/data/public_photo_loader.dart
       - mobile_app/lib/features/properties/presentation/listing_draft_photo.dart
+      - mobile_app/test/conditional_prefetch_test.dart
 permissions:
   contents: read
 concurrency:
