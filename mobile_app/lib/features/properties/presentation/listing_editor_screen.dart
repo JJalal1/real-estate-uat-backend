@@ -263,7 +263,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             try {
               final latest=await _accountRepository.get(_draftKey).timeout(const Duration(seconds:30));
               if (_disposed || !_sessionValid || _recoveryFinished) return;
-              if (latest.payload['checkpoint_key'] != _checkpointKey) {
+              // An offline request may never reach the server. Its unchanged
+              // acknowledged revision is safe to retry, as is our own write
+              // whose response was lost. A newer foreign checkpoint still conflicts.
+              final unchanged = latest.revision == _draftRevision;
+              final ownCheckpoint = _checkpointKey != null &&
+                  latest.payload['checkpoint_key'] == _checkpointKey;
+              if (!unchanged && !ownCheckpoint) {
                 throw DioException(requestOptions:RequestOptions(),response:Response(requestOptions:RequestOptions(),statusCode:409),type:DioExceptionType.badResponse);
               }
               _adoptAccountDraft(latest);
