@@ -1,14 +1,15 @@
 {
   "run_id": "42948672743",
-  "seq": 7,
-  "challenge": "7405ea767455ff67b9a595649d2efafd590f770a46b9412ef745e49fba366110",
+  "seq": 8,
+  "challenge": "7deb30bcb72ea746c00d55996b0b67e0e8904971e34c0aaecf64ee865ed2bafd",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
+        "op": "touch",
         "args": {
-          "label": "حسابي"
+          "x": 116,
+          "y": 1750
         }
       },
       {
