@@ -1,22 +1,9 @@
 {
   "run_id": "43113135513",
-  "seq": 11,
-  "challenge": "e7394851edd3af5b0df89c5f3458e10b2f1bb94499dc3248ee670b0c372ecc7a",
-  "op": "batch",
+  "seq": 12,
+  "challenge": "50cd5247556ffe76a52aed6df9932f799965c58f2f3929773d8dbe1c291414fe",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "إزالة الصورة"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "إضافة صور"
-        }
-      }
-    ]
+    "label": "phase23-property.jpg"
   }
 }
