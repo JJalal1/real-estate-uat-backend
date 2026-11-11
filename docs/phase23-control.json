@@ -1,7 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 19,
-  "challenge": "333528a9e7bb32e8c3239c7e852b0ef88fc9146afeb01a07b274134e079af6eb",
-  "op": "force_stop",
-  "args": {}
+  "seq": 20,
+  "challenge": "a25b0d1e02e5948c3aa2489550f62b19c38d32a58339cd3f9f306e761ba83f2c",
+  "op": "open_link",
+  "args": {
+    "uri": "realestate://app/properties/106"
+  }
 }
