@@ -1,9 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 88,
-  "challenge": "44ae6ee0a9232e396d4e1d5a565a1c1cadfd3b9022547b65a9cb800f8598bd53",
+  "seq": 89,
+  "challenge": "d1fa868b140a7eb23aeb743b6aa0abd0b6f9322e2138d21b5bd4bfd350df12bd",
   "op": "tap",
   "args": {
-    "label": "حسابي"
+    "label": "تسجيل الخروج"
   }
 }
