@@ -1,10 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 11,
-  "challenge": "ddec6e75356aa7db86844d2e15afd25caf09a749c78ff8b34d631bb83768cb40",
-  "op": "touch",
+  "seq": 12,
+  "challenge": "051132b66763b0e5f30470644f8fa96416bbfbef2285f3995f3b5caebd8d37b0",
+  "op": "tap",
   "args": {
-    "x": 580,
-    "y": 1614
+    "label": "قارن العقارين (٢/٢)"
   }
 }
