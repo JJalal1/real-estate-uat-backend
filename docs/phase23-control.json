@@ -1,28 +1,28 @@
 {
   "run_id": "43113135513",
-  "seq": 42,
-  "challenge": "122b493d6cd5de5b2fe13ab819bfe14b2aea2b0372ebf598722bca0610142d88",
+  "seq": 43,
+  "challenge": "cfbe035300c2e4233549e89f75b3a30819e908895ebfc81a6b2a166585c3c19a",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "set",
-        "args": {
-          "label": "الحد الأقصى للإيجار [redacted] ريال يمني وأريد حمامين على الأقل",
-          "value": "خفض سقف الإيجار إلى 1000 ريال يمني"
-        }
-      },
-      {
         "op": "tap",
         "args": {
-          "label": "تحديث"
+          "label": "إزالة حد السعر"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "تحديث",
-          "seconds": 30
+          "label": "شقة النور اختبار المرحلة23",
+          "seconds": 15
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/properties?per_page=1"
         }
       }
     ]
