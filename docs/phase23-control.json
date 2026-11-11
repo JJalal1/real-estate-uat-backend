@@ -1,9 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 35,
-  "challenge": "80406c66fdcf98d7a11133e4b72aba40d30b4d568fc67e976d18afe745a75183",
+  "seq": 36,
+  "challenge": "3ab26d29ec4cf84da6b693106a7cc032972bf3dfbfb98a1c7ec9ef4e87e4e41a",
   "op": "tap",
   "args": {
-    "label": "حظر الحساب"
+    "label": "حظر"
   }
 }
