@@ -1,14 +1,14 @@
 {
   "run_id": "42986038827",
-  "seq": 29,
-  "challenge": "9b766eaba6e2934125ed9f8d2755dff899a2c5cf27d913f16b974f0493863495",
+  "seq": 30,
+  "challenge": "b9a74a0ef6fadb919f4607c692324eec545051d92f4a957e42c7d7b6668129b8",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "set",
         "args": {
-          "label": "موضع الشقة داخل الدور (اختياري)",
+          "label": "مثال: 7 أو شمالية أو أمامية",
           "value": "شرقية مرحلة23"
         }
       },
