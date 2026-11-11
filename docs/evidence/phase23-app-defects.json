@@ -37,7 +37,7 @@
       ],
       "fix": "Represent loading and failed account favorite lookup explicitly on cards, details and map. Retry performs a read only; toggles remain disabled until the state is known.",
       "ci_result": "PASS analyze and5 tests",
-      "native_fix_confirmation": "pending next APK",
+      "native_fix_confirmation": "PASS on UAT1570/API36: known actor favorite lookup failed offline, public106 showed Reload favorites (018); explicit retry restored Remove label (019), serverIDs before/after identical [106,43,38]. Cold offline auth failure is a separate prerequisite and not counted as favorite lookup proof.",
       "ci_run": 42955004653,
       "implementation_commit": "1b56760df668ea760be079223643b1a3c190ebe1",
       "tested_source": "7760e22b5d1ad0f03fb94568c962960440e8874b"
