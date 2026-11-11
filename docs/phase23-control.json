@@ -1,7 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 29,
-  "challenge": "74f47b67b3cddc2fdc6ab2f5df1385c232d02bd8e0c6d5fc8f1ff1f24bcff1ae",
-  "op": "record_stop",
-  "args": {}
+  "seq": 30,
+  "challenge": "b83c947603229c6dc367087b02e9755d6d52a32c6b911ce381eee34721101172",
+  "op": "tap",
+  "args": {
+    "label": "حفظ في المفضلة"
+  }
 }
