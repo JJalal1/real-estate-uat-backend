@@ -1,7 +1,9 @@
 {
   "run_id": "43113135513",
-  "seq": 34,
-  "challenge": "503e198cc153272fa55e82f8dc79190e7ccbf37b4f36d198e61b8bc4727e9e5c",
-  "op": "back",
-  "args": {}
+  "seq": 35,
+  "challenge": "5dcb8580c4bc94e1b0319e974f8ba2616794abcd8eaae86a1e29a4c498835afc",
+  "op": "tap",
+  "args": {
+    "label": "صف ما تحتاجه بالنص أو الصوت"
+  }
 }
