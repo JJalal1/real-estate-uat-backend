@@ -1,10 +1,9 @@
 {
   "run_id": "42948672743",
-  "seq": 1,
-  "challenge": "c25efc2ad5ea446b1b86716c29f13a240287d2b797f9e19e8afa1b917e76e6db",
-  "op": "wait",
+  "seq": 2,
+  "challenge": "89809f5b9459e191922ebea0fa5329a337031874dbb0cdd0766dd826366108c3",
+  "op": "tap",
   "args": {
-    "label": "تفاصيل العقار",
-    "seconds": 12
+    "label": "فتح صورة العقار 1 من 3"
   }
 }
