@@ -1,9 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 16,
-  "challenge": "8e698a8d0cc703f14429d133bf034e6ec2b1379201daa083e58f0f0a04da0746",
+  "seq": 17,
+  "challenge": "942f757ce1e3570237aefc35b46743ff6290dd70bbecbc4304a8da141e7e4eb4",
   "op": "tap",
   "args": {
-    "label": "إرسال للمراجعة"
+    "label": "حفظ وإرسال"
   }
 }
