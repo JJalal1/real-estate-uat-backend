@@ -1,9 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 49,
-  "challenge": "4948509a2bbe76d0f7dde2a5ec5a603e155269902d6f7d443e57103b4e3dad01",
+  "seq": 50,
+  "challenge": "de006b19c91bf88ca140b965eb8b18f1090c4e66a880a98809d745eb6005518c",
   "op": "tap",
   "args": {
-    "label": "الخريطة"
+    "label": "رسم منطقة على الخريطة"
   }
 }
