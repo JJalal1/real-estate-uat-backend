@@ -99,11 +99,29 @@
       "evidence": [
         "run43087697204 checkpoints5–7: owned report9 was in_progress; two taps delivered but popup did not appear."
       ],
-      "fix": "Let the parent PopupMenuButton receive physical taps by ignoring pointer input in its decorative Chip. Add a real report-dialog widget regression selecting dismissed for the owned case.",
-      "implementation_commit": null,
-      "ci_run": null,
-      "ci_result": "PENDING",
-      "native_fix_confirmation": "OPEN: executor disconnected; Native verification must use corrected product tree after recovery."
+      "fix": "Use an explicit accessible EbrokerOutlinedButton to open the same PopupMenuButton. Preserve the existing case/status API.",
+      "implementation_commit": "011b925f5b676837ae0fc4de593f0e93d013eb1f",
+      "ci_run": 43112246142,
+      "ci_result": "PASS strict analysis and physical/semantic interaction regression",
+      "native_fix_confirmation": "PASS UAT1581/source d71701b/run43113135513 checkpoints2–3: menu opened, case9 dismissed, audit43 persisted in_progress→dismissed. Requester verified status checkpoint32."
+    },
+    {
+      "id": "P23-APP-009",
+      "severity": "high",
+      "problem": "Failed-before-write draft save is reported as a foreign-device conflict on reconnect although acknowledged server revision28 remains unchanged.",
+      "evidence": [
+        "UAT1581/run43113135513 checkpoints19–25"
+      ],
+      "fix": "Reconciliation accepts an unchanged acknowledged revision or the current attempted checkpoint whose response was lost; a newer foreign checkpoint still conflicts.",
+      "implementation_commit": "cc77bdb9087000d9c9ca6287c898fb113921a5d3",
+      "red_test": {
+        "source": "7679a41f6995ab3fad587d4bc98e151fe5a3b95a",
+        "run": 43117878321,
+        "result": "beforeWrite fails with exact false-conflict message; afterWrite and otherWriter pass"
+      },
+      "ci_run": 43118260646,
+      "ci_result": "PASS strict analysis; all3 loss-before/loss-after/foreign-device behavioral regressions",
+      "native_fix_confirmation": "OPEN: requires corrected APK and only the affected reconnect case."
     }
   ]
 }
