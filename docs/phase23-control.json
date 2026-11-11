@@ -1,7 +1,11 @@
 {
   "run_id": "43113135513",
-  "seq": 45,
-  "challenge": "19fd2fd825b841b09c0fcf6bece69551a8b04fd3d9393cd5f8f9644995cf3fdb",
-  "op": "prefetch_metrics",
-  "args": {}
+  "seq": 46,
+  "challenge": "6aef40dcef25daa7ec3390b7ed462cfd8be393851e6851c87b85cf860d88910c",
+  "op": "pinch",
+  "args": {
+    "direction": "in",
+    "x": 540,
+    "y": 600
+  }
 }
