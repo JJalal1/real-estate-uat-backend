@@ -1,9 +1,23 @@
 {
   "run_id": "43113135513",
-  "seq": 6,
-  "challenge": "1993c2f994c3e415c385daf3377e00ab2bb3694424adf157c679c646d37215a6",
-  "op": "tap",
+  "seq": 7,
+  "challenge": "54b65d960f63ed929b2bdb1b4880f09e27f5a63643c71ada702a8cbd65ff1819",
+  "op": "batch",
   "args": {
-    "label": "إضافة عقار"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "تعبئة يدوي"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "متابعة الإعلان",
+          "seconds": 15
+        }
+      }
+    ]
   }
 }
