@@ -1,4 +1,5 @@
 name: Phase23 reviewed API36 UAT journeys
+# Final UAT pass: corrected reconnect, same-draft duplicate/unit publication and paired discovery.
 on:
   push:
     branches: [work/phase23-acceptance-20261111]
