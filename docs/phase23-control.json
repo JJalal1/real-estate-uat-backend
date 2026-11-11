@@ -1,9 +1,9 @@
 {
   "run_id": "42962422395",
-  "seq": 39,
-  "challenge": "5e0482f57245d81ee4972f08a459fd5b57725518059e29df62e3eb1ec78633f2",
+  "seq": 40,
+  "challenge": "1f11d804b33d43bb6b0a16b61f803bb6432e8754af592bbd124273c289916eb8",
   "op": "tap",
   "args": {
-    "label": "خيارات المحادثة"
+    "label": "إلغاء الحظر"
   }
 }
