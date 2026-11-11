@@ -1,10 +1,9 @@
 {
   "run_id": "42939077400",
-  "seq": 28,
-  "challenge": "86e53b59c346430ca192e5a8cf07697a319d4647e0ecd0cedc3551fd72f650cd",
-  "op": "api_get",
+  "seq": 29,
+  "challenge": "6ea03be1ac66a5b37589b87fd9fcb364eb1d3ba0a219d4e21547904540c4f750",
+  "op": "scroll",
   "args": {
-    "alias": "support",
-    "path": "/admin/listing-review/listings/106"
+    "direction": "forward"
   }
 }
