@@ -1,23 +1,10 @@
 {
   "run_id": "43107427969",
-  "seq": 6,
-  "challenge": "fd2d06adf863000965c8ca64f42d45d08436293a8a8d0e3b36f2200f4bdff7be",
-  "op": "batch",
+  "seq": 7,
+  "challenge": "63be2fd661b10922a0ad2887c8f1ccea4379dbad55766333d1399fb3576a2512",
+  "op": "wait",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "تغيير الحالة",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تغيير الحالة"
-        }
-      }
-    ]
+    "label": "رفض / إغلاق",
+    "seconds": 5
   }
 }
