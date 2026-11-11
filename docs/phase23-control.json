@@ -1,7 +1,44 @@
 {
   "run_id": "42948672743",
-  "seq": 19,
-  "challenge": "46501ba63ca097ff14c2bacfeddb83fcb695a911edc3d54ab95106c2a6541957",
-  "op": "record_start",
-  "args": {}
+  "seq": 20,
+  "challenge": "da16f594cf11be2e05e200b064eab59e8be973489362be1cd0cb7c0a2d767d59",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "touch",
+        "args": {
+          "x": 560,
+          "y": 308
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "ابحث عن عقار…",
+          "seconds": 8
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "ابحث عن عقار…",
+          "value": "عقار اختبار غير موجود 106987654321"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تنفيذ"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "لا توجد عقارات مطابقة الآن",
+          "seconds": 20
+        }
+      }
+    ]
+  }
 }
