@@ -1,14 +1,14 @@
 {
   "run_id": "42948672743",
-  "seq": 22,
-  "challenge": "27402952c3bc86b3f8f6b5f8d0a9c954b2d613b716e7b84b8660c2ab91a0fb69",
+  "seq": 23,
+  "challenge": "fd6d50aab3eaafb564b1848d8a01bb1c2afae78ba73f47e424d6d46f31fa2954",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "set",
         "args": {
-          "label": "ابحث عن عقار…",
+          "label": "عقار اختبار غير موجود 106987654321",
           "value": "شقة النور اختبار المرحلة23"
         }
       },
@@ -22,7 +22,7 @@
         "op": "wait",
         "args": {
           "label": "إعادة المحاولة",
-          "seconds": 20
+          "seconds": 15
         }
       }
     ]
