@@ -1,10 +1,9 @@
 {
   "run_id": "42919221669",
-  "seq": 73,
-  "challenge": "cce199c53d3b044d043a986ec911f63607d6a1590fbedf5bbd312037590cf3c3",
-  "op": "touch",
+  "seq": 74,
+  "challenge": "c088d43c678b9645d84d4b76a81814a5f7549fc023a323b71f55bde03c7e18b4",
+  "op": "tap",
   "args": {
-    "x": 540,
-    "y": 1420
+    "label": "تحتاج توضيحًا"
   }
 }
