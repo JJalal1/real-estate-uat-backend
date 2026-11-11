@@ -1,23 +1,10 @@
 {
   "run_id": "43113135513",
-  "seq": 19,
-  "challenge": "86cad8e2998aadca54a9eb3ac0487d4f0ae3fca815834538aa2f513abdf80802",
+  "seq": 20,
+  "challenge": "0dc027f133d3fecbec1af7a393bdd3af1b2006fce24bab15bb85996eebe029c6",
   "op": "batch",
   "args": {
     "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "مراجعة وتعديل البيانات المكتملة والاختيارية"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "عنوان الإعلان *",
-          "seconds": 8
-        }
-      },
       {
         "op": "set",
         "args": {
@@ -28,7 +15,7 @@
       {
         "op": "tap",
         "args": {
-          "label": "نواقص الإعلان"
+          "label": "العودة إلى النواقص"
         }
       },
       {
