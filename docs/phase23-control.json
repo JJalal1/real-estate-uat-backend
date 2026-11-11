@@ -1,9 +1,23 @@
 {
   "run_id": "42986038827",
-  "seq": 44,
-  "challenge": "dc727c7f922adbbf507774392c14ec36bf3c76b838a5695f90716e0b4aafe03d",
-  "op": "tap",
+  "seq": 45,
+  "challenge": "4823623163a46de4702e3c0c0cf9b3b3d8949f0728c619bfc0717d871b1c8603",
+  "op": "batch",
   "args": {
-    "label": "إضافة عقار"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "ذكاء اصطناعي"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "متابعة الإعلان",
+          "seconds": 20
+        }
+      }
+    ]
   }
 }
