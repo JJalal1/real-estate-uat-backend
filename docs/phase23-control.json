@@ -1,9 +1,52 @@
 {
   "run_id": "43143868479",
-  "seq": 3,
-  "challenge": "6f9b0a4575efeb3b30ef64174d233a312b99bad313059532c5f5bfffc99ef67d",
-  "op": "open_link",
+  "seq": 4,
+  "challenge": "574bc858df5490cf52831e6a480ca6d0d7f57412902653fb5f6253ca434c594a",
+  "op": "batch",
   "args": {
-    "uri": "realestate://app/properties/106"
+    "steps": [
+      {
+        "op": "wait",
+        "args": {
+          "label": "شقة النور اختبار المرحلة23",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "swipe",
+        "args": {
+          "x1": 540,
+          "y1": 790,
+          "x2": 540,
+          "y2": 240
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "أضف للمقارنة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "قارن العقارين (٢/٢)",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "قارن العقارين (٢/٢)"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "مقارنة العقارات",
+          "seconds": 15
+        }
+      }
+    ]
   }
 }
