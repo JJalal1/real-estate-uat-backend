@@ -1,23 +1,9 @@
 {
   "run_id": "43253230247",
-  "seq": 4,
-  "challenge": "b1699a8e77a3ae42ba7020688feba8a1ee27988c9a33224917943f07e89eb4b2",
-  "op": "batch",
+  "seq": 5,
+  "challenge": "25b9924006f8b94e77d6d6b5ddf81c968a202302aae922896425ef8836210d23",
+  "op": "network_profile",
   "args": {
-    "steps": [
-      {
-        "op": "set",
-        "args": {
-          "label": "ابحث عن عقار…",
-          "value": "تجريبي"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تنفيذ"
-        }
-      }
-    ]
+    "mode": "slow"
   }
 }
