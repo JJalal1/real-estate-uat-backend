@@ -42,7 +42,9 @@ class _Tasks implements SupportWorkspaceRepository {
   bool completed = false;
   int loads = 0;
   @override
-  Future<List<SupportTaskItem>> tasks({
+  Future<SupportTaskPage> tasks({
+    int page = 1,
+    int perPage = 40,
     String scope = 'inbox',
     String? type,
     String? status,
@@ -55,8 +57,8 @@ class _Tasks implements SupportWorkspaceRepository {
     bool actingAsAgent = false,
   }) async {
     loads++;
-    if (completed) return [];
-    return [
+    return SupportTaskPage(currentPage: page, lastPage: 1,
+      total: completed ? 0 : 1, items: completed ? [] : [
         SupportTaskItem.fromJson({
           'id': 700,
           'source_type': report ? 'report' : 'listing_review',
@@ -68,7 +70,7 @@ class _Tasks implements SupportWorkspaceRepository {
           'can_claim': false,
           'is_overdue': false,
         }),
-      ];
+      ]);
   }
 
   @override

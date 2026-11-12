@@ -9,6 +9,7 @@ import subprocess
 import zipfile
 
 from phase23_preflight import API, TREES, GateError, guard
+from phase23_firebase import validate_receipt, verify_compiled_configuration
 from prepare_phase23_native import ROOT, PRIVATE, CERT, sha
 import prepare_phase1_close as tools
 
@@ -16,7 +17,9 @@ import prepare_phase1_close as tools
 def validate_pair(baseline, upgrade):
     fields = ('source_commit', 'product_source_commit', 'product_trees', 'ci_run_id',
               'package', 'certificate_sha256', 'api', 'target_sdk', 'min_sdk',
-              'experiments')
+              'experiments', 'firebase')
+    validate_receipt(baseline.get('firebase'))
+    validate_receipt(upgrade.get('firebase'))
     if any(baseline.get(k) != upgrade.get(k) for k in fields):
         raise GateError('upgrade_pair_identity_mismatch')
     if (baseline.get('package') != 'com.aqer.yemen.uat' or baseline.get('api') != API or
@@ -58,8 +61,9 @@ def prepare():
         for name in app.namelist():
             if name.startswith(('lib/arm64-v8a/', 'lib/x86_64/')) and name.endswith('.so'):
                 tools.elf(app.read(name))
+        firebase = verify_compiled_configuration(app, ROOT / 'mobile_app/android/firebase-uat.properties')
     upgrade = dict(baseline, version_code=version, sha256=sha(apk), bytes=apk.stat().st_size,
-                   certificate_sha256=certificate[1].lower())
+                   certificate_sha256=certificate[1].lower(), firebase=firebase)
     validate_pair(baseline, upgrade)
     pair = {'baseline': baseline, 'upgrade': upgrade, 'same_job_disposable_signing': True,
             'scope': 'UAT emulator update pair only; stable signing and Play remain separate'}

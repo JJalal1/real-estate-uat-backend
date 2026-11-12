@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_repository.dart';
 import '../domain/support_workspace_models.dart';
 
@@ -10,14 +12,17 @@ final supportWorkspaceRepositoryProvider =
   return SupportWorkspaceRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
+    requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
 class SupportWorkspaceRepository {
-  SupportWorkspaceRepository(this._dio, this._auth);
+  SupportWorkspaceRepository(this._dio, this._auth,
+      {AccountRequestScope? requestScope}) : _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
 
   Future<SupportWorkspaceDashboard> dashboard() async {
     final response = await _dio.get<Map<String, dynamic>>(
@@ -33,7 +38,9 @@ class SupportWorkspaceRepository {
     );
   }
 
-  Future<List<SupportTaskItem>> tasks({
+  Future<SupportTaskPage> tasks({
+    int page = 1,
+    int perPage = 40,
     String scope = 'inbox',
     String? type,
     String? status,
@@ -45,6 +52,18 @@ class SupportWorkspaceRepository {
     bool overdue = false,
     bool actingAsAgent = false,
   }) async {
+    if (page < 1 || perPage < 1 || perPage > 100) {
+      throw ArgumentError('Invalid support task page.');
+    }
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    void verifySession() {
+      _requestScope?.verify();
+      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+        throw StateError('ACCOUNT_CHANGED');
+      }
+    }
+    verifySession();
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/workspace/tasks',
       queryParameters: {
@@ -58,13 +77,22 @@ class SupportWorkspaceRepository {
         if (createdTo != null) 'created_to': createdTo.toIso8601String(),
         if (overdue) 'overdue': 1,
         if (actingAsAgent) 'acting_as_agent': 1,
-        'per_page': 100,
+        'page': page,
+        'per_page': perPage,
       },
-      options: await _auth.requiredAuthOptions(),
+      options: options,
     );
+    verifySession();
     final rows = response.data?['data'];
-    if (rows is! List) return const <SupportTaskItem>[];
-    return rows
+    final meta = response.data?['meta'];
+    if (rows is! List || meta is! Map ||
+        meta['current_page'] is! int || meta['current_page'] != page ||
+        meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+        meta['total'] is! int || (meta['total'] as int) < 0 ||
+        rows.any((row) => row is! Map)) {
+      throw StateError('Invalid support task page response.');
+    }
+    final items = rows
         .whereType<Map>()
         .map(
           (row) => SupportTaskItem.fromJson(
@@ -72,6 +100,8 @@ class SupportWorkspaceRepository {
           ),
         )
         .toList(growable: false);
+    return SupportTaskPage(items: items, currentPage: page,
+      lastPage: _intValue(meta['last_page']), total: _intValue(meta['total']));
   }
 
   Future<SupportTaskItem> claim(int taskId, {bool actingAsAgent = false}) async {

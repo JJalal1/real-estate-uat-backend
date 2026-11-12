@@ -5,6 +5,7 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../account/data/auth_controller.dart';
@@ -45,6 +46,10 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
 class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   bool _loading = true;
   String? _error;
+  String? _pageError;
+  bool _loadingMore = false;
+  int _page = 0;
+  bool _hasMore = false;
   List<SupportTaskItem> _items = const [];
   late String _scope;
   String? _type;
@@ -58,6 +63,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   late bool _overdue;
   int _request = 0;
   int? _actor;
+  int _sessionEpoch = 0;
   String? _query;
 
   @override
@@ -69,22 +75,75 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     _severity = widget.initialSeverity;
     _overdue = widget.overdueOnly;
     _actor = ref.read(authControllerProvider).asData?.value?.id;
+    _sessionEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    // Observe every boundary, including logout and same-account login before
+    // the next frame, so an earlier page can never enter the new inbox.
+    ref.listenManual(authControllerProvider, (_, next) {
+      final actor = next.asData?.value?.id;
+      final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+      if (_actor == actor && _sessionEpoch == epoch) return;
+      if (!mounted) return;
+      setState(() {
+        _request++;
+        _actor = actor;
+        _sessionEpoch = epoch;
+        _items = const [];
+        _page = 0;
+        _hasMore = false;
+        _error = null;
+        _pageError = null;
+        _loadingMore = false;
+        _loading = _actor != null;
+        _query = null;
+      });
+      if (_actor != null) Future<void>.microtask(_load);
+    });
     Future<void>.microtask(_load);
   }
 
-  Future<void> _load() async {
+  Future<void> _load() => _fetchPage(1);
+
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore) return;
+    await _fetchPage(_page + 1, append: true);
+  }
+
+  Future<void> _fetchPage(int page, {bool append = false}) async {
     if (!mounted) return;
-    final request = ++_request;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final query = '$_scope:$_type:$_status:$_priority:$_severity:$_assigneeId:$_createdFrom:$_createdTo:$_overdue:${widget.actingAsAgent}';
+    if (append && (_query != query || _actor != actor || _sessionEpoch != epoch)) {
+      await _fetchPage(1);
+      return;
+    }
+    final request = ++_request;
     setState(() {
-      if (_query != query || _actor != actor) _items = const [];
-      _query = query; _actor = actor;
-      _loading = true;
-      _error = null;
+      if (_query != query || _actor != actor || _sessionEpoch != epoch) {
+        _items = const [];
+      }
+      _query = query;
+      _actor = actor;
+      _sessionEpoch = epoch;
+      _pageError = null;
+      if (append) {
+        _loadingMore = true;
+      } else {
+        _loading = true;
+        _loadingMore = false;
+        _page = 0;
+        _hasMore = false;
+        _error = null;
+      }
     });
+    bool current() => mounted && request == _request &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
+        query == _query;
     try {
-      final rows = await ref.read(supportWorkspaceRepositoryProvider).tasks(
+      final result = await ref.read(supportWorkspaceRepositoryProvider).tasks(
+            page: page,
             scope: _scope,
             type: _type,
             status: _status,
@@ -96,17 +155,32 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             overdue: _overdue,
             actingAsAgent: widget.actingAsAgent,
           );
-      if (!mounted || request != _request || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      if (!current()) return;
       setState(() {
-        _items = rows;
+        // A task can move between server pages while the queue changes. Keep
+        // one row per ID and take its newest returned state.
+        _items = <int, SupportTaskItem>{
+          if (append) for (final item in _items) item.id: item,
+          for (final item in result.items) item.id: item,
+        }.values.toList(growable: false);
+        _page = result.currentPage;
+        _hasMore = result.hasMore;
         _loading = false;
+        _loadingMore = false;
       });
     } catch (error) {
-      if (!mounted || request != _request || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+      if (!current()) return;
       setState(() {
-        if (!isTransientApiFailure(error)) _items = const [];
         _loading = false;
-        _error = friendlyApiError(error);
+        _loadingMore = false;
+        if (append && isTransientApiFailure(error)) {
+          _pageError = friendlyApiError(error);
+        } else {
+          if (!isTransientApiFailure(error)) _items = const [];
+          _page = 0;
+          _hasMore = false;
+          _error = friendlyApiError(error);
+        }
       });
     }
   }
@@ -117,10 +191,6 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
-    if (_actor != user?.id) {
-      _actor = user?.id; _request++; _items = const []; _error = null; _loading = true;
-      Future<void>.microtask(_load);
-    }
     if (user == null) return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
     final manager = user.isPlatformOwner == true ||
         user.roles.contains('super_admin') == true ||
@@ -450,10 +520,20 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
+        key: ValueKey(('support-tasks', _actor, _sessionEpoch, _query)),
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 28),
-        itemCount: _items.length,
+        itemCount: _items.length + (_hasMore ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (_, index) => _TaskCard(
+        itemBuilder: (_, index) => index == _items.length
+            ? _pageError != null || _loadingMore
+                ? AppRefreshStatus(key: const ValueKey('support-tasks-page-status'),
+                    loading: _loadingMore, error: _pageError, onRetry: _loadMore)
+                : TextButton(key: const ValueKey('support-tasks-more'),
+                    onPressed: _loading ? null : _loadMore,
+                    child: const Text('المزيد من المهام'))
+            : _TaskCard(
+          key: ValueKey('support-task-${_items[index].id}'),
           task: _items[index],
           manager: manager,
           onClaim: () => _claim(_items[index]),
@@ -1218,6 +1298,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 
 class _TaskCard extends StatelessWidget {
   const _TaskCard({
+    super.key,
     required this.task,
     required this.manager,
     required this.onClaim,

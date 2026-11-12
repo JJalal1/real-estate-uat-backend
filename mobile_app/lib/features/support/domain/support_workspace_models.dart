@@ -1,3 +1,19 @@
+class SupportTaskPage {
+  const SupportTaskPage({
+    required this.items,
+    required this.currentPage,
+    required this.lastPage,
+    required this.total,
+  });
+
+  final List<SupportTaskItem> items;
+  final int currentPage;
+  final int lastPage;
+  final int total;
+
+  bool get hasMore => currentPage < lastPage;
+}
+
 class SupportTaskItem {
   const SupportTaskItem({
     required this.id,

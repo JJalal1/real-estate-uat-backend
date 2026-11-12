@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from phase23_preflight import API, TREES, GateError
+from phase23_firebase import disabled_receipt
 from prepare_phase23_upgrade import validate_pair
 from run_phase23_native import NativeRun, validate_command
 
@@ -19,6 +20,7 @@ class UpgradeSafetyTest(unittest.TestCase):
                 'package': 'com.aqer.yemen.uat', 'api': API,
                 'certificate_sha256': 'b' * 64, 'version_code': 1589,
                 'target_sdk': 36, 'min_sdk': 23, 'experiments': {'conditional_prefetch': True},
+                'firebase': disabled_receipt(),
                 'sha256': 'c' * 64}
         return base, dict(base, version_code=1590)
 
@@ -37,6 +39,23 @@ class UpgradeSafetyTest(unittest.TestCase):
             with self.assertRaises(GateError):
                 validate_pair(dict(base, certificate_sha256=value),
                               dict(upgrade, certificate_sha256=value))
+
+    def test_pair_requires_verified_matching_firebase_receipts(self):
+        base, upgrade = self.pair()
+        configured = dict(disabled_receipt(), configuration_present=True,
+                          client_configured=True, client_push_enabled=True,
+                          compiled_configuration_verified=True, config_fingerprint='e' * 64)
+        with self.assertRaisesRegex(GateError, 'identity_mismatch'):
+            validate_pair(base, dict(upgrade, firebase=configured))
+        validate_pair(dict(base, firebase=configured), dict(upgrade, firebase=configured.copy()))
+        with self.assertRaisesRegex(GateError, 'identity_mismatch'):
+            validate_pair(dict(base, firebase=configured),
+                          dict(upgrade, firebase=dict(configured, config_fingerprint='f' * 64)))
+        for invalid in [None, {}, dict(configured, real_fcm_delivery_tested=True),
+                        dict(configured, client_push_enabled=False),
+                        dict(configured, api_key='SENSITIVE_SENTINEL')]:
+            with self.subTest(invalid=invalid), self.assertRaises(GateError):
+                validate_pair(dict(base, firebase=invalid), dict(upgrade, firebase=invalid))
 
     def test_replacement_checks_installed_version_and_preserves_app_data(self):
         base, upgrade = self.pair()

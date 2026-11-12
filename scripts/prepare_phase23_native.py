@@ -11,6 +11,7 @@ import sys
 import zipfile
 
 from phase23_preflight import guard, API, TREES
+from phase23_firebase import verify_compiled_configuration
 import prepare_phase1_close as tools
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +29,8 @@ def tool_digest():
              'scripts/phase23_preflight.py', 'scripts/phase23_recipient.pem',
              'scripts/probe_phase1_native_account.py', 'scripts/phase1_device_input/Phase1Input.java',
              'scripts/prepare_phase23_upgrade.py',
+             'scripts/phase23_firebase.py', 'scripts/phase23_build_readiness.py',
+             'scripts/import_ci_uat_firebase.py', 'scripts/prepare_uat_firebase.py',
              '.github/actions/phase1-review/index.js']
     return hashlib.sha256(json.dumps({p: sha(ROOT / p) for p in paths}, sort_keys=True).encode()).hexdigest()
 
@@ -56,6 +59,7 @@ def prepare():
         for n in app.namelist():
             if n.startswith(('lib/arm64-v8a/', 'lib/x86_64/')) and n.endswith('.so'):
                 tools.elf(app.read(n))
+        firebase = verify_compiled_configuration(app, ROOT / 'mobile_app/android/firebase-uat.properties')
     helper = tools.build_input(PRIVATE, bt, sdk)
     receipt = {'source_commit': os.environ['GITHUB_SHA'], 'product_source_commit': os.environ['GITHUB_SHA'],
                'product_trees': TREES, 'ci_run_id': os.environ['GITHUB_RUN_ID'],
@@ -64,6 +68,7 @@ def prepare():
                'certificate_sha256': certificate[1].lower(), 'api': API,
                'target_sdk': 36, 'min_sdk': 23, 'signing': 'disposable UAT release signing',
                'input_driver': {'sha256': sha(helper)},
+               'firebase': firebase,
                'experiments': {'conditional_prefetch': os.environ.get('PHASE23_PREFETCH_ON') == 'true'}}
     (PRIVATE / 'APK_VERIFICATION.json').write_text(json.dumps(receipt, indent=2) + '\n')
     out = ROOT / 'phase23-installer-sealed'
