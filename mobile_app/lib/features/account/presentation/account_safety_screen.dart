@@ -106,7 +106,7 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
         const SnackBar(content: Text('تم حذف الحساب ومسح بيانات الهوية الشخصية.')),
       );
     } catch (error) {
-      if (_valid) {
+      if (mounted && _valid) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );

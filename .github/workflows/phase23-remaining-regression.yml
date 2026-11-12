@@ -18,6 +18,7 @@ on:
       - mobile_app/lib/features/properties/data/favorites_repository.dart
       - mobile_app/lib/features/properties/presentation/favorites_screen.dart
       - mobile_app/test/private_tail_pagination_test.dart
+      - mobile_app/test/account_erasure_session_test.dart
       - mobile_app/lib/features/properties/data/property_repository.dart
       - mobile_app/lib/features/properties/data/my_listings_pages.dart
       - mobile_app/lib/features/properties/domain/my_listings_page.dart
@@ -99,6 +100,9 @@ jobs:
           test/message_inbox_pagination_test.dart
           test/my_listings_pagination_test.dart test/account_verification_pagination_test.dart
           lib/features/account/data/private_collection.dart
+          lib/features/account/data/account_safety_repository.dart
+          lib/features/account/presentation/account_safety_screen.dart
+          test/account_erasure_session_test.dart
           lib/features/broker/data/broker_repository.dart
           lib/features/broker/presentation/broker_workspaces.dart
           lib/features/properties/data/favorites_repository.dart
