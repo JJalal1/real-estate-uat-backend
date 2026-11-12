@@ -1,7 +1,22 @@
 {
   "run_id": "43140357522",
-  "seq": 14,
-  "challenge": "1fa826d40fc4443bf0e448b4e008d280e5290301c0166996da94d8c41754ecf8",
-  "op": "observe",
-  "args": {}
+  "seq": 15,
+  "challenge": "8ec752eded1b74cd5c657ee08a4fd6ee62c6e2c3b862d67db9e91edd1f9c50e6",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "down"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "down"
+        }
+      }
+    ]
+  }
 }
