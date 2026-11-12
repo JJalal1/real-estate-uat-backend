@@ -1,7 +1,28 @@
 {
   "run_id": "43253230247",
-  "seq": 17,
-  "challenge": "192028f964c44f2dfbd897adeeebca9f96cc9db4a939ecf16421a7322946e4b6",
-  "op": "back",
-  "args": {}
+  "seq": 18,
+  "challenge": "194de31e0a5370b224ff8cde444e28d630dbf0f942fc905db757bfe319330c69",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إزالة للبيع"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إزالة شقة"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إزالة نطاق محدد على الخريطة"
+        }
+      }
+    ]
+  }
 }
