@@ -1,7 +1,9 @@
 {
   "run_id": "43123392502",
-  "seq": 48,
-  "challenge": "513978debebf3cd21e7cfd1159b5c5ca60e784942b477f162e1744c994c86fee",
-  "op": "back",
-  "args": {}
+  "seq": 49,
+  "challenge": "fd89cc09fecac79f3163eb4715c8aefd31b2e278e81cd3a5fb58c7f4db76ce53",
+  "op": "tap",
+  "args": {
+    "label": "الخريطة"
+  }
 }
