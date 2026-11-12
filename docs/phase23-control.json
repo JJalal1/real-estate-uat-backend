@@ -1,46 +1,27 @@
 {
   "run_id": "43143868479",
-  "seq": 6,
-  "challenge": "2456ef5ba3d9597d07d41b6722ee5e11ca144ca9160b5be5238785173a6cf78a",
+  "seq": 7,
+  "challenge": "5c267a30bd1c75e55b39b20d1217406dcf3c2bde47d405de0f6df1e0263f788c",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "scroll",
-        "args": {
-          "direction": "backward"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "backward"
-        }
-      },
-      {
         "op": "wait",
         "args": {
-          "label": "أضف للمقارنة",
-          "seconds": 10
+          "label": "الفرق باختصار",
+          "seconds": 20
         }
       },
       {
-        "op": "tap",
+        "op": "scroll",
         "args": {
-          "label": "أضف للمقارنة"
+          "direction": "forward"
         }
       },
       {
-        "op": "wait",
+        "op": "scroll",
         "args": {
-          "label": "قارن العقارين (٢/٢)",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "قارن العقارين (٢/٢)"
+          "direction": "forward"
         }
       }
     ]
