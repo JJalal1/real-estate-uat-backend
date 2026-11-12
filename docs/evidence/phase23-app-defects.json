@@ -1,5 +1,5 @@
 {
-  "scope": "Phase23 product fixes; live rollout and remaining acceptance gates are OPEN",
+  "scope": "Phase23: known APP001–APP009 fixes have native confirmation; remaining acceptance coverage and final owner approval are OPEN.",
   "items": [
     {
       "id": "P23-APP-001",
@@ -13,7 +13,8 @@
       "implementation_commit": "af60708973722af2d83eceeaa66f18ac7df24019",
       "ci_run": 42933818225,
       "ci_result": "PASS",
-      "native_fix_confirmation": "PASS on UAT1559; exact-task106/Arabic investigation and history/approval return refresh, checkpoints26–30 and44–46"
+      "native_fix_confirmation": "PASS on UAT1559; exact-task106/Arabic investigation and history/approval return refresh, checkpoints26–30 and44–46",
+      "state": "CLOSED"
     },
     {
       "id": "P23-APP-002",
@@ -26,7 +27,8 @@
       "fix": "Use shared property display labels and review history action labels without changing stored codes",
       "ci_result": "PASS",
       "native_fix_confirmation": "PASS on UAT1559; exact-task106/Arabic investigation and history/approval return refresh, checkpoints26–30 and44–46",
-      "ci_run": 42933818225
+      "ci_run": 42933818225,
+      "state": "CLOSED"
     },
     {
       "id": "P23-APP-003",
@@ -40,7 +42,8 @@
       "native_fix_confirmation": "PASS on UAT1570/API36: known actor favorite lookup failed offline, public106 showed Reload favorites (018); explicit retry restored Remove label (019), serverIDs before/after identical [106,43,38]. Cold offline auth failure is a separate prerequisite and not counted as favorite lookup proof.",
       "ci_run": 42955004653,
       "implementation_commit": "1b56760df668ea760be079223643b1a3c190ebe1",
-      "tested_source": "7760e22b5d1ad0f03fb94568c962960440e8874b"
+      "tested_source": "7760e22b5d1ad0f03fb94568c962960440e8874b",
+      "state": "CLOSED"
     },
     {
       "id": "P23-APP-004",
@@ -53,7 +56,8 @@
       "ci_result": "PASS analyze and5 tests",
       "native_fix_confirmation": "PASS on UAT1568/source13da68f/API36: reviewed dark About/specification panels at default font checkpoint013; readable themed surfaces also at font2.4 checkpoints014–015. Broader accessibility acceptance remains open.",
       "ci_run": 42956545533,
-      "implementation_commit": "0e072474908ab34741867fddc48a402927fb9731"
+      "implementation_commit": "0e072474908ab34741867fddc48a402927fb9731",
+      "state": "CLOSED"
     },
     {
       "id": "P23-APP-005",
@@ -63,7 +67,8 @@
       "implementation_commit": "076dd3a8807ce08874f32732462f9260e8207de0",
       "ci_run": 42980206169,
       "ci_result": "PASS analysis and14 focused tests",
-      "native_fix_confirmation": "PASS on APK1573/source63a3342, run42986038827 checkpoints3–4: property106 shows three canonical photos; loaded image visually reviewed"
+      "native_fix_confirmation": "PASS on APK1573/source63a3342, run42986038827 checkpoints3–4: property106 shows three canonical photos; loaded image visually reviewed",
+      "state": "CLOSED"
     },
     {
       "id": "P23-APP-006",
@@ -76,7 +81,8 @@
       "implementation_commit": "8ff71b375e25ad13e0703252c2e1b9b3f64e1795",
       "ci_run": 42981925472,
       "ci_result": "PASS analysis and normal/RTL320 dark2.4 behavioral tests",
-      "native_fix_confirmation": "PASS on final APK1573/API36, run42986038827 checkpoints40–42: apartment OR villa both editable, RTL320/font2.4 inspected, removing villa retains apartment/rent/map scope."
+      "native_fix_confirmation": "PASS on final APK1573/API36, run42986038827 checkpoints40–42: apartment OR villa both editable, RTL320/font2.4 inspected, removing villa retains apartment/rent/map scope.",
+      "state": "CLOSED"
     },
     {
       "id": "P23-APP-007",
@@ -90,7 +96,8 @@
       "language_followup_commit": "5315a9ef96b6564337ff6f959fb53b63cc91b633",
       "ci_run": 42988536319,
       "ci_result": "PASS four final source gates; focused SQLite/PostGIS run42988536299 also PASS",
-      "native_fix_confirmation": "OPEN: candidate backend e36417aca4233488220a6c8e2951ea0709f601a0 is not deployed to existing UAT runtime; no live fix acceptance claimed"
+      "native_fix_confirmation": "PASS UAT1581/run43113135513 checkpoints39–41 after exact deploy dep-dbqe6njncjis73a37n7g, backend5315a9e: OR types/rent retained; 200000 ceiling and2 bathrooms; property106 matches. Checkpoints43–44 zero results and explicit relaxation PASS.",
+      "state": "CLOSED"
     },
     {
       "id": "P23-APP-008",
@@ -103,7 +110,8 @@
       "implementation_commit": "011b925f5b676837ae0fc4de593f0e93d013eb1f",
       "ci_run": 43112246142,
       "ci_result": "PASS strict analysis and physical/semantic interaction regression",
-      "native_fix_confirmation": "PASS UAT1581/source d71701b/run43113135513 checkpoints2–3: menu opened, case9 dismissed, audit43 persisted in_progress→dismissed. Requester verified status checkpoint32."
+      "native_fix_confirmation": "PASS UAT1581/source d71701b/run43113135513 checkpoints2–3: menu opened, case9 dismissed, audit43 persisted in_progress→dismissed. Requester verified status checkpoint32.",
+      "state": "CLOSED"
     },
     {
       "id": "P23-APP-009",
@@ -121,7 +129,9 @@
       },
       "ci_run": 43118260646,
       "ci_result": "PASS strict analysis; all3 loss-before/loss-after/foreign-device behavioral regressions",
-      "native_fix_confirmation": "OPEN: requires corrected APK and only the affected reconnect case."
+      "native_fix_confirmation": "PASS UAT1583/source9e200a0/run43123392502 checkpoints6–10: offline server revision33 unchanged; explicit retry saved same draft's changed unit and image as revision34, saved banner shown, no false foreign conflict. Real foreign-writer protection passed focused CI43118260646 and full43118621199.",
+      "state": "CLOSED"
     }
-  ]
+  ],
+  "updated_utc": "2026-11-12T01:12:51.212Z"
 }
