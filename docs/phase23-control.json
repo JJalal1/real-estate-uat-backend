@@ -1,9 +1,7 @@
 {
   "run_id": "43143868479",
-  "seq": 30,
-  "challenge": "53fcbe10b3fd4868c9f61a9d652cc6ed0d1db2e975c115d5dd2c6b5aa6c34175",
-  "op": "tap",
-  "args": {
-    "label": "تصغير الفلاتر"
-  }
+  "seq": 31,
+  "challenge": "8eab8988c014959d1220a595c625750f26673216d2698dc78d874b9134d9479d",
+  "op": "force_stop",
+  "args": {}
 }
