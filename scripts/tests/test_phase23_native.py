@@ -17,6 +17,66 @@ from phase23_checkpoint_state import advance_checkpoint
 from probe_phase1_native_account import NativeAccount
 
 
+class AdditionalActorGateTest(unittest.TestCase):
+    def test_additional_native_roster_requires_the_fresh_effective_gate(self):
+        import json
+        from run_phase23_native import native_access
+        from phase23_actor_readiness import ATTESTATION_NAME, ACTORS
+        from test_phase23_actor_readiness import environment, source_text, NOW
+        env = environment()
+        current = native_access(env, source_text(), now=NOW)
+        self.assertEqual(set(current['phones']), {'broker'} | set(ACTORS))
+        self.assertNotIn('attestation', current)
+        del env[ATTESTATION_NAME]
+        raw = json.loads(env['AQER_PHASE1_TEST_ACCESS_JSON'])
+        raw['phones']['manager'] = '+15550000008'
+        env['AQER_PHASE1_TEST_ACCESS_JSON'] = json.dumps(raw)
+        self.assertEqual(set(native_access(env, source_text(), now=NOW)['phones']), {'broker'})
+
+    def test_stale_gate_or_conflicting_fixture_cannot_enter_a_native_login(self):
+        import datetime
+        import json
+        from run_phase23_native import native_access
+        from test_phase23_actor_readiness import environment, source_text, NOW
+        env = environment()
+        with self.assertRaisesRegex(GateError, 'stale'):
+            native_access(env, source_text(), now=NOW + datetime.timedelta(days=2))
+        raw = json.loads(env['AQER_PHASE1_TEST_ACCESS_JSON'])
+        raw['phones']['manager'] = '+15550000008'
+        env['AQER_PHASE1_TEST_ACCESS_JSON'] = json.dumps(raw)
+        with self.assertRaisesRegex(GateError, 'fixture'):
+            native_access(env, source_text(), now=NOW)
+
+    def test_manager_shell_exports_controls_without_private_people_or_titles(self):
+        rows = [{'text': 'لوحة الفريق', 'bounds': [0, 0, 100, 50]},
+                {'text': 'PRIVATE PERSON AND TASK TITLE', 'bounds': [0, 60, 100, 100]},
+                {'text': 'المزيد من المهام', 'bounds': [0, 110, 100, 150]}]
+        controls, protected = NativeRun.private_ui_controls(rows)
+        self.assertTrue(protected)
+        self.assertEqual(len(controls), 2)
+        self.assertNotIn('PRIVATE PERSON', str(controls))
+
+    def test_pinned_native_probe_checks_identity_roles_and_closes_its_token(self):
+        from run_phase23_native import Session
+        from test_phase23_actor_readiness import NormalTransport
+        access = {'otp': '123456', 'phones': {'manager': '+15550000003'}}
+        for wrong in [False, True]:
+            transport = NormalTransport('manager')
+            if wrong: transport.user['roles'] = ['registered_user']
+            with patch('run_phase23_native.http', side_effect=transport):
+                session = Session('manager', access)
+                try:
+                    if wrong:
+                        with self.assertRaisesRegex(GateError, 'roles'): session.login()
+                    else:
+                        session.login()
+                        self.assertEqual(session.identity['id'], 8)
+                finally:
+                    self.assertTrue(session.close())
+            self.assertTrue(transport.closed)
+            self.assertIsNone(session.token)
+
+
 class CommandSafetyTest(unittest.TestCase):
     def test_network_measurements_reject_private_or_unknown_fields(self):
         import json

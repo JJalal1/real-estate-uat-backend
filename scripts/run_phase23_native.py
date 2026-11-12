@@ -28,6 +28,8 @@ from phase1_native_account_readiness import SECRET_NAME, validate_access
 from prepare_phase23_native import PRIVATE, CERT, tool_digest
 from prepare_phase23_upgrade import validate_pair
 from probe_phase1_native_account import NativeAccount, Blocked, APP, labels
+from phase23_actor_readiness import (ACTORS, ATTESTATION_NAME, SOURCE,
+                                    validate_attestation, fixture_phones, identity_matches)
 
 CONTROL = 'docs/phase23-control.json'
 REPO = 'JJalal1/real-estate-uat-backend'
@@ -321,6 +323,25 @@ def validate_command(value, run_id, seq, challenge):
     return value
 
 
+def native_access(env, source_text=None, now=None):
+    """Extend only the pinned synthetic roster behind the fresh effective gate."""
+    access = validate_access(env.get(SECRET_NAME, ''))
+    attestation = env.get(ATTESTATION_NAME, '')
+    if not attestation:
+        access['phones'] = {alias: phone for alias, phone in access['phones'].items()
+                            if alias in {'broker', 'support', 'regular'}}
+        return access
+    validate_attestation(attestation, now=now)
+    phones = fixture_phones(source_text if source_text is not None else
+                            (Path(__file__).resolve().parents[1] / SOURCE).read_text())
+    for alias, phone in phones.items():
+        configured = access['phones'].get(alias)
+        if configured is not None and configured.lstrip('+') != phone.lstrip('+'):
+            raise GateError('pinned_fixture_source_invalid')
+    access['phones'].update(phones)
+    return access
+
+
 class Session:
     def __init__(self, alias, access):
         self.alias, self.token = alias, None
@@ -336,7 +357,11 @@ class Session:
         code, body = http('GET', '/auth/me', token=self.token)
         user = body.get('data', {}).get('user', {})
         expected = {'broker': 28, 'support': 6, 'regular': 26}
-        if code != 200 or user.get('id') != expected.get(self.alias):
+        if self.alias in ACTORS:
+            if code != 200:
+                raise GateError('configured_actor_identity_mismatch')
+            identity_matches(user, ACTORS[self.alias])
+        elif code != 200 or user.get('id') != expected.get(self.alias):
             raise GateError('configured_actor_identity_mismatch')
         self.identity = {'id': user['id'], 'roles': user.get('roles', []), 'account_type': user.get('account_type')}
 
@@ -358,7 +383,8 @@ class NativeRun:
             raise GateError('native_toolbundle_mismatch')
         self.root, self.seq, self.previous = root, 0, '0' * 64
         self.deadline = time.monotonic() + 6500
-        self.access = validate_access(os.environ.get(SECRET_NAME, ''))
+        self.access = native_access(os.environ)
+        os.environ.pop(ATTESTATION_NAME, None)
         self.private_values = set(self.access['phones'].values()) | {self.access['otp']}
         for phone in self.access['phones'].values():
             digits = phone.lstrip('+')
@@ -409,9 +435,13 @@ class NativeRun:
         'بدء المعالجة','قيد المعالجة','انتظار المستخدم','إغلاق كمحلولة',
         'رفض البلاغ','رفض / إغلاق','ملاحظة داخلية','تغيير الحالة','حفظ الملاحظة',
         'SUP-261111-QYLXJRN','Conversation complaint','جديدة','مفتوحة',
+        'لوحة الفريق','لوحة الإدارة','الأعمال','الفريق','كل المهام','مكتملة','مغلقة',
+        'المهام المنجزة','مسندة إليّ','غير مسندة','الكل',
+        'المزيد من المهام','المزيد من الطلبات','المزيد من البلاغات',
+        'المزيد من الإشعارات','المزيد من المحادثات','إعادة المحاولة',
     })
     PRIVATE_UI_ANCHORS = frozenset({
-        'لوحة الدعم',
+        'لوحة الدعم','لوحة الفريق','لوحة الإدارة','المهام المنجزة',
         'خيارات المحادثة','اكتب رسالة...','حظر الحساب','إلغاء الحظر',
         'حظر هذا الحساب؟','إلغاء الحظر؟','بلاغ عن المحادثة','تفاصيل البلاغ',
         'شوهد مؤخرًا','تعديل الملف الشخصي','الأمان والخصوصية','مظهر التطبيق',
@@ -581,7 +611,7 @@ class NativeRun:
         names = set().union(*(labels(row) for row in rows)) if rows else set()
         public_home = self.driver.public_marketplace_binding(rows) is not None
         sticky = getattr(self, 'private_surface_open', False) and not public_home
-        rows, private_ui = self.private_ui_controls(rows, force_private=sticky)
+        rows, private_ui = self.private_ui_controls(rows, force_private=sticky or getattr(self, 'actor', None) in {'manager','admin','erasure'})
         self.private_surface_open = private_ui
         protected = protected or private_ui
         if protected and self.driver.recorder is not None:
@@ -668,9 +698,18 @@ class NativeRun:
         return validate_command(value, self.report['run_id'], self.seq, self.challenge)
 
     def login(self, alias):
-        if alias not in {'broker', 'support', 'regular'} or alias not in self.access['phones']:
+        if alias not in {'broker', 'support', 'regular'} | set(ACTORS) or alias not in self.access['phones']:
             raise GateError('unavailable_test_actor')
         if self.actor is not None: raise GateError('explicit_logout_before_actor_switch_required')
+        if alias in ACTORS:
+            # Verify the exact pinned identity before entering the same roster's
+            # number through the normal UI. Close this separate probe token.
+            probe = Session(alias, self.access)
+            try:
+                probe.login()
+            finally:
+                if not probe.close():
+                    raise GateError('test_session_cleanup_unconfirmed')
         d = self.driver
         d.tap('حسابي')
         d.tap('تسجيل الدخول أو إنشاء حساب')

@@ -30,6 +30,7 @@ def tool_digest():
              'scripts/probe_phase1_native_account.py', 'scripts/phase1_device_input/Phase1Input.java',
              'scripts/prepare_phase23_upgrade.py',
              'scripts/phase23_firebase.py', 'scripts/phase23_build_readiness.py',
+             'scripts/phase23_actor_readiness.py',
              'scripts/import_ci_uat_firebase.py', 'scripts/prepare_uat_firebase.py',
              '.github/actions/phase1-review/index.js']
     return hashlib.sha256(json.dumps({p: sha(ROOT / p) for p in paths}, sort_keys=True).encode()).hexdigest()

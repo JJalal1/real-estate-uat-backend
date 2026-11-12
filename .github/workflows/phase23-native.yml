@@ -245,6 +245,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+          AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION: ${{ secrets.AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION }}
       - name: Stop the disposable device
         if: always()
         run: adb -s emulator-5554 emu kill || true

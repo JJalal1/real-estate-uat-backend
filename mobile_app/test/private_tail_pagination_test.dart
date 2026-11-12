@@ -211,9 +211,12 @@ void main() {
     await tester.tap(chip); await tester.pumpAndSettle();
     expect(wire.requests.last.queryParameters, {'page': 1, 'per_page': 50, 'only_due': 1});
     pending.complete(_page(2, [_row('availability', 999)], last: 2)); await tester.pumpAndSettle();
+    expect(c.read(brokerAvailabilityPagesProvider(true)).items.map((item) => item.id), [101]);
+    final row = find.byKey(const ValueKey('broker-availability-101'));
+    await tester.scrollUntilVisible(row, 300, scrollable: _vertical, maxScrolls: 20);
+    await tester.pumpAndSettle();
     expect(find.text('Synthetic availability 101'), findsOneWidget);
     expect(find.text('Synthetic availability 999'), findsNothing);
-    expect(c.read(brokerAvailabilityPagesProvider(true)).items.map((item) => item.id), [101]);
     final confirm = find.text('ما زالت متوفرة (1)');
     await tester.scrollUntilVisible(confirm, 300, scrollable: _vertical, maxScrolls: 20);
     expect(confirm.hitTestable(), findsOneWidget);

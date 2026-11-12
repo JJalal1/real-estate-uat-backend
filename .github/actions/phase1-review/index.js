@@ -371,7 +371,7 @@ async function supervise(cfg, options={}) {
 
 function uploadThroughWorker(request) {
   return new Promise((resolve,reject)=>{
-    const env={...process.env};delete env.AQER_PHASE1_TEST_ACCESS_JSON;delete env.GITHUB_TOKEN;
+    const env={...process.env};delete env.AQER_PHASE1_TEST_ACCESS_JSON;delete env.AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION;delete env.GITHUB_TOKEN;
     const child=fork(__filename,['--artifact-worker'],{env,stdio:['ignore','pipe','pipe','ipc']});
     child.stdout.resume();child.stderr.resume();
     let settled=false;
