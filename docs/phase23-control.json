@@ -1,10 +1,9 @@
 {
   "run_id": "43243264586",
-  "seq": 10,
-  "challenge": "e1ed9c5b6433cb48a0be29e8bde720262ef6ce8e127d1f653efc31c82be39c52",
-  "op": "wait",
+  "seq": 11,
+  "challenge": "174b74b020f537cfeaec17f747ce6e4ed99cf62a4a9b1e1703d5dd3aa8a6e866",
+  "op": "tap",
   "args": {
-    "label": "تعديل الفلاتر",
-    "seconds": 30
+    "label": "الخريطة"
   }
 }
