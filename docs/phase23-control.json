@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":39,"challenge":"03ddf1cde4eb87df3e123351170f41e5b57f3b60d72852c5f5f841a345ca0f0c","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"العقارات"}},{"op":"wait","args":{"label":"رؤية الكل","seconds":5}},{"op":"tap","args":{"label":"رؤية الكل"}},{"op":"wait","args":{"label":"البحث عن عقار","seconds":5}}]}}
+{"run_id":"43282970100","seq":40,"challenge":"80be231e01926a4683467d9f418fdc5af4455b3cf9d995f0e511d24f5f47fad5","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"رجوع"}},{"op":"wait","args":{"label":"العقارات","seconds":6}}]}}
