@@ -1,9 +1,10 @@
 {
   "run_id": "43123392502",
-  "seq": 37,
-  "challenge": "3990c607b11f95421498d3451f05a34620f9453dd4fbe5778c249db2d46148ba",
-  "op": "tap",
+  "seq": 38,
+  "challenge": "fc655c6e08cc810e73f630402f59c8d19652656cae7a946a889d8a4b5a71ef8a",
+  "op": "touch",
   "args": {
-    "label": "بحث ذكي"
+    "x": 500,
+    "y": 560
   }
 }
