@@ -1,28 +1,7 @@
 {
   "run_id": "43253230247",
-  "seq": 41,
-  "challenge": "60e9751c92230ffbe61cc5a28ae35a5d8bdddb2e8871ca040321922e0567eb40",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "swipe",
-        "args": {
-          "x1": 540,
-          "y1": 500,
-          "x2": 540,
-          "y2": 1200
-        }
-      },
-      {
-        "op": "swipe",
-        "args": {
-          "x1": 540,
-          "y1": 1200,
-          "x2": 540,
-          "y2": 500
-        }
-      }
-    ]
-  }
+  "seq": 42,
+  "challenge": "64782ec729f6a48d8bbf66300a67f7090d2ce31d3e3d6d53da2c66c17339a3ba",
+  "op": "network_metrics",
+  "args": {}
 }
