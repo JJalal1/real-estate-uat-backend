@@ -1,28 +1,10 @@
 {
   "run_id": "43123392502",
-  "seq": 41,
-  "challenge": "17cc1408b975d923ae9cbc9b3c0069e1ffa5cc79ebe6ccbaa2fdadfff79815dd",
-  "op": "batch",
+  "seq": 42,
+  "challenge": "0810d1a8aec32cc521ffcfa693015615fff24512966c322e5c577d1abb8ba5a8",
+  "op": "wait",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "ابحث لي"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "بدء بحث جديد"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "شقة للإيجار في صنعاء"
-        }
-      }
-    ]
+    "label": "شقة النور اختبار المرحلة23",
+    "seconds": 20
   }
 }
