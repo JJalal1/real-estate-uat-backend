@@ -22,6 +22,7 @@ import 'package:real_estate_mobile/features/properties/presentation/property_loc
 import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_location_address.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/account/data/account_request_scope.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/broker/data/customer_help_store.dart';
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
@@ -205,6 +206,7 @@ void main() {
     final help=_Help();
     Future<void> open(int id) => pumpWave6(tester,ProviderScope(overrides:[
       authControllerProvider.overrideWith(()=>_Account(id)),customerHelpStoreProvider.overrideWithValue(help),
+      accountRequestScopeProvider.overrideWith(createAccountRequestScope),
       brokerRepositoryProvider.overrideWithValue(_Customers()),
     ],child:const BrokerCustomersScreen()));
     await open(1);expect(find.byKey(const ValueKey('customer-help-dismiss')),findsOneWidget);
