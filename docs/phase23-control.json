@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":41,"challenge":"d97007a1b8ff46e1717de38b0098063993ee21bd9102d917a630b0a542ca6eba","op":"batch","args":{"steps":[{"op":"touch","args":{"x":540,"y":310}},{"op":"wait","args":{"label":"البحث عن عقار","seconds":5}},{"op":"set","args":{"label":"ابحث عن عقار…","value":"شقة"}}]}}
+{"run_id":"43282970100","seq":42,"challenge":"bae5e6aa075cfd03d7c183f520e710fe1339d784fcafc1ec06b9956c01550516","op":"network_profile","args":{"mode":"slow"}}
