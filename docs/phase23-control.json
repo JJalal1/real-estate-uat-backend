@@ -1,20 +1,46 @@
 {
   "run_id": "43143868479",
-  "seq": 5,
-  "challenge": "0f732cc3644ef4336bd2fd4fe756093ffcce6cc31acddeab36090f7521196075",
+  "seq": 6,
+  "challenge": "2456ef5ba3d9597d07d41b6722ee5e11ca144ca9160b5be5238785173a6cf78a",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "scroll",
         "args": {
-          "direction": "forward"
+          "direction": "backward"
         }
       },
       {
         "op": "scroll",
         "args": {
-          "direction": "forward"
+          "direction": "backward"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "أضف للمقارنة",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "أضف للمقارنة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "قارن العقارين (٢/٢)",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "قارن العقارين (٢/٢)"
         }
       }
     ]
