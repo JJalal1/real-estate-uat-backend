@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":48,"challenge":"a1727c424232bffd79eb4892065d4ddc0db28a09961dcb1a7ee52f552678cf36","op":"tap","args":{"label":"فتح صورة العقار 1 من 3"}}
+{"run_id":"43282970100","seq":49,"challenge":"78363b17d481a9befcc309264e0677adc13a73013d32277c9c7edd8f8dd7dc9d","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"Got it"}},{"op":"wait","args":{"label":"تحميل صورة أوضح","seconds":5}}]}}
