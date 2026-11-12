@@ -1,9 +1,7 @@
 {
   "run_id": "43243264586",
-  "seq": 26,
-  "challenge": "e614e7ecc344e321cd7bf9a48bacd540067b65d9763d188ec46b3053c8858e6c",
-  "op": "network",
-  "args": {
-    "state": "online"
-  }
+  "seq": 27,
+  "challenge": "b1683971c4135269652126eb6d4f365bbd527fb5fc25b1d31701f3145bfa67c4",
+  "op": "record_stop",
+  "args": {}
 }
