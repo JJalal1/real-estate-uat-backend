@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":40,"challenge":"80be231e01926a4683467d9f418fdc5af4455b3cf9d995f0e511d24f5f47fad5","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"رجوع"}},{"op":"wait","args":{"label":"العقارات","seconds":6}}]}}
+{"run_id":"43282970100","seq":41,"challenge":"d97007a1b8ff46e1717de38b0098063993ee21bd9102d917a630b0a542ca6eba","op":"batch","args":{"steps":[{"op":"touch","args":{"x":540,"y":310}},{"op":"wait","args":{"label":"البحث عن عقار","seconds":5}},{"op":"set","args":{"label":"ابحث عن عقار…","value":"شقة"}}]}}
