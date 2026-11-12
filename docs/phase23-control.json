@@ -1,34 +1,9 @@
 {
   "run_id": "43243264586",
-  "seq": 13,
-  "challenge": "6010529b8ffefc024069798be57b9c4931a755192351268c9011f301dc752eec",
-  "op": "batch",
+  "seq": 14,
+  "challenge": "ee642bb439a33328aef48f4c79984cc431863c2d6c18e2b3ada3311c1cf232b9",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تطبيق الشروط"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "القائمة"
-        }
-      }
-    ]
+    "label": "إزالة نطاق محدد على الخريطة"
   }
 }
