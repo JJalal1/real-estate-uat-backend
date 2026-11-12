@@ -1,9 +1,7 @@
 {
   "run_id": "43253230247",
-  "seq": 16,
-  "challenge": "96e6f769138fee899677fda1aac06bd87a53b3afad3dacba2edfbb382fbd4e3b",
-  "op": "tap",
-  "args": {
-    "label": "تعديل الفلاتر"
-  }
+  "seq": 17,
+  "challenge": "192028f964c44f2dfbd897adeeebca9f96cc9db4a939ecf16421a7322946e4b6",
+  "op": "back",
+  "args": {}
 }
