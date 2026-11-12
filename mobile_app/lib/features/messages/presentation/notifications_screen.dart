@@ -231,7 +231,7 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     if (!item.isRead) {
       await ref.read(messageRepositoryProvider).readNotification(item.id);
     }
-    if (!_sameSession(actor, epoch)) return;
+    if (!mounted || !_sameSession(actor, epoch)) return;
     // Reading removes a row from the unread-only dataset. Invalidate any old
     // page before navigation, then reload page one when this screen is visible.
     setState(() {

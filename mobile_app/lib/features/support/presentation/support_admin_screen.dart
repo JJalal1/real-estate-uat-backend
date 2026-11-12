@@ -369,7 +369,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
     try {
       var details =
           await ref.read(supportRepositoryProvider).adminDetails(caseId);
-      if (!current()) {
+      if (!mounted || !current()) {
         return;
       }
       await showActorDialog<void>(
@@ -628,7 +628,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
               }));
       if (current()) await _load();
     } catch (e) {
-      if (current()) {
+      if (mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(e))),
         );
@@ -645,7 +645,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
         epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     try {
       final agents = await ref.read(supportRepositoryProvider).agents();
-      if (!current()) {
+      if (!context.mounted || !current()) {
         return null;
       }
       return showActorDialog<int>(
@@ -661,7 +661,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                     .toList(),
               ));
     } catch (e) {
-      if (current()) {
+      if (context.mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(e))),
         );

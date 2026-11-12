@@ -75,7 +75,7 @@ class _ActorBoundPageState extends ConsumerState<ActorBoundPage> {
       _epoch ??= Stage6SecureSessionStore.instance.sessionEpoch;
     }
     if (_actor != null && auth.asData != null &&
-        (actor?.id != _actor || Stage6SecureSessionStore.instance.sessionEpoch != _epoch)) _changed = true;
+        (actor?.id != _actor || Stage6SecureSessionStore.instance.sessionEpoch != _epoch)) { _changed = true; }
     // Keep the normal guest entry state after logout. A later login still
     // cannot reuse this page's old private form, even with the same user ID.
     if (_changed && actor != null) {
@@ -108,11 +108,11 @@ class _ActorBoundOverlayState extends ConsumerState<_ActorBoundOverlay> {
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (_, next) {
       if (next.asData != null && (next.asData?.value?.id != widget.actor ||
-          Stage6SecureSessionStore.instance.sessionEpoch != widget.epoch)) _expired = true;
+          Stage6SecureSessionStore.instance.sessionEpoch != widget.epoch)) { _expired = true; }
     });
     final current = ref.watch(authControllerProvider).asData?.value?.id;
     if (current != widget.actor ||
-        Stage6SecureSessionStore.instance.sessionEpoch != widget.epoch) _expired = true;
+        Stage6SecureSessionStore.instance.sessionEpoch != widget.epoch) { _expired = true; }
     return _expired ? widget.changed(context) : widget.builder(context);
   }
 }
@@ -127,7 +127,7 @@ Future<T?> _showAccountOverlay<T>(BuildContext context, WidgetRef ref,
   var alive = true;
   final subscription = ref.listenManual(authControllerProvider, (_, next) {
     if (next.asData?.value?.id != actor ||
-        Stage6SecureSessionStore.instance.sessionEpoch != epoch) alive = false;
+        Stage6SecureSessionStore.instance.sessionEpoch != epoch) { alive = false; }
   });
   try {
     final result = await present(actor, epoch);

@@ -322,11 +322,11 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
             description: descriptionValue,
             category: category,
           );
-      if (!current()) {
+      if (!mounted || !current()) {
         return;
       }
       await _load();
-      if (!current()) {
+      if (!mounted || !current()) {
         return;
       }
       await _showDetails(details.summary.id);
@@ -340,7 +340,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
     final epoch = _sessionEpoch;
     await _showDetails(caseId);
     if (mounted && identityVersion == _identityVersion &&
-        epoch == Stage6SecureSessionStore.instance.sessionEpoch) await _load();
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch) { await _load(); }
   }
 
   Future<void> _showDetails(int caseId) async {
@@ -352,7 +352,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
         epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     try {
       var details = await ref.read(supportRepositoryProvider).details(caseId);
-      if (!current()) {
+      if (!mounted || !current()) {
         return;
       }
       await showActorDialog<void>(

@@ -179,8 +179,9 @@ void main() {
     testWidgets('$surface retains40 rows on page2 failure and retries, deduplicates and ends', (tester) async {
       var fail = true;
       final wire = _Wire((r) async {
-        if (r.queryParameters['page'] == 1) return _page(1,
-          [for (var id = 1; id <= 40; id++) _application(id)], last: 2, total: 41);
+        if (r.queryParameters['page'] == 1) {
+          return _page(1, [for (var id = 1; id <= 40; id++) _application(id)], last: 2, total: 41);
+        }
         if (fail) throw _failure(r, 503);
         return _page(2, [_application(40, name: 'Updated applicant40'), _application(41)], last: 2, total: 41);
       });

@@ -95,8 +95,9 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   Widget _body(MyListingsPagesState listings, MyListingsPagesController controller) {
     if (listings.page == null) {
       if (listings.loading) return const _MyListingsSkeleton();
-      if (listings.error != null) return AppErrorState(
-        message: friendlyApiError(listings.error!), onRetry: controller.refresh);
+      if (listings.error != null) {
+        return AppErrorState(message: friendlyApiError(listings.error!), onRetry: controller.refresh);
+      }
     }
     final items = listings.items;
     final hasMore = listings.page?.hasMore ?? false;

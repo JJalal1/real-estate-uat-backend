@@ -20,7 +20,7 @@ final myListingsPagesProvider = StateNotifierProvider.autoDispose<
   ref.onDispose(() => alive = false);
   ref.listen(authControllerProvider, (_, next) {
     if (session == (next.asData?.value?.id,
-        Stage6SecureSessionStore.instance.sessionEpoch)) return;
+        Stage6SecureSessionStore.instance.sessionEpoch)) { return; }
     alive = false;
     ref.invalidateSelf();
   });
@@ -71,7 +71,7 @@ class MyListingsPagesController extends StateNotifier<MyListingsPagesState> {
     if (!mounted) return;
     if (!_isCurrent()) { _resetSession(); return; }
     if (state.loading || state.loadingMore || state.error != null ||
-        !(state.page?.hasMore ?? false)) return;
+        !(state.page?.hasMore ?? false)) { return; }
     await _fetchPage(state.page!.currentPage + 1, append: true);
   }
 

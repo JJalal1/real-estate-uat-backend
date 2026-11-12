@@ -19,12 +19,12 @@ import 'review_protected_photo.dart';
 final reviewQueueProvider = StateNotifierProvider.autoDispose<
     ReviewPageController<ReviewListingItem>, ReviewPageState<ReviewListingItem>>((ref) =>
   _reviewPages<ReviewListingItem>(ref, load: (repository, page) => repository.queue(page: page),
-    idOf: (item) => item.id, onSessionChange: () => ref.invalidate(reviewQueueProvider)));
+    idOf: (item) => item.id, onSessionChange: ref.invalidateSelf));
 
 final publicationBlocksProvider = StateNotifierProvider.autoDispose<
     ReviewPageController<PublicationBlockItem>, ReviewPageState<PublicationBlockItem>>((ref) =>
   _reviewPages<PublicationBlockItem>(ref, load: (repository, page) => repository.blocks(page: page),
-    idOf: (item) => item.id, onSessionChange: () => ref.invalidate(publicationBlocksProvider)));
+    idOf: (item) => item.id, onSessionChange: ref.invalidateSelf));
 
 ReviewPageController<T> _reviewPages<T>(Ref ref, {
   required Future<ReviewWorkspacePage<T>> Function(ListingReviewRepository, int) load,
@@ -39,7 +39,7 @@ ReviewPageController<T> _reviewPages<T>(Ref ref, {
   ref.onDispose(() => alive = false);
   ref.listen(authControllerProvider, (_, next) {
     if (session == (next.asData?.value?.id,
-        Stage6SecureSessionStore.instance.sessionEpoch)) return;
+        Stage6SecureSessionStore.instance.sessionEpoch)) { return; }
     // Observe every boundary, even logout then the same account before a frame.
     alive = false;
     onSessionChange();
@@ -94,7 +94,7 @@ class ReviewPageController<T> extends StateNotifier<ReviewPageState<T>> {
       return;
     }
     if (state.loading || state.loadingMore || state.error != null ||
-        !(state.page?.hasMore ?? false)) return;
+        !(state.page?.hasMore ?? false)) { return; }
     await _fetchPage(state.page!.currentPage + 1, append: true);
   }
 
@@ -1015,13 +1015,13 @@ class _PublicationBlocks extends ConsumerWidget {
     controller.dispose();
     if (reason == null || !context.mounted ||
         actor != ref.read(authControllerProvider).asData?.value?.id ||
-        epoch != Stage6SecureSessionStore.instance.sessionEpoch) return;
+        epoch != Stage6SecureSessionStore.instance.sessionEpoch) { return; }
 
     try {
       await repository.liftBlock(item.id, reason);
       if (!context.mounted ||
           actor != ref.read(authControllerProvider).asData?.value?.id ||
-          epoch != Stage6SecureSessionStore.instance.sessionEpoch) return;
+          epoch != Stage6SecureSessionStore.instance.sessionEpoch) { return; }
       ref.invalidate(publicationBlocksProvider);
     } catch (error) {
       if (context.mounted &&

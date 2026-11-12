@@ -67,7 +67,7 @@ class VerificationQueue<T> extends StateNotifier<VerificationQueueState<T>> {
     if (!mounted) return;
     if (!_isCurrent()) { _resetSession(); return; }
     if (state.loading || state.loadingMore || state.error != null ||
-        !(state.page?.hasMore ?? false)) return;
+        !(state.page?.hasMore ?? false)) { return; }
     await _fetch(state.page!.currentPage + 1, append: true);
   }
 

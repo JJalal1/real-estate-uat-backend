@@ -98,7 +98,7 @@ class AccountVerificationPaginationApiTest extends TestCase
     {
         [, $headers] = $this->actor(['support_agent']);
         $profile = $this->profile(101);
-        $before = $profile->getAttributes();
+        $before = $profile->fresh()->getAttributes();
         foreach ([
             ['user_id', '0'], ['user_id', '-1'], ['user_id', '1.5'], ['user_id', 'abc'],
             ['page', '0'], ['page', '-1'], ['page', '1.5'], ['page', 'abc'],

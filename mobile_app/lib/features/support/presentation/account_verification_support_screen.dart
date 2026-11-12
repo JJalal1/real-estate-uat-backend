@@ -20,7 +20,7 @@ final verificationSupportQueueProvider = StateNotifierProvider.autoDispose.famil
     load: (page) => ref.read(accountVerificationSupportRepositoryProvider).pending(
       userId: focus, page: page, perPage: focus == null ? 40 : 1),
     idOf: (item) => item.userId,
-    invalidate: () => ref.invalidate(verificationSupportQueueProvider(focus))));
+    invalidate: ref.invalidateSelf));
 
 class AccountVerificationSupportScreen extends ConsumerWidget {
   const AccountVerificationSupportScreen({super.key, this.focusUserId});

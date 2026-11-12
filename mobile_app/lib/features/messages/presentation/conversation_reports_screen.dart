@@ -189,14 +189,14 @@ class _ConversationReportsScreenState
                     child: const Text('فتح وتسجيل الوصول'))
               ],
             ));
-    if (accepted != true || !sameSession()) {
+    if (!mounted || accepted != true || !sameSession()) {
       return;
     }
     try {
       final content = await ref
           .read(messageRepositoryProvider)
           .openReportedContent(report.id);
-      if (!sameSession()) {
+      if (!mounted || !sameSession()) {
         return;
       }
       await showActorDialog<void>(
@@ -226,7 +226,7 @@ class _ConversationReportsScreenState
               ));
       if (sameSession()) await _load();
     } catch (error) {
-      if (sameSession()) {
+      if (mounted && sameSession()) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
       }

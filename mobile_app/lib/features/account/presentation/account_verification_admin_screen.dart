@@ -19,7 +19,7 @@ final verificationAdminQueueProvider = StateNotifierProvider.autoDispose.family<
     load: (page) => ref.read(accountVerificationRepositoryProvider).adminQueue(
       status: filters.$1, type: filters.$2, page: page),
     idOf: (item) => item.userId,
-    invalidate: () => ref.invalidate(verificationAdminQueueProvider(filters))));
+    invalidate: ref.invalidateSelf));
 
 class AccountVerificationAdminScreen extends ConsumerWidget {
   const AccountVerificationAdminScreen({super.key});
@@ -246,7 +246,7 @@ class _AccountVerificationAdminScreenState
       }
       return current();
     } catch (error) {
-      if (current()) {
+      if (mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
@@ -410,12 +410,12 @@ class _AccountVerificationReviewDetailsState
     final scope = widget.requestScope;
     bool current() => mounted && scope.isCurrent &&
         epoch == Stage6SecureSessionStore.instance.sessionEpoch;
-    if (!current()) return;
+    if (!mounted || !current()) return;
     setState(() => _busy = true);
     try {
       final bytes = await widget.repository
           .documentBytes(widget.application.userId, document.kind);
-      if (!current()) return;
+      if (!mounted || !current()) return;
       await showActorDialog<void>(
         context: context, ref: ref,
         builder: (context) => Dialog(
@@ -449,7 +449,7 @@ class _AccountVerificationReviewDetailsState
         ),
       );
     } catch (error) {
-      if (current()) {
+      if (mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
@@ -464,7 +464,7 @@ class _AccountVerificationReviewDetailsState
     final scope = widget.requestScope;
     bool current() => mounted && scope.isCurrent &&
         epoch == Stage6SecureSessionStore.instance.sessionEpoch;
-    if (!current()) return;
+    if (!mounted || !current()) return;
     String? note;
     if (action == 'more_info' || action == 'reject') {
       note = await _askNote(
@@ -478,7 +478,7 @@ class _AccountVerificationReviewDetailsState
     }
     setState(() => _busy = true);
     final ok = await widget.onAction(widget.application, action, note);
-    if (!current()) return;
+    if (!mounted || !current()) return;
     setState(() => _busy = false);
     if (ok) Navigator.of(context).pop();
   }
