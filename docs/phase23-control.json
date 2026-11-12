@@ -1,9 +1,10 @@
 {
   "run_id": "43143868479",
-  "seq": 18,
-  "challenge": "2836c572cad1ce73a319b02c9fb1161b5e0de6012ca852cef3fbc696485b04ed",
-  "op": "tap",
+  "seq": 19,
+  "challenge": "8a7b81e5b525b0b932faea1b4f1ec4d556e229da8350626ed31fc60c9acb9406",
+  "op": "touch",
   "args": {
-    "label": "ابحث عن عقار أو منطقة…"
+    "x": 536,
+    "y": 310
   }
 }
