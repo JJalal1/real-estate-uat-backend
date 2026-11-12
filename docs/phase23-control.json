@@ -1,24 +1,7 @@
 {
   "run_id": "43123392502",
-  "seq": 15,
-  "challenge": "8e151b362d267df7194758f7a1b6cfaaddc4d474c994449c53a11c0940c3cf2c",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/properties/107"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/properties/106"
-        }
-      }
-    ]
-  }
+  "seq": 16,
+  "challenge": "8a3625c1f1af2503aff41c4f70d11258df3bf9757c080e34f1dd74ff95ada40a",
+  "op": "logout",
+  "args": {}
 }
