@@ -1,12 +1,7 @@
 {
   "run_id": "43253230247",
-  "seq": 39,
-  "challenge": "53030127de0edae92199c9582d42a6b1f96ab2c963c31ecc13d96aaae4382644",
-  "op": "swipe",
-  "args": {
-    "x1": 540,
-    "y1": 1200,
-    "x2": 540,
-    "y2": 500
-  }
+  "seq": 40,
+  "challenge": "ae42e2b04f4784179a56dd768325fff725de6008ef446272256dbe6b24e14784",
+  "op": "network_metrics",
+  "args": {}
 }
