@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":11,"challenge":"602c6e9fe47014aefd524ff9ed687c4779bb60436dcdaf4ff5275d1fd571a871","op":"tap","args":{"label":"حسابي"}}
+{"run_id":"43282970100","seq":12,"challenge":"a0eb43519e2e2618a5822c7d1ecccb085e1aa963d77443f7daa270fa5a2bc14b","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"إعادة المحاولة"}},{"op":"wait","args":{"label":"الرئيسية","seconds":20}}]}}
