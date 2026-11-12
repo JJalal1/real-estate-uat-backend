@@ -1,9 +1,10 @@
 {
   "run_id": "43123392502",
-  "seq": 19,
-  "challenge": "3e625400b4a0bbac66f8ae65a24b1e9869604c27b5d44aa5e643f8c12d71736d",
-  "op": "tap",
+  "seq": 20,
+  "challenge": "24eb6e6cda2c3c30d0f2bcba65789f129f5bb5de4a3d544dcba4121809ed6d23",
+  "op": "wait",
   "args": {
-    "label": "تحقيق إعلانات"
+    "label": "استلام",
+    "seconds": 15
   }
 }
