@@ -1,7 +1,49 @@
 {
   "run_id": "43123392502",
-  "seq": 4,
-  "challenge": "75800c695ee2f47fcdd414abe349c3575b2a5bab623f98900aee1f1004364872",
-  "op": "fixture_contact",
-  "args": {}
+  "seq": 5,
+  "challenge": "44ad06c16a268b7c82e36277f7cefb6681ba9db21c80fcd0f75453d9b71e657e",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "مراجعة وتعديل البيانات المكتملة والاختيارية"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "التالي"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "التالي"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "المواصفات",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "حُفظ تقدمك وصورك على حسابك",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
+        }
+      }
+    ]
+  }
 }
