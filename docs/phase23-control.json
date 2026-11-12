@@ -1,22 +1,9 @@
 {
   "run_id": "43253230247",
-  "seq": 12,
-  "challenge": "b1f87205448feb38e87cacc9d09afd6c177b03bdc8fc590bb14108b54c58389d",
-  "op": "batch",
+  "seq": 13,
+  "challenge": "7bd9c6141bb4647f95a7ee8722a8e05f5b29d2b9c87d3282c5d208a1d772a7c6",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "العودة للرئيسية"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "بحث ذكي\nصف ما تحتاجه بالنص أو الصوت"
-        }
-      }
-    ]
+    "label": "الخريطة"
   }
 }
