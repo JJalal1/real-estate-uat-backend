@@ -1,7 +1,12 @@
 {
   "run_id": "43140357522",
-  "seq": 11,
-  "challenge": "e597899770c0b2690d4ecbe60e38a0747056fe6158233d53632ed6ac72747ee3",
-  "op": "observe",
-  "args": {}
+  "seq": 12,
+  "challenge": "525ffa8f572677c8946779a36c7eaa4ec35145cdc44c40bc4166acf09dab009b",
+  "op": "swipe",
+  "args": {
+    "x1": 540,
+    "y1": 790,
+    "x2": 540,
+    "y2": 240
+  }
 }
