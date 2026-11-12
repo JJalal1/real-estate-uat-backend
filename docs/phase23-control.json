@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":21,"challenge":"46470b3798f5ea8c938c0d5e03adbfe8004a1fc239f9cd01b34af3ce8a831d5e","op":"tap","args":{"label":"حذف المسودة المحلية"}}
+{"run_id":"43282970100","seq":22,"challenge":"ce2a884217353d7287bb101eb36dba4f3e986b152a634c4eaf9ef0f9abab6e13","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"تأكيد"}},{"op":"wait","args":{"label":"مسوداتي","seconds":5}}]}}
