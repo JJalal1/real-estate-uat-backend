@@ -10,8 +10,8 @@ from phase1_native_account_readiness import SECRET_NAME, validate_access
 from phase23_preflight import API, NoRedirect, http
 from run_phase23_native import Session
 
-STAGE = 'start_image'
-REVIEWED_IMAGE_SHA256 = ''
+STAGE = 'negative_return'
+REVIEWED_IMAGE_SHA256 = 'df83a76b8bb15feca7a30c4f89e9b1fc260e7a885361ac8988a334b71f492306'
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'phase23-unit107-review'
 SEALED = ROOT / 'phase23-unit107-review-sealed'
