@@ -1,10 +1,7 @@
 {
   "run_id": "43123392502",
-  "seq": 42,
-  "challenge": "0810d1a8aec32cc521ffcfa693015615fff24512966c322e5c577d1abb8ba5a8",
-  "op": "wait",
-  "args": {
-    "label": "شقة النور اختبار المرحلة23",
-    "seconds": 20
-  }
+  "seq": 43,
+  "challenge": "7c9acfd404f49b2cf941193e4755a153394d421282a8576a302758b23f5cf8bc",
+  "op": "record_stop",
+  "args": {}
 }
