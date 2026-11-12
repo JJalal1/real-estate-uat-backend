@@ -26,7 +26,9 @@ abstract final class UatNetworkTrace {
         !RegExp(r'^/api/property-media/[1-9][0-9]*$').hasMatch(uri.path) ||
         uri.queryParametersAll.values.any((values) => values.length != 1) ||
         uri.queryParameters.keys.any((key) => key != 'variant' && key != 'v') ||
-        !variants.contains(uri.queryParameters['variant'])) return null;
+        !variants.contains(uri.queryParameters['variant'])) {
+      return null;
+    }
     final identity = int.tryParse(uri.pathSegments.last);
     if (identity == null || identity > 1000000000) return null;
     return uri;
@@ -50,7 +52,9 @@ abstract final class UatNetworkTrace {
     final uri = _imageUri(origin, url);
     if (!publicResponse || uri == null ||
         bytes < 0 || bytes > 8 * 1024 * 1024 || elapsedMs < 0 || elapsedMs > 120000 ||
-        (status != 200 && status != 304)) return null;
+        (status != 200 && status != 304)) {
+      return null;
+    }
     return {'resource': 2, 'phase': 2, 'media': int.parse(uri.pathSegments.last),
       'variant': uri.queryParameters['variant']!, 'bytes': bytes,
       'elapsedMs': elapsedMs, 'status': status};
@@ -98,9 +102,9 @@ class PublicNetworkTraceInterceptor extends Interceptor {
   }
 
   @override
-  void onError(DioException error, ErrorInterceptorHandler handler) {
-    _complete(error.requestOptions, error.response?.statusCode ?? 0,
-      cancelled: error.type == DioExceptionType.cancel);
-    handler.next(error);
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    _complete(err.requestOptions, err.response?.statusCode ?? 0,
+      cancelled: err.type == DioExceptionType.cancel);
+    handler.next(err);
   }
 }
