@@ -1,10 +1,26 @@
 {
   "run_id": "43143868479",
-  "seq": 27,
-  "challenge": "5a8d3c9d2efe97eca88f703cd680e2c47c1bbf56b88da7d7992c8975b7e7c0fe",
-  "op": "touch",
+  "seq": 28,
+  "challenge": "d64011d75a89c7556c975ce520a719c392d9189e9426ebff3742d22ec582787a",
+  "op": "batch",
   "args": {
-    "x": 540,
-    "y": 1025
+    "steps": [
+      {
+        "op": "swipe",
+        "args": {
+          "x1": 540,
+          "y1": 1733,
+          "x2": 540,
+          "y2": 370
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "شقة النور الغربية اختبار المرحلة23",
+          "seconds": 10
+        }
+      }
+    ]
   }
 }
