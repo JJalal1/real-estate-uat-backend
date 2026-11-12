@@ -1,9 +1,10 @@
 {
   "run_id": "43123392502",
-  "seq": 13,
-  "challenge": "12c5552e4815d6dcbe62d7aa9d710ea34648a94f239ed2e654e886e85bcbae90",
-  "op": "tap",
+  "seq": 14,
+  "challenge": "d8f4a2813d97f2fdad85dd6426d7b2b4a537447ef96018893a0a1a60a10c8fd4",
+  "op": "api_get",
   "args": {
-    "label": "حفظ وإرسال"
+    "alias": "broker",
+    "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
   }
 }
