@@ -1,9 +1,34 @@
 {
   "run_id": "43243264586",
-  "seq": 12,
-  "challenge": "365a1de9e1f6ef8a067ac7910603ab21bcefdf2ecd23091054d378fc8eebdbf7",
-  "op": "tap",
+  "seq": 13,
+  "challenge": "6010529b8ffefc024069798be57b9c4931a755192351268c9011f301dc752eec",
+  "op": "batch",
   "args": {
-    "label": "الفلاتر"
+    "steps": [
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تطبيق الشروط"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "القائمة"
+        }
+      }
+    ]
   }
 }
