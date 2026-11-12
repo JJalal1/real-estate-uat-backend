@@ -1,9 +1,30 @@
 {
   "run_id": "43123392502",
-  "seq": 8,
-  "challenge": "017030be0a7e708019ec89ecf8d5893e3773476822dcfaa9d8b20196a66ecaef",
-  "op": "network",
+  "seq": 9,
+  "challenge": "0582eff903f24d760c3eeb82a8733ce985719f1e74b80b3f99206a8bf0a3e501",
+  "op": "batch",
   "args": {
-    "state": "online"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إعادة محاولة الحفظ"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "حُفظ تقدمك وصورك على حسابك",
+          "seconds": 25
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
+        }
+      }
+    ]
   }
 }
