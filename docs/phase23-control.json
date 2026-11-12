@@ -1,46 +1,7 @@
 {
   "run_id": "43243264586",
-  "seq": 16,
-  "challenge": "f5a69886647da1968a3b19d5cff28da8df83db74a089b5deddc12593726ce868",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      }
-    ]
-  }
+  "seq": 17,
+  "challenge": "e50c18f2fe5df25373ffa76f90c1df3242892d09450136002b3b363a86c6f982",
+  "op": "record_stop",
+  "args": {}
 }
