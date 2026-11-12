@@ -1,9 +1,9 @@
 {
   "run_id": "43253230247",
-  "seq": 26,
-  "challenge": "9ca79fcd3f8700104166a5bd5b47e51de3559079d27b97deecd78ef158c2c7ed",
-  "op": "prefetch_data_saver",
+  "seq": 27,
+  "challenge": "3408423ef01c7a8ac1f9a7f13c8b13c034ddac9587e39cfe07a2e6a9d584af47",
+  "op": "tap",
   "args": {
-    "enabled": true
+    "label": "إعادة المحاولة"
   }
 }
