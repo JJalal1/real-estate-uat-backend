@@ -1,9 +1,9 @@
 {
   "run_id": "43243264586",
-  "seq": 3,
-  "challenge": "1442ae27dd64d1aa4d2e893a9a0a498f0dcbcbcea17e8af402d68768f6d397ae",
-  "op": "tap",
+  "seq": 4,
+  "challenge": "a960b683c3591b7666462da9bb2ef6996f48e6b5f0d28d828f826ddf2e70f943",
+  "op": "login",
   "args": {
-    "label": "العودة للرئيسية"
+    "alias": "regular"
   }
 }
