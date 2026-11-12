@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":3,"challenge":"1f7a53806524f8b301720844ae713611d944d24c1fed6b7e1586812b3865035f","op":"tap","args":{"label":"بدء إعلان جديد"}}
+{"run_id":"43282970100","seq":4,"challenge":"53f9afe8128b5ff8c577f32607f52845f1a530985c2e95ee24ac61f2cad4629e","op":"network","args":{"state":"offline"}}
