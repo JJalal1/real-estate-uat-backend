@@ -1,46 +1,46 @@
 {
   "run_id": "43143868479",
-  "seq": 3,
-  "challenge": "e923240fe8b9281ca2b5457f83e5b9af58520bc46d7e93f92f37b1280a09f05a",
+  "seq": 4,
+  "challenge": "6ed931f5520d117e5a6a2d07e8396a5e3a5c82ac7e2d9845c8ef8a14b25d979f",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "swipe",
+        "op": "tap",
         "args": {
-          "x1": 240,
-          "y1": 960,
-          "x2": 840,
-          "y2": 960
+          "label": "إغلاق الصور"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "2/3",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "swipe",
-        "args": {
-          "x1": 240,
-          "y1": 960,
-          "x2": 840,
-          "y2": 960
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "3/3",
+          "label": "تفاصيل العقار",
           "seconds": 10
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "تحميل صورة أوضح"
+          "label": "رجوع"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "عقارات تستحق نظرة",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
         }
       }
     ]
