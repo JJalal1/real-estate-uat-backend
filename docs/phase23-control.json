@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":15,"challenge":"d960b5a49f4be85dd581bd0bd868446933ae360b0823bb6dcdcf4416b744845f","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"متابعة الإعلان"}},{"op":"wait","args":{"label":"إضافة عقار","seconds":15}},{"op":"scroll","args":{"direction":"forward"}},{"op":"wait","args":{"label":"مسودة ترقية 1589 إلى 1590 محفوظة على الجهاز","seconds":15}}]}}
+{"run_id":"43282970100","seq":16,"challenge":"dc9c10cdaedf4ab8386fe1bac53e10dbf178b12362bbbeef5454deec3cc67263","op":"tap","args":{"label":"رجوع"}}
