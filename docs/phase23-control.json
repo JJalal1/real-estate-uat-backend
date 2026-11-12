@@ -1,7 +1,7 @@
 {
   "run_id": "43253230247",
-  "seq": -1,
-  "challenge": "",
+  "seq": 0,
+  "challenge": "ae4553200327a2fcb17ad66763a50786535ca8b0609597134fe68dc7c21d9f7a",
   "op": "tap",
   "args": {
     "label": "ابحث عن عقار…"
