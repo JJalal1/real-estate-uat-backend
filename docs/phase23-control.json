@@ -1,7 +1,16 @@
 {
   "run_id": "43123392502",
-  "seq": 50,
-  "challenge": "565bfcf2c69c0276cbe803aadc31103bf782584dd0e7d023bc6a8268963d6c0f",
-  "op": "observe",
-  "args": {}
+  "seq": 51,
+  "challenge": "fcd484106cc004d78dbc5f228306f3f37bcd325f5ace7a4c139e1b55fc27f85f",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "تصفية (٣)"
+        }
+      }
+    ]
+  }
 }
