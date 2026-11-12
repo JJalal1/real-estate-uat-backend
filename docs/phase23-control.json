@@ -1,10 +1,10 @@
 {
   "run_id": "43123392502",
-  "seq": 20,
-  "challenge": "24eb6e6cda2c3c30d0f2bcba65789f129f5bb5de4a3d544dcba4121809ed6d23",
-  "op": "wait",
+  "seq": 21,
+  "challenge": "d7f27f35826b84ecb9df80c4e2be4f42e117ce71d3bb2bc400e62d701844cc43",
+  "op": "api_get",
   "args": {
-    "label": "استلام",
-    "seconds": 15
+    "alias": "support",
+    "path": "/admin/listing-review/listings/107"
   }
 }
