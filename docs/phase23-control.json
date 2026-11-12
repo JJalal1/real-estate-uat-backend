@@ -1,7 +1,28 @@
 {
   "run_id": "43123392502",
-  "seq": 40,
-  "challenge": "59d436ff7a650ea80f03dd9db63693dd045d652eb131a4981a2a77c96f5b0038",
-  "op": "record_start",
-  "args": {}
+  "seq": 41,
+  "challenge": "17cc1408b975d923ae9cbc9b3c0069e1ffa5cc79ebe6ccbaa2fdadfff79815dd",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "ابحث لي"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "بدء بحث جديد"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "شقة للإيجار في صنعاء"
+        }
+      }
+    ]
+  }
 }
