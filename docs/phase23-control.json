@@ -1,7 +1,34 @@
 {
   "run_id": "43123392502",
-  "seq": 54,
-  "challenge": "b20aaf6a616d5d91e842a0864515105d4508f2760b21e67cfd39193fa1d84612",
-  "op": "back",
-  "args": {}
+  "seq": 55,
+  "challenge": "e8aade0eb66e95567543fb3b52afeb327dcc6d94674eb25bee3e98f0e2403ead",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "حذف"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إيجار"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "شقق"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تصغير الفلاتر"
+        }
+      }
+    ]
+  }
 }
