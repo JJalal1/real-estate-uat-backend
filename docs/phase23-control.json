@@ -1,9 +1,49 @@
 {
   "run_id": "43123392502",
-  "seq": 6,
-  "challenge": "0f9e5c4414ff6a47c06689e614bf64da5e28bd80bff29569c5a67c2f89e479e3",
-  "op": "network",
+  "seq": 7,
+  "challenge": "ad631df583adf9650882acfb5d18606ab83048494a16b4defbd7793ca4135ef7",
+  "op": "batch",
   "args": {
-    "state": "offline"
+    "steps": [
+      {
+        "op": "set",
+        "args": {
+          "label": "موضع الشقة داخل الدور (اختياري)",
+          "value": "شرقية مرحلة23"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "العودة إلى النواقص"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "خيارات المسودة"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "حفظ مسودة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "تعذر الحفظ على الحساب. تقدمك محفوظ على الجهاز. أعد المحاولة.",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"
+        }
+      }
+    ]
   }
 }
