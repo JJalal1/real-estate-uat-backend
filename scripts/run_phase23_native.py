@@ -33,8 +33,27 @@ REPO = 'JJalal1/real-estate-uat-backend'
 AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المرور', 'البريد الإلكتروني'}
 CONTACT_PATTERN = r'(?<![\d.])(?:(?:\+?967|00967)?7[0-9]{8}|٧[٠-٩]{٨})(?![\d.])'
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get', 'fixture_contact',
-       'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch',
-       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'prefetch_metrics', 'prefetch_data_saver', 'finish'}
+       'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch', 'fling',
+       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'prefetch_metrics', 'prefetch_data_saver', 'network_metrics', 'network_profile', 'finish'}
+
+
+def network_metric_rows(log):
+    """Export reviewed numeric measurements only; reject unknown log fields."""
+    rows = []
+    allowed = {'resource','phase','scope','seq','page','media','variant','bytes','elapsedMs','status'}
+    for line in log.splitlines():
+        if 'AQER_NET' not in line or '{' not in line: continue
+        try: value = json.loads(line[line.index('{'):])
+        except (ValueError, TypeError): continue
+        if not isinstance(value, dict) or not value.keys() <= allowed: continue
+        if value.get('resource') not in (1,2) or value.get('phase') not in (1,2,3): continue
+        if any(type(v) is not int or not 0 <= v <= 1_000_000_000
+               for k,v in value.items() if k != 'variant'): continue
+        if 'variant' in value and value['variant'] not in {'thumb','card','preview','detail','gallery','zoom'}: continue
+        required = {'scope','seq','page'} if value['resource'] == 1 else {'media','variant','bytes'}
+        if not required | {'resource','phase','elapsedMs','status'} <= value.keys(): continue
+        rows.append(value)
+    return rows[-1500:]
 
 
 def prefetch_metric_rows(log):
@@ -253,7 +272,8 @@ def validate_command(value, run_id, seq, challenge):
                'double_tap': {'x','y'}, 'wait': {'label','seconds'}, 'network': {'state'},
                'display': {'mode'}, 'open_link': {'uri'}, 'draw_area': set(), 'blocked_message_probe': {'alias'}, 'send_synthetic_message': set(),
                'batch': {'steps'}, 'seed_media': set(), 'fixture_contact': set(),
-               'prefetch_metrics': set(), 'prefetch_data_saver': {'enabled'}, 'finish': set()}
+               'prefetch_metrics': set(), 'prefetch_data_saver': {'enabled'},
+               'network_metrics': set(), 'network_profile': {'mode'}, 'fling': set(), 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
     if value['op'] == 'set' and args['label'] in AUTH_FIELDS:
@@ -280,6 +300,8 @@ def validate_command(value, run_id, seq, challenge):
         raise GateError('bounded_native_wait_required')
     if value['op'] == 'network' and args['state'] not in {'offline','online'}:
         raise GateError('fixed_native_network_state_required')
+    if value['op'] == 'network_profile' and args['mode'] not in {'normal','slow'}:
+        raise GateError('fixed_native_network_profile_required')
     if value['op'] == 'prefetch_data_saver' and type(args['enabled']) is not bool:
         raise GateError('fixed_native_data_saver_state_required')
     if value['op'] == 'display' and args['mode'] not in {'default','compact_large','large'}:
@@ -348,6 +370,7 @@ class NativeRun:
         self.uploaded_videos = set()
         self.sessions = {}
         self.network_changed = False
+        self.network_profile_changed = False
         self.display_changed = False
         self.data_saver_original = None
         self.private_surface_open = False
@@ -677,6 +700,22 @@ class NativeRun:
             _, temporary_frame, _ = self.observe()
             if temporary_frame: temporary_frame.unlink()
         if op == 'observe': return {'operation': op}
+        if op == 'network_metrics':
+            d.require_preauth_runtime()
+            rows = network_metric_rows(d.adb('logcat','-d','-s','AQER_NET:I'))
+            return {'operation':op,'samples':rows,'sample_count':len(rows),
+                    'scope':'public collection and public cacheable media measurements only; no URLs, headers or search text'}
+        if op == 'network_profile':
+            d.require_preauth_runtime()
+            self.network_profile_changed = True
+            slow = args['mode'] == 'slow'
+            d.adb('emu','network','speed','gsm' if slow else 'full')
+            d.adb('emu','network','delay','gprs' if slow else 'none')
+            d.adb('shell','svc','data','enable')
+            d.adb('shell','svc','wifi','disable' if slow else 'enable')
+            if not slow: self.network_profile_changed = False
+            return {'operation':op,'mode':args['mode'],
+                    'scope':'disposable emulator only; actual measured speed and app behavior require observation'}
         if op == 'prefetch_metrics':
             d.require_preauth_runtime()
             rows = prefetch_metric_rows(d.adb('logcat', '-d', '-s', 'AQER_PREFETCH:I'))
@@ -714,13 +753,14 @@ class NativeRun:
         elif op == 'key': d.adb('shell', 'input', 'keyevent', '4' if args['key'] == 'BACK' else '66')
         elif op == 'wait': d.wait(args['label'],seconds=args['seconds'])
         elif op == 'draw_area': d.draw_area()
-        elif op in {'touch', 'swipe', 'pinch', 'double_tap'}:
+        elif op in {'touch', 'swipe', 'pinch', 'double_tap', 'fling'}:
             rows, temporary_frame, protected = self.observe()
             if temporary_frame: temporary_frame.unlink()
             if protected or any(field in labels(r) for field in AUTH_FIELDS for r in rows):
                 raise GateError('coordinate_authentication_input_refused')
             if op == 'touch': d.adb('shell', 'input', 'tap', args['x'], args['y'])
             elif op == 'swipe': d.adb('shell', 'input', 'swipe', args['x1'], args['y1'], args['x2'], args['y2'], 500)
+            elif op == 'fling': d.adb('shell','input','swipe',540,1450,540,400,100)
             elif op == 'pinch': d.gesture('pinch-' + args['direction'],args['x'],args['y'])
             else: d.gesture('double-tap',args['x'],args['y'])
         elif op == 'network':
@@ -804,6 +844,12 @@ class NativeRun:
         return match[1] == 'enabled'
 
     def cleanup(self):
+        if getattr(self, 'network_profile_changed', False):
+            try:
+                self.apply({'op':'network_profile','args':{'mode':'normal'}})
+                self.report['cleanup']['network_profile_restored'] = True
+            except Exception:
+                self.report['cleanup']['network_profile_restored'] = False
         if getattr(self, 'data_saver_original', None) is not None:
             try:
                 self.driver.require_preauth_runtime()

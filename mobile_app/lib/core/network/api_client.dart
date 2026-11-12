@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../platform/uat_network_trace.dart';
 
 class ApiEnvironmentConfig {
   const ApiEnvironmentConfig._();
@@ -73,6 +74,9 @@ final dioProvider = Provider<Dio>((ref) {
   );
   dio.interceptors.add(_NearbyRequestCacheInterceptor());
   dio.interceptors.add(_RequestTimingInterceptor());
+  if (UatNetworkTrace.enabled) {
+    dio.interceptors.add(PublicNetworkTraceInterceptor(Uri.parse(dio.options.baseUrl)));
+  }
   ref.onDispose(() => dio.close(force: true));
   return dio;
 });

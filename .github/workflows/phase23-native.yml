@@ -1,5 +1,5 @@
 name: Phase23 reviewed API36 UAT journeys
-# Continue paired discovery after the warm property-link modal correction.
+# Only remaining list, paging, transport and asynchronous-response evidence.
 on:
   push:
     branches: [work/phase23-acceptance-20261111]
@@ -112,11 +112,15 @@ jobs:
           flutter pub get --enforce-lockfile
           flutter analyze --fatal-infos lib/features/properties/presentation/property_details_sheet.dart test/wave1_experience_ui_test.dart
           flutter test --no-pub test/wave1_experience_ui_test.dart
+          flutter analyze --fatal-infos lib/core/platform/uat_network_trace.dart test/uat_network_trace_test.dart
+          flutter test --no-pub test/uat_network_trace_test.dart --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_NATIVE_NETWORK_TRACE=true
+          flutter test --no-pub test/uat_network_trace_test.dart --plain-name 'compiled trace requires both explicit opt-in and UAT' --dart-define=APP_ENVIRONMENT=production --dart-define=AQER_NATIVE_NETWORK_TRACE=true
           flutter build apk --flavor uat --release --no-pub --build-number="$PHASE23_BUILD" \
             --dart-define=APP_BUILD_NUMBER="$PHASE23_BUILD" --dart-define=APP_ENVIRONMENT=uat \
             --dart-define=API_BASE_URL="$UAT_API_BASE_URL" \
             --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
-            --dart-define=AQER_CONDITIONAL_PREFETCH="$PHASE23_PREFETCH_ON"
+            --dart-define=AQER_CONDITIONAL_PREFETCH="$PHASE23_PREFETCH_ON" \
+            --dart-define=AQER_NATIVE_NETWORK_TRACE=true
           git diff --exit-code -- lib android assets pubspec.yaml
       - name: Verify and encrypt the exact installer
         run: python3 -B scripts/prepare_phase23_native.py

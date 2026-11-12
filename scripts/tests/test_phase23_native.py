@@ -12,11 +12,38 @@ from run_phase23_native import validate_command, GateError
 from run_phase23_native import NativeRun
 from run_phase23_native import Phase23Account
 from run_phase23_native import prefetch_metric_rows
+from run_phase23_native import network_metric_rows
 from phase23_checkpoint_state import advance_checkpoint
 from probe_phase1_native_account import NativeAccount
 
 
 class CommandSafetyTest(unittest.TestCase):
+    def test_network_measurements_reject_private_or_unknown_fields(self):
+        import json
+        safe = {'resource':2,'phase':2,'media':176,'variant':'card','bytes':17000,'elapsedMs':100,'status':200}
+        rows = [safe,dict(safe,url='PRIVATE'),dict(safe,headers={'Authorization':'PRIVATE'}),
+                dict(safe,bytes=True),dict(safe,variant='PRIVATE'),dict(safe,media=-1)]
+        log='\n'.join('I/AQER_NET: '+json.dumps(row) for row in rows)
+        self.assertEqual(network_metric_rows(log),[safe])
+
+    def test_network_profiles_are_fixed_and_cannot_accept_shell_input(self):
+        command={'run_id':'1234','seq':1,'challenge':'a'*64,'op':'network_profile','args':{'mode':'slow'}}
+        self.assertEqual(validate_command(command,'1234',1,'a'*64)['op'],'network_profile')
+        command['args']['mode']='full; arbitrary'
+        with self.assertRaises(GateError):validate_command(command,'1234',1,'a'*64)
+
+    def test_network_profile_cleanup_precedes_logout(self):
+        run=object.__new__(NativeRun)
+        run.report={'cleanup':{}};run.driver=Mock();run.sessions={};run.access={}
+        run.network_profile_changed=True;run.network_changed=False;run.display_changed=False
+        run.actor='regular';run.native_auth_attempted=True
+        events=[]
+        run.apply=lambda command:events.append(command['args']['mode'])
+        run.logout=lambda:events.append('logout')
+        run.cleanup()
+        self.assertEqual(events,['normal','logout'])
+        self.assertTrue(run.report['cleanup']['network_profile_restored'])
+
     def setUp(self):
         self.command = {'run_id': '1234', 'seq': 1, 'challenge': 'a' * 64, 'op': 'observe', 'args': {}}
 
