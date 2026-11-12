@@ -202,6 +202,31 @@ class PinnedLoginTests(unittest.TestCase):
 
 
 class BoundedReadinessTests(unittest.TestCase):
+    def test_selected_actor_does_not_repeat_already_verified_logins(self):
+        env = environment()
+        env['AQER_PHASE23_PINNED_ACTORS'] = 'erasure'
+        transport = NormalTransport('erasure')
+        result = probe.run_readiness(env, source_text(), transport, now=NOW)
+        self.assertEqual(result['status'], 'AVAILABLE_NOT_NATIVE_ACCEPTED')
+        self.assertEqual([r['alias'] for r in result['actors']], ['erasure'])
+        self.assertEqual(len([r for r in transport.calls if r[1].endswith('/start')]), 1)
+        self.assertTrue(result['actors'][0]['session_closed'])
+
+    def test_invalid_or_duplicate_actor_selection_never_sends_a_request(self):
+        for selection in ['unknown', 'erasure,erasure', 'erasure,', ' erasure']:
+            env = environment()
+            env['AQER_PHASE23_PINNED_ACTORS'] = selection
+            calls = []
+            result = probe.run_readiness(env, source_text(), lambda *a: calls.append(a), now=NOW)
+            self.assertEqual(result['reason'], 'selected_pinned_actors_invalid')
+            self.assertEqual(calls, [])
+
+    def test_selected_actor_still_requires_current_allowlist_attestation(self):
+        transport = NormalTransport('erasure')
+        result = probe.run_readiness({'AQER_PHASE23_PINNED_ACTORS': 'erasure'}, source_text(), transport, now=NOW)
+        self.assertEqual(result['reason'], 'effective_otp_allowlist_attestation_required')
+        self.assertEqual(transport.calls, [])
+
     def test_success_is_readiness_only_and_never_native_or_acceptance(self):
         phones = probe.fixture_phones(source_text())
         by_phone = {phone: NormalTransport(alias) for alias, phone in phones.items()}

@@ -42,6 +42,7 @@ ACTORS = {
                 'roles': ['registered_user'], 'owner': False},
 }
 REASONS = frozenset({
+    'selected_pinned_actors_invalid',
     'effective_otp_allowlist_attestation_required', 'allowlist_attestation_invalid',
     'allowlist_attestation_stale', 'allowlist_actor_not_confirmed',
     'pinned_fixture_source_invalid', 'normal_login_start_failed',
@@ -180,6 +181,11 @@ def run_readiness(env, source_text, transport=http, now=None):
         # Must precede even /health and credential parsing; no OTP request can
         # escape the explicit effective-configuration gate.
         attestation = validate_attestation(env.get(ATTESTATION_NAME, ''), now=now)
+        requested = env.get('AQER_PHASE23_PINNED_ACTORS', '')
+        aliases = requested.split(',') if requested else list(ACTORS)
+        if (not aliases or len(set(aliases)) != len(aliases)
+                or any(alias not in ACTORS for alias in aliases)):
+            raise GateError('selected_pinned_actors_invalid')
         access = validate_access(env.get(SECRET_NAME, ''))
         phones = fixture_phones(source_text)
         receipt['allowlist_attestation'] = attestation
@@ -187,7 +193,7 @@ def run_readiness(env, source_text, transport=http, now=None):
         if (code != 200 or not isinstance(body, dict)
                 or body.get('database') is not True or body.get('postgis') is not True):
             raise GateError('uat_health_not_ready')
-        for alias in ACTORS:
+        for alias in aliases:
             result = check_pinned_actor(alias, phones[alias], access['otp'], transport)
             receipt['actors'].append(result)
             # Never chain additional logins after a failure/rate limit/unknown
@@ -195,7 +201,7 @@ def run_readiness(env, source_text, transport=http, now=None):
             if result['status'] != 'PASS':
                 break
         del access, phones
-        if len(receipt['actors']) == len(ACTORS) and all(r['status'] == 'PASS' for r in receipt['actors']):
+        if len(receipt['actors']) == len(aliases) and all(r['status'] == 'PASS' for r in receipt['actors']):
             receipt['status'] = 'AVAILABLE_NOT_NATIVE_ACCEPTED'
     except Exception as error:
         receipt['reason'] = str(error) if str(error) in REASONS else type(error).__name__
