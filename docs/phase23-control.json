@@ -1,9 +1,7 @@
 {
   "run_id": "43123392502",
-  "seq": 35,
-  "challenge": "4a53b414608206eb9e4e72852b1dad886e2ea2c5c16fd1b36e87b70e2618a35e",
-  "op": "prefetch_data_saver",
-  "args": {
-    "enabled": false
-  }
+  "seq": 36,
+  "challenge": "16129df024e3ae6d6f3589b6c5142fea2b16304d692d19b31d9dafd6bcd4d3d5",
+  "op": "force_stop",
+  "args": {}
 }
