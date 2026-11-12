@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":27,"challenge":"913c4fd623a20527aa86ff39e976d61635af1dac5d764249fa33b799f71fb10c","op":"scroll","args":{"direction":"forward"}}
+{"run_id":"43282970100","seq":28,"challenge":"5cfe4532d291615babff2444f184baabb22d67ebe2c8266ccbf666a5f7c3496a","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"الرئيسية"}},{"op":"wait","args":{"label":"ابحث عن عقار أو منطقة…","seconds":6}},{"op":"tap","args":{"label":"ابحث عن عقار أو منطقة…"}},{"op":"wait","args":{"label":"البحث عن عقار","seconds":6}}]}}
