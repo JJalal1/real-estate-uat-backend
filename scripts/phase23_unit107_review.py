@@ -4,7 +4,7 @@
 Never query an inbox or export credentials, contacts, owners or private messages.
 The image-only first stage allows actual review before the bounded decision.
 """
-import datetime, hashlib, json, os, re, subprocess, urllib.request
+import datetime, hashlib, json, os, re, subprocess, urllib.request, zipfile, shutil
 from pathlib import Path
 from phase1_native_account_readiness import SECRET_NAME, validate_access
 from phase23_preflight import API, NoRedirect, http
@@ -14,6 +14,7 @@ STAGE = 'start_image'
 REVIEWED_IMAGE_SHA256 = ''
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'phase23-unit107-review'
+SEALED = ROOT / 'phase23-unit107-review-sealed'
 BASE = '/admin/listing-review/listings/107'
 TITLE = 'شقة النور الغربية اختبار المرحلة23'
 
@@ -87,7 +88,17 @@ def main():
             except Exception:receipt['cleanup']['support']=False
         if receipt['cleanup'].get('support') is not True:receipt['status']='BLOCKED'
         OUT.mkdir(exist_ok=True);(OUT/'RECEIPT.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
-        print(json.dumps({'status':receipt['status'],'cleanup':receipt['cleanup']}))
+        SEALED.mkdir(exist_ok=True)
+        plain=OUT/'private-evidence.zip'
+        with zipfile.ZipFile(plain,'w',zipfile.ZIP_DEFLATED) as bundle:
+            for name in ('RECEIPT.json','REVIEW_IMAGE_176.jpg'):
+                if (OUT/name).is_file():bundle.write(OUT/name,name)
+        cipher=SEALED/'EVIDENCE.cms'
+        subprocess.run(['openssl','cms','-encrypt','-aes-256-cbc','-binary','-outform','DER','-in',str(plain),'-out',str(cipher),str(ROOT/'scripts/phase23_recipient.pem')],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        public={'run_id':receipt['run_id'],'source_sha':receipt['source_sha'],'stage':STAGE,'cipher_sha256':hashlib.sha256(cipher.read_bytes()).hexdigest(),'cipher_bytes':cipher.stat().st_size,'kind':'owner-recipient-encrypted-synthetic107-only','plaintext_exported':False}
+        (SEALED/'PUBLIC_RECEIPT.json').write_text(json.dumps(public,indent=2)+'\n')
+        shutil.rmtree(OUT)
+        print(json.dumps({'status':receipt['status'],'cleanup':receipt['cleanup'],'evidence':'encrypted to existing phase23 recipient; no plaintext artifact'}))
     require(receipt['status']!='BLOCKED','review_stage_blocked')
 
 if __name__=='__main__':main()
