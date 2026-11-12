@@ -61,7 +61,13 @@ Future<(_Auth, ProviderContainer)> _open(WidgetTester tester, _Safety repository
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)), child: child!))));
   await tester.pumpAndSettle();
   final button = find.byKey(const ValueKey('delete-account-forever'));
-  await tester.scrollUntilVisible(button, 300, scrollable: find.byType(Scrollable).first, maxScrolls: 20);
+  // The button is inside a tall, already-built surface at large text sizes.
+  // Reveal its actual hit target instead of treating an existing Element as visible.
+  for (var i = 0; i < 20 && button.hitTestable().evaluate().isEmpty; i++) {
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));
+    await tester.pumpAndSettle();
+  }
+  expect(button.hitTestable(), findsOneWidget);
   await tester.tap(button); await tester.pumpAndSettle();
   return (auth, c);
 }
@@ -69,7 +75,8 @@ Future<void> _confirm(WidgetTester tester, [String phrase = 'حذف حسابي �
   final field = find.byKey(const ValueKey('account-erasure-confirmation'));
   await tester.ensureVisible(field); await tester.enterText(field, phrase);
   final button = find.byKey(const ValueKey('erase-account-forever'));
-  await tester.ensureVisible(button); await tester.tap(button);
+  await tester.ensureVisible(button); await tester.pumpAndSettle();
+  expect(button.hitTestable(), findsOneWidget); await tester.tap(button);
   await pumpPhase23Request(tester);
 }
 
@@ -127,7 +134,7 @@ void main() {
     final field = find.byKey(const ValueKey('account-erasure-confirmation'));
     await tester.ensureVisible(field); await tester.pumpAndSettle();
     expect(field.hitTestable(), findsOneWidget);
-    final cancel = find.text('إلغاء'); await tester.ensureVisible(cancel);
+    final cancel = find.text('إلغاء'); await tester.ensureVisible(cancel); await tester.pumpAndSettle();
     expect(cancel.hitTestable(), findsOneWidget);
     await tester.tap(cancel); await tester.pumpAndSettle();
     expect(repository.erasures, 0); expect(tester.takeException(), isNull);
