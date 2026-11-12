@@ -1,29 +1,9 @@
 {
   "run_id": "43143868479",
-  "seq": 7,
-  "challenge": "5c267a30bd1c75e55b39b20d1217406dcf3c2bde47d405de0f6df1e0263f788c",
-  "op": "batch",
+  "seq": 8,
+  "challenge": "ad533e14f1e825e0f422d1deb201cf498b353898071a3532e238179cbac61f95",
+  "op": "scroll",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "الفرق باختصار",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      }
-    ]
+    "direction": "forward"
   }
 }
