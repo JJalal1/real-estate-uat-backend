@@ -1,9 +1,9 @@
 {
   "run_id": "43243264586",
-  "seq": 11,
-  "challenge": "174b74b020f537cfeaec17f747ce6e4ed99cf62a4a9b1e1703d5dd3aa8a6e866",
+  "seq": 12,
+  "challenge": "365a1de9e1f6ef8a067ac7910603ab21bcefdf2ecd23091054d378fc8eebdbf7",
   "op": "tap",
   "args": {
-    "label": "الخريطة"
+    "label": "الفلاتر"
   }
 }
