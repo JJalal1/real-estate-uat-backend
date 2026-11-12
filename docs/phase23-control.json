@@ -1,7 +1,23 @@
 {
   "run_id": "43123392502",
-  "seq": 32,
-  "challenge": "e9d17b4b7d9f1f3a737fc7edd8df5f244d3a155a5c4fc5322942662c53afc404",
-  "op": "force_stop",
-  "args": {}
+  "seq": 33,
+  "challenge": "94f5ac0754a733b1502b97749d3ac819dcbad3dadb3816bce0522e7277dba26e",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "أحدث العقارات\nرؤية الكل",
+          "seconds": 15
+        }
+      }
+    ]
+  }
 }
