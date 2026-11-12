@@ -96,6 +96,31 @@ class BrokerVerificationState {
   }
 }
 
+class ReviewWorkspacePage<T> {
+  const ReviewWorkspacePage({
+    required this.items,
+    required this.currentPage,
+    required this.lastPage,
+    required this.total,
+  });
+
+  final List<T> items;
+  final int currentPage;
+  final int lastPage;
+  final int total;
+  bool get hasMore => currentPage < lastPage;
+}
+
+class ReviewListingPage extends ReviewWorkspacePage<ReviewListingItem> {
+  const ReviewListingPage({required super.items, required super.currentPage,
+    required super.lastPage, required super.total});
+}
+
+class PublicationBlockPage extends ReviewWorkspacePage<PublicationBlockItem> {
+  const PublicationBlockPage({required super.items, required super.currentPage,
+    required super.lastPage, required super.total});
+}
+
 class ReviewListingItem {
   const ReviewListingItem({
     required this.id,

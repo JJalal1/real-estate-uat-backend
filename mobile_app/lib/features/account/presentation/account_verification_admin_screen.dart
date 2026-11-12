@@ -6,8 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/account_verification_repository.dart';
+import '../data/account_verification_queue.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../data/auth_controller.dart';
+import '../data/account_request_scope.dart';
 import '../domain/account_verification.dart';
+
+final verificationAdminQueueProvider = StateNotifierProvider.autoDispose.family<
+    VerificationQueue<AccountVerificationApplication>,
+    VerificationQueueState<AccountVerificationApplication>, (String, String?)>((ref, filters) =>
+  createVerificationQueue<AccountVerificationApplication>(ref,
+    load: (page) => ref.read(accountVerificationRepositoryProvider).adminQueue(
+      status: filters.$1, type: filters.$2, page: page),
+    idOf: (item) => item.userId,
+    invalidate: () => ref.invalidate(verificationAdminQueueProvider(filters))));
 
 class AccountVerificationAdminScreen extends ConsumerWidget {
   const AccountVerificationAdminScreen({super.key});
@@ -26,20 +38,7 @@ class _AccountVerificationAdminScreenState
   String _status = 'pending';
   String _typeFilter = 'all';
   bool _busy = false;
-  late Future<List<AccountVerificationApplication>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = _load(); _future.ignore();
-  }
-
-  Future<List<AccountVerificationApplication>> _load() => ref
-      .read(accountVerificationRepositoryProvider)
-      .adminQueue(
-        status: _status,
-        type: _typeFilter == 'all' ? null : _typeFilter,
-      );
+  (String, String?) get _filters => (_status, _typeFilter == 'all' ? null : _typeFilter);
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +98,6 @@ class _AccountVerificationAdminScreenState
                                     if (value == null) return;
                                     setState(() {
                                       _status = value;
-                                      _future = _load(); _future.ignore();
                                     });
                                   },
                           ),
@@ -137,7 +135,6 @@ class _AccountVerificationAdminScreenState
                                     setState(() {
                                       if (value == null) return;
                                       _typeFilter = value;
-                                      _future = _load(); _future.ignore();
                                     });
                                   },
                           ),
@@ -146,57 +143,7 @@ class _AccountVerificationAdminScreenState
                     ),
                   ),
                   Expanded(
-                    child: FutureBuilder<List<AccountVerificationApplication>>(
-                      future: _future,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _reload);
-                        }
-                        final rows = snapshot.data ?? const [];
-                        if (rows.isEmpty) {
-                          return const Center(
-                            child: Text('لا توجد طلبات بهذه الفلاتر.'),
-                          );
-                        }
-                        return RefreshIndicator(
-                          onRefresh: () async => _reload(),
-                          child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                            itemCount: rows.length,
-                            itemBuilder: (context, index) {
-                              final item = rows[index];
-                              return Card(
-                                child: ListTile(
-                                  leading: const CircleAvatar(
-                                    child: EbrokerIcon(Icons.verified_user_outlined),
-                                  ),
-                                  title: Text(
-                                    item.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${item.typeLabel} • ${item.statusLabel}\n${item.phone ?? ''}',
-                                  ),
-                                  isThreeLine: true,
-                                  trailing: const EbrokerIcon(Icons.chevron_left),
-                                  onTap: _busy
-                                      ? null
-                                      : () => _reviewApplication(item),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                    child: _queueBody(),
                   ),
                 ],
               ),
@@ -204,17 +151,68 @@ class _AccountVerificationAdminScreenState
     );
   }
 
+  Widget _queueBody() {
+    final state = ref.watch(verificationAdminQueueProvider(_filters));
+    final controller = ref.read(verificationAdminQueueProvider(_filters).notifier);
+    if (state.items.isEmpty && state.loading) return const AppLoadingState();
+    if (state.items.isEmpty && state.error != null) {
+      return AppErrorState(message: friendlyApiError(state.error!), onRetry: _reload);
+    }
+    final hasHeader = state.loading || state.error != null;
+    final hasFooter = state.page?.hasMore ?? false;
+    return RefreshIndicator(onRefresh: _reload,
+      child: ListView.builder(
+        key: ObjectKey(controller), physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        itemCount: state.items.isEmpty ? 1 : state.items.length + (hasHeader ? 1 : 0) + (hasFooter ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (state.items.isEmpty) {
+            return const Padding(padding: EdgeInsets.all(24),
+              child: Center(child: Text('لا توجد طلبات بهذه الفلاتر.')));
+          }
+          if (hasHeader && index == 0) {
+            return AppRefreshStatus(loading: state.loading,
+              error: state.error == null ? null : friendlyApiError(state.error!), onRetry: _reload);
+          }
+          final itemIndex = index - (hasHeader ? 1 : 0);
+          if (itemIndex == state.items.length) {
+            if (state.loadingMore || state.pageError != null) {
+              return AppRefreshStatus(key: const ValueKey('verification-page-status'),
+                loading: state.loadingMore,
+                error: state.pageError == null ? null : friendlyApiError(state.pageError!),
+                onRetry: controller.loadMore);
+            }
+            return TextButton(key: const ValueKey('verification-more'),
+              onPressed: state.loading || state.error != null ? null : controller.loadMore,
+              child: const Text('المزيد من طلبات التحقق'));
+          }
+          final item = state.items[itemIndex];
+          return Card(key: ValueKey('verification-${item.userId}'),
+            child: ListTile(
+              leading: const CircleAvatar(child: EbrokerIcon(Icons.verified_user_outlined)),
+              title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text('${item.typeLabel} • ${item.statusLabel}\n${item.phone ?? ''}'),
+              isThreeLine: true, trailing: const EbrokerIcon(Icons.chevron_left),
+              onTap: _busy ? null : () => _reviewApplication(item)));
+        }));
+  }
+
   Future<void> _reviewApplication(
       AccountVerificationApplication application) async {
     final repository = ref.read(accountVerificationRepositoryProvider);
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final requestScope = ref.read(accountRequestScopeProvider);
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => ActorBoundPage(title: 'مراجعة التحقق', actorId: actor,
+          sessionEpoch: epoch, requestScope: requestScope,
           builder: (_) => _AccountVerificationReviewDetails(
             application: application,
             repository: repository,
+            sessionEpoch: epoch,
+            requestScope: requestScope,
             onAction: _performAction,
           )),
       ),
@@ -228,6 +226,10 @@ class _AccountVerificationAdminScreenState
     String? note,
   ) async {
     if (!mounted) return false;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final scope = ref.read(accountRequestScopeProvider);
+    bool current() => mounted && scope.isCurrent &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     setState(() => _busy = true);
     try {
       final repository = ref.read(accountVerificationRepositoryProvider);
@@ -242,33 +244,35 @@ class _AccountVerificationAdminScreenState
           await repository.reject(application.userId, note ?? '');
           break;
       }
-      return true;
+      return current();
     } catch (error) {
-      if (mounted) {
+      if (current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
       }
       return false;
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _busy = false);
     }
   }
 
-  void _reload() {
-    setState(() { _future = _load(); _future.ignore(); });
-  }
+  Future<void> _reload() => ref.read(verificationAdminQueueProvider(_filters).notifier).refresh();
 }
 
 class _AccountVerificationReviewDetails extends ConsumerStatefulWidget {
   const _AccountVerificationReviewDetails({
     required this.application,
     required this.repository,
+    required this.sessionEpoch,
+    required this.requestScope,
     required this.onAction,
   });
 
   final AccountVerificationApplication application;
   final AccountVerificationRepository repository;
+  final int sessionEpoch;
+  final AccountRequestScope requestScope;
   final Future<bool> Function(
     AccountVerificationApplication application,
     String action,
@@ -402,11 +406,16 @@ class _AccountVerificationReviewDetailsState
   }
 
   Future<void> _openDocument(AccountVerificationDocumentItem document) async {
+    final epoch = widget.sessionEpoch;
+    final scope = widget.requestScope;
+    bool current() => mounted && scope.isCurrent &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
+    if (!current()) return;
     setState(() => _busy = true);
     try {
       final bytes = await widget.repository
           .documentBytes(widget.application.userId, document.kind);
-      if (!mounted) return;
+      if (!current()) return;
       await showActorDialog<void>(
         context: context, ref: ref,
         builder: (context) => Dialog(
@@ -440,31 +449,36 @@ class _AccountVerificationReviewDetailsState
         ),
       );
     } catch (error) {
-      if (mounted) {
+      if (current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (current()) setState(() => _busy = false);
     }
   }
 
   Future<void> _action(String action) async {
+    final epoch = widget.sessionEpoch;
+    final scope = widget.requestScope;
+    bool current() => mounted && scope.isCurrent &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
+    if (!current()) return;
     String? note;
     if (action == 'more_info' || action == 'reject') {
       note = await _askNote(
         action == 'reject' ? 'سبب الرفض' : 'ما المستند أو التوضيح المطلوب؟',
         required: true,
       );
-      if (note == null) return;
+      if (note == null || !current()) return;
     } else {
       note = await _askNote('ملاحظة الاعتماد (اختياري)', required: false);
-      if (note == null || !mounted) return;
+      if (note == null || !current()) return;
     }
     setState(() => _busy = true);
     final ok = await widget.onAction(widget.application, action, note);
-    if (!mounted) return;
+    if (!current()) return;
     setState(() => _busy = false);
     if (ok) Navigator.of(context).pop();
   }

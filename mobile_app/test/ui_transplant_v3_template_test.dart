@@ -49,6 +49,7 @@ import 'package:real_estate_mobile/features/messages/presentation/conversation_s
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
+import 'support/my_listings_fixtures.dart';
 
 // Layout fixtures isolate device IO; broker_convenience_test covers actual recovery files.
 class _EmptyRecovery extends ListingRecoveryStore {
@@ -205,6 +206,7 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     homeLocationAttemptedProvider.overrideWith((_) => true),
     marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake()),
     myListingsProvider.overrideWith((ref) async => [_details(37)]),
+    myListingsPagesProvider.overrideWith((ref) => fixedMyListings([_details(37)])),
     messageRepositoryProvider.overrideWithValue(messages ?? _MessagesFixture()),
     bookingRepositoryProvider.overrideWithValue(bookings ?? _BookingsFixture()),
     propertyRepositoryProvider.overrideWithValue(properties ?? _PropertiesFixture()),

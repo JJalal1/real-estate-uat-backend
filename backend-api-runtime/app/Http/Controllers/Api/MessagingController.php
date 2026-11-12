@@ -38,10 +38,36 @@ class MessagingController extends Controller
     public function threads(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $rows=MessageThread::query()
+        $data=$request->validate([
+            'page'=>['sometimes','integer','min:1'],
+            'per_page'=>['sometimes','integer','between:1,250'],
+            'unread_only'=>['sometimes','boolean'],
+        ]);
+        $query=MessageThread::query()
             ->whereHas('participants',fn($q)=>$q->where('user_id',$user->id))
             ->with(['property:id,user_id,title,status,availability_status,availability_notified_at','participants'])
-            ->orderByDesc('last_message_at')->orderByDesc('id')->limit(250)->get();
+            ->orderByDesc('last_message_at')->orderByDesc('id');
+        if($request->boolean('unread_only')){
+            // Apply the viewer's read marker before paging; filtering one loaded
+            // page would hide unread conversations beyond that page.
+            $query->whereExists(function($unread)use($user): void {
+                $unread->selectRaw('1')->from('private_messages')
+                    ->join('message_thread_participants as unread_viewer',function($join)use($user): void {
+                        $join->on('unread_viewer.thread_id','=','private_messages.thread_id')
+                            ->where('unread_viewer.user_id','=',$user->id);
+                    })
+                    ->whereColumn('private_messages.thread_id','message_threads.id')
+                    ->where('private_messages.sender_user_id','<>',$user->id)
+                    ->where(function($q): void {
+                        $q->whereNull('unread_viewer.last_read_message_id')
+                            ->orWhereColumn('private_messages.id','>','unread_viewer.last_read_message_id');
+                    });
+            });
+        }
+        // Keep the legacy default and data array while allowing newer clients
+        // to request bounded pages and reach older conversations.
+        $page=$query->paginate((int)($data['per_page']??250),['*'],'page',(int)($data['page']??1));
+        $rows=$page->getCollection();
         $otherIds=$rows->flatMap(fn($thread)=>$thread->participants->pluck('user_id'))->reject(fn($id)=>(int)$id===(int)$user->id)->unique()->all();
         $this->blockStates=app(\App\Services\UserMessagingBlockService::class)->statesFor($user->id,$otherIds);
         $threadIds=$rows->pluck('id');
@@ -70,7 +96,10 @@ class MessagingController extends Controller
         }
         return response()->json(['data'=>$rows->map(fn(MessageThread $thread)=>$this->threadSummary(
             $thread,$user,$latestByThread->get($thread->id),(int)($unreadByThread->get($thread->id)??0),true
-        ))->values()]);
+        ))->values(),'meta'=>[
+            'current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),
+            'per_page'=>$page->perPage(),'total'=>$page->total(),
+        ]]);
     }
 
     public function startForProperty(Request $request, Property $property): JsonResponse
@@ -300,9 +329,18 @@ class MessagingController extends Controller
 
     public function adminReports(Request $request): JsonResponse
     {
-        $validated=$request->validate(['status'=>['nullable',Rule::in(['open','under_review','resolved','dismissed'])]]);
-        $rows=ConversationReport::query()->with('thread.property:id,user_id,title,status,availability_status,availability_notified_at')->when($validated['status']??null,fn($q,$v)=>$q->where('status',$v))->latest('id')->limit(200)->get();
-        return response()->json(['data'=>$rows->map(fn(ConversationReport $r)=>$this->reportSummary($r))->values()]);
+        $validated=$request->validate([
+            'status'=>['nullable',Rule::in(['open','under_review','resolved','dismissed'])],
+            'page'=>['sometimes','integer','min:1'],
+            'per_page'=>['sometimes','integer','between:1,200'],
+        ]);
+        $page=ConversationReport::query()->with('thread.property:id,user_id,title,status,availability_status,availability_notified_at')
+            ->when($validated['status']??null,fn($q,$v)=>$q->where('status',$v))->latest('id')
+            ->paginate((int)($validated['per_page']??200),['*'],'page',(int)($validated['page']??1));
+        return response()->json(['data'=>$page->getCollection()->map(fn(ConversationReport $r)=>$this->reportSummary($r))->values(),'meta'=>[
+            'current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),
+            'per_page'=>$page->perPage(),'total'=>$page->total(),
+        ]]);
     }
 
     public function adminOpenReportedContent(Request $request, ConversationReport $report): JsonResponse

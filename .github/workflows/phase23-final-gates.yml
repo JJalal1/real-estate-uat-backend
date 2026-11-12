@@ -125,6 +125,8 @@ jobs:
         run: php artisan test tests/Feature/Wave2AccountSafetyTest.php tests/Feature/Wave2MediaTrustTest.php tests/Feature/PropertyIdentityV2Test.php tests/Feature/UserWorkMediaTest.php tests/Feature/NewWaveHandoffTest.php tests/Feature/Wave6EditorDiscoveryTest.php tests/Feature/UatCityDemoSeedTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Authenticated broker and support HTTP journey on PostgreSQL
         run: php artisan test tests/Feature/BrokerSupportHttpJourneyTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
+      - name: Stable private queue pages and permission boundaries on PostgreSQL
+        run: php artisan test tests/Feature/Phase23PrivateQueuePaginationTest.php tests/Feature/Phase23InboxPaginationTest.php tests/Feature/AccountVerificationPaginationApiTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped
       - name: Listing scope, customer commission and private editor contracts on PostgreSQL
         run: >-
           php artisan test tests/Feature/UxRefinementApiTest.php

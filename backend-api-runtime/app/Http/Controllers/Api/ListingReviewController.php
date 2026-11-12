@@ -59,6 +59,8 @@ class ListingReviewController extends Controller
         $page = $q
             ->orderByRaw("CASE WHEN review_status='submitted' THEN 0 ELSE 1 END")
             ->orderBy('submitted_at')
+            // Equal submission timestamps still need a deterministic page order.
+            ->orderBy('id')
             ->paginate((int) ($v['per_page'] ?? 25));
 
         return response()->json([

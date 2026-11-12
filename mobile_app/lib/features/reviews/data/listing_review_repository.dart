@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
@@ -30,26 +31,56 @@ class ListingReviewRepository {
   final int? Function()? _currentActor;
   final AccountRequestScope? _requestScope;
   Future<Options> _sessionOptions() async {
-    if (_requestScope != null) return _requestScope.options();
-    if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
-    final options = await _auth.requiredAuthOptions();
-    if (_currentActor != null && _currentActor() != _actorId) throw StateError('ACCOUNT_CHANGED');
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
+    if ((_currentActor != null && _currentActor() != _actorId) ||
+        epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
     return options;
   }
 
 
-  Future<List<ReviewListingItem>> queue() async {
+  Future<ReviewListingPage> queue({int page = 1, int perPage = 25}) async {
+    if (page < 1 || perPage < 1 || perPage > 50) {
+      throw ArgumentError('Invalid listing review page.');
+    }
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await _sessionOptions();
+    void verifySession() {
+      _requestScope?.verify();
+      if ((_currentActor != null && _currentActor() != _actorId) ||
+          epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+        throw StateError('ACCOUNT_CHANGED');
+      }
+    }
+    verifySession();
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/listing-review/queue',
-      options: await _sessionOptions(),
+      queryParameters: {'page': page, 'per_page': perPage},
+      options: options,
     );
-    _requestScope?.verify();
+    verifySession();
     final rows = response.data?['data'];
-    if (rows is! List) return const <ReviewListingItem>[];
-    return rows
-        .whereType<Map<String, dynamic>>()
-        .map(ReviewListingItem.fromJson)
-        .toList(growable: false);
+    final meta = response.data?['meta'];
+    if (rows is! List || meta is! Map ||
+        meta['current_page'] is! int || meta['current_page'] != page ||
+        meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+        meta['total'] is! int || (meta['total'] as int) < 0 ||
+        rows.any((row) => row is! Map<String, dynamic>)) {
+      throw StateError('Invalid listing review page response.');
+    }
+    return ReviewListingPage(
+      items: rows.cast<Map<String, dynamic>>()
+          .map(ReviewListingItem.fromJson).toList(growable: false),
+      currentPage: page,
+      lastPage: meta['last_page'] as int,
+      total: meta['total'] as int,
+    );
   }
 
   Future<ReviewListingDetail> detail(int id) async {
@@ -180,19 +211,42 @@ class ListingReviewRepository {
     );
   }
 
-  Future<List<PublicationBlockItem>> blocks() async {
+  Future<PublicationBlockPage> blocks({int page = 1, int perPage = 50}) async {
+    if (page < 1 || perPage < 1 || perPage > 100) {
+      throw ArgumentError('Invalid publication block page.');
+    }
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await _sessionOptions();
+    void verifySession() {
+      _requestScope?.verify();
+      if ((_currentActor != null && _currentActor() != _actorId) ||
+          epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+        throw StateError('ACCOUNT_CHANGED');
+      }
+    }
+    verifySession();
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/listing-review/blocks',
-      queryParameters: const <String, dynamic>{'active': 1},
-      options: await _sessionOptions(),
+      queryParameters: {'active': 1, 'page': page, 'per_page': perPage},
+      options: options,
     );
-    _requestScope?.verify();
+    verifySession();
     final rows = response.data?['data'];
-    if (rows is! List) return const <PublicationBlockItem>[];
-    return rows
-        .whereType<Map<String, dynamic>>()
-        .map(PublicationBlockItem.fromJson)
-        .toList(growable: false);
+    final meta = response.data?['meta'];
+    if (rows is! List || meta is! Map ||
+        meta['current_page'] is! int || meta['current_page'] != page ||
+        meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+        meta['total'] is! int || (meta['total'] as int) < 0 ||
+        rows.any((row) => row is! Map<String, dynamic>)) {
+      throw StateError('Invalid publication block page response.');
+    }
+    return PublicationBlockPage(
+      items: rows.cast<Map<String, dynamic>>()
+          .map(PublicationBlockItem.fromJson).toList(growable: false),
+      currentPage: page,
+      lastPage: meta['last_page'] as int,
+      total: meta['total'] as int,
+    );
   }
 
   Future<void> liftBlock(int id, String reason) async {

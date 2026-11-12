@@ -183,6 +183,10 @@ void main() {
     expect(find.byType(AppErrorState), findsNothing);
     await tester.scrollUntilVisible(find.text('إعادة المحاولة'), 120,
       scrollable: _verticalList.first, maxScrolls: 4);
+    // ensureVisible updates scroll offset; render the new layout before hit testing.
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('إعادة المحاولة'));
+    await tester.pumpAndSettle();
     expect(find.text('إعادة المحاولة').hitTestable(), findsOneWidget);
     expect(tester.state<ScrollableState>(_verticalList.first).position.pixels,
       greaterThan(1000));
@@ -235,6 +239,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(wire.pages, [1, 2, 1]);
     expect(wire.requests.last.queryParameters['type'], 'listing_review');
+    expect(find.byKey(const ValueKey('support-task-10')), findsOneWidget);
+    expect(find.byKey(const ValueKey('support-task-1')), findsNothing);
+    expect(find.byKey(const ValueKey('support-task-99')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('refresh supersedes an in-flight next page without restoring old tasks', (tester) async {
+    final pending = Completer<Map<String, dynamic>>();
+    var firstPage = 0;
+    final wire = _Wire((request) async {
+      if (request.queryParameters['page'] == 2) return pending.future;
+      firstPage++;
+      return firstPage == 1 ? _page(1, [_task(1)], last: 2, total: 2)
+        : _page(1, [_task(10)]);
+    });
+    await _open(tester, wire);
+    await _next(tester);
+    await tester.tap(find.byTooltip('تحديث'));
+    await tester.pump();
+    pending.complete(_page(2, [_task(99)], last: 2));
+    await tester.pumpAndSettle();
+    expect(wire.pages, [1, 2, 1]);
     expect(find.byKey(const ValueKey('support-task-10')), findsOneWidget);
     expect(find.byKey(const ValueKey('support-task-1')), findsNothing);
     expect(find.byKey(const ValueKey('support-task-99')), findsNothing);

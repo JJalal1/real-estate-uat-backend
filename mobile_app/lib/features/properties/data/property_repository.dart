@@ -2,7 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_repository.dart';
+import '../domain/my_listings_page.dart';
 import '../domain/property_details.dart';
 import '../domain/property_identity.dart';
 import '../domain/property_marker.dart';
@@ -280,6 +283,41 @@ class PropertyRepository {
       options: await _auth.requiredAuthOptions(),
     );
     return PropertySaiEnvelope.fromResponse(response.data);
+  }
+
+  /// Workspace paging is separate from the complete-list draft recovery API.
+  Future<MyListingsPage> myListingsPage({int page = 1, int perPage = 50,
+      AccountRequestScope? requestScope}) async {
+    if (page < 1 || perPage < 1 || perPage > 50) {
+      throw ArgumentError('Invalid listing workspace page.');
+    }
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    void verifySession() {
+      requestScope?.verify();
+      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+        throw StateError('ACCOUNT_CHANGED');
+      }
+    }
+    final options = await (requestScope?.options() ?? _auth.requiredAuthOptions());
+    verifySession();
+    final response = await _dio.get<Map<String, dynamic>>('/properties/mine/list',
+      queryParameters: {'page': page, 'per_page': perPage, 'view': 'workspace'},
+      options: options);
+    verifySession();
+    final rows = response.data?['data'];
+    final meta = response.data?['meta'];
+    if (rows is! List || meta is! Map ||
+        meta['current_page'] is! int || meta['current_page'] != page ||
+        meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+        meta['total'] is! int || (meta['total'] as int) < 0 ||
+        rows.any((row) => row is! Map)) {
+      throw StateError('Invalid listing workspace page response.');
+    }
+    return MyListingsPage(
+      items: rows.whereType<Map>().map((row) => PropertyDetails.fromJson(
+        Map<String, dynamic>.from(row))).toList(growable: false),
+      currentPage: page, lastPage: meta['last_page'] as int,
+      total: meta['total'] as int);
   }
 
   Future<List<PropertyDetails>> myListings() async {

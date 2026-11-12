@@ -9,6 +9,8 @@ import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../financial/data/financial_repository.dart';
 import '../../financial/domain/financial_models.dart';
 import '../../broker/data/broker_repository.dart';
@@ -573,11 +575,16 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     }
     switch (task.sourceType) {
       case 'account_verification':
+        final verificationActor = ref.read(authControllerProvider).asData?.value?.id;
+        final verificationEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
+        final verificationScope = ref.read(accountRequestScopeProvider);
+        if (verificationActor == null) return;
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => AccountVerificationSupportScreen(
-              focusUserId: task.sourceId,
-            ),
+            builder: (_) => ActorBoundPage(title: 'تفاصيل طلب التحقق',
+              actorId: verificationActor, sessionEpoch: verificationEpoch,
+              requestScope: verificationScope,
+              builder: (_) => AccountVerificationSupportScreen(focusUserId: task.sourceId)),
           ),
         );
         break;

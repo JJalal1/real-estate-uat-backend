@@ -96,7 +96,8 @@ class _Harness {
           {'id':1,'sender_name':'Synthetic author','body':'Private reported message A'}]},
         _=><Object>[],
       };
-      handler.resolve(Response<Map<String,dynamic>>(requestOptions:request,statusCode:200,data:{'data':data}));
+      handler.resolve(Response<Map<String,dynamic>>(requestOptions:request,statusCode:200,data:{'data':data,
+        if(request.path=='/admin/account-verifications') 'meta':{'current_page':1,'last_page':1,'total':(data as List).length}}));
     }));
     container=ProviderContainer(overrides:[authControllerProvider.overrideWith(()=>account),
       authRepositoryProvider.overrideWithValue(credentials),dioProvider.overrideWithValue(dio),

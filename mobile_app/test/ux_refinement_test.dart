@@ -105,6 +105,11 @@ class _Messages implements MessageRepository {
     'body': 'لديك إعلانات تحتاج تأكيد التوفر.', 'created_at': DateTime.now().toUtc().toIso8601String(),
   })];
   @override
+  Future<NotificationPage> notificationsPage({int page = 1, int perPage = 40}) async {
+    final rows = (await notifications()).where((item) => !item.isRead).toList(growable: false);
+    return NotificationPage(items: rows, currentPage: page, lastPage: page, total: rows.length);
+  }
+  @override
   Future<void> readNotification(int id) async { read = true; }
   @override
   Future<void> readAllNotifications() async { read = true; }

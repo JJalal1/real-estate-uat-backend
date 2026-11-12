@@ -8,6 +8,7 @@ import 'package:real_estate_mobile/features/properties/presentation/my_listings_
 import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
 
 import 'support/owner_ux_fixtures.dart';
+import 'support/my_listings_fixtures.dart';
 
 const _origin = 'https://real-estate-uat-api-frankfurt.onrender.com';
 const _foreignOrigin = 'https://foreign-image.example';
@@ -59,7 +60,7 @@ void main() {
       final dio = _images(calls, private: true);
       final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
         dioProvider.overrideWithValue(dio),
-        myListingsProvider.overrideWith((ref) async => [_listing(images: count)]),
+        myListingsPagesProvider.overrideWith((ref) => fixedMyListings([_listing(images: count)])),
       ]);
       await pumpUx(tester, scope, const MyListingsScreen());
       expect(calls, isNotEmpty);
@@ -89,9 +90,9 @@ void main() {
         final dio = _images(calls, private: private);
         final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
           dioProvider.overrideWithValue(dio),
-          myListingsProvider.overrideWith((ref) async => [
+          myListingsPagesProvider.overrideWith((ref) => fixedMyListings([
             _listing(images: count, status: status, adaptiveVariants: true),
-          ]),
+          ])),
         ]);
         await pumpUx(tester, scope, const MyListingsScreen());
         final gallery = find.byKey(const ValueKey('property-card-gallery'));
@@ -136,7 +137,7 @@ void main() {
     final dio = _images(calls, private: true);
     final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
       dioProvider.overrideWithValue(dio),
-      myListingsProvider.overrideWith((ref) async => [_listing(origin: _foreignOrigin)]),
+      myListingsPagesProvider.overrideWith((ref) => fixedMyListings([_listing(origin: _foreignOrigin)])),
     ]);
     await pumpUx(tester, scope, const MyListingsScreen());
     expect(calls, isEmpty);
@@ -154,7 +155,7 @@ void main() {
       final action = returned ? 'إعادة الإرسال' : 'إرسال للمراجعة';
       final edit = returned ? 'تصحيح الإعلان' : 'إكمال الإعلان';
       final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
-        myListingsProvider.overrideWith((ref) async => [listing]),
+        myListingsPagesProvider.overrideWith((ref) => fixedMyListings([listing])),
       ]);
       await pumpUx(tester, scope, const MyListingsScreen());
       await tester.ensureVisible(find.text(action));
@@ -189,9 +190,9 @@ void main() {
     testWidgets('$reviewStatus card does not expose submission without backend permission', (tester) async {
       final edit = reviewStatus == 'draft' ? 'إكمال الإعلان' : 'تصحيح الإعلان';
       final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
-        myListingsProvider.overrideWith((ref) async => [
+        myListingsPagesProvider.overrideWith((ref) => fixedMyListings([
           _listing(images: 0, reviewStatus: reviewStatus, canSubmit: false),
-        ]),
+        ])),
       ]);
       await pumpUx(tester, scope, const MyListingsScreen());
       await tester.ensureVisible(find.text(edit));
@@ -213,9 +214,9 @@ void main() {
   for (final reviewStatus in ['submitted', 'under_review']) {
     testWidgets('$reviewStatus card remains noneditable while pending review', (tester) async {
       final scope = uxContainer(user: uxUser(type: 'broker'), extra: [
-        myListingsProvider.overrideWith((ref) async => [
+        myListingsPagesProvider.overrideWith((ref) => fixedMyListings([
           _listing(images: 0, reviewStatus: reviewStatus, canSubmit: false, canEdit: false),
-        ]),
+        ])),
       ]);
       await pumpUx(tester, scope, const MyListingsScreen());
       await tester.ensureVisible(find.text('عرض'));

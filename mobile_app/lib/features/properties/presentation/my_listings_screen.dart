@@ -18,9 +18,12 @@ import '../../broker/presentation/broker_workspaces.dart';
 import '../../broker/presentation/broker_activity.dart';
 import '../../../router/app_deep_links.dart';
 import '../data/property_repository.dart';
+import '../data/my_listings_pages.dart';
 import '../domain/property_details.dart';
 import 'add_property_wizard_screen.dart';
 import 'property_sai_configuration_sheet.dart';
+
+export '../data/my_listings_pages.dart';
 
 final myListingsProvider =
     FutureProvider.autoDispose<List<PropertyDetails>>((ref) async {
@@ -39,8 +42,6 @@ class MyListingsScreen extends ConsumerStatefulWidget {
 class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   String _filter = 'all';
   final Set<int> _updating = {};
-  int? _loadedActor;
-  bool _hasLoaded = false;
 
   Future<void> _availability(PropertyDetails item, String state) async {
     if (_updating.contains(item.id)) return;
@@ -68,130 +69,158 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final listings = ref.watch(myListingsProvider);
-    final actor = ref.watch(authControllerProvider).asData?.value?.id;
-    if (listings.asData != null) { _loadedActor = actor; _hasLoaded = true; }
-    final retain = _hasLoaded && _loadedActor == actor && listings.hasValue && listings.hasError && isTransientApiFailure(listings.error!);
+    final listings = ref.watch(myListingsPagesProvider);
+    final controller = ref.read(myListingsPagesProvider.notifier);
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(title: 'عقاراتي', actions: [IconButton(key: const ValueKey('my-saved-listing-drafts'), tooltip: 'مسوداتي', onPressed: () => context.push('/add-property?drafts=1'), icon: const Icon(Icons.drafts_outlined)), IconButton(tooltip: 'تحديث التوفر الجماعي', onPressed: () => context.push('/broker/availability'), icon: const EbrokerIcon(Icons.update, size: 20))]),
-        floatingActionButton: listings.asData?.value.isNotEmpty == true ? EbrokerButton(
+        floatingActionButton: listings.items.isNotEmpty ? EbrokerButton(
           onPressed: () => _create(context, ref),
           icon: const EbrokerIcon(Icons.add_home_work_outlined),
           child: const Text('إضافة عقار'),
         ) : null,
         body: Column(children: [
-          if (listings.hasValue && (listings.isRefreshing || retain)) AppRefreshStatus(loading: listings.isLoading,
-            error: retain ? friendlyApiError(listings.error!) : null, onRetry: () => ref.invalidate(myListingsProvider)),
-          Expanded(child: listings.when(skipLoadingOnReload: false, skipError: retain,
-          loading: () => const _MyListingsSkeleton(),
-          error: (error, _) => AppErrorState(
-            message: friendlyApiError(error),
-            onRetry: () => ref.invalidate(myListingsProvider),
-          ),
-          data: (items) {
-            if (items.isEmpty) {
-              return AppEmptyState(
-                title: 'لا توجد إعلانات بعد',
-                message:
-                    'ابدأ بإضافة عقار، احفظه كمسودة، ثم أرسله للمراجعة عندما يكتمل.',
-                icon: Icons.inventory_2_outlined,
-                actionLabel: 'إضافة عقار',
-                onAction: () => _create(context, ref),
-              );
-            }
-
-            final filtered = _applyFilter(items);
-            return RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(myListingsProvider);
-                try { await ref.read(myListingsProvider.future); } catch (_) { /* The state renders failure and retry. */ }
-              },
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        AppLayout.compactPageGutter,
-                        AppSpacing.s12,
-                        AppLayout.compactPageGutter,
-                        0,
-                      ),
-                      child: _ListingsOverview(items: items),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        AppLayout.compactPageGutter,
-                        AppSpacing.s16,
-                        AppLayout.compactPageGutter,
-                        AppSpacing.s8,
-                      ),
-                      child: _LifecycleFilterBar(
-                        selected: _filter,
-                        items: items,
-                        onChanged: (value) => setState(() => _filter = value),
-                      ),
-                    ),
-                  ),
-                  if (filtered.isEmpty)
-                    const SliverFillRemaining(
-                      hasScrollBody: true,
-                      child: AppEmptyState(
-                        title: 'لا توجد إعلانات في هذه الحالة',
-                        message: 'اختر حالة ثانية لعرض بقية إعلاناتك.',
-                        icon: Icons.filter_alt_off_outlined,
-                      ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        AppLayout.compactPageGutter,
-                        AppSpacing.s4,
-                        AppLayout.compactPageGutter,
-                        112,
-                      ),
-                      sliver: SliverList.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AppSpacing.s12),
-                        itemBuilder: (context, index) {
-                          final item = filtered[index];
-                          return _ListingCard(
-                            property: item,
-                            onOpen: () =>
-                                context.push('/properties/${item.id}'),
-                            onEdit: item.canEdit
-                                ? () => _edit(context, ref, item)
-                                : null,
-                            onSubmit: item.canSubmit
-                                ? () => _submit(context, ref, item)
-                                : null,
-                            onDelete: item.canEdit
-                                ? () => _delete(context, ref, item)
-                                : null,
-                            onAttest: item.saiAttestationRequired
-                                ? () => _attestSai(context, ref, item)
-                                : null,
-                            onAvailability: _updating.contains(item.id) ? null : (state) => _availability(item, state),
-                            onClose: _updating.contains(item.id) ? null : () => _closeListing(item),
-                            onShare: () => _share(item),
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        )),
+          if (listings.page != null && (listings.loading || listings.error != null))
+            AppRefreshStatus(loading: listings.loading,
+              error: listings.error == null ? null : friendlyApiError(listings.error!),
+              onRetry: controller.refresh),
+          Expanded(child: _body(listings, controller)),
         ]),
       ),
     );
+  }
+
+  Widget _body(MyListingsPagesState listings, MyListingsPagesController controller) {
+    if (listings.page == null) {
+      if (listings.loading) return const _MyListingsSkeleton();
+      if (listings.error != null) return AppErrorState(
+        message: friendlyApiError(listings.error!), onRetry: controller.refresh);
+    }
+    final items = listings.items;
+    final hasMore = listings.page?.hasMore ?? false;
+    if (items.isEmpty && !hasMore) {
+      return AppEmptyState(
+        title: 'لا توجد إعلانات بعد',
+        message: 'ابدأ بإضافة عقار، احفظه كمسودة، ثم أرسله للمراجعة عندما يكتمل.',
+        icon: Icons.inventory_2_outlined,
+        actionLabel: 'إضافة عقار',
+        onAction: () => _create(context, ref),
+      );
+    }
+
+    final filtered = _applyFilter(items);
+    return RefreshIndicator(
+      onRefresh: controller.refresh,
+      child: CustomScrollView(
+        key: ObjectKey(controller),
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppLayout.compactPageGutter,
+                AppSpacing.s12,
+                AppLayout.compactPageGutter,
+                0,
+              ),
+              child: _ListingsOverview(items: items, complete: !hasMore),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppLayout.compactPageGutter,
+                AppSpacing.s16,
+                AppLayout.compactPageGutter,
+                AppSpacing.s8,
+              ),
+              child: _LifecycleFilterBar(
+                selected: _filter,
+                items: items,
+                onChanged: (value) => setState(() => _filter = value),
+              ),
+            ),
+          ),
+          if (hasMore)
+            const SliverToBoxAdapter(child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppLayout.compactPageGutter),
+              child: Text('الأعداد تخص الإعلانات المحمّلة حتى اكتمال التحميل'),
+            )),
+          if (filtered.isEmpty)
+            SliverToBoxAdapter(
+              child: AppEmptyState(
+                title: hasMore ? 'لا توجد إعلانات مطابقة ضمن المحمّل حتى الآن'
+                  : 'لا توجد إعلانات في هذه الحالة',
+                message: hasMore ? 'حمّل المزيد لمتابعة بقية الإعلانات.'
+                  : 'اختر حالة ثانية لعرض بقية إعلاناتك.',
+                icon: Icons.filter_alt_off_outlined,
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppLayout.compactPageGutter,
+                AppSpacing.s4,
+                AppLayout.compactPageGutter,
+                AppSpacing.s12,
+              ),
+              sliver: SliverList.separated(
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: AppSpacing.s12),
+                itemBuilder: (context, index) {
+                  final item = filtered[index];
+                  return _ListingCard(
+                    property: item,
+                    onOpen: () =>
+                        context.push('/properties/${item.id}'),
+                    onEdit: item.canEdit
+                        ? () => _edit(context, ref, item)
+                        : null,
+                    onSubmit: item.canSubmit
+                        ? () => _submit(context, ref, item)
+                        : null,
+                    onDelete: item.canEdit
+                        ? () => _delete(context, ref, item)
+                        : null,
+                    onAttest: item.saiAttestationRequired
+                        ? () => _attestSai(context, ref, item)
+                        : null,
+                    onAvailability: _updating.contains(item.id) ? null : (state) => _availability(item, state),
+                    onClose: _updating.contains(item.id) ? null : () => _closeListing(item),
+                    onShare: () => _share(item),
+                  );
+                },
+              ),
+            ),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              AppLayout.compactPageGutter, AppSpacing.s12,
+              AppLayout.compactPageGutter, 112),
+            child: listings.loadingMore
+              ? const AppRefreshStatus(loading: true)
+              : listings.pageError != null
+                ? AppRefreshStatus(
+                    key: const ValueKey('my-listings-page-error'),
+                    error: friendlyApiError(listings.pageError!),
+                    onRetry: controller.loadMore)
+                : hasMore ? AppButton(
+                    key: const ValueKey('my-listings-more'),
+                    label: 'تحميل المزيد',
+                    onPressed: listings.loading || listings.error != null
+                      ? null : controller.loadMore)
+                  : const SizedBox.shrink(),
+          )),
+        ],
+      ),
+    );
+  }
+
+  void _reloadListings(WidgetRef ref) {
+    ref.invalidate(myListingsProvider);
+    ref.invalidate(myListingsPagesProvider);
   }
 
   List<PropertyDetails> _applyFilter(List<PropertyDetails> items) {
@@ -209,7 +238,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(builder: (_) => const AddPropertyWizardScreen()),
     );
-    ref.invalidate(myListingsProvider);
+    _reloadListings(ref);
   }
 
   Future<void> _edit(
@@ -222,7 +251,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         builder: (_) => AddPropertyWizardScreen(existingProperty: item),
       ),
     );
-    ref.invalidate(myListingsProvider);
+    _reloadListings(ref);
   }
 
   Future<void> _submit(
@@ -277,7 +306,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
 
       await repository.submitListing(item.id);
       ref.read(propertyDataRevisionProvider.notifier).state++;
-      ref.invalidate(myListingsProvider);
+      _reloadListings(ref);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -319,7 +348,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     try {
       await ref.read(financialRepositoryProvider).attestSai(item.id);
       ref.read(propertyDataRevisionProvider.notifier).state++;
-      ref.invalidate(myListingsProvider);
+      _reloadListings(ref);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('تم تسجيل إقرار السعي لهذا الإعلان.')));
@@ -360,7 +389,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     try {
       await ref.read(propertyRepositoryProvider).deleteListing(item.id);
       ref.read(propertyDataRevisionProvider.notifier).state++;
-      ref.invalidate(myListingsProvider);
+      _reloadListings(ref);
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -372,9 +401,10 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
 }
 
 class _ListingsOverview extends StatelessWidget {
-  const _ListingsOverview({required this.items});
+  const _ListingsOverview({required this.items, required this.complete});
 
   final List<PropertyDetails> items;
+  final bool complete;
 
   @override
   Widget build(BuildContext context) {
@@ -386,10 +416,14 @@ class _ListingsOverview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('ملخص إعلاناتك', style: Theme.of(context).textTheme.titleLarge),
+          Text(complete ? 'ملخص إعلاناتك' : 'ملخص الإعلانات المحمّلة',
+            style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: AppSpacing.s4),
           Text(
-            action > 0
+            !complete
+                ? action > 0 ? 'من الإعلانات المحمّلة، $action يحتاج إجراء منك الآن.'
+                  : 'لا توجد إجراءات مطلوبة في الإعلانات المحمّلة حتى الآن.'
+                : action > 0
                 ? 'عندك $action إعلان يحتاج إجراء منك الآن.'
                 : 'كل الإعلانات تسير بدون إجراء مطلوب منك حاليًا.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(

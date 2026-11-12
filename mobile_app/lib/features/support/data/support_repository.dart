@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_repository.dart';
 import '../domain/support_models.dart';
 
@@ -9,22 +11,34 @@ final supportRepositoryProvider = Provider<SupportRepository>((ref) {
   return SupportRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
+    requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
 class SupportRepository {
-  SupportRepository(this._dio, this._auth);
+  SupportRepository(this._dio, this._auth,
+      {AccountRequestScope? requestScope}) : _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
 
-  Future<List<SupportCaseSummary>> mine() async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/support/cases/mine',
-      options: await _auth.requiredAuthOptions(),
-    );
-    return _summaries(response.data);
+  Future<Options> _sessionOptions() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifySession(epoch);
+    return options;
   }
+
+  void _verifySession(int epoch) {
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
+  }
+
+  Future<SupportCasePage> mine({int page = 1, int perPage = 30}) =>
+      _casePage('/support/cases/mine', page: page, perPage: perPage, maxPerPage: 50);
 
   Future<SupportCaseDetails> openTicket({
     required String subject,
@@ -38,16 +52,18 @@ class SupportRepository {
         'description': description.trim(),
         'category': category,
       },
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     return _details(response.data);
   }
 
   Future<SupportCaseDetails> details(int caseId) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final response = await _dio.get<Map<String, dynamic>>(
       '/support/cases/$caseId',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
+    _verifySession(epoch);
     return _details(response.data);
   }
 
@@ -55,16 +71,20 @@ class SupportRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       '/support/cases/$caseId/messages',
       data: {'body': body.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     return _details(response.data);
   }
 
   Future<SupportAdminSummary> adminSummary() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifySession(epoch);
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/support/summary',
-      options: await _auth.requiredAuthOptions(),
+      options: options,
     );
+    _verifySession(epoch);
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid support summary response.');
@@ -72,32 +92,61 @@ class SupportRepository {
     return SupportAdminSummary.fromJson(data);
   }
 
-  Future<List<SupportCaseSummary>> adminCases({
+  Future<SupportCasePage> adminCases({
+    int page = 1,
+    int perPage = 40,
     String? kind,
     String? status,
     bool? escalated,
     bool assignedToMe = false,
     int? assignedToUserId,
-  }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/admin/support/cases',
-      queryParameters: {
+  }) => _casePage('/admin/support/cases', page: page, perPage: perPage,
+      maxPerPage: 100, filters: {
         if (kind != null && kind.isNotEmpty) 'kind': kind,
         if (status != null && status.isNotEmpty) 'status': status,
         if (escalated != null) 'escalated': escalated ? 1 : 0,
         if (assignedToMe) 'assigned_to_me': 1,
         if (assignedToUserId != null) 'assigned_to_user_id': assignedToUserId,
-      },
-      options: await _auth.requiredAuthOptions(),
-    );
-    return _summaries(response.data);
+      });
+
+  Future<SupportCasePage> _casePage(String path, {
+    required int page, required int perPage, required int maxPerPage,
+    Map<String, dynamic> filters = const {},
+  }) async {
+    if (page < 1 || perPage < 1 || perPage > maxPerPage) {
+      throw ArgumentError('Invalid support case page.');
+    }
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifySession(epoch);
+    final response = await _dio.get<Map<String, dynamic>>(path,
+      queryParameters: {...filters, 'page': page, 'per_page': perPage},
+      options: options);
+    _verifySession(epoch);
+    final rows = response.data?['data'];
+    final meta = response.data?['meta'];
+    if (rows is! List || meta is! Map ||
+        meta['current_page'] is! int || meta['current_page'] != page ||
+        meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+        meta['total'] is! int || (meta['total'] as int) < 0 ||
+        rows.any((row) => row is! Map)) {
+      throw StateError('Invalid support case page response.');
+    }
+    return SupportCasePage(
+      items: rows.whereType<Map>().map((row) => SupportCaseSummary.fromJson(
+        row.map((key, value) => MapEntry(key.toString(), value))))
+          .toList(growable: false),
+      currentPage: page, lastPage: meta['last_page'] as int,
+      total: meta['total'] as int);
   }
 
   Future<SupportCaseDetails> adminDetails(int caseId) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/support/cases/$caseId',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
+    _verifySession(epoch);
     return _details(response.data);
   }
 
@@ -116,7 +165,7 @@ class SupportRepository {
     final response = await _dio.patch<Map<String, dynamic>>(
       '/admin/support/cases/$caseId/status',
       data: {'status': status},
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     return _details(response.data);
   }
@@ -125,7 +174,7 @@ class SupportRepository {
     final response = await _dio.put<Map<String, dynamic>>(
       '/admin/support/cases/$caseId/assign',
       data: {'user_id': userId},
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     return _details(response.data);
   }
@@ -141,7 +190,7 @@ class SupportRepository {
   Future<List<SupportAgentItem>> agents() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/support/agents',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     final rows = response.data?['data'] as List<dynamic>? ?? const [];
     return rows
@@ -153,7 +202,7 @@ class SupportRepository {
   Future<SupportUserContext> userContext(int userId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/support/users/$userId',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) {
@@ -169,7 +218,7 @@ class SupportRepository {
         if (userId != null) 'user_id': userId,
         'days': days,
       },
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     final rows = response.data?['data'] as List<dynamic>? ?? const [];
     return rows
@@ -186,7 +235,7 @@ class SupportRepository {
   Future<int> escalateOverdue() async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/admin/support/escalate-overdue',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     final data = response.data?['data'];
     if (data is Map<String, dynamic>) {
@@ -202,7 +251,7 @@ class SupportRepository {
     final response = await _dio.post<Map<String, dynamic>>(
       path,
       data: data,
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
     return _details(response.data);
   }
@@ -211,16 +260,8 @@ class SupportRepository {
     await _dio.post<void>(
       path,
       data: {'reason': reason.trim()},
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
-  }
-
-  List<SupportCaseSummary> _summaries(Map<String, dynamic>? body) {
-    final rows = body?['data'] as List<dynamic>? ?? const <dynamic>[];
-    return rows
-        .whereType<Map<String, dynamic>>()
-        .map(SupportCaseSummary.fromJson)
-        .toList(growable: false);
   }
 
   SupportCaseDetails _details(Map<String, dynamic>? body) {
