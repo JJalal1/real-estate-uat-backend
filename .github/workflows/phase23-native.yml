@@ -1,5 +1,6 @@
 name: Phase23 reviewed API36 UAT journeys
 # Remaining upgrade persistence, account-switch overlap and native prefetch evidence.
+# This cycle uses verified product gates and existing scoped synthetic actors only.
 on:
   push:
     branches: [work/phase23-acceptance-20261111]

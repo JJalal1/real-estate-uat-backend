@@ -201,7 +201,8 @@ class CommandSafetyTest(unittest.TestCase):
     def test_support_and_manager_shells_do_not_require_broker_navigation(self):
         driver = object.__new__(Phase23Account)
         for names in [('لوحة الدعم','الوارد','مهامي','الرسائل','حسابي'),
-                      ('لوحة الفريق','الأعمال','الفريق','الرسائل','حسابي')]:
+                      ('لوحة الفريق','الأعمال','الفريق','الرسائل','حسابي'),
+                      ('الرئيسية','السوق','الإدارة','التقارير','حسابي')]:
             rows = [{'path':'0.'+str(i),'witness':str(i)*64,'bounds':[i*100,1600,(i+1)*100,1700],
                      'package':'com.aqer.yemen.uat','visible':True,'enabled':True,'text':name}
                     for i,name in enumerate(names)]
