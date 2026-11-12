@@ -1,29 +1,11 @@
 {
   "run_id": "43123392502",
-  "seq": 56,
-  "challenge": "ba524c8076c615f2ef9a9be2cbb0c791bbbf23b178fd4250a7383d3f06f0e91e",
-  "op": "batch",
+  "seq": 57,
+  "challenge": "9841c589fc79713d54ccb24feaee4a4af379bfe874556fc7976ede22dff6be3a",
+  "op": "pinch",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "شقق"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تصغير الفلاتر",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تصغير الفلاتر"
-        }
-      }
-    ]
+    "direction": "in",
+    "x": 540,
+    "y": 700
   }
 }
