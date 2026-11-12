@@ -1,5 +1,5 @@
 name: Phase23 reviewed API36 UAT journeys
-# Final UAT pass: corrected reconnect, same-draft duplicate/unit publication and paired discovery.
+# Continue paired discovery after the warm property-link modal correction.
 on:
   push:
     branches: [work/phase23-acceptance-20261111]
@@ -110,6 +110,8 @@ jobs:
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
           flutter pub get --enforce-lockfile
+          flutter analyze --fatal-infos lib/features/properties/presentation/property_details_sheet.dart test/wave1_experience_ui_test.dart
+          flutter test --no-pub test/wave1_experience_ui_test.dart
           flutter build apk --flavor uat --release --no-pub --build-number="$PHASE23_BUILD" \
             --dart-define=APP_BUILD_NUMBER="$PHASE23_BUILD" --dart-define=APP_ENVIRONMENT=uat \
             --dart-define=API_BASE_URL="$UAT_API_BASE_URL" \
