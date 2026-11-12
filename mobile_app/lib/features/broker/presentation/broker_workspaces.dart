@@ -327,7 +327,7 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
       _initialized = false;
       refreshBrokerData(ref);
     } catch (error) {
-      if (current()) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && current()) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     } finally { if (current()) setState(() => _busy = false); }
   }
 
