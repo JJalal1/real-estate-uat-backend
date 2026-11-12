@@ -1,10 +1,7 @@
 {
   "run_id": "43123392502",
-  "seq": 60,
-  "challenge": "fa5dcb8a272feea702ca39059f98a6c0ef9c3170d64ecadcd8ded627acd3dcc3",
-  "op": "api_get",
-  "args": {
-    "alias": "regular",
-    "path": "/properties/107"
-  }
+  "seq": 61,
+  "challenge": "9d0787277ab7110353464fd3a46d2e35a7ecec343e830549c47554b7abee94c9",
+  "op": "finish",
+  "args": {}
 }
