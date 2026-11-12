@@ -1,10 +1,10 @@
 {
   "run_id": "43123392502",
-  "seq": 58,
-  "challenge": "203a44bcfccbe6c6b29100d9b23c8b63c7c755d65414fe9fa66b9705b53a04d1",
-  "op": "double_tap",
+  "seq": 59,
+  "challenge": "f9e2d041c0d6ed886a38c2db1d8037c857b905c2b70f26da9617edf0954bfc01",
+  "op": "api_get",
   "args": {
-    "x": 540,
-    "y": 700
+    "alias": "regular",
+    "path": "/properties?per_page=5"
   }
 }
