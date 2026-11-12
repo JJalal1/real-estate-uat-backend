@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":8,"challenge":"b21b39d219a4637c6955d771bf6354141d8bd34db2c825adedfc328b88fb42f0","op":"batch","args":{"steps":[{"op":"scroll","args":{"direction":"forward"}},{"op":"wait","args":{"label":"مسودة ترقية 1589 إلى 1590 محفوظة على الجهاز","seconds":15}}]}}
+{"run_id":"43282970100","seq":9,"challenge":"c3e971f638ebefec179052b5ae17583488087e73f8e9af26fb5f2f11e14231a5","op":"upgrade_install","args":{}}
