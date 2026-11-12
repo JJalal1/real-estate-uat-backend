@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":19,"challenge":"93c79372f0fd825200f741512c829e1ece9775328a0b28d33303df76ecf869f0","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"إضافة عقار"}},{"op":"wait","args":{"label":"تعبئة يدوي","seconds":8}},{"op":"tap","args":{"label":"تعبئة يدوي"}},{"op":"wait","args":{"label":"مسوداتي","seconds":8}}]}}
+{"run_id":"43282970100","seq":20,"challenge":"11e10bcea16c970fc067fd6516c10abd5ad8cb982c1b34158ae7b947c8ad6283","op":"tap","args":{"label":"مسوداتي"}}
