@@ -14,6 +14,10 @@ on:
       - 'mobile_app/lib/features/reviews/**'
       - 'mobile_app/lib/features/messages/**'
       - 'mobile_app/lib/features/account/**'
+      - 'mobile_app/lib/features/broker/**'
+      - mobile_app/lib/features/properties/data/favorites_repository.dart
+      - mobile_app/lib/features/properties/presentation/favorites_screen.dart
+      - mobile_app/test/private_tail_pagination_test.dart
       - mobile_app/lib/features/properties/data/property_repository.dart
       - mobile_app/lib/features/properties/data/my_listings_pages.dart
       - mobile_app/lib/features/properties/domain/my_listings_page.dart
@@ -94,6 +98,12 @@ jobs:
           test/publication_blocks_pagination_test.dart test/actor_overlay_session_test.dart
           test/message_inbox_pagination_test.dart
           test/my_listings_pagination_test.dart test/account_verification_pagination_test.dart
+          lib/features/account/data/private_collection.dart
+          lib/features/broker/data/broker_repository.dart
+          lib/features/broker/presentation/broker_workspaces.dart
+          lib/features/properties/data/favorites_repository.dart
+          lib/features/properties/presentation/favorites_screen.dart
+          test/private_tail_pagination_test.dart
           test/phase23_listing_task_navigation_test.dart
       - name: Verify corrected behavior and existing private screen contracts
         working-directory: mobile_app
@@ -112,6 +122,8 @@ jobs:
           test/phase23_listing_task_navigation_test.dart
           test/owner_active_screen_states_test.dart
           test/smart_search_pagination_recovery_test.dart
+          test/private_tail_pagination_test.dart test/phase3_favorites_screen_test.dart
+          test/broker_experience_ui_test.dart test/listing_design_wave_test.dart
           --reporter expanded
       - name: Verify no product files were changed by the evidence check
         if: always()

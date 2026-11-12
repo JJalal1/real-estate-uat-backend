@@ -226,13 +226,22 @@ class BrokerExperienceController extends Controller
     public function listingAvailability(Request $request): JsonResponse
     {
         $actor=$this->advertiser($request);
-        $rows=Property::query()->withoutGlobalScopes()->where('user_id',$actor->id)->where('status','published')
-            ->whereNotIn('availability_status',['sold','rented'])->orderBy('availability_due_at')->limit(250)->get();
-        return response()->json(['data'=>$rows->map(fn ($p) => [
+        $v=$request->validate(['page'=>['nullable','integer','min:1'],
+            'per_page'=>['nullable','integer','min:1','max:250'],'only_due'=>['nullable','boolean']]);
+        $query=Property::query()->withoutGlobalScopes()->where('user_id',$actor->id)->where('status','published')
+            ->whereNotIn('availability_status',['sold','rented']);
+        if ($request->boolean('only_due')) {
+            $query->where(fn ($q) => $q->where('availability_due_at','<',now())
+                ->orWhere('availability_status','confirmation_paused'));
+        }
+        // Keep the legacy first-page size; explicit clients can traverse every owned row.
+        $page=$query->orderBy('availability_due_at')->orderBy('id')->paginate((int)($v['per_page'] ?? 250));
+        return response()->json(['data'=>collect($page->items())->map(fn ($p) => [
             'id'=>$p->id,'title'=>$p->title,'purpose'=>$p->purpose,'availability_status'=>$p->availability_status,
             'confirmed_at'=>$p->availability_confirmed_at?->toIso8601String(),'due_at'=>$p->availability_due_at?->toIso8601String(),
             'notified_at'=>$p->availability_notified_at?->toIso8601String(),'needs_confirmation'=>$p->availability_due_at?->isPast() ?? false,
-        ])->values()]);
+        ])->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),
+            'per_page'=>$page->perPage(),'total'=>$page->total()]]);
     }
 
     public function changeAvailability(Request $request): JsonResponse
