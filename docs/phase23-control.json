@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":22,"challenge":"ce2a884217353d7287bb101eb36dba4f3e986b152a634c4eaf9ef0f9abab6e13","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"تأكيد"}},{"op":"wait","args":{"label":"مسوداتي","seconds":5}}]}}
+{"run_id":"43282970100","seq":23,"challenge":"ca99693fee9bcdbb10933b7465c110974cf01d412660463ddc96a92f774b1997","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"رجوع"}},{"op":"wait","args":{"label":"حسابي","seconds":5}}]}}
