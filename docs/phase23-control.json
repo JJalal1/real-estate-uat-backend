@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":44,"challenge":"b6259799c65f41202bee1a8900c866c8452904379f25b713c3d6bdbc72382d03","op":"network_profile","args":{"mode":"normal"}}
+{"run_id":"43282970100","seq":45,"challenge":"fda79cae3862e7e3432d50c07f3a40da2d7419b2e5f7c1d5ce9914a30745386a","op":"batch","args":{"steps":[{"op":"touch","args":{"x":540,"y":310}},{"op":"wait","args":{"label":"تنفيذ","seconds":5}},{"op":"tap","args":{"label":"تنفيذ"}},{"op":"wait","args":{"label":"نتائج «شقة»","seconds":8}}]}}
