@@ -1,9 +1,9 @@
 {
   "run_id": "43123392502",
-  "seq": 17,
-  "challenge": "a4dcf93327b831d9d033e87b5871e2005381e6df9732b703f3a54edcccf0aba7",
-  "op": "login",
+  "seq": 18,
+  "challenge": "b70fdce18eedb7772a69e20cab89d58073304d670201ee6dda7c3a9ff8781539",
+  "op": "tap",
   "args": {
-    "alias": "support"
+    "label": "الوارد الجديد"
   }
 }
