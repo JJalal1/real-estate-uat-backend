@@ -13,8 +13,9 @@ final accountRequestScopeProvider = Provider<AccountRequestScope>((ref) {
   });
   ref.onDispose(() => alive = false);
   return AccountRequestScope(ref.watch(authRepositoryProvider),
-    isCurrent: () => alive && actor != null &&
-      ref.read(authControllerProvider).asData?.value?.id == actor);
+    // The listener revokes this snapshot synchronously. A retained repository
+    // must not read through a Ref whose dependency is awaiting a rebuild.
+    isCurrent: () => alive && actor != null);
 });
 
 class AccountRequestScope {

@@ -103,7 +103,7 @@ Future<void> _next(WidgetTester tester) async {
   await tester.scrollUntilVisible(more, 600, scrollable: _verticalList.first,
       maxScrolls: 50);
   await tester.tap(more);
-  await tester.pump();
+  for (var i = 0; i < 8; i++) { await tester.pump(); }
 }
 
 void main() {
@@ -173,7 +173,7 @@ void main() {
     expect(container.read(reviewQueueProvider).items.length, 25);
     final status = find.byKey(const ValueKey('review-queue-page-status'));
     await tester.scrollUntilVisible(status, 600, scrollable: _verticalList.first);
-    final retry = find.descendant(of: status, matching: find.byType(TextButton));
+    final retry = find.descendant(of: status, matching: find.text('إعادة المحاولة'));
     await tester.ensureVisible(retry);
     await tester.pumpAndSettle();
     expect(retry.hitTestable(), findsOneWidget);
@@ -199,8 +199,9 @@ void main() {
     });
     final container = await _open(tester, wire);
     fail = true;
-    await tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
+    final refresh = tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
     await tester.pumpAndSettle();
+    await refresh;
     expect(find.text('Synthetic listing 1'), findsOneWidget);
     expect(container.read(reviewQueueProvider).items.single.id, 1);
     expect(find.byType(AppErrorState), findsNothing);
@@ -263,8 +264,9 @@ void main() {
     });
     final container = await _open(tester, wire);
     await _next(tester);
-    await tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
-    await tester.pump();
+    final refresh = tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
+    await tester.pumpAndSettle();
+    await refresh;
     delayed.complete(_page(2, [_listing(2)], last: 2, total: 2));
     await tester.pumpAndSettle();
     expect(wire.pages, [1, 2, 1]);

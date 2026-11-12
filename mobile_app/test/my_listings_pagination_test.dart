@@ -359,7 +359,9 @@ void main() {
     await _open(tester, wire);
     expect(find.text('ملخص الإعلانات المحمّلة'), findsOneWidget);
     final filter = find.text('منشورة (0)');
-    await tester.ensureVisible(filter);
+    await tester.scrollUntilVisible(filter, 150, scrollable: find.byWidgetPredicate(
+      (widget) => widget is Scrollable && (widget.axisDirection == AxisDirection.left || widget.axisDirection == AxisDirection.right)).first);
+    await tester.pumpAndSettle();
     await tester.tap(filter);
     await tester.pumpAndSettle();
     expect(find.text('لا توجد إعلانات في هذه الحالة'), findsNothing);

@@ -253,7 +253,7 @@ void main() {
         await tester.ensureVisible(row);
         await tester.pumpAndSettle();
         await tester.tap(row);
-        await tester.pump();
+        for (var i = 0; i < 8; i++) { await tester.pump(); }
         expect(wire.requests.where((r) => r.path.endsWith('/cases/1')).length, 1);
         final auth = container.read(authControllerProvider.notifier) as _Auth;
         if (boundary == 'same-ID token replacement') {

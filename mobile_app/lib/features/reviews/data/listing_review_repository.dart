@@ -32,12 +32,13 @@ class ListingReviewRepository {
   final AccountRequestScope? _requestScope;
   Future<Options> _sessionOptions() async {
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) {
+    _requestScope?.verify();
+    if (_requestScope == null && _currentActor != null && (_actorId == null || _currentActor() != _actorId)) {
       throw StateError('ACCOUNT_CHANGED');
     }
     final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
     _requestScope?.verify();
-    if ((_currentActor != null && _currentActor() != _actorId) ||
+    if ((_requestScope == null && _currentActor != null && _currentActor() != _actorId) ||
         epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
       throw StateError('ACCOUNT_CHANGED');
     }

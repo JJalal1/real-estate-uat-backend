@@ -106,7 +106,7 @@ Future<void> _next(WidgetTester tester) async {
   await tester.pumpAndSettle();
   expect(more.hitTestable(), findsOneWidget);
   await tester.tap(more);
-  await tester.pump();
+  for (var i = 0; i < 8; i++) { await tester.pump(); }
 }
 
 void main() {
@@ -173,7 +173,7 @@ void main() {
     expect(container.read(publicationBlocksProvider).items.length, 50);
     final retry = find.descendant(
       of: find.byKey(const ValueKey('publication-blocks-page-status')),
-      matching: find.byType(TextButton));
+      matching: find.text('إعادة المحاولة'));
     await tester.ensureVisible(retry);
     await tester.pumpAndSettle();
     expect(retry.hitTestable(), findsOneWidget);
@@ -254,8 +254,9 @@ void main() {
     });
     final container = await _open(tester, wire);
     await _next(tester);
-    await tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
-    await tester.pump();
+    final refresh = tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
+    await tester.pumpAndSettle();
+    await refresh;
     delayed.complete(_page(2, [_block(2)], last: 2, total: 2));
     await tester.pumpAndSettle();
     expect(wire.pages, [1, 2, 1]);
@@ -270,8 +271,9 @@ void main() {
     });
     final container = await _open(tester, wire);
     fail = true;
-    await tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
+    final refresh = tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).onRefresh();
     await tester.pumpAndSettle();
+    await refresh;
     await container.read(publicationBlocksProvider.notifier).loadMore();
     expect(wire.pages, [1, 1]);
     expect(container.read(publicationBlocksProvider).items.single.id, 1);

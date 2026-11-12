@@ -253,6 +253,7 @@ class _ConversationReportsScreenState
                                 'قائمة البلاغات تعرض بيانات البلاغ فقط. محتوى الرسائل لا يُفتح إلا من بلاغ نشط وبصلاحية conversations.review_private، وكل فتح يُسجّل.'))),
                     DropdownButtonFormField<String>(
                       key: const ValueKey('conversation-reports-status'),
+                      isExpanded: true,
                       value: _status ?? '',
                       decoration: const InputDecoration(labelText: 'حالة البلاغ'),
                       items: const [

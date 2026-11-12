@@ -231,6 +231,13 @@ void main() {
         Stage6SecureSessionStore.instance.beginSessionChange();
         (container.read(authControllerProvider.notifier) as _Auth).change(sameActor ? 6 : 7);
         await tester.pumpAndSettle();
+        if (screen.name == 'reports') {
+          expect(find.text('تغيّر الحساب'), findsOneWidget);
+          expect(find.byKey(ValueKey('${screen.row}1')), findsNothing);
+          final navigator = Navigator.of(tester.element(find.text('تغيّر الحساب')));
+          unawaited(navigator.pushReplacement<void, void>(MaterialPageRoute<void>(builder: (_) => screen.widget)));
+          await tester.pumpAndSettle();
+        }
         expect(find.byKey(ValueKey('${screen.row}700')), findsOneWidget);
         pending.complete(_page(2, [_row(999)], last: 2));
         await tester.pumpAndSettle();
@@ -309,7 +316,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('conversation-report-1')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('فتح وتسجيل الوصول'));
-    await tester.pump(); await requested.future;
+    for (var i = 0; i < 8; i++) { await tester.pump(); }
+    await requested.future;
     Stage6SecureSessionStore.instance.beginSessionChange();
     (container.read(authControllerProvider.notifier) as _Auth).change(6);
     await tester.pumpAndSettle();

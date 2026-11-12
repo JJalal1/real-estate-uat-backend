@@ -279,7 +279,8 @@ void main() {
       await _review(tester, 101);
       final document = find.text(admin ? 'البطاقة الشخصية أو جواز السفر' : 'صورة الهوية / الجواز');
       await tester.ensureVisible(document); await tester.pumpAndSettle();
-      await tester.tap(document); await tester.pump();
+      await tester.tap(document);
+      for (var i = 0; i < 8; i++) { await tester.pump(); }
       expect(wire.requests.where((r) => r.path.endsWith('/101/documents/identity_document')).length, 1);
       Stage6SecureSessionStore.instance.beginSessionChange();
       (container.read(authControllerProvider.notifier) as _Auth).change(6);

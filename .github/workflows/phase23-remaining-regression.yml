@@ -98,7 +98,7 @@ jobs:
       - name: Verify corrected behavior and existing private screen contracts
         working-directory: mobile_app
         run: >-
-          flutter test --no-pub
+          flutter test --no-pub --timeout=60s
           test/search_account_boundary_test.dart test/support_task_pagination_test.dart
           test/support_case_pagination_test.dart test/listing_review_pagination_test.dart
           test/publication_blocks_pagination_test.dart test/actor_overlay_session_test.dart

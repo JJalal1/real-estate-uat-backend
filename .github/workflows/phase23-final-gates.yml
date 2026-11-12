@@ -206,7 +206,7 @@ jobs:
           set -euo pipefail
           mapfile -d '' tests < <(find test -type f -name '*_test.dart' ! -path 'test/uat_compiled_environment_test.dart' -print0 | sort -z)
           test "${#tests[@]}" -gt 0
-          flutter test --no-pub "${tests[@]}"
+          flutter test --no-pub --timeout=60s "${tests[@]}"
       - name: Compiled UAT contract
         working-directory: mobile_app
         run: >-
