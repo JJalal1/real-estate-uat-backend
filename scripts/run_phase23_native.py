@@ -26,6 +26,7 @@ import zipfile
 from phase23_preflight import API, BRANCH, GateError, guard, http
 from phase1_native_account_readiness import SECRET_NAME, validate_access
 from prepare_phase23_native import PRIVATE, CERT, tool_digest
+from prepare_phase23_upgrade import validate_pair
 from probe_phase1_native_account import NativeAccount, Blocked, APP, labels
 
 CONTROL = 'docs/phase23-control.json'
@@ -34,7 +35,7 @@ AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المر�
 CONTACT_PATTERN = r'(?<![\d.])(?:(?:\+?967|00967)?7[0-9]{8}|٧[٠-٩]{٨})(?![\d.])'
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get', 'fixture_contact',
        'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch', 'fling',
-       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'prefetch_metrics', 'prefetch_data_saver', 'network_metrics', 'network_profile', 'finish'}
+       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'prefetch_metrics', 'prefetch_data_saver', 'network_metrics', 'network_profile', 'upgrade_install', 'logout_in_place', 'finish'}
 
 
 def network_metric_rows(log):
@@ -273,7 +274,8 @@ def validate_command(value, run_id, seq, challenge):
                'display': {'mode'}, 'open_link': {'uri'}, 'draw_area': set(), 'blocked_message_probe': {'alias'}, 'send_synthetic_message': set(),
                'batch': {'steps'}, 'seed_media': set(), 'fixture_contact': set(),
                'prefetch_metrics': set(), 'prefetch_data_saver': {'enabled'},
-               'network_metrics': set(), 'network_profile': {'mode'}, 'fling': set(), 'finish': set()}
+               'network_metrics': set(), 'network_profile': {'mode'}, 'fling': set(),
+               'upgrade_install': set(), 'logout_in_place': set(), 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
     if value['op'] == 'set' and args['label'] in AUTH_FIELDS:
@@ -592,6 +594,19 @@ class NativeRun:
             frame.write_bytes(data)
         return self.redact(rows), frame, protected
 
+    def current_apk_receipt(self):
+        baseline = json.loads((PRIVATE / 'APK_VERIFICATION.json').read_text())
+        installed = self.report.get('upgrade')
+        if installed is None:
+            return baseline
+        pair = json.loads((PRIVATE / 'UPGRADE_VERIFICATION.json').read_text())
+        validate_pair(baseline, pair['upgrade'])
+        upgrade = pair['upgrade']
+        if (upgrade['version_code'] != installed['after'] or
+                upgrade['sha256'] != installed['upgrade_sha256']):
+            raise GateError('installed_upgrade_receipt_mismatch')
+        return upgrade
+
     def checkpoint(self, outcome, terminal=False):
         self.root.mkdir(mode=0o700, exist_ok=True)
         rows, frame, protected = ([], None, True) if terminal else self.observe()
@@ -600,7 +615,7 @@ class NativeRun:
                    'seq': self.seq, 'challenge': self.challenge, 'actor': self.actor,
                    'outcome': self.redact(outcome), 'capture_refused_for_privacy': protected,
                    'tree': rows, 'report': self.redact(self.report),
-                   'apk': json.loads((PRIVATE / 'APK_VERIFICATION.json').read_text())}
+                   'apk': self.current_apk_receipt()}
         new_videos = [v for v in self.driver.report.get('videos', []) if v['file'] not in self.uploaded_videos]
         payload['videos'] = new_videos
         directory = self.root / 'checkpoints' / str(self.seq).zfill(6)
@@ -677,11 +692,12 @@ class NativeRun:
             time.sleep(.7)
         raise GateError('native_login_not_observed')
 
-    def logout(self):
+    def logout(self, restart=True):
         d = self.driver
         if d.recorder is not None: d.record_stop(export=True)
-        d.adb('shell', 'am', 'force-stop', APP)
-        d.startup()
+        if restart:
+            d.adb('shell', 'am', 'force-stop', APP)
+            d.startup()
         d.tap('حسابي')
         already_guest = d.has('تسجيل الدخول أو إنشاء حساب')
         if not already_guest:
@@ -691,7 +707,44 @@ class NativeRun:
         d.wait_guest_boundary()
         self.actor = None
         self.native_auth_attempted = False
-        return {'native_logout_observed': True, 'already_guest': already_guest}
+        return {'native_logout_observed': True, 'already_guest': already_guest,
+                'process_restart_requested': restart}
+
+    def upgrade_install(self):
+        d = self.driver
+        d.require_preauth_runtime()
+        pair = json.loads((PRIVATE / 'UPGRADE_VERIFICATION.json').read_text())
+        baseline, upgrade = pair['baseline'], pair['upgrade']
+        validate_pair(baseline, upgrade)
+        if (baseline['source_commit'] != self.report['source_sha'] or
+                baseline['ci_run_id'] != self.report['run_id']):
+            raise GateError('current_run_upgrade_pair_required')
+        apk = PRIVATE / 'upgrade.apk'
+        with apk.open('rb') as stream:
+            actual_sha = hashlib.file_digest(stream, 'sha256').hexdigest()
+        if actual_sha != upgrade['sha256']:
+            raise GateError('verified_upgrade_bytes_mismatch')
+        def installed_version():
+            output = d.adb('shell', 'dumpsys', 'package', APP)
+            versions = set(re.findall(r'\bversionCode=([0-9]+)\b', output))
+            if len(versions) != 1:
+                raise GateError('installed_version_unobserved')
+            return int(versions.pop())
+        before = installed_version()
+        if before != baseline['version_code']:
+            raise GateError('verified_baseline_must_be_installed')
+        # Android performs the normal replacement. Never clear or uninstall data.
+        d.adb('install', '--no-streaming', '-r', apk, timeout=180)
+        after = installed_version()
+        if after != upgrade['version_code']:
+            raise GateError('upgrade_version_not_observed')
+        self.report['upgrade'] = {'before': before, 'after': after,
+            'certificate_sha256': upgrade['certificate_sha256'],
+            'baseline_sha256': baseline['sha256'], 'upgrade_sha256': upgrade['sha256'],
+            'install_replacement_only': True, 'data_clear_or_uninstall': False,
+            'draft_persistence_requires_ui_observation': True}
+        d.startup()
+        return {'operation': 'upgrade_install', **self.report['upgrade']}
 
     def apply(self, command):
         op, args, d = command['op'], command['args'], self.driver
@@ -700,6 +753,11 @@ class NativeRun:
             _, temporary_frame, _ = self.observe()
             if temporary_frame: temporary_frame.unlink()
         if op == 'observe': return {'operation': op}
+        if op == 'upgrade_install': return self.upgrade_install()
+        if op == 'logout_in_place':
+            if self.actor is None:
+                raise GateError('signed_in_actor_required_for_in_place_logout')
+            return self.logout(restart=False)
         if op == 'network_metrics':
             d.require_preauth_runtime()
             rows = network_metric_rows(d.adb('logcat','-d','-s','AQER_NET:I'))

@@ -1,5 +1,5 @@
 name: Phase23 reviewed API36 UAT journeys
-# Only remaining list, paging, transport and asynchronous-response evidence.
+# Remaining upgrade persistence, account-switch overlap and native prefetch evidence.
 on:
   push:
     branches: [work/phase23-acceptance-20261111]
@@ -7,11 +7,13 @@ on:
       - .github/workflows/phase23-native.yml
       - scripts/run_phase23_native.py
       - scripts/prepare_phase23_native.py
+      - scripts/prepare_phase23_upgrade.py
       - scripts/phase23_preflight.py
       - scripts/phase23_checkpoint_state.py
       - scripts/phase1_device_input/Phase1Input.java
       - scripts/phase23_recipient.pem
       - scripts/tests/test_phase23_native.py
+      - scripts/tests/test_phase23_upgrade.py
       - .github/actions/phase1-review/index.js
 permissions:
   contents: read
@@ -38,6 +40,7 @@ jobs:
           python-version: '3.12'
       - run: python3 -m pip install --disable-pip-version-check Pillow==12.3.0
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_native.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_upgrade.py -v
       - run: node --test .github/actions/phase1-review/test_index.js
   native:
     if: ${{ !contains(github.event.head_commit.message, '[collector-only]') }}
@@ -126,6 +129,21 @@ jobs:
           git diff --exit-code -- lib android assets pubspec.yaml
       - name: Verify and encrypt the exact installer
         run: python3 -B scripts/prepare_phase23_native.py
+      - name: Build the adjacent UAT version with the same disposable key
+        working-directory: mobile_app
+        env:
+          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+        run: |
+          upgrade_build=$((PHASE23_BUILD+1))
+          flutter build apk --flavor uat --release --no-pub --build-number="$upgrade_build" \
+            --dart-define=APP_BUILD_NUMBER="$upgrade_build" --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL="$UAT_API_BASE_URL" \
+            --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
+            --dart-define=AQER_CONDITIONAL_PREFETCH="$PHASE23_PREFETCH_ON" \
+            --dart-define=AQER_NATIVE_NETWORK_TRACE=true
+          git diff --exit-code -- lib android assets pubspec.yaml
+      - name: Independently verify and encrypt the compatible update
+        run: python3 -B scripts/prepare_phase23_upgrade.py
       - name: Preserve only public dependencies before the native session
         if: steps.gradle-deps.outputs.cache-hit != 'true' && steps.gradle-deps.outputs.cache-primary-key != ''
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830

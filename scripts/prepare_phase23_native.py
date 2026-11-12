@@ -27,6 +27,7 @@ def tool_digest():
     paths = ['scripts/run_phase23_native.py', 'scripts/prepare_phase23_native.py',
              'scripts/phase23_preflight.py', 'scripts/phase23_recipient.pem',
              'scripts/probe_phase1_native_account.py', 'scripts/phase1_device_input/Phase1Input.java',
+             'scripts/prepare_phase23_upgrade.py',
              '.github/actions/phase1-review/index.js']
     return hashlib.sha256(json.dumps({p: sha(ROOT / p) for p in paths}, sort_keys=True).encode()).hexdigest()
 
