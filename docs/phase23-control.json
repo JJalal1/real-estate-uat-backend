@@ -1,23 +1,7 @@
 {
   "run_id": "43123392502",
-  "seq": 33,
-  "challenge": "94f5ac0754a733b1502b97749d3ac819dcbad3dadb3816bce0522e7277dba26e",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "أحدث العقارات\nرؤية الكل",
-          "seconds": 15
-        }
-      }
-    ]
-  }
+  "seq": 34,
+  "challenge": "2b63ba0c376068f4395dc2c75a91a7c1bf1bce31824c09b45816e5864056728d",
+  "op": "prefetch_metrics",
+  "args": {}
 }
