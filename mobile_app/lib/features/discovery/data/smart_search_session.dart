@@ -41,6 +41,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   int _inference = 0, _results = 0;
   CancelToken? _resultTransfer;
   bool _failedMore = false;
+  bool get isLoadingMore => _failedMore;
 
   int _journey = 0;
   int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters}) {

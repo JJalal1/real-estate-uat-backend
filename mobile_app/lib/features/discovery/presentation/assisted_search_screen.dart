@@ -289,7 +289,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           // Keep successful pages visible during a temporary refresh/load-more
           // failure, and offer retry for precisely the failed page.
           if (state.rows.isNotEmpty &&
-              (state.loading || state.resultsError != null))
+              (state.loading || state.resultsError != null) && !controller.isLoadingMore)
             AppRefreshStatus(
               loading: state.loading,
               error: state.resultsError,
@@ -307,6 +307,10 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             ),
           for (final row in state.rows) Padding(padding: const EdgeInsets.only(bottom: 12),
             child: PropertySummaryCard(key: ValueKey('smart-search-result-${row.id}'), property: row)),
+          if (state.rows.isNotEmpty && controller.isLoadingMore &&
+              (state.loading || state.resultsError != null))
+            AppRefreshStatus(loading: state.loading, error: state.resultsError,
+              onRetry: controller.retryResults),
           if (state.more && state.resultsError == null) TextButton(onPressed: state.loading ? null : () => controller.search(more: true), child: const Text('المزيد من العقارات')),
         ],
       ])),

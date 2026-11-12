@@ -112,6 +112,8 @@ jobs:
           flutter pub get --enforce-lockfile
           flutter analyze --fatal-infos lib/features/properties/presentation/property_details_sheet.dart test/wave1_experience_ui_test.dart
           flutter test --no-pub test/wave1_experience_ui_test.dart
+          flutter analyze --fatal-infos lib/features/discovery/data/smart_search_session.dart lib/features/discovery/presentation/assisted_search_screen.dart lib/features/discovery/presentation/marketplace_search_screen.dart lib/features/discovery/presentation/marketplace_section_screen.dart test/smart_search_pagination_recovery_test.dart
+          flutter test --no-pub test/smart_search_pagination_recovery_test.dart
           flutter analyze --fatal-infos lib/core/platform/uat_network_trace.dart test/uat_network_trace_test.dart
           flutter test --no-pub test/uat_network_trace_test.dart --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_NATIVE_NETWORK_TRACE=true
           flutter test --no-pub test/uat_network_trace_test.dart --plain-name 'compiled trace requires both explicit opt-in and UAT' --dart-define=APP_ENVIRONMENT=production --dart-define=AQER_NATIVE_NETWORK_TRACE=true

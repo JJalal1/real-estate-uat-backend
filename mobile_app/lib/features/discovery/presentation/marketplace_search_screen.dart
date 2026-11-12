@@ -90,7 +90,8 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
   }
 
   List<Widget> _results(SmartSearchState search, MarketplaceSearchController controller) => [
-    if (search.loading || search.resultsError != null) SliverToBoxAdapter(child: Padding(
+    if ((search.loading || search.resultsError != null) &&
+        (!controller.home.isLoadingMore || search.rows.isEmpty)) SliverToBoxAdapter(child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18), child: AppRefreshStatus(loading: search.loading,
         error: search.resultsError, onRetry: () => ref.read(homeSearchResultsProvider.notifier).retryResults()))),
     if (search.rows.isEmpty && search.loading)
@@ -105,7 +106,12 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
     else SliverList(delegate: SliverChildBuilderDelegate((context, i) => Padding(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 4), child: PropertySummaryCard(
         key: ValueKey('home-result-${search.rows[i].id}'), property: search.rows[i])), childCount: search.rows.length)),
-    if (search.more) SliverToBoxAdapter(child: TextButton(onPressed: search.loading ? null
+    if (search.rows.isNotEmpty && controller.home.isLoadingMore &&
+        (search.loading || search.resultsError != null)) SliverToBoxAdapter(child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18), child: AppRefreshStatus(
+        loading: search.loading, error: search.resultsError,
+        onRetry: () => ref.read(homeSearchResultsProvider.notifier).retryResults()))),
+    if (search.more && search.resultsError == null) SliverToBoxAdapter(child: TextButton(onPressed: search.loading ? null
       : () => ref.read(homeSearchResultsProvider.notifier).search(more: true), child: const Text('المزيد من العقارات'))),
   ];
 }

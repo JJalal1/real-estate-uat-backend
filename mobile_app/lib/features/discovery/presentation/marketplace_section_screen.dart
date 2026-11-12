@@ -91,12 +91,15 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
             if (_busy && _rows.isEmpty) const AppSkeleton(height: 190, radius: 12)
             else if (_error != null && _rows.isEmpty) AppErrorState(message: _error!, onRetry: () => _load(more: _failedMore))
             else if (_rows.isEmpty) const AppEmptyState(title: 'لا توجد عقارات في هذا القسم الآن', message: 'يمكنك تغيير المنطقة أو استكشاف الأقسام الأخرى.'),
-            if (_rows.isNotEmpty) AppRefreshStatus(loading: _busy, error: _error, onRetry: () => _load(more: _failedMore)),
+            if (_rows.isNotEmpty && !_failedMore) AppRefreshStatus(loading: _busy, error: _error, onRetry: () => _load(more: _failedMore)),
             ]);
           }
           if (index <= _rows.length) {
             final row = _rows[index - 1];
             return Padding(key: ValueKey('section-property-${row.id}'), padding: const EdgeInsets.only(bottom: 14), child: PropertySummaryCard(property: row));
+          }
+          if (_rows.isNotEmpty && _failedMore && (_busy || _error != null)) {
+            return AppRefreshStatus(loading: _busy, error: _error, onRetry: () => _load(more: true));
           }
           if (_more && _error == null) {
             return TextButton(onPressed: _busy ? null : () => _load(more: true), child: _busy
