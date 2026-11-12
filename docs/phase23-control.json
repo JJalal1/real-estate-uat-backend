@@ -1,7 +1,1 @@
-{
-  "run_id": "43253230247",
-  "seq": 53,
-  "challenge": "d83c3f23c9a231d1a9e705f23318f583bbfd0faaede23644d1f2fbb129bd182b",
-  "op": "finish",
-  "args": {}
-}
+{"run_id":"43282970100","seq":0,"challenge":"0f534fdfa46bd20aab9767dad95254ee50d05f6055960ed6285d8da5c40f6881","op":"login","args":{"alias":"broker"}}
