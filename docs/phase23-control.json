@@ -1,9 +1,49 @@
 {
   "run_id": "43143868479",
-  "seq": 11,
-  "challenge": "6550b1c58f70037e2768da00fac6ea5ee0e2589abb63ba25d4c0ee64be202934",
-  "op": "open_link",
+  "seq": 12,
+  "challenge": "abeebd4c1cd55ea5ba2753d0777bb81713af0c34c736c4a8d9af70ece05df74f",
+  "op": "batch",
   "args": {
-    "uri": "realestate://app/messages/37"
+    "steps": [
+      {
+        "op": "wait",
+        "args": {
+          "label": "خيارات المحادثة",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "خيارات المحادثة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "حظر الحساب",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "حظر الحساب"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "حظر هذا الحساب؟",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "حظر"
+        }
+      }
+    ]
   }
 }
