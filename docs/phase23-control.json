@@ -1,49 +1,9 @@
 {
   "run_id": "43143868479",
-  "seq": 12,
-  "challenge": "abeebd4c1cd55ea5ba2753d0777bb81713af0c34c736c4a8d9af70ece05df74f",
-  "op": "batch",
+  "seq": 13,
+  "challenge": "cdc50e9e0b99479cd8c977cd8614be1640b9e791bfa1b8ac2ddff458d9c10103",
+  "op": "blocked_message_probe",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "خيارات المحادثة",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "خيارات المحادثة"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "حظر الحساب",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "حظر الحساب"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "حظر هذا الحساب؟",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "حظر"
-        }
-      }
-    ]
+    "alias": "regular"
   }
 }
