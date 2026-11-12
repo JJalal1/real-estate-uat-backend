@@ -1,7 +1,9 @@
 {
   "run_id": "43143868479",
-  "seq": 5,
-  "challenge": "47b65444a561e5c7a99be50cb5f85e8c8675c91cf7b2674a0668b03323d2bec8",
-  "op": "prefetch_metrics",
-  "args": {}
+  "seq": 6,
+  "challenge": "5183b7296e57cac00aec4979175e26f8ddf7744ae7fc8d12d5bb7272fe59d301",
+  "op": "tap",
+  "args": {
+    "label": "شقة عائلية مشرقة في حدة"
+  }
 }
