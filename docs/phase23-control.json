@@ -1,49 +1,9 @@
 {
   "run_id": "43143868479",
-  "seq": 24,
-  "challenge": "fb7494f4a690fa3091728a61330dfba8faa73b5165530b3c7cd70c7a483966de",
-  "op": "batch",
+  "seq": 25,
+  "challenge": "da43e1732a142712c56fda679a5e7fa2af05898c9ffe9c37192c649a498c5faf",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "مسح النص"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "ابحث عن عقار…",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تنفيذ"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "العقارات المطابقة",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "شقة النور الغربية اختبار المرحلة23",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "عرض على الخريطة"
-        }
-      }
-    ]
+    "label": "تصغير الفلاتر"
   }
 }
