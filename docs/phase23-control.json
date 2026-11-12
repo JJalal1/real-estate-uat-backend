@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":46,"challenge":"29d0c016f54d86def297f58a6ad5bf3221a08ef7cb48da708052b94172df7ca4","op":"prefetch_metrics","args":{}}
+{"run_id":"43282970100","seq":47,"challenge":"350f010979ec87b1d9c57b5c60a3e5c9e7d9016c619760939e9e9d9f533ec776","op":"open_link","args":{"uri":"realestate://app/properties/106"}}
