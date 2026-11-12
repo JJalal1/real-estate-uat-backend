@@ -1,9 +1,42 @@
 {
   "run_id": "43143868479",
-  "seq": 14,
-  "challenge": "bda09a2b9af6cbd3f2c756e2f467614f268e60510c48323f5b629986a712f5d0",
-  "op": "blocked_message_probe",
+  "seq": 15,
+  "challenge": "274278513cd953c560073c35b30c38954dca0d5e031a7669bf614a31de425a3e",
+  "op": "batch",
   "args": {
-    "alias": "broker"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "خيارات المحادثة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "إلغاء الحظر",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إلغاء الحظر"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "إلغاء الحظر؟",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إلغاء الحظر"
+        }
+      }
+    ]
   }
 }
