@@ -1,9 +1,9 @@
 {
   "run_id": "43123392502",
-  "seq": 18,
-  "challenge": "b70fdce18eedb7772a69e20cab89d58073304d670201ee6dda7c3a9ff8781539",
+  "seq": 19,
+  "challenge": "3e625400b4a0bbac66f8ae65a24b1e9869604c27b5d44aa5e643f8c12d71736d",
   "op": "tap",
   "args": {
-    "label": "الوارد الجديد"
+    "label": "تحقيق إعلانات"
   }
 }
