@@ -1,7 +1,9 @@
 {
   "run_id": "43123392502",
-  "seq": 36,
-  "challenge": "16129df024e3ae6d6f3589b6c5142fea2b16304d692d19b31d9dafd6bcd4d3d5",
-  "op": "force_stop",
-  "args": {}
+  "seq": 37,
+  "challenge": "3990c607b11f95421498d3451f05a34620f9453dd4fbe5778c249db2d46148ba",
+  "op": "tap",
+  "args": {
+    "label": "بحث ذكي"
+  }
 }
