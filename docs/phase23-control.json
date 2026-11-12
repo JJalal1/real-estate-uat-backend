@@ -1,24 +1,7 @@
 {
   "run_id": "43143868479",
-  "seq": 16,
-  "challenge": "a175311c57c45e6c27bde57ce8e3e88f881207715a35e63728be998235425860",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/messages/threads/37"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "broker",
-          "path": "/messages/threads/37"
-        }
-      }
-    ]
-  }
+  "seq": 17,
+  "challenge": "f11f499a442ad6cc46edc9499dc73466fad8eec8035a88608347f27c6fa0454d",
+  "op": "force_stop",
+  "args": {}
 }
