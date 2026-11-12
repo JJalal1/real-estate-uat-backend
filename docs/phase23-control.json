@@ -1,9 +1,9 @@
 {
   "run_id": "43143868479",
-  "seq": 13,
-  "challenge": "cdc50e9e0b99479cd8c977cd8614be1640b9e791bfa1b8ac2ddff458d9c10103",
+  "seq": 14,
+  "challenge": "bda09a2b9af6cbd3f2c756e2f467614f268e60510c48323f5b629986a712f5d0",
   "op": "blocked_message_probe",
   "args": {
-    "alias": "regular"
+    "alias": "broker"
   }
 }
