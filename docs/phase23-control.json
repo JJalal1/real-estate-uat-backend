@@ -1,9 +1,7 @@
 {
   "run_id": "43243264586",
-  "seq": 24,
-  "challenge": "22e226194dd010aae4fe94c34b9b188c5bb066aff4d481c83d28d33a48ba455e",
-  "op": "tap",
-  "args": {
-    "label": "المزيد من العقارات"
-  }
+  "seq": 25,
+  "challenge": "67eec8c7e57fad093601d12f1b69f4dd56c157e34282e5bfd5548c100f57dd71",
+  "op": "network_metrics",
+  "args": {}
 }
