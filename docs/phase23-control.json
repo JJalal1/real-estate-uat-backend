@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":1,"challenge":"b434198e74e22a2c196c04b105db90f216df9c821cd45a7f67913817319f221c","op":"batch","args":{"steps":[{"op":"api_get","args":{"alias":"broker","path":"/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"}},{"op":"tap","args":{"label":"إضافة عقار"}}]}}
+{"run_id":"43282970100","seq":2,"challenge":"9c313214ca81873973d7ffeae3c74a39eb76cc8de28e7f611e766cac8aba998b","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"تعبئة يدوي"}},{"op":"wait","args":{"label":"لديك إعلان غير مكتمل","seconds":20}}]}}
