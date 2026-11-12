@@ -1,7 +1,7 @@
 {
   "run_id": "43243264586",
-  "seq": 31,
-  "challenge": "a32d1251d9a24cd2019be3e232d6eeb1baf3fc15f38ea14c873d881802a425d0",
+  "seq": 32,
+  "challenge": "ffd8108e2aa133c8436237992f9aabc328e69db7a6e20539ec3ce8488966105a",
   "op": "batch",
   "args": {
     "steps": [
