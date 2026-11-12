@@ -230,12 +230,13 @@ class CommandSafetyTest(unittest.TestCase):
 
     def test_device_controls_and_link_are_fixed_and_bounded(self):
         for op,args in [('network',{'state':'arbitrary'}),('display',{'mode':'huge'}),
-                        ('open_link',{'uri':'realestate://app/properties/107'}),
+                        ('open_link',{'uri':'realestate://app/properties/108'}),
                         ('open_link',{'uri':'https://example.com'}),('wait',{'label':'x','seconds':31})]:
             with self.assertRaises(GateError):
                 validate_command(dict(self.command,op=op,args=args),'1234',1,'a'*64)
         for op,args in [('network',{'state':'offline'}),('display',{'mode':'compact_large'}),
-                        ('open_link',{'uri':'realestate://app/properties/106'}),('wait',{'label':'x','seconds':20})]:
+                        ('open_link',{'uri':'realestate://app/properties/106'}),
+                        ('open_link',{'uri':'realestate://app/properties/107'}),('wait',{'label':'x','seconds':20})]:
             self.assertEqual(validate_command(dict(self.command,op=op,args=args),'1234',1,'a'*64)['op'],op)
 
     def test_cleanup_restores_the_disposable_device_before_session_logout(self):
@@ -448,16 +449,27 @@ class CommandSafetyTest(unittest.TestCase):
         run=object.__new__(NativeRun);run.sessions={'regular':Mock(token='synthetic-local-test')}
         body={'data':{'thread':{'id':37,'property_id':106,'can_send':False,'other_user':{'id':28}},
                       'messages':[{'body':'not for export'}]}}
-        public={'data':{'id':33,'status':'published','advertiser':{'id':28}}}
+        public={'data':{'id':107,'status':'published','advertiser':{'id':28}}}
         with patch('run_phase23_native.http',side_effect=[(200,body),(403,{'private':'not for export'}),(200,public),(403,{})]) as request:
             out=run.blocked_message_probe('regular')
             self.assertTrue(out['rejected']);self.assertTrue(out['other_property_start']['rejected'])
             self.assertNotIn('not for export',str(out))
             self.assertEqual([(x.args[0],x.args[1]) for x in request.call_args_list],
                 [('GET','/messages/threads/37'),('POST','/messages/threads/37/messages'),
-                 ('GET','/properties/33'),('POST','/properties/33/conversation')])
+                 ('GET','/properties/107'),('POST','/properties/107/conversation')])
         with self.assertRaises(GateError):
             validate_command(dict(self.command,op='blocked_message_probe',args={'alias':'support'}),'1234',1,'a'*64)
+
+    def test_cross_listing_probe_refuses_a_foreign_advertiser_or_unpublished_unit(self):
+        blocked={'data':{'thread':{'id':37,'property_id':106,'can_send':False,'other_user':{'id':28}},'messages':[]}}
+        for listing in ({'id':33,'status':'published','advertiser':{'id':28}},
+                        {'id':107,'status':'published','advertiser':{'id':29}},
+                        {'id':107,'status':'draft','advertiser':{'id':28}}):
+            run=object.__new__(NativeRun);run.sessions={'regular':Mock(token='synthetic-local-test')}
+            with patch('run_phase23_native.http',side_effect=[(200,blocked),(403,{}),(200,{'data':listing})]) as request:
+                out=run.blocked_message_probe('regular')
+                self.assertEqual(out['other_property_start']['status'],'NOT_TESTED')
+                self.assertEqual(request.call_count,3)
 
     def test_synthetic_send_preserves_existing_messages_and_unsent_text(self):
         run=object.__new__(NativeRun);run.actor='broker'

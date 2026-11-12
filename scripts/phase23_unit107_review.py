@@ -10,7 +10,7 @@ from phase1_native_account_readiness import SECRET_NAME, validate_access
 from phase23_preflight import API, NoRedirect, http
 from run_phase23_native import Session
 
-STAGE = 'negative_return'
+STAGE = 'correct_publish'
 REVIEWED_IMAGE_SHA256 = 'df83a76b8bb15feca7a30c4f89e9b1fc260e7a885361ac8988a334b71f492306'
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'phase23-unit107-review'
@@ -51,8 +51,12 @@ def main():
         'scope':'Only synthetic listing107 belonging to configured broker28; normal support6 API; no inbox or private conversation query.',
         'native_acceptance_claimed':False,'cleanup':{}}
     session=None
+    broker=None
     try:
-        access=validate_access(os.environ.pop(SECRET_NAME,''));session=Session('support',access);session.login();del access
+        access=validate_access(os.environ.pop(SECRET_NAME,''))
+        session=Session('support',access)
+        if STAGE=='correct_publish': broker=Session('broker',access)
+        session.login();del access
         detail=request(session,'GET',BASE)
         require(detail.get('id')==107 and detail.get('title')==TITLE and detail.get('owner',{}).get('id')==28,'fixture_identity_mismatch')
         require([r.get('id') for r in detail.get('images',[])]==[176],'fixture_media_changed')
@@ -77,16 +81,56 @@ def main():
             request(session,'POST',BASE+'/return',{'reason':'اختبار تكرار مؤكد مع الوحدة الشرقية في الإعلان106. صحح موضع الوحدة إلى غربية 2 مرحلة23 ثم أعد إرسال الإعلان107 نفسه.'})
             detail=request(session,'GET',BASE);require(detail.get('review_status')=='returned_for_correction' and detail.get('published_at') is None,'return_not_persisted')
             receipt['after']=metadata(detail);receipt['status']='PASS_DUPLICATE_BLOCK_AND_RETURN'
+        elif STAGE=='correct_publish':
+            require(re.fullmatch('[a-f0-9]{64}',REVIEWED_IMAGE_SHA256) is not None,'explicit_review_hash_required')
+            require(detail.get('review_status')=='returned_for_correction' and detail.get('published_at') is None,'returned_fixture_required')
+            require(detail.get('property_asset',{}).get('id')==101,'original_duplicate_asset_required')
+            broker.login()
+            owned=request(broker,'GET','/properties/107')
+            require(owned.get('id')==107 and owned.get('title')==TITLE,'owned_fixture_mismatch')
+            position=(owned.get('latitude'),owned.get('longitude'))
+            marker='علامة بحث اصطناعية للاختبار: إب'
+            description=owned.get('description') or ''
+            require(isinstance(description,str),'description_shape')
+            if marker not in description: description=description+'\n'+marker
+            corrected=request(broker,'POST','/properties/107',{'unit_number':'غربية 2 مرحلة23','description':description})
+            require(corrected.get('id')==107 and corrected.get('unit_number')=='غربية 2 مرحلة23','unit_correction_missing')
+            require((corrected.get('latitude'),corrected.get('longitude'))==position,'coordinates_changed')
+            receipt['corrected_unit']={'property_id':107,'unit_number':corrected.get('unit_number'),'same_coordinates':True,'image_ids':[r.get('id') for r in corrected.get('images',[])]}
+            submitted=request(broker,'POST','/properties/107/submit',{})
+            require(submitted.get('id')==107 and submitted.get('review_status')=='submitted','resubmission_missing')
+            request(session,'POST',BASE+'/start')
+            detail=request(session,'GET',BASE)
+            current_owned=request(broker,'GET','/properties/107')
+            require(current_owned.get('unit_number')=='غربية 2 مرحلة23','review_unit_mismatch')
+            require(detail.get('property_asset',{}).get('id')!=101,'different_unit_asset_not_distinct')
+            require(hashlib.sha256(image_bytes(session)).hexdigest()==REVIEWED_IMAGE_SHA256,'reviewed_image_changed')
+            require([r.get('id') for r in detail.get('images',[])]==[176],'fixture_media_changed')
+            media=detail['images'][0]
+            reviewed=request(session,'POST',BASE+'/media-review',{'image_id':176,'image_token':media['relevance_token'],'decision':'relevant','reason':'الصورة176 نفسها راجعتها بصريًا؛ تصحيح الوحدة الغربية في الإعلان107 نفسه ضمن اختبار المرحلة23.'})
+            receipt['media_review']={k:reviewed.get(k) for k in ('review_id','decision','checker')}
+            review_reason='وحدة غربية مختلفة في المبنى نفسه؛ راجعت صورة المبنى176 وهوية الوحدة الغربية المحفوظة، وهي تختلف عن الشرقية المنشورة106.'
+            request(session,'POST',BASE+'/approve',{'reason':review_reason,'duplicate_review_reason':review_reason})
+            detail=request(session,'GET',BASE)
+            require(detail.get('review_status')=='approved' and detail.get('status')=='published','publication_not_persisted')
+            code,public=http('GET','/properties/107')
+            require(code==200 and public.get('data',{}).get('id')==107,'published_unit_not_public')
+            receipt['public_read']={'http':code,'property_id':107}
+            receipt['after']=metadata(detail);receipt['status']='PASS_DISTINCT_UNIT_PUBLISHED'
         else:
             raise RuntimeError('unreviewed_stage')
     except Exception as error:
         receipt['error_type']=type(error).__name__
         if isinstance(error,RuntimeError):receipt['reason_code']=str(error)
     finally:
+        if broker:
+            try:receipt['cleanup']['broker']=broker.close()
+            except Exception:receipt['cleanup']['broker']=False
         if session:
             try:receipt['cleanup']['support']=session.close()
             except Exception:receipt['cleanup']['support']=False
         if receipt['cleanup'].get('support') is not True:receipt['status']='BLOCKED'
+        if broker and receipt['cleanup'].get('broker') is not True:receipt['status']='BLOCKED'
         OUT.mkdir(exist_ok=True);(OUT/'RECEIPT.json').write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
         SEALED.mkdir(exist_ok=True)
         plain=OUT/'private-evidence.zip'

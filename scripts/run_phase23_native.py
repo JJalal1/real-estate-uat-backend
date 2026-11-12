@@ -284,7 +284,7 @@ def validate_command(value, run_id, seq, challenge):
         raise GateError('fixed_native_data_saver_state_required')
     if value['op'] == 'display' and args['mode'] not in {'default','compact_large','large'}:
         raise GateError('fixed_native_display_mode_required')
-    if value['op'] == 'open_link' and args['uri'] not in {'realestate://app/properties/106','realestate://app/messages/37'}:
+    if value['op'] == 'open_link' and args['uri'] not in {'realestate://app/properties/106','realestate://app/properties/107','realestate://app/messages/37'}:
         raise GateError('approved_public_fixture_link_required')
     if value['op'] == 'blocked_message_probe' and args['alias'] not in {'regular','broker'}:
         raise GateError('synthetic_participant_required')
@@ -435,13 +435,13 @@ class NativeRun:
                 'expected_http':403,'actual_http':code,'rejected':code==403,
                 'private_body_exported':False}
         if alias=='regular':
-            public_code,public=http('GET','/properties/33',token=session.token)
+            public_code,public=http('GET','/properties/107',token=session.token)
             data=public.get('data',{}) if isinstance(public,dict) else {}
-            if public_code==200 and data.get('id')==33 and data.get('advertiser',{}).get('id')==28 and data.get('status')=='published':
-                cross,_=http('POST','/properties/33/conversation',{},token=session.token)
-                result['other_property_start']={'property_id':33,'expected_http':403,'actual_http':cross,'rejected':cross==403}
+            if public_code==200 and data.get('id')==107 and data.get('advertiser',{}).get('id')==28 and data.get('status')=='published':
+                cross,_=http('POST','/properties/107/conversation',{},token=session.token)
+                result['other_property_start']={'property_id':107,'expected_http':403,'actual_http':cross,'rejected':cross==403}
             else:
-                result['other_property_start']={'property_id':33,'status':'NOT_TESTED','reason':'same-advertiser public fixture unavailable'}
+                result['other_property_start']={'property_id':107,'status':'NOT_TESTED','reason':'same-advertiser public fixture unavailable'}
         return result
 
     @staticmethod
