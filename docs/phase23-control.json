@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":59,"challenge":"0e8d3e8a9d13ca0365244be549d131a6ae209510ba3b2deec49929e6a5a4fdee","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"إغلاق الصور"}},{"op":"wait","args":{"label":"تفاصيل العقار","seconds":5}},{"op":"tap","args":{"label":"رجوع"}},{"op":"wait","args":{"label":"العقارات","seconds":5}}]}}
+{"run_id":"43282970100","seq":60,"challenge":"0014db6fe63dcf6a174b46bf9d1bc7b802b49b7fbd56fb650e6e0871fa40be20","op":"back","args":{}}
