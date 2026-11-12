@@ -1,9 +1,24 @@
 {
   "run_id": "43143868479",
-  "seq": 25,
-  "challenge": "da43e1732a142712c56fda679a5e7fa2af05898c9ffe9c37192c649a498c5faf",
-  "op": "tap",
+  "seq": 26,
+  "challenge": "7a5b1349bda21402107dca58845784940726d7439439a21123cb880507617bb5",
+  "op": "batch",
   "args": {
-    "label": "تصغير الفلاتر"
+    "steps": [
+      {
+        "op": "touch",
+        "args": {
+          "x": 749,
+          "y": 603
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "2 عقار في النطاق",
+          "seconds": 20
+        }
+      }
+    ]
   }
 }
