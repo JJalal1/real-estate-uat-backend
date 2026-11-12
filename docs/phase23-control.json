@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":25,"challenge":"edb7c4b319be557ca553725caa69e3bbb4eacb6d7e10b0f95303e30983303647","op":"batch","args":{"steps":[{"op":"api_get","args":{"alias":"broker","path":"/listing-editor-drafts/ad008330-99d5-4a51-b844-ae62886d8803"}},{"op":"tap","args":{"label":"حسابي"}}]}}
+{"run_id":"43282970100","seq":26,"challenge":"00e1c663db1937f70331b25f8446c8ed1c874c1640ac972e3e252b93d9101e23","op":"scroll","args":{"direction":"forward"}}
