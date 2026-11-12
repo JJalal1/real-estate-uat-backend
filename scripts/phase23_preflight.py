@@ -14,7 +14,7 @@ from phase1_native_account_readiness import SECRET_NAME, validate_access
 
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 BRANCH = 'refs/heads/work/phase23-acceptance-20261111'
-TREES = {'mobile_app': 'c09a8367686f97bf7839049cf20853b6e4fc0a90',
+TREES = {'mobile_app': '19b98b13c4301f0929bf6338f0190e9f087e2184',
          'backend-api-runtime': '953452cd29d27ba3b5fe902cd55d0321973d643c'}
 
 

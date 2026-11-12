@@ -371,7 +371,7 @@ class Session:
         try:
             code, _ = http('POST', '/auth/logout', {}, token=token)
             revoked, _ = http('GET', '/auth/me', token=token)
-            return code == 200 and revoked == 401
+            return code in {200, 401} and revoked == 401
         finally:
             self.phone = self.otp = None
 
@@ -437,6 +437,8 @@ class NativeRun:
         'SUP-261111-QYLXJRN','Conversation complaint','جديدة','مفتوحة',
         'لوحة الفريق','لوحة الإدارة','الأعمال','الفريق','كل المهام','مكتملة','مغلقة',
         'المهام المنجزة','مسندة إليّ','غير مسندة','الكل',
+        'حذف الحساب نهائيًا','حذف الحساب','حذف حسابي نهائيًا','للتأكيد اكتب: حذف حسابي نهائيًا',
+        'لا توجد حسابات محظورة.','الحسابات المحظورة',
         'المزيد من المهام','المزيد من الطلبات','المزيد من البلاغات',
         'المزيد من الإشعارات','المزيد من المحادثات','إعادة المحاولة',
     })
@@ -911,7 +913,9 @@ class NativeRun:
             if support_path:
                 body=self.synthetic_case9_metadata(body) if code==200 else {'http_error':code}
             return {'operation': op, 'alias': alias, 'identity': session.identity,
-                    'path': path, 'http': code, 'response': self.redact(body)}
+                    'path': path, 'http': code,
+                    'response_sha256': hashlib.sha256(canonical(body)).hexdigest(),
+                    'response': self.redact(body)}
         elif op == 'finish': self.running = False
         return {'operation': op, 'input_delivered': op != 'finish', 'product_acceptance_claimed': False}
 

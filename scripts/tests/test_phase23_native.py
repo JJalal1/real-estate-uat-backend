@@ -47,6 +47,15 @@ class AdditionalActorGateTest(unittest.TestCase):
         with self.assertRaisesRegex(GateError, 'fixture'):
             native_access(env, source_text(), now=NOW)
 
+    def test_deleted_or_already_revoked_session_needs_an_explicit401_proof(self):
+        from run_phase23_native import Session
+        for logout, me, expected in [(401, 401, True), (200, 401, True), (503, 401, False), (401, 200, False)]:
+            session = Session('erasure', {'otp': '123456', 'phones': {'erasure': '+15550000009'}})
+            session.token = 'synthetic-test-token'
+            with patch('run_phase23_native.http', side_effect=[(logout, {}), (me, {})]):
+                self.assertEqual(session.close(), expected)
+            self.assertIsNone(session.token)
+
     def test_manager_shell_exports_controls_without_private_people_or_titles(self):
         rows = [{'text': 'لوحة الفريق', 'bounds': [0, 0, 100, 50]},
                 {'text': 'PRIVATE PERSON AND TASK TITLE', 'bounds': [0, 60, 100, 100]},
@@ -78,6 +87,24 @@ class AdditionalActorGateTest(unittest.TestCase):
 
 
 class CommandSafetyTest(unittest.TestCase):
+    def test_server_response_digest_covers_redacted_fields_without_exporting_them(self):
+        from types import SimpleNamespace
+        run = object.__new__(NativeRun)
+        run.private_values = {'PRIVATE_CONTACT'}
+        run.driver = Mock(recorder=None)
+        run.access = {'phones': {'broker': '+15550000001'}}
+        run.sessions = {'broker': SimpleNamespace(token='synthetic-test-token', identity={'id': 28})}
+        before = {'data': {'id': 1, 'phone': 'PRIVATE_CONTACT', 'revision': 36}}
+        after = {'data': {'revision': 36, 'phone': 'OTHER_PRIVATE_CONTACT', 'id': 1}}
+        reordered = {'data': dict(reversed(list(before['data'].items())))}
+        command = {'op': 'api_get', 'args': {'alias': 'broker', 'path': '/listing-editor-drafts/synthetic-key'}}
+        with patch('run_phase23_native.http', side_effect=[(200, before), (200, after), (200, reordered)]):
+            first, changed, equivalent = [run.apply(command) for _ in range(3)]
+        self.assertEqual(first['response'], changed['response'])
+        self.assertNotEqual(first['response_sha256'], changed['response_sha256'])
+        self.assertEqual(first['response_sha256'], equivalent['response_sha256'])
+        self.assertNotIn('PRIVATE', str(first))
+
     def test_network_measurements_reject_private_or_unknown_fields(self):
         import json
         safe = {'resource':2,'phase':2,'media':176,'variant':'card','bytes':17000,'elapsedMs':100,'status':200}

@@ -124,7 +124,7 @@ jobs:
           test/smart_search_pagination_recovery_test.dart
           test/private_tail_pagination_test.dart test/phase3_favorites_screen_test.dart
           test/broker_experience_ui_test.dart test/listing_design_wave_test.dart
-          test/new_wave_handoff_test.dart
+          test/new_wave_handoff_test.dart test/account_erasure_session_test.dart
           --reporter expanded
       - name: Verify no product files were changed by the evidence check
         if: always()
