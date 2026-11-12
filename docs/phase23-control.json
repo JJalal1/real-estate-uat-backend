@@ -1,39 +1,9 @@
 {
   "run_id": "43143868479",
-  "seq": 2,
-  "challenge": "357e219ce675598458a2eb7a16ff891d83b6d2c20b40ace4e717d9eb89b705ec",
-  "op": "batch",
+  "seq": 3,
+  "challenge": "6f9b0a4575efeb3b30ef64174d233a312b99bad313059532c5f5bfffc99ef67d",
+  "op": "open_link",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "شقة النور الغربية اختبار المرحلة23",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "swipe",
-        "args": {
-          "x1": 540,
-          "y1": 790,
-          "x2": 540,
-          "y2": 240
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "أضف للمقارنة"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "مضاف للمقارنة",
-          "seconds": 10
-        }
-      }
-    ]
+    "uri": "realestate://app/properties/106"
   }
 }
