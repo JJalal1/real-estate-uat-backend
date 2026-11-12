@@ -1,5 +1,5 @@
 {
-  "scope": "Phase23: known APP001–APP009 fixes have native confirmation; remaining acceptance coverage and final owner approval are OPEN.",
+  "scope": "Phase23: APP001–APP010 have retained native fix confirmation; remaining acceptance coverage and final owner approval remain open.",
   "items": [
     {
       "id": "P23-APP-001",
@@ -130,6 +130,17 @@
       "ci_run": 43118260646,
       "ci_result": "PASS strict analysis; all3 loss-before/loss-after/foreign-device behavioral regressions",
       "native_fix_confirmation": "PASS UAT1583/source9e200a0/run43123392502 checkpoints6–10: offline server revision33 unchanged; explicit retry saved same draft's changed unit and image as revision34, saved banner shown, no false foreign conflict. Real foreign-writer protection passed focused CI43118260646 and full43118621199.",
+      "state": "CLOSED"
+    },
+    {
+      "id": "P23-APP-010",
+      "severity": "high",
+      "problem": "A warm property link reused the previous modal route builder and kept the previous property details visible.",
+      "fix": "Replace a property details modal when its property identifier changes; retain normal page identity reuse and the Home back destination.",
+      "implementation_commit": "fcfdbbd42d06cb9b2d800da30a3082d137b2550c",
+      "ci_run": 43143868484,
+      "ci_result": "PASS four source gates and actual-router warm-link regression",
+      "native_fix_confirmation": "PASS UAT1585 first attempt checkpoints3–5; correct requested title, price and image count without closing the sheet first. Product components identical to the successful second attempt.",
       "state": "CLOSED"
     }
   ],
