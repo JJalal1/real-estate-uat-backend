@@ -1,7 +1,9 @@
 {
-  "run_id": "43243264586",
-  "seq": 37,
-  "challenge": "7506ca8d3d39eef9e186fd18cef6dccee7a61652c34669f37088416c0cfb18a9",
-  "op": "finish",
-  "args": {}
+  "run_id": "43253230247",
+  "seq": -1,
+  "challenge": "",
+  "op": "tap",
+  "args": {
+    "label": "ابحث عن عقار…"
+  }
 }
