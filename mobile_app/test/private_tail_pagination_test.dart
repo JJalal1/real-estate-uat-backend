@@ -189,7 +189,7 @@ void main() {
         await tester.pumpAndSettle();
         pending.complete(_page(2, [_row(surface, 999)], last: 2)); await tester.pumpAndSettle();
         expect(find.textContaining('999'), findsNothing);
-        expect(find.textContaining('700'), findsOneWidget);
+        expect(find.text('Synthetic ${surface == 'favorites' ? 'favorite' : surface == 'availability' ? 'availability' : 'customer'} 700'), findsOneWidget);
         expect(wire.pages, [1, 2, 1]); expect(tester.takeException(), isNull);
       });
     }
@@ -202,15 +202,21 @@ void main() {
       if (r.queryParameters['page'] == 2) return pending.future;
       return _page(1, [_row('availability', 1)], last: 2);
     });
-    await _open(tester, wire, const BrokerAvailabilityScreen(), scale: 2.4);
+    final c = await _open(tester, wire, const BrokerAvailabilityScreen(), scale: 2.4);
     await _more(tester, 'broker-availability-more');
-    final chip = find.text('تحتاج تأكيد التوفر'); await tester.ensureVisible(chip); await tester.pumpAndSettle();
+    final chip = find.text('تحتاج تأكيد التوفر');
+    await tester.scrollUntilVisible(chip, -400, scrollable: _vertical, maxScrolls: 30);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(chip.hitTestable(), findsOneWidget);
     await tester.tap(chip); await tester.pumpAndSettle();
     expect(wire.requests.last.queryParameters, {'page': 1, 'per_page': 50, 'only_due': 1});
     pending.complete(_page(2, [_row('availability', 999)], last: 2)); await tester.pumpAndSettle();
     expect(find.text('Synthetic availability 101'), findsOneWidget);
     expect(find.text('Synthetic availability 999'), findsNothing);
-    expect(find.text('ما زالت متوفرة (1)'), findsOneWidget);
+    expect(c.read(brokerAvailabilityPagesProvider(true)).items.map((item) => item.id), [101]);
+    final confirm = find.text('ما زالت متوفرة (1)');
+    await tester.scrollUntilVisible(confirm, 300, scrollable: _vertical, maxScrolls: 20);
+    expect(confirm.hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
