@@ -1,31 +1,12 @@
 {
   "run_id": "43140357522",
-  "seq": 2,
-  "challenge": "11b97c66aae64135544e53a19efcbff37d60573af76017815a381d93a66a8e7e",
-  "op": "batch",
+  "seq": 3,
+  "challenge": "3ae4cefc4fab96a0b9545bad8dae2931515807864b8a7b5725df3a15ea938c26",
+  "op": "swipe",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "تفاصيل العقار",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/properties/107"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/properties/106"
-        }
-      }
-    ]
+    "x1": 540,
+    "y1": 790,
+    "x2": 540,
+    "y2": 240
   }
 }
