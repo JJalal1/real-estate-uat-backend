@@ -1,9 +1,36 @@
 {
   "run_id": "43143868479",
-  "seq": 6,
-  "challenge": "5183b7296e57cac00aec4979175e26f8ddf7744ae7fc8d12d5bb7272fe59d301",
-  "op": "tap",
+  "seq": 7,
+  "challenge": "af155360e4680912ef4b65fbb28a53a4aca58a18bf7238727d7929dd433a0aeb",
+  "op": "batch",
   "args": {
-    "label": "شقة عائلية مشرقة في حدة"
+    "steps": [
+      {
+        "op": "wait",
+        "args": {
+          "label": "شقة عائلية مشرقة في حدة",
+          "seconds": 15
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "فتح صورة العقار 1 من 1"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "تحميل صورة أوضح",
+          "seconds": 10
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تحميل صورة أوضح"
+        }
+      }
+    ]
   }
 }
