@@ -1,7 +1,9 @@
 {
   "run_id": "43253230247",
-  "seq": 14,
-  "challenge": "5dc247f943fe5150a0a423cf6913288486092a0cdc60944c8479de41690095b4",
-  "op": "observe",
-  "args": {}
+  "seq": 15,
+  "challenge": "d1696cc59ebddd5b10709b117bd87a87d28a0582615bbe6ceca653c32ceec125",
+  "op": "tap",
+  "args": {
+    "label": "البحث الذكي"
+  }
 }
