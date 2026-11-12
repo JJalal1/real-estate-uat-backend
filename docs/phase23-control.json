@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":33,"challenge":"dea0a07ae6f023061465947f135d2c335654ec91e1e5f6cb9b8e8e302f664370","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"تنفيذ"}},{"op":"tap","args":{"label":"العودة للرئيسية"}},{"op":"wait","args":{"label":"الرئيسية","seconds":5}},{"op":"tap","args":{"label":"حسابي"}},{"op":"wait","args":{"label":"تسجيل الخروج","seconds":5}},{"op":"tap","args":{"label":"تسجيل الخروج"}}]}}
+{"run_id":"43282970100","seq":34,"challenge":"c6f2e350e87c25c25f04255027ceb458f92bd8e93912f0d2068a1a1102b81610","op":"logout_in_place","args":{}}
