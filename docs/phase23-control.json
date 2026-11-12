@@ -1,10 +1,7 @@
 {
   "run_id": "43123392502",
-  "seq": 21,
-  "challenge": "d7f27f35826b84ecb9df80c4e2be4f42e117ce71d3bb2bc400e62d701844cc43",
-  "op": "api_get",
-  "args": {
-    "alias": "support",
-    "path": "/admin/listing-review/listings/107"
-  }
+  "seq": 22,
+  "challenge": "76c680c9128e21026e6d2ad9be5a2273f4cd31cd3d442aeee1689732c245f55c",
+  "op": "logout",
+  "args": {}
 }
