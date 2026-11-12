@@ -1,9 +1,9 @@
 {
   "run_id": "43143868479",
-  "seq": 14,
-  "challenge": "39b2b650c95fc06e509eda67e27db267c87b58f653316354406d5dfb5ffa52f3",
-  "op": "login",
+  "seq": 15,
+  "challenge": "c70215e8820bcf51a5de8155c11010c60fb763528775a76feb6d37f026d172c0",
+  "op": "tap",
   "args": {
-    "alias": "broker"
+    "label": "الإشعارات"
   }
 }
