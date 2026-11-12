@@ -1,14 +1,14 @@
 {
   "run_id": "43143868479",
-  "seq": 21,
-  "challenge": "c7fbe9bfd4f6779d3758ff5d6d967fdaf1d6123f36638e4f42e4870f5943c3da",
+  "seq": 22,
+  "challenge": "b4fe5a95546bd81651336c8f5979bc26cf6d2827e626eb964e8afa70a16d90b9",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "set",
         "args": {
-          "label": "ابحث عن عقار…",
+          "label": "إب",
           "value": "اب"
         }
       },
