@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":62,"challenge":"4475a07ea1701f5744336d5ff673f5c43ea74a853734e56c3c530b929a0ec905","op":"network_metrics","args":{}}
+{"run_id":"43282970100","seq":63,"challenge":"d867e1bea8aa32fbfd7687a21b83c8fd5264d06fea51161276f637f53e37058c","op":"prefetch_data_saver","args":{"enabled":false}}
