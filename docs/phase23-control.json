@@ -1,30 +1,10 @@
 {
   "run_id": "43143868479",
-  "seq": 1,
-  "challenge": "fa2032b5845a9fa41b32e69386cc2f4647032dae85194269df617adc11ddc0ac",
-  "op": "batch",
+  "seq": 2,
+  "challenge": "469d1fcb2ff79d639bc60f788e217c1e9a482fa040778fc8a3170bfc8cf965b6",
+  "op": "touch",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "شقة النور اختبار المرحلة23",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "فتح صورة العقار 1 من 3"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "إغلاق الصور",
-          "seconds": 10
-        }
-      }
-    ]
+    "x": 926,
+    "y": 499
   }
 }
