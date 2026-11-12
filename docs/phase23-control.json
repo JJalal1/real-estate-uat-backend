@@ -1,9 +1,10 @@
 {
   "run_id": "43243264586",
-  "seq": 9,
-  "challenge": "5edb3b39f14993960179c47e7e6b873eac594af0986b548bad463607e4721439",
-  "op": "tap",
+  "seq": 10,
+  "challenge": "e1ed9c5b6433cb48a0be29e8bde720262ef6ce8e127d1f653efc31c82be39c52",
+  "op": "wait",
   "args": {
-    "label": "منزل للبيع"
+    "label": "تعديل الفلاتر",
+    "seconds": 30
   }
 }
