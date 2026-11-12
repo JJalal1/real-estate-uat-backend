@@ -1,5 +1,5 @@
 {
-  "scope": "Phase23: APP001–APP010 have retained native fix confirmation; remaining acceptance coverage and final owner approval remain open.",
+  "scope": "Phase23: APP001–APP011 have retained native fix confirmation; remaining acceptance and final owner approval stay open.",
   "items": [
     {
       "id": "P23-APP-001",
@@ -142,6 +142,18 @@
       "ci_result": "PASS four source gates and actual-router warm-link regression",
       "native_fix_confirmation": "PASS UAT1585 first attempt checkpoints3–5; correct requested title, price and image count without closing the sheet first. Product components identical to the successful second attempt.",
       "state": "CLOSED"
+    },
+    {
+      "id": "P23-APP-011",
+      "state": "CLOSED",
+      "severity": "medium",
+      "problem": "Next-page failure retains20 rows but places retry above the long list, away from the user at its footer.",
+      "source": "540008a233a5b01d78f948ac1c17300f6e3bbcf5",
+      "native_reproduction": "UAT1587/24–29",
+      "fix": "Keep page-two loading/error/retry next to retained rows at the footer in assisted, Home and section results; preserve initial-page status at the header.",
+      "ci_run": 43253230111,
+      "regression_tests": "smart_search_pagination_recovery_test: three20-row surfaces,503,exact page2 retry and deduplication",
+      "native_confirmation": "PASS UAT1588/24–31: footer visible offline; page2 retry2001045ms; final seven cards visible"
     }
   ],
   "updated_utc": "2026-11-12T01:12:51.212Z"
