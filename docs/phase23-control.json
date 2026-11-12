@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":4,"challenge":"53f9afe8128b5ff8c577f32607f52845f1a530985c2e95ee24ac61f2cad4629e","op":"network","args":{"state":"offline"}}
+{"run_id":"43282970100","seq":5,"challenge":"dc4ac606dbb035ca97a8534013f967d90885314a143923be2019724198256505","op":"batch","args":{"steps":[{"op":"tap","args":{"label":"للإيجار"}},{"op":"tap","args":{"label":"شقة"}},{"op":"scroll","args":{"direction":"forward"}}]}}
