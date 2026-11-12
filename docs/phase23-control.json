@@ -1,9 +1,48 @@
 {
   "run_id": "43253230247",
-  "seq": 5,
-  "challenge": "25b9924006f8b94e77d6d6b5ddf81c968a202302aae922896425ef8836210d23",
-  "op": "network_profile",
+  "seq": 6,
+  "challenge": "ea0ec54fd78fb8f1e78a5233884ade836ccdfb84c7988d33f717c906ae8c426b",
+  "op": "batch",
   "args": {
-    "mode": "slow"
+    "steps": [
+      {
+        "op": "set",
+        "args": {
+          "label": "تجريبي",
+          "value": "تجر"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تنفيذ"
+        }
+      },
+      {
+        "op": "set",
+        "args": {
+          "label": "تجر",
+          "value": "شقة"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تنفيذ"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إيجار"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "بيع"
+        }
+      }
+    ]
   }
 }
