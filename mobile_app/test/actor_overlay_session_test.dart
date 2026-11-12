@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/actor_scoped_page.dart';
+
+import 'support/phase23_widget_tools.dart';
 
 class _Auth extends AuthController {
   @override
@@ -26,7 +29,7 @@ class _DelayedAuth extends _Auth {
 }
 
 void main() {
-  testWidgets('unbound page binds epoch with the first resolved actor after auth bootstrap', (tester) async {
+  phase23WidgetTest('unbound page binds epoch with the first resolved actor after auth bootstrap', (tester) async {
     final auth = _DelayedAuth();
     final container = ProviderContainer(overrides: [authControllerProvider.overrideWith(() => auth)]);
     addTearDown(container.dispose);
@@ -50,7 +53,7 @@ void main() {
   });
 
   for (final origin in ['actor', 'epoch', 'both']) {
-    testWidgets('explicit $origin origin stays pinned while initial auth resolves', (tester) async {
+    phase23WidgetTest('explicit $origin origin stays pinned while initial auth resolves', (tester) async {
       final auth = _DelayedAuth();
       final container = ProviderContainer(overrides: [authControllerProvider.overrideWith(() => auth)]);
       addTearDown(container.dispose);
@@ -72,7 +75,7 @@ void main() {
   for (final sheet in [false, true]) {
     final surface = sheet ? 'sheet' : 'dialog';
     for (final beforeFirstFrame in [false, true]) {
-      testWidgets('$surface fences session change ${beforeFirstFrame ? 'before first frame' : 'after closing with a value'}', (tester) async {
+      phase23WidgetTest('$surface fences session change ${beforeFirstFrame ? 'before first frame' : 'after closing with a value'}', (tester) async {
         final container = ProviderContainer(overrides: [authControllerProvider.overrideWith(_Auth.new)]);
         await container.read(authControllerProvider.future);
         addTearDown(container.dispose);

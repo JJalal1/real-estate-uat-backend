@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
@@ -15,6 +16,8 @@ import 'package:real_estate_mobile/features/messages/data/message_repository.dar
 import 'package:real_estate_mobile/features/messages/presentation/messages_screen.dart';
 import 'package:real_estate_mobile/features/messages/presentation/notifications_screen.dart';
 import 'package:real_estate_mobile/features/messages/presentation/conversation_reports_screen.dart';
+
+import 'support/phase23_widget_tools.dart';
 
 AuthUser _user(int id) => AuthUser.fromJson({
   'id': id, 'name': 'Synthetic actor $id', 'account_status': 'active',
@@ -170,7 +173,7 @@ void main() {
   }
 
   for (final screen in _screens) {
-    testWidgets('${screen.name} page-two failure retains forty rows and retries only that page', (tester) async {
+    phase23WidgetTest('${screen.name} page-two failure retains forty rows and retries only that page', (tester) async {
       var fail = true;
       final wire = _Wire((request) async {
         if (request.queryParameters['page'] == 1) {
@@ -205,7 +208,7 @@ void main() {
     });
 
     for (final status in [401, 403]) {
-      testWidgets('${screen.name} page-two $status clears private rows', (tester) async {
+      phase23WidgetTest('${screen.name} page-two $status clears private rows', (tester) async {
         final wire = _Wire((request) async {
           if (request.queryParameters['page'] == 2) throw _failure(request, status);
           return _page(1, [_row(1)], last: 2, total: 2);
@@ -219,7 +222,7 @@ void main() {
     }
 
     for (final sameActor in [false, true]) {
-      testWidgets('${screen.name} old page cannot enter ${sameActor ? 'renewed session' : 'another account'}', (tester) async {
+      phase23WidgetTest('${screen.name} old page cannot enter ${sameActor ? 'renewed session' : 'another account'}', (tester) async {
         final pending = Completer<Map<String, dynamic>>(); var first = true;
         final wire = _Wire((request) async {
           if (request.queryParameters['page'] == 2) return pending.future;
@@ -247,7 +250,7 @@ void main() {
       });
     }
 
-    testWidgets('${screen.name} epoch-only old response leaves a retryable empty screen', (tester) async {
+    phase23WidgetTest('${screen.name} epoch-only old response leaves a retryable empty screen', (tester) async {
       final pending = Completer<Map<String, dynamic>>(); var next = false;
       final wire = _Wire((request) async {
         if (request.queryParameters['page'] == 2) return pending.future;
@@ -268,7 +271,7 @@ void main() {
   }
 
   for (final screen in _screens) {
-    testWidgets('${screen.name} refresh supersedes an in-flight second page', (tester) async {
+    phase23WidgetTest('${screen.name} refresh supersedes an in-flight second page', (tester) async {
       final pending = Completer<Map<String, dynamic>>(); var first = true;
       final wire = _Wire((request) async {
         if (request.queryParameters['page'] == 2) return pending.future;
@@ -287,7 +290,7 @@ void main() {
     });
   }
 
-  testWidgets('report status replaces pending pages without crossing the filter', (tester) async {
+  phase23WidgetTest('report status replaces pending pages without crossing the filter', (tester) async {
     final pending = Completer<Map<String, dynamic>>();
     final wire = _Wire((request) async {
       if (request.queryParameters['status'] == 'resolved') return _page(1, [_row(300)]);
@@ -305,7 +308,7 @@ void main() {
     expect(find.byKey(const ValueKey('conversation-report-999')), findsNothing);
   });
 
-  testWidgets('late authorized report content cannot open in a renewed session', (tester) async {
+  phase23WidgetTest('late authorized report content cannot open in a renewed session', (tester) async {
     final pending = Completer<Map<String, dynamic>>();
     final requested = Completer<void>();
     final wire = _Wire((request) async {
@@ -316,8 +319,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('conversation-report-1')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('فتح وتسجيل الوصول'));
-    for (var i = 0; i < 8; i++) { await tester.pump(); }
-    await requested.future;
+    await tester.pumpAndSettle();
+    expect(requested.isCompleted, isTrue);
     Stage6SecureSessionStore.instance.beginSessionChange();
     (container.read(authControllerProvider.notifier) as _Auth).change(6);
     await tester.pumpAndSettle();
@@ -330,7 +333,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('unread filter requests a fresh server page before claiming empty', (tester) async {
+  phase23WidgetTest('unread filter requests a fresh server page before claiming empty', (tester) async {
     final pending = Completer<Map<String, dynamic>>();
     final wire = _Wire((request) async {
       if (request.queryParameters['unread_only'] == 1) return _page(1, [_row(300)], total: 1);
@@ -349,7 +352,7 @@ void main() {
 
   for (final all in [false, true]) {
     for (final fail in [false, true]) {
-      testWidgets('epoch-only pending ${all ? 'read-all' : 'single read'} ${fail ? 'failure' : 'success'} remains retryable', (tester) async {
+      phase23WidgetTest('epoch-only pending ${all ? 'read-all' : 'single read'} ${fail ? 'failure' : 'success'} remains retryable', (tester) async {
         final pending = Completer<Map<String, dynamic>>(); var fresh = false; var postCount = 0;
         final wire = _Wire((request) async {
           if (request.method == 'POST') {
@@ -380,7 +383,7 @@ void main() {
     }
   }
 
-  testWidgets('reading a notification resets its unread dataset to page one', (tester) async {
+  phase23WidgetTest('reading a notification resets its unread dataset to page one', (tester) async {
     var read = false;
     final wire = _Wire((request) async {
       if (request.method == 'POST') { read = true; return {'data': <String, dynamic>{}}; }

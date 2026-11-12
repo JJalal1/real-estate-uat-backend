@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
@@ -13,6 +14,8 @@ import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/reviews/data/listing_review_repository.dart';
 import 'package:real_estate_mobile/features/reviews/presentation/listing_review_workspace_screen.dart';
+
+import 'support/phase23_widget_tools.dart';
 
 AuthUser _user(int id) => AuthUser.fromJson({
   'id': id, 'name': 'Synthetic support $id', 'account_status': 'active',
@@ -103,7 +106,7 @@ Future<void> _next(WidgetTester tester) async {
   await tester.scrollUntilVisible(more, 600, scrollable: _verticalList.first,
       maxScrolls: 50);
   await tester.tap(more);
-  for (var i = 0; i < 8; i++) { await tester.pump(); }
+  await pumpPhase23Request(tester);
 }
 
 void main() {
@@ -157,7 +160,7 @@ void main() {
     expect(wire.requests, isEmpty);
   });
 
-  testWidgets('25-row queue retains page one on 503 and retries page two once', (tester) async {
+  phase23WidgetTest('25-row queue retains page one on 503 and retries page two once', (tester) async {
     var fail = true;
     final wire = _Wire((r) async {
       final page = r.queryParameters['page'] as int;
@@ -191,7 +194,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('temporary refresh failure preserves rows and retries page one', (tester) async {
+  phase23WidgetTest('temporary refresh failure preserves rows and retries page one', (tester) async {
     var fail = false;
     final wire = _Wire((r) async {
       if (fail) throw _failure(r, 503);
@@ -215,7 +218,7 @@ void main() {
     expect(container.read(reviewQueueProvider).error, isNull);
   });
 
-  testWidgets('page two access denial removes private queue rows', (tester) async {
+  phase23WidgetTest('page two access denial removes private queue rows', (tester) async {
     final wire = _Wire((r) async {
       if (r.queryParameters['page'] == 1) return _page(1, [_listing(1)], last: 2, total: 2);
       throw _failure(r, 403);
@@ -229,7 +232,7 @@ void main() {
     expect(find.text('ليس لديك صلاحية لتنفيذ هذه العملية.'), findsOneWidget);
   });
 
-  testWidgets('claim invalidation replaces pages and ignores the old page two', (tester) async {
+  phase23WidgetTest('claim invalidation replaces pages and ignores the old page two', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var claimed = false;
     final wire = _Wire((r) async {
@@ -254,7 +257,7 @@ void main() {
     expect(find.text('Synthetic listing 2'), findsNothing);
   });
 
-  testWidgets('refresh during page two replaces the snapshot and ignores its late rows', (tester) async {
+  phase23WidgetTest('refresh during page two replaces the snapshot and ignores its late rows', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var firstLoads = 0;
     final wire = _Wire((r) async {
@@ -275,7 +278,7 @@ void main() {
     expect(find.text('Synthetic listing 2'), findsNothing);
   });
 
-  testWidgets('account switch discards a delayed page and starts the next account at one', (tester) async {
+  phase23WidgetTest('account switch discards a delayed page and starts the next account at one', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var actor = 6;
     final wire = _Wire((r) async {
@@ -295,7 +298,7 @@ void main() {
     expect(find.text('Synthetic listing 60'), findsNothing);
   });
 
-  testWidgets('logout removes visible private rows without requesting a guest queue', (tester) async {
+  phase23WidgetTest('logout removes visible private rows without requesting a guest queue', (tester) async {
     final wire = _Wire((_) async => _page(1, [_listing(1)]));
     final container = await _open(tester, wire);
     (container.read(authControllerProvider.notifier) as _Auth).change(null);
@@ -306,7 +309,7 @@ void main() {
     expect(find.text('يجب تسجيل الدخول أولاً.'), findsOneWidget);
   });
 
-  testWidgets('logout then the same ID before a frame still rejects the old page', (tester) async {
+  phase23WidgetTest('logout then the same ID before a frame still rejects the old page', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var replacement = false;
     final wire = _Wire((r) async {
@@ -328,7 +331,7 @@ void main() {
     expect(find.text('Synthetic listing 2'), findsNothing);
   });
 
-  testWidgets('same-account session replacement resets loaded pages on auth emission', (tester) async {
+  phase23WidgetTest('same-account session replacement resets loaded pages on auth emission', (tester) async {
     var replacement = false;
     final wire = _Wire((r) async {
       final page = r.queryParameters['page'] as int;
@@ -345,7 +348,7 @@ void main() {
     expect(container.read(reviewQueueProvider).items.map((e) => e.id), [9]);
   });
 
-  testWidgets('same-session account metadata emission preserves both loaded pages', (tester) async {
+  phase23WidgetTest('same-session account metadata emission preserves both loaded pages', (tester) async {
     final wire = _Wire((r) async {
       final page = r.queryParameters['page'] as int;
       return _page(page, [_listing(page)], last: 2, total: 2);
@@ -359,7 +362,7 @@ void main() {
     expect(container.read(reviewQueueProvider).items.map((e) => e.id), [1, 2]);
   });
 
-  testWidgets('epoch-only change while loading clears stale rows and recovers at page one', (tester) async {
+  phase23WidgetTest('epoch-only change while loading clears stale rows and recovers at page one', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var replacement = false;
     final wire = _Wire((r) async {
@@ -377,7 +380,7 @@ void main() {
     expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 
-  testWidgets('empty queue supports refresh and keeps the original Arabic/theme surface', (tester) async {
+  phase23WidgetTest('empty queue supports refresh and keeps the original Arabic/theme surface', (tester) async {
     var empty = true;
     final wire = _Wire((_) async => _page(1, empty ? [] : [_listing(3)]));
     final container = await _open(tester, wire);

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
@@ -13,6 +14,8 @@ import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/reviews/data/listing_review_repository.dart';
 import 'package:real_estate_mobile/features/reviews/presentation/listing_review_workspace_screen.dart';
+
+import 'support/phase23_widget_tools.dart';
 
 AuthUser _user(int id, {bool canLift = true}) => AuthUser.fromJson({
   'id': id, 'name': 'Synthetic support $id', 'account_status': 'active',
@@ -106,7 +109,7 @@ Future<void> _next(WidgetTester tester) async {
   await tester.pumpAndSettle();
   expect(more.hitTestable(), findsOneWidget);
   await tester.tap(more);
-  for (var i = 0; i < 8; i++) { await tester.pump(); }
+  await pumpPhase23Request(tester);
 }
 
 void main() {
@@ -159,7 +162,7 @@ void main() {
     expect(wire.requests, isEmpty);
   });
 
-  testWidgets('50 blocks retain rows on 503, retry page two, deduplicate and stop', (tester) async {
+  phase23WidgetTest('50 blocks retain rows on 503, retry page two, deduplicate and stop', (tester) async {
     var fail = true;
     final wire = _Wire((r) async {
       if (r.queryParameters['page'] == 1) return _page(1, List.generate(50, (i) => _block(i + 1)), last: 2, total: 51);
@@ -191,7 +194,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('block page-two denial clears private rows and offers first-page retry', (tester) async {
+  phase23WidgetTest('block page-two denial clears private rows and offers first-page retry', (tester) async {
     final wire = _Wire((r) async {
       if (r.queryParameters['page'] == 1) return _page(1, [_block(1)], last: 2, total: 2);
       throw _failure(r, 403);
@@ -204,7 +207,7 @@ void main() {
     expect(find.byType(AppErrorState), findsOneWidget);
   });
 
-  testWidgets('block visibility keeps lift permission and same-session metadata boundaries', (tester) async {
+  phase23WidgetTest('block visibility keeps lift permission and same-session metadata boundaries', (tester) async {
     final wire = _Wire((_) async => _page(1, [_block(1)]));
     final container = await _open(tester, wire);
     expect(find.text('رفع الحظر'), findsOneWidget);
@@ -216,7 +219,7 @@ void main() {
     expect(Directionality.of(tester.element(find.text('Synthetic block 1'))), TextDirection.rtl);
   });
 
-  testWidgets('lift invalidation rejects a pending old page and reloads active blocks', (tester) async {
+  phase23WidgetTest('lift invalidation rejects a pending old page and reloads active blocks', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var lifted = false;
     final wire = _Wire((r) async {
@@ -244,7 +247,7 @@ void main() {
     expect(find.text('Synthetic block 2'), findsNothing);
   });
 
-  testWidgets('block refresh replaces a pending page and rejects its late result', (tester) async {
+  phase23WidgetTest('block refresh replaces a pending page and rejects its late result', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var firstLoads = 0;
     final wire = _Wire((r) async {
@@ -263,7 +266,7 @@ void main() {
     expect(container.read(publicationBlocksProvider).items.map((e) => e.id), [8]);
   });
 
-  testWidgets('temporary block refresh failure preserves rows and blocks page-two continuation', (tester) async {
+  phase23WidgetTest('temporary block refresh failure preserves rows and blocks page-two continuation', (tester) async {
     var fail = false;
     final wire = _Wire((r) async {
       if (fail) throw _failure(r, 503);
@@ -284,7 +287,7 @@ void main() {
     expect(wire.pages, [1, 1, 1]);
   });
 
-  testWidgets('account change drops late blocks and restarts at page one', (tester) async {
+  phase23WidgetTest('account change drops late blocks and restarts at page one', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var actor = 6;
     final wire = _Wire((r) async {
@@ -303,7 +306,7 @@ void main() {
     expect(find.text('Synthetic block 6'), findsNothing);
   });
 
-  testWidgets('same-ID replacement session discards accumulated blocks', (tester) async {
+  phase23WidgetTest('same-ID replacement session discards accumulated blocks', (tester) async {
     var replacement = false;
     final wire = _Wire((r) async {
       final page = r.queryParameters['page'] as int;
@@ -320,7 +323,7 @@ void main() {
     expect(container.read(publicationBlocksProvider).items.map((e) => e.id), [9]);
   });
 
-  testWidgets('changing account during a lift dialog cannot send the old block action', (tester) async {
+  phase23WidgetTest('changing account during a lift dialog cannot send the old block action', (tester) async {
     final wire = _Wire((_) async => _page(1, [_block(1)]));
     final container = await _open(tester, wire);
     await tester.tap(find.text('رفع الحظر'));
@@ -331,7 +334,7 @@ void main() {
     expect(wire.requests.where((r) => r.path.endsWith('/lift')), isEmpty);
   });
 
-  testWidgets('late lift receipt cannot invalidate the replacement account block list', (tester) async {
+  phase23WidgetTest('late lift receipt cannot invalidate the replacement account block list', (tester) async {
     final delayed = Completer<Map<String, dynamic>>();
     var actor = 6;
     final wire = _Wire((r) async {
@@ -355,7 +358,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('empty active blocks can refresh without changing permissions or theme', (tester) async {
+  phase23WidgetTest('empty active blocks can refresh without changing permissions or theme', (tester) async {
     var empty = true;
     final wire = _Wire((_) async => _page(1, empty ? [] : [_block(3)]));
     final container = await _open(tester, wire);

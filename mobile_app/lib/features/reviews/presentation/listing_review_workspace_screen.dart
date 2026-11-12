@@ -989,30 +989,10 @@ class _PublicationBlocks extends ConsumerWidget {
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final repository = ref.read(listingReviewRepositoryProvider);
-    final controller = TextEditingController();
     final reason = await showActorDialog<String>(
       context: context, ref: ref,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('رفع حظر النشر'),
-        content: TextField(
-          controller: controller,
-          minLines: 3,
-          maxLines: 6,
-          decoration: const InputDecoration(labelText: 'سبب رفع الحظر'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
-          EbrokerFilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.length >= 10) Navigator.pop(dialogContext, value);
-            },
-            child: const Text('رفع الحظر'),
-          ),
-        ],
-      ),
+      builder: (_) => const _LiftBlockReasonDialog(),
     );
-    controller.dispose();
     if (reason == null || !context.mounted ||
         actor != ref.read(authControllerProvider).asData?.value?.id ||
         epoch != Stage6SecureSessionStore.instance.sessionEpoch) { return; }
@@ -1033,6 +1013,44 @@ class _PublicationBlocks extends ConsumerWidget {
       }
     }
   }
+}
+
+class _LiftBlockReasonDialog extends StatefulWidget {
+  const _LiftBlockReasonDialog();
+
+  @override
+  State<_LiftBlockReasonDialog> createState() => _LiftBlockReasonDialogState();
+}
+
+class _LiftBlockReasonDialogState extends State<_LiftBlockReasonDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('رفع حظر النشر'),
+    content: TextField(
+      controller: _controller,
+      minLines: 3,
+      maxLines: 6,
+      decoration: const InputDecoration(labelText: 'سبب رفع الحظر'),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+      EbrokerFilledButton(
+        onPressed: () {
+          final value = _controller.text.trim();
+          if (value.length >= 10) Navigator.pop(context, value);
+        },
+        child: const Text('رفع الحظر'),
+      ),
+    ],
+  );
 }
 
 class _ReviewBundle {

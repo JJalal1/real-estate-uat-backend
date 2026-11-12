@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
@@ -16,6 +17,8 @@ import 'package:real_estate_mobile/features/account/presentation/account_verific
 import 'package:real_estate_mobile/features/support/data/account_verification_support_repository.dart';
 import 'package:real_estate_mobile/features/support/presentation/account_verification_support_screen.dart';
 import 'package:real_estate_mobile/features/support/presentation/support_tasks_screen.dart';
+
+import 'support/phase23_widget_tools.dart';
 
 AuthUser _user(int id) => AuthUser.fromJson({'id': id, 'name': 'Synthetic staff $id',
   'account_status': 'active', 'roles': ['support_agent'], 'permissions': ['accounts.verify_profiles']});
@@ -115,7 +118,7 @@ void main() {
     expect(wire.pages, [2, 2]);
   });
 
-  testWidgets('focused support task reaches applicant101 with one exact lookup and no unrelated profiles', (tester) async {
+  phase23WidgetTest('focused support task reaches applicant101 with one exact lookup and no unrelated profiles', (tester) async {
     final wire = _Wire((r) async => r.queryParameters['user_id'] == 101
       ? _page(1, [_application(101)])
       : _page(1, [for (var id = 201; id >= 102; id--) _application(id)], last: 2, total: 101));
@@ -131,7 +134,7 @@ void main() {
   });
 
   for (final boundary in ['account switch', 'same-ID replacement', 'same-account relogin']) {
-    testWidgets('task navigation binds focus101 before the first frame across $boundary', (tester) async {
+    phase23WidgetTest('task navigation binds focus101 before the first frame across $boundary', (tester) async {
       final wire = _Wire((r) async => r.path == '/admin/workspace/tasks'
         ? _page(1, [{'id': 7, 'source_type': 'account_verification', 'source_id': 101,
             'subject': 'Synthetic verification task', 'status': 'in_progress',
@@ -151,7 +154,7 @@ void main() {
     });
   }
 
-  testWidgets('an unavailable focused applicant uses exact empty result without falling back to bulk data', (tester) async {
+  phase23WidgetTest('an unavailable focused applicant uses exact empty result without falling back to bulk data', (tester) async {
     final wire = _Wire((_) async => _page(1, []));
     await _open(tester, wire, admin: false, focus: 101);
     expect(wire.requests.single.queryParameters['user_id'], 101);
@@ -176,7 +179,7 @@ void main() {
       expect(wire.requests.length, 1);
     });
 
-    testWidgets('$surface retains40 rows on page2 failure and retries, deduplicates and ends', (tester) async {
+    phase23WidgetTest('$surface retains40 rows on page2 failure and retries, deduplicates and ends', (tester) async {
       var fail = true;
       final wire = _Wire((r) async {
         if (r.queryParameters['page'] == 1) {
@@ -208,7 +211,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('$surface removes all retained private rows on page2 access denial', (tester) async {
+    phase23WidgetTest('$surface removes all retained private rows on page2 access denial', (tester) async {
       final wire = _Wire((r) async {
         if (r.queryParameters['page'] == 2) throw _failure(r, 403);
         return _page(1, [_application(1)], last: 2, total: 2);
@@ -218,7 +221,7 @@ void main() {
       expect(find.byType(AppErrorState), findsOneWidget);
     });
 
-    testWidgets('$surface ignores page2 after a successful refresh', (tester) async {
+    phase23WidgetTest('$surface ignores page2 after a successful refresh', (tester) async {
       final pending = Completer<Object>(); var firstLoads = 0;
       final wire = _Wire((r) async {
         if (r.queryParameters['page'] == 2) return pending.future;
@@ -233,7 +236,7 @@ void main() {
       expect(find.byKey(const ValueKey('verification-99')), findsNothing);
     });
 
-    testWidgets('$surface keeps pages during same-session account metadata refresh', (tester) async {
+    phase23WidgetTest('$surface keeps pages during same-session account metadata refresh', (tester) async {
       final wire = _Wire((_) async => _page(1, [_application(1)], last: 2, total: 2));
       final container = await _open(tester, wire, admin: admin);
       (container.read(authControllerProvider.notifier) as _Auth).change(6); await tester.pumpAndSettle();
@@ -241,7 +244,7 @@ void main() {
     });
 
     for (final boundary in ['account switch', 'same-ID replacement', 'same-account relogin']) {
-      testWidgets('$surface discards late pages across $boundary', (tester) async {
+      phase23WidgetTest('$surface discards late pages across $boundary', (tester) async {
         final pending = Completer<Object>(); var firstLoads = 0;
         final wire = _Wire((r) async {
           if (r.queryParameters['page'] == 2) return pending.future;
@@ -260,7 +263,7 @@ void main() {
       });
     }
 
-    testWidgets('$surface refuses document actions after an epoch change before auth emits', (tester) async {
+    phase23WidgetTest('$surface refuses document actions after an epoch change before auth emits', (tester) async {
       final wire = _Wire((_) async => _page(1, [_application(101)]));
       await _open(tester, wire, admin: admin); await _review(tester, 101);
       final document = find.text(admin ? 'البطاقة الشخصية أو جواز السفر' : 'صورة الهوية / الجواز');
@@ -271,7 +274,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('$surface never displays document bytes from the preceding session', (tester) async {
+    phase23WidgetTest('$surface never displays document bytes from the preceding session', (tester) async {
       final pending = Completer<Object>();
       final wire = _Wire((r) async => r.path.contains('/documents/')
         ? pending.future : _page(1, [_application(101)]));
@@ -280,7 +283,7 @@ void main() {
       final document = find.text(admin ? 'البطاقة الشخصية أو جواز السفر' : 'صورة الهوية / الجواز');
       await tester.ensureVisible(document); await tester.pumpAndSettle();
       await tester.tap(document);
-      for (var i = 0; i < 8; i++) { await tester.pump(); }
+      await pumpPhase23Request(tester);
       expect(wire.requests.where((r) => r.path.endsWith('/101/documents/identity_document')).length, 1);
       Stage6SecureSessionStore.instance.beginSessionChange();
       (container.read(authControllerProvider.notifier) as _Auth).change(6);
@@ -291,7 +294,7 @@ void main() {
     });
   }
 
-  testWidgets('admin type-filter change discards a pending earlier page', (tester) async {
+  phase23WidgetTest('admin type-filter change discards a pending earlier page', (tester) async {
     final pending = Completer<Object>();
     final wire = _Wire((r) async {
       if (r.queryParameters['page'] == 2) return pending.future;
@@ -308,7 +311,7 @@ void main() {
     expect(find.byKey(const ValueKey('verification-99')), findsNothing);
   });
 
-  testWidgets('late admin approval cannot close the replacement session page', (tester) async {
+  phase23WidgetTest('late admin approval cannot close the replacement session page', (tester) async {
     final pending = Completer<Object>();
     final wire = _Wire((r) async => r.path.endsWith('/approve') ? pending.future
       : _page(1, [_application(101)]));

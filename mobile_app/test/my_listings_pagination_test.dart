@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
@@ -16,6 +17,8 @@ import 'package:real_estate_mobile/features/properties/data/property_repository.
 import 'package:real_estate_mobile/features/properties/domain/my_listings_page.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
+
+import 'support/phase23_widget_tools.dart';
 
 AuthUser _user(int id) => AuthUser.fromJson({
   'id': id, 'name': 'Synthetic broker $id', 'account_type': 'broker',
@@ -320,7 +323,7 @@ void main() {
     });
   }
 
-  testWidgets('long private workspace keeps retry at the footer and preserves scroll', (tester) async {
+  phase23WidgetTest('long private workspace keeps retry at the footer and preserves scroll', (tester) async {
     var fail = true;
     final wire = _Wire((r) async {
       final page = r.queryParameters['page'] as int;
@@ -350,7 +353,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('empty local filter can reach a match on the next page without false totals', (tester) async {
+  phase23WidgetTest('empty local filter can reach a match on the next page without false totals', (tester) async {
     final wire = _Wire((r) async {
       final page = r.queryParameters['page'] as int;
       return _page(page, [_listing(page, review: page == 1 ? 'draft' : 'approved')],

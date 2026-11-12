@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
@@ -14,6 +15,8 @@ import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/support/data/support_repository.dart';
 import 'package:real_estate_mobile/features/support/presentation/support_admin_screen.dart';
 import 'package:real_estate_mobile/features/support/presentation/support_center_screen.dart';
+
+import 'support/phase23_widget_tools.dart';
 
 AuthUser _user(int id) => AuthUser.fromJson({
   'id': id, 'name': 'Synthetic account $id', 'account_status': 'active',
@@ -163,7 +166,7 @@ void main() {
       expect(wire.requests, isEmpty);
     });
 
-    testWidgets('$surface retries page two in place, deduplicates and stops at the end', (tester) async {
+    phase23WidgetTest('$surface retries page two in place, deduplicates and stops at the end', (tester) async {
       final size = admin ? 40 : 30;
       var fail = true;
       final wire = _Wire((request) async {
@@ -205,7 +208,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('$surface clears retained rows on page-two denial', (tester) async {
+    phase23WidgetTest('$surface clears retained rows on page-two denial', (tester) async {
       final wire = _Wire((request) async {
         if (request.queryParameters['page'] == 2) throw _failure(request, 403);
         return _page(1, [_case(1)], last: 2, total: 2);
@@ -219,7 +222,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('$surface discards page two when refresh completes first', (tester) async {
+    phase23WidgetTest('$surface discards page two when refresh completes first', (tester) async {
       final pending = Completer<Map<String, dynamic>>();
       var firstPage = 0;
       final wire = _Wire((request) async {
@@ -242,7 +245,7 @@ void main() {
     });
 
     for (final boundary in ['account switch', 'same-account relogin', 'same-ID token replacement']) {
-      testWidgets('$surface never opens late private details across $boundary', (tester) async {
+      phase23WidgetTest('$surface never opens late private details across $boundary', (tester) async {
         final pending = Completer<Map<String, dynamic>>();
         final wire = _Wire((request) async {
           if (request.path.endsWith('/cases/1')) return pending.future;
@@ -253,7 +256,7 @@ void main() {
         await tester.ensureVisible(row);
         await tester.pumpAndSettle();
         await tester.tap(row);
-        for (var i = 0; i < 8; i++) { await tester.pump(); }
+        await pumpPhase23Request(tester);
         expect(wire.requests.where((r) => r.path.endsWith('/cases/1')).length, 1);
         final auth = container.read(authControllerProvider.notifier) as _Auth;
         if (boundary == 'same-ID token replacement') {
@@ -271,7 +274,7 @@ void main() {
       });
     }
 
-    testWidgets('$surface hides an already open dialog on same-ID session replacement', (tester) async {
+    phase23WidgetTest('$surface hides an already open dialog on same-ID session replacement', (tester) async {
       final wire = _Wire((request) async => request.path.endsWith('/cases/1')
         ? {'data': {..._case(1), 'description': 'Private open-session details'}}
         : _page(1, [_case(1)]));
@@ -292,7 +295,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('$surface keeps loaded rows for same-session account metadata', (tester) async {
+    phase23WidgetTest('$surface keeps loaded rows for same-session account metadata', (tester) async {
       final wire = _Wire((_) async => _page(1, [_case(1)], last: 2, total: 2));
       final container = await _open(tester, wire, admin: admin);
       (container.read(authControllerProvider.notifier) as _Auth).change(6);
@@ -302,7 +305,7 @@ void main() {
     });
 
     for (final boundary in ['account switch', 'same-account relogin', 'same-ID token replacement']) {
-      testWidgets('$surface rejects a late page across $boundary', (tester) async {
+      phase23WidgetTest('$surface rejects a late page across $boundary', (tester) async {
         final pending = Completer<Map<String, dynamic>>();
         var firstPage = 0;
         final wire = _Wire((request) async {
@@ -332,7 +335,7 @@ void main() {
     }
   }
 
-  testWidgets('admin filter change discards an earlier page two', (tester) async {
+  phase23WidgetTest('admin filter change discards an earlier page two', (tester) async {
     final pending = Completer<Map<String, dynamic>>();
     final wire = _Wire((request) async {
       if (request.queryParameters['page'] == 2) return pending.future;
