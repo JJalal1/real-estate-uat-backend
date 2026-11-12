@@ -1,9 +1,7 @@
 {
   "run_id": "43123392502",
-  "seq": 11,
-  "challenge": "1eb16ea658de771401388b2c0b0ecf50ff467fec69a6de08357626ebcbe08861",
-  "op": "tap",
-  "args": {
-    "label": "إرسال للمراجعة"
-  }
+  "seq": 12,
+  "challenge": "410f1a6bb0e800dc54a6376b32372a6df68b49649984cb604a3a32b7948817db",
+  "op": "observe",
+  "args": {}
 }
