@@ -1,1 +1,1 @@
-{"run_id":"43282970100","seq":42,"challenge":"bae5e6aa075cfd03d7c183f520e710fe1339d784fcafc1ec06b9956c01550516","op":"network_profile","args":{"mode":"slow"}}
+{"run_id":"43282970100","seq":43,"challenge":"7c8c7d6afe8dc57f126ba7d62087b60c5fc89ef3680ce16d78b7b9a941944473","op":"batch","args":{"steps":[{"op":"touch","args":{"x":158,"y":327}},{"op":"touch","args":{"x":1007,"y":137}},{"op":"tap","args":{"label":"حسابي"}},{"op":"tap","args":{"label":"تسجيل الخروج"}}]}}
