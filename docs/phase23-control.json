@@ -1,9 +1,7 @@
 {
   "run_id": "43243264586",
-  "seq": 14,
-  "challenge": "ee642bb439a33328aef48f4c79984cc431863c2d6c18e2b3ada3311c1cf232b9",
-  "op": "tap",
-  "args": {
-    "label": "إزالة نطاق محدد على الخريطة"
-  }
+  "seq": 15,
+  "challenge": "e1a801f916c11a583f7dfc2525f4267e21522b4699020bb069df2933dde5acad",
+  "op": "record_start",
+  "args": {}
 }
