@@ -1,50 +1,20 @@
 {
   "run_id": "43143868479",
-  "seq": 4,
-  "challenge": "574bc858df5490cf52831e6a480ca6d0d7f57412902653fb5f6253ca434c594a",
+  "seq": 5,
+  "challenge": "0f732cc3644ef4336bd2fd4fe756093ffcce6cc31acddeab36090f7521196075",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "wait",
+        "op": "scroll",
         "args": {
-          "label": "شقة النور اختبار المرحلة23",
-          "seconds": 20
+          "direction": "forward"
         }
       },
       {
-        "op": "swipe",
+        "op": "scroll",
         "args": {
-          "x1": 540,
-          "y1": 790,
-          "x2": 540,
-          "y2": 240
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "أضف للمقارنة"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "قارن العقارين (٢/٢)",
-          "seconds": 10
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "قارن العقارين (٢/٢)"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "مقارنة العقارات",
-          "seconds": 15
+          "direction": "forward"
         }
       }
     ]
