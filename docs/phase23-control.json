@@ -1,7 +1,9 @@
 {
   "run_id": "43123392502",
-  "seq": 12,
-  "challenge": "410f1a6bb0e800dc54a6376b32372a6df68b49649984cb604a3a32b7948817db",
-  "op": "observe",
-  "args": {}
+  "seq": 13,
+  "challenge": "12c5552e4815d6dcbe62d7aa9d710ea34648a94f239ed2e654e886e85bcbae90",
+  "op": "tap",
+  "args": {
+    "label": "حفظ وإرسال"
+  }
 }
