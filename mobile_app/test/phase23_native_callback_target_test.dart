@@ -97,14 +97,16 @@ void main() {
   });
   testWidgets('Android evidence has distinct visible semantic nodes with the complete numeric schema', (tester) async {
     final gate=CallbackGate()..actor=()=>66;
-    final semantics=tester.ensureSemantics();addTearDown(semantics.dispose);
-    await tester.pumpWidget(MaterialApp(home:Scaffold(body:CallbackReadout(gate:gate))));
-    expect(find.bySemanticsLabel(callbackHarnessMarker),findsOneWidget);
-    final label='CB-META:${jsonEncode(gate.metadata)}';
-    expect(find.bySemanticsLabel(label),findsOneWidget);
-    final node=tester.getSemantics(find.bySemanticsLabel(label));
-    expect(node.getSemanticsData().label,label);expect(node.rect.height,greaterThan(20));
-    expect(jsonDecode(node.getSemanticsData().label.substring(8))['actor'],1);
+    final semantics=tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(MaterialApp(home:Scaffold(body:CallbackReadout(gate:gate))));
+      expect(find.bySemanticsLabel(callbackHarnessMarker),findsOneWidget);
+      final label='CB-META:${jsonEncode(gate.metadata)}';
+      expect(find.bySemanticsLabel(label),findsOneWidget);
+      final node=tester.getSemantics(find.bySemanticsLabel(label));
+      expect(node.getSemanticsData().label,label);expect(node.rect.height,greaterThan(20));
+      expect(jsonDecode(node.getSemanticsData().label.substring(8))['actor'],1);
+    } finally { semantics.dispose(); }
   });
   test('partial editor fixture cannot begin automatic account saving', () {
     final progress=DynamicPropertySchema.draftProgress({'editor_version':11,'draft_kind':'recovery',
