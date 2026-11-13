@@ -1,35 +1,9 @@
 {
   "run_id": "43395970989",
-  "seq": 5,
-  "challenge": "b32ac8dce308277d25631a45758c36f3aece9cca1268214a5659d65c112f3c03",
-  "op": "batch",
+  "seq": 6,
+  "challenge": "0be868816b7a129961ad891fe09a77fe4546db3ab373840992361b492e385181",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "CB editor"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "حدد نقطة العقار أولًا",
-          "seconds": 30
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تحديد موقعي الحالي"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "CB controls"
-        }
-      }
-    ]
+    "label": "CB account"
   }
 }
