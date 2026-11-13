@@ -1,24 +1,7 @@
 {
   "run_id": "43395970989",
-  "seq": 9,
-  "challenge": "7093a95ba37b57ff8c7843046c3afd0a3e50dfc8c20c7819a25e64b96f621f86",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "regular",
-          "path": "/listing-editor-drafts"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/listing-editor-drafts"
-        }
-      }
-    ]
-  }
+  "seq": 10,
+  "challenge": "480f5aa740a97308d03cb3f5522352ddd099c42f4bcc1e611f82a29f6c65116f",
+  "op": "finish",
+  "args": {}
 }
