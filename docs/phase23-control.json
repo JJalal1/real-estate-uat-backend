@@ -1,28 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 5,
-  "challenge": "8c1e52e98bae735f6e6917ba8ace9428faeb10fcb7e879869a09e1c8155c18e6",
-  "op": "batch",
+  "seq": 6,
+  "challenge": "1dbccd040aeebd06dcd6000038f13a2519736ef19841d6b76024ff0b8e9b5fb6",
+  "op": "scroll",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "للبيع"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "شقة"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      }
-    ]
+    "direction": "forward"
   }
 }
