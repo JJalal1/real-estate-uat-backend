@@ -1,10 +1,9 @@
 {
   "run_id": "43494440838",
-  "seq": 8,
-  "challenge": "9fe603c4407b0c2488f43da902fcf7594b56e85f207b06ee941a4476f1bec532",
-  "op": "touch",
+  "seq": 9,
+  "challenge": "73c65d3fcfab55a71c51ebfa12c845efab8f967e9bdbba7a7794eff5ccb95e95",
+  "op": "tap",
   "args": {
-    "x": 926,
-    "y": 499
+    "label": "تحميل صورة أوضح"
   }
 }
