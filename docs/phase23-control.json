@@ -1,9 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 8,
-  "challenge": "1ab6604ee9ad293500f04f7205ba0ce3131ab0c2aa7db07ff91460fa4701bcec",
+  "seq": 9,
+  "challenge": "eadb6867ca827f8fc1bcfd9656535cf4957b5f31febe03a2f837703004eddee5",
   "op": "tap",
   "args": {
-    "label": "نواقص الإعلان"
+    "label": "حدد نقطة العقار على الخريطة أو من موقعك الحالي، ثم أكد الموقع.\nالموقع والمستندات"
   }
 }
