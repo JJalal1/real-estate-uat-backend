@@ -58,7 +58,18 @@ class OfflineVisualContract(unittest.TestCase):
                        "'case': current.index", "'failures': _failures.value",
                        "_failure('fixture_request_missing')"):
             self.assertIn(marker, self.source)
-        self.assertIn('AbsorbPointer(child: item.screen)', self.source)
+        self.assertIn('AbsorbPointer(child: KeyedSubtree(', self.source)
+
+    def test_only_outer_vertical_scrolling_can_reach_private_content(self):
+        for boundary in ("label: 'AQER_VISUAL_SCROLL'", 'onScrollDown:', 'onScrollUp:',
+                         'onVerticalDragUpdate:', 'excludeFromSemantics: true',
+                         'AbsorbPointer(child: KeyedSubtree(', 'position.jumpTo(offset)',
+                         'candidate.hasContentDimensions',
+                         '.clamp(position.minScrollExtent, position.maxScrollExtent)'):
+            self.assertIn(boundary, self.source)
+        body = self.source.split('// Only this outer vertical gesture/semantic action')[1]
+        self.assertNotIn('onTap:', body)
+        self.assertNotIn('onHorizontalDrag', body)
 
     def test_actual_widgets_themes_and_rtl_are_reused(self):
         for component in ('FavoritesScreen()', 'BrokerAvailabilityScreen()',

@@ -539,7 +539,7 @@ class _CenteredState extends StatelessWidget {
               const SizedBox(height: AppSpacing.s12),
               EbrokerText(title, size: 22, color: scheme.primary, align: TextAlign.center),
               const SizedBox(height: AppSpacing.s8),
-              EbrokerText(message, size: 16, color: EbrokerDesign.textLight, align: TextAlign.center),
+              EbrokerText(message, size: 16, color: scheme.onSurface, align: TextAlign.center),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: AppSpacing.s20),
                 AppButton(

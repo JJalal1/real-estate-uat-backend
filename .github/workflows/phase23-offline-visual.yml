@@ -1,6 +1,7 @@
 name: Phase23 isolated Android private layout acceptance
 # One offline target at nominal412dp and320dp; large cases use font scale2.4.
 # Each width starts with a fresh synthetic installation. Never export live private pixels.
+# Reviewed contrast correction includes a separate ordinary-main UAT delivery build.
 on:
   push:
     branches: [work/phase23-acceptance-20261111]
@@ -10,6 +11,12 @@ on:
       - scripts/run_phase23_offline_visual.py
       - scripts/tests/test_phase23_offline_visual_contract.py
       - scripts/tests/test_phase23_offline_visual_collector.py
+      - scripts/phase23_visual_revision.py
+      - scripts/prepare_phase23_visual_delivery.py
+      - scripts/tests/test_phase23_visual_revision.py
+      - scripts/tests/test_phase23_visual_delivery.py
+      - mobile_app/lib/core/widgets/app_components.dart
+      - mobile_app/test/phase23_centered_state_contrast_test.dart
 permissions:
   contents: read
 concurrency:
@@ -28,6 +35,8 @@ jobs:
           python-version: '3.12'
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_visual_contract.py -v
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_visual_collector.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_visual_revision.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_visual_delivery.py -v
   native-visual:
     if: ${{ contains(github.event.head_commit.message, '[run-offline-visual]') }}
     needs: fixture-safety
@@ -35,6 +44,9 @@ jobs:
     timeout-minutes: 35
     env:
       PHASE23_OFFLINE_VISUAL: 'true'
+      PHASE23_VISUAL_REVISION: 'true'
+      PHASE23_PREFETCH_ON: 'true'
+      PHASE23_RECIPIENT_SHA256: b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070
       SOURCE_COMMIT: ${{ github.sha }}
       AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
     steps:
@@ -50,12 +62,13 @@ jobs:
           python3 -B - <<'PY'
           import os, sys
           sys.path.insert(0, 'scripts')
-          from phase23_preflight import guard
+          from phase23_visual_revision import guard
           guard(os.environ)
           with open(os.environ['GITHUB_ENV'], 'a') as stream:
               stream.write('GRADLE_USER_HOME=' + os.environ['RUNNER_TEMP'] + '/aqer-visual-gradle\n')
-              stream.write('PHASE23_VISUAL_BUILD=' + str(1700 + int(os.environ['GITHUB_RUN_NUMBER'])) + '\n')
-          print('AQER_VISUAL_REVIEWED_PRODUCT_UNCHANGED')
+              stream.write('PHASE23_VISUAL_BUILD=' + str(1800 + int(os.environ['GITHUB_RUN_NUMBER'])) + '\n')
+              stream.write('PHASE23_BUILD=' + str(1800 + int(os.environ['GITHUB_RUN_NUMBER'])) + '\n')
+          print('AQER_VISUAL_REVIEWED_CONTRAST_REVISION')
           PY
           test -c /dev/kvm
       - uses: actions/setup-java@v4
@@ -76,6 +89,37 @@ jobs:
             ${{ env.GRADLE_USER_HOME }}/caches/modules-2
             ${{ env.GRADLE_USER_HOME }}/wrapper/dists
           key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Validate the shared state contrast correction and build ordinary UAT
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          flutter analyze --fatal-infos lib/core/widgets/app_components.dart test/phase23_centered_state_contrast_test.dart
+          flutter test --no-pub test/phase23_centered_state_contrast_test.dart test/phase3_favorites_screen_test.dart
+          flutter build apk --target lib/main.dart --flavor uat --release --no-pub --build-number="$PHASE23_VISUAL_BUILD" \
+            --dart-define=APP_BUILD_NUMBER="$PHASE23_VISUAL_BUILD" --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api \
+            --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
+            --dart-define=AQER_CONDITIONAL_PREFETCH=true
+          # Restore only pub's generated lock/desktop files after the verified build.
+          git show HEAD:mobile_app/pubspec.lock > pubspec.lock
+          for file in linux/flutter/generated_plugin_registrant.cc \
+              linux/flutter/generated_plugin_registrant.h linux/flutter/generated_plugins.cmake \
+              macos/Flutter/GeneratedPluginRegistrant.swift \
+              windows/flutter/generated_plugin_registrant.cc \
+              windows/flutter/generated_plugin_registrant.h windows/flutter/generated_plugins.cmake; do
+            git show "HEAD:mobile_app/$file" > "$file"
+          done
+          python3 -B ../scripts/prepare_phase23_visual_delivery.py
+      - name: Preserve encrypted ordinary UAT delivery separately from synthetic captures
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase23-contrast-installer-${{ github.run_id }}
+          path: phase23-visual-installer-sealed/
+          retention-days: 30
+          if-no-files-found: error
       - name: Build the separate synthetic target with existing actual screen widgets
         working-directory: mobile_app
         run: |
@@ -139,13 +183,13 @@ jobs:
         run: |
           python3 -B scripts/run_phase23_offline_visual.py \
             --apk mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk \
-            --serial emulator-5554 --max-seconds 300
+            --serial emulator-5554 --max-seconds 600
           mv phase23-offline-visual-sealed phase23-offline-visual-default-sealed
           test "$(adb -s emulator-5554 uninstall com.aqer.yemen.uat)" = Success
           adb -s emulator-5554 shell wm size 840x1493
           python3 -B scripts/run_phase23_offline_visual.py \
             --apk mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk \
-            --serial emulator-5554 --max-seconds 300
+            --serial emulator-5554 --max-seconds 600
           mv phase23-offline-visual-sealed phase23-offline-visual-compact-sealed
       - name: Upload only encrypted synthetic frames and the public scoped receipt
         uses: actions/upload-artifact@v4

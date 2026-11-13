@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import struct
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -43,7 +44,8 @@ def receipt():
     return dict(schema=1, source_sha='a'*40, product_trees=collector.TREES,
                 run_id='123', package=collector.PACKAGE, version_code=1612,
                 target_marker=collector.TARGET, apk_sha256='b'*64,
-                api_level=36, display_size_px=[1080, 1920], network_disabled=True, live_authentication=False)
+                api_level=36, display_size_px=[1080, 1920], network_disabled=True, live_authentication=False,
+                scroll_cases=sorted(collector.SCROLL_TARGETS), scroll_coverage_complete=True)
 
 
 class SurfaceTests(unittest.TestCase):
@@ -92,6 +94,77 @@ class SurfaceTests(unittest.TestCase):
                 collector.ui_state(xml(**changes), 0, (1080, 1920))
         with self.assertRaises(GateError):
             collector.ui_state(xml(13, enabled='true'), 13, (1080, 1920))
+
+
+class ScrollTests(unittest.TestCase):
+    def surface(self, case=4, target_bounds='[20,400][1060,700]', wrapper_bounds='[0,220][1080,1850]',
+                scrollable='true', enabled='true', label=collector.SCROLL, duplicate=False):
+        wrapper = (f'<node package="{collector.PACKAGE}" content-desc="{label}" '
+                   f'bounds="{wrapper_bounds}" enabled="{enabled}" scrollable="{scrollable}" />')
+        target = collector.SCROLL_TARGETS.get(case, ('not allowed',))[0]
+        node = (f'<node package="{collector.PACKAGE}" content-desc="{target}&#10;متوفر" '
+                f'bounds="{target_bounds}" />')
+        return xml(case, extra=wrapper + (wrapper if duplicate else '') + node)
+
+    def test_scroll_coordinates_derive_from_one_observed_body(self):
+        value = self.surface()
+        self.assertEqual(collector.scroll_gesture(value, 4, (1080, 1920)), (540, 1524, 540, 546))
+        viewport, targets = collector.scroll_state(value, 4, (1080, 1920))
+        self.assertEqual(viewport, (0, 220, 1080, 1850))
+        self.assertEqual(targets, {'إعلان اصطناعي للاختبار 1': (20, 400, 1060, 700)})
+
+    def test_scroll_requires_exact_synthetic_case_unique_actionable_viewport(self):
+        variants = [self.surface(label='other-scroll'), self.surface(scrollable='false'),
+                    self.surface(enabled='false'), self.surface(duplicate=True),
+                    self.surface(wrapper_bounds='[0,80][1080,1850]'),
+                    self.surface(wrapper_bounds='[0,220][1081,1850]'),
+                    self.surface().replace('SYNTHETIC OFFLINE', 'ordinary live app')]
+        for value in variants:
+            with self.subTest(value=value), self.assertRaises(GateError):
+                collector.scroll_gesture(value, 4, (1080, 1920))
+        with self.assertRaises(GateError):
+            collector.scroll_gesture(self.surface(), 5, (1080, 1920))
+        with self.assertRaises(GateError):
+            collector.scroll_gesture(self.surface(3), 3, (1080, 1920))
+
+    def test_clipped_hidden_or_too_small_target_does_not_count_as_visible(self):
+        for box in ('[20,1800][1060,1850]', '[20,220][1060,700]', '[20,400][1060,410]'):
+            with self.subTest(box=box):
+                self.assertEqual(collector.scroll_state(self.surface(target_bounds=box), 4, (1080, 1920))[1], {})
+        value = self.surface().replace('bounds="[20,400][1060,700]"', 'bounds="[20,400][1060,700]" visible-to-user="false"')
+        self.assertEqual(collector.scroll_state(value, 4, (1080, 1920))[1], {})
+
+    def test_capture_rechecks_case_and_failure_before_saving_pixels(self):
+        value = self.surface()
+        class FakeDevice:
+            def wait_frame(self, case, size): return value, (200, 120), event(4)
+            def adb(self, *_args, **_kwargs): return b'\x89PNG\r\n\x1a\n' + b'\x00'*8 + struct.pack('>II', 1080, 1920)
+            def xml(self): return value.replace('AQER_VISUAL_CASE_04', 'AQER_VISUAL_CASE_05')
+            def log(self): return log(4)
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            with self.assertRaises(GateError):
+                collector.capture_frame(FakeDevice(), private, 4, (1080, 1920), 1)
+            self.assertEqual(list(private.iterdir()), [])
+            with self.assertRaises(GateError):
+                collector.capture_frame(FakeDevice(), private, 4, (1080, 1920), 5)
+
+    def test_only_declared_supplemental_triplets_and_contiguous_steps_are_sealed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            (private/'MANIFEST.json').write_text('{}')
+            for case in range(14):
+                for suffix in ('png', 'xml', 'json'):
+                    (private/f'case-{case:02d}.{suffix}').write_text('synthetic')
+            for suffix in ('png', 'xml', 'json'):
+                (private/f'case-04-scroll-01.{suffix}').write_text('synthetic')
+            self.assertEqual(collector.frame_inventory(private)[1], 15)
+            (private/'case-04-scroll-01.xml').unlink()
+            with self.assertRaises(GateError): collector.frame_inventory(private)
+            (private/'case-04-scroll-01.xml').write_text('synthetic')
+            for suffix in ('png', 'xml', 'json'):
+                (private/f'case-04-scroll-03.{suffix}').write_text('synthetic')
+            with self.assertRaises(GateError): collector.frame_inventory(private)
 
 
 class LogTests(unittest.TestCase):
@@ -153,7 +226,7 @@ class ArchiveTests(unittest.TestCase):
 
     def fake_encrypt(self, plain, destination, recipient):
         with zipfile.ZipFile(plain) as archive:
-            self.assertEqual(len(archive.namelist()), 43)
+            self.assertGreaterEqual(len(archive.namelist()), 43)
             self.assertFalse(any(name.endswith('.apk') for name in archive.namelist()))
         destination.write_bytes(b'\x30ciphertext-placeholder')
         return {'file': destination.name, 'bytes': destination.stat().st_size,
@@ -173,6 +246,17 @@ class ArchiveTests(unittest.TestCase):
             self.assertFalse((base/'private.zip').exists())
             with self.assertRaises(FileExistsError):
                 collector.seal(private, output, receipt(), self.fake_encrypt)
+
+    def test_supplemental_frames_are_counted_without_public_plaintext(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); private = base/'private'; output = base/'sealed'
+            self.make_frames(private)
+            for suffix in ('png', 'xml', 'json'):
+                (private/f'case-04-scroll-01.{suffix}').write_text('SYNTHETIC_PRIVATE_SCROLL')
+            public = collector.seal(private, output, receipt(), self.fake_encrypt)
+            self.assertEqual((public['case_count'], public['frame_count'], public['supplemental_frame_count']), (14, 15, 1))
+            self.assertTrue(public['scroll_coverage_complete'])
+            self.assertNotIn('SYNTHETIC_PRIVATE', (output/'PUBLIC_RECEIPT.json').read_text())
 
     def test_display_metadata_accepts_only_actual_reviewed_pixel_sizes(self):
         for size in ([1080, 1920], [840, 1493]):

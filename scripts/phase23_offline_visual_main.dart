@@ -208,6 +208,7 @@ class _Scene {
     ]);
   }
   final int index;
+  final bodyKey = GlobalKey();
   late final _MemoryAdapter adapter;
   late final Dio dio;
   late final ProviderContainer container;
@@ -271,6 +272,40 @@ class _OfflineVisualAppState extends State<_OfflineVisualApp> {
     _markReady();
   }
 
+  ScrollPosition? _verticalPosition() {
+    ScrollPosition? position;
+    void visit(Element element) {
+      if (position != null) return;
+      if (element is StatefulElement && element.state is ScrollableState) {
+        final scrollable = element.state as ScrollableState;
+        final candidate = scrollable.position;
+        if ((candidate.axisDirection == AxisDirection.down ||
+             candidate.axisDirection == AxisDirection.up) &&
+            candidate.hasContentDimensions && candidate.maxScrollExtent > 0) {
+          position = candidate;
+          return;
+        }
+      }
+      element.visitChildElements(visit);
+    }
+    _scene.bodyKey.currentContext?.visitChildElements(visit);
+    return position;
+  }
+
+  void _scrollBy(double delta) {
+    if (_busy || _failures.value != 0) return;
+    final position = _verticalPosition();
+    if (position == null) return;
+    final offset = (position.pixels + delta)
+      .clamp(position.minScrollExtent, position.maxScrollExtent).toDouble();
+    position.jumpTo(offset);
+  }
+
+  void _scrollPage(bool forward) {
+    final position = _verticalPosition();
+    if (position != null) _scrollBy(position.viewportDimension * (forward ? .65 : -.65));
+  }
+
   @override
   void dispose() { _readyTimer?.cancel(); _scene.dispose(); super.dispose(); }
 
@@ -307,7 +342,16 @@ class _OfflineVisualAppState extends State<_OfflineVisualApp> {
                   child: TextButton(onPressed: canAdvance ? _next : null,
                     child: const Text('Next', style: TextStyle(color: Colors.white)))),
               ]))))),
-          Expanded(child: AbsorbPointer(child: item.screen)),
+          // Only this outer vertical gesture/semantic action moves the actual
+          // scroll position. All product taps, drags and write actions stay blocked.
+          Expanded(child: Semantics(container: true, explicitChildNodes: true,
+            label: 'AQER_VISUAL_SCROLL',
+            onScrollDown: () => _scrollPage(true), onScrollUp: () => _scrollPage(false),
+            child: GestureDetector(behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              onVerticalDragUpdate: (details) => _scrollBy(-details.delta.dy),
+              child: AbsorbPointer(child: KeyedSubtree(
+                key: _scene.bodyKey, child: item.screen))))),
         ])))),
     );
   }

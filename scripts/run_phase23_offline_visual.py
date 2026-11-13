@@ -21,7 +21,8 @@ import time
 import xml.etree.ElementTree as ET
 import zipfile
 
-from phase23_preflight import GateError, TREES, guard
+from phase23_preflight import GateError
+from phase23_visual_revision import TREES, guard
 from prepare_phase1_close import encrypt
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,8 +30,22 @@ PACKAGE = 'com.aqer.yemen.uat'
 TARGET = 'AQER_OFFLINE_VISUAL_TARGET_V1'
 BANNER = 'SYNTHETIC OFFLINE'
 NEXT = 'AQER_VISUAL_NEXT'
+SCROLL = 'AQER_VISUAL_SCROLL'
 FAILURE = 'AQER_VISUAL_FAILURE'
 COUNT = 14
+MAX_SCROLLS = 4
+SCROLL_TARGETS = {
+    1: ('لا توجد عقارات محفوظة', 'اضغط على رمز القلب في أي عقار ليظهر هنا ويظل محفوظاً في حسابك.'),
+    2: ('إعادة المحاولة',),
+    4: ('إعلان اصطناعي للاختبار 1',),
+    5: ('عميل اصطناعي 1',),
+    7: ('لا توجد محادثات بعد',),
+    8: ('طلب دعم اصطناعي للاختبار 1',),
+    9: ('لا توجد حالات مطابقة.',),
+    10: ('إعادة المحاولة',),
+    12: ('إشعار اصطناعي للاختبار 2',),
+    13: ('عقار اصطناعي 1',),
+}
 STAGE = 'startup'
 RECIPIENT = ROOT / 'scripts/phase23_recipient.pem'
 RECIPIENT_SHA256 = 'b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070'
@@ -178,6 +193,83 @@ def verified_frame(xml, log, case, size):
     return tap, events[-1]
 
 
+def scroll_state(xml, case, size):
+    """Bind one synthetic-only scroll viewport and fully visible target labels."""
+    ui_state(xml, case, size)
+    if case not in SCROLL_TARGETS:
+        raise GateError('offline_visual_scroll_case_refused')
+    nodes = list(ET.fromstring(xml).iter('node'))
+
+    def labels(node):
+        return {part.strip() for field in ('text', 'content-desc')
+                for part in node.get(field, '').splitlines() if part.strip()}
+
+    wrappers = [node for node in nodes if SCROLL in labels(node)]
+    if (len(wrappers) != 1 or wrappers[0].get('scrollable') != 'true' or
+            wrappers[0].get('enabled') != 'true' or
+            wrappers[0].get('visible-to-user', 'true') != 'true'):
+        raise GateError('offline_visual_scroll_surface_invalid')
+    viewport = bounds(wrappers[0].get('bounds'), size)
+    next_node = next(node for node in nodes if NEXT in labels(node))
+    next_bounds = bounds(next_node.get('bounds'), size)
+    left, top, right, bottom = viewport
+    if top < next_bounds[3] or right - left < 100 or bottom - top < 200:
+        raise GateError('offline_visual_scroll_bounds_invalid')
+    visible = {}
+    for target in SCROLL_TARGETS[case]:
+        candidates = [node for node in nodes if target in labels(node)
+                      and node.get('visible-to-user', 'true') == 'true']
+        for node in candidates:
+            try:
+                box = bounds(node.get('bounds'), size)
+            except GateError:
+                continue
+            # Android clips offscreen semantics bounds. A label touching the
+            # viewport edge is therefore not proof its contents are readable.
+            if (left <= box[0] < box[2] <= right and top + 12 <= box[1]
+                    and box[3] <= bottom - 12 and box[3] - box[1] >= 24):
+                visible[target] = box
+                break
+    return viewport, visible
+
+
+def scroll_gesture(xml, case, size):
+    viewport, _visible = scroll_state(xml, case, size)
+    left, top, right, bottom = viewport
+    x = (left + right) // 2
+    height = bottom - top
+    return (x, top + height * 4 // 5, x, top + height // 5)
+
+
+def capture_frame(device, private, case, size, scroll_index):
+    if (type(scroll_index) is not int or not 0 <= scroll_index <= MAX_SCROLLS or
+            (scroll_index and case not in SCROLL_TARGETS)):
+        raise GateError('offline_visual_scroll_index_invalid')
+    xml, tap, event = device.wait_frame(case, size)
+    before = scroll_state(xml, case, size)[1] if case in SCROLL_TARGETS else {}
+    png = device.adb('exec-out', 'screencap', '-p', binary=True)
+    if (len(png) < 24 or png[:8] != b'\x89PNG\r\n\x1a\n' or
+            struct.unpack('>II', png[16:24]) != size):
+        raise GateError('offline_visual_screenshot_invalid')
+    after_xml, after_log = device.xml(), device.log()
+    after_tap, after_event = verified_frame(after_xml, after_log, case, size)
+    after = scroll_state(after_xml, case, size)[1] if case in SCROLL_TARGETS else {}
+    if tap != after_tap or event != after_event:
+        raise GateError('offline_visual_capture_state_changed')
+    visible = [target for target, box in before.items() if after.get(target) == box]
+    stem = f'case-{case:02d}' + (f'-scroll-{scroll_index:02d}' if scroll_index else '')
+    prefix = private / stem
+    prefix.with_suffix('.png').write_bytes(png)
+    prefix.with_suffix('.xml').write_text(xml, encoding='utf-8')
+    record = {**event, 'case_marker': marker(case), 'synthetic_offline': True,
+              'scroll_index': scroll_index, 'frame': stem,
+              'fully_visible_targets': visible,
+              'png_sha256': hashlib.sha256(png).hexdigest(),
+              'xml_sha256': hashlib.sha256(xml.encode()).hexdigest()}
+    prefix.with_suffix('.json').write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+    return record, after_xml, after_tap
+
+
 def verify_archive(apk):
     if apk.is_symlink() or not apk.is_file():
         raise GateError('offline_visual_apk_missing')
@@ -283,7 +375,8 @@ class Device:
 def safe_receipt(receipt):
     expected = {'schema', 'source_sha', 'product_trees', 'run_id', 'package',
                 'version_code', 'target_marker', 'apk_sha256', 'api_level',
-                'network_disabled', 'live_authentication', 'display_size_px'}
+                'network_disabled', 'live_authentication', 'display_size_px',
+                'scroll_coverage_complete', 'scroll_cases'}
     if (set(receipt) != expected or receipt['schema'] != 1 or
             not re.fullmatch('[a-f0-9]{40}', str(receipt['source_sha'])) or
             receipt['product_trees'] != TREES or
@@ -295,20 +388,39 @@ def safe_receipt(receipt):
             receipt['api_level'] != 36 or type(receipt['display_size_px']) is not list or
             any(type(value) is not int for value in receipt['display_size_px']) or
             receipt['display_size_px'] not in ([1080, 1920], [840, 1493]) or
+            receipt['scroll_coverage_complete'] is not True or
+            receipt['scroll_cases'] != sorted(SCROLL_TARGETS) or
             receipt['network_disabled'] is not True or
             receipt['live_authentication'] is not False):
         raise GateError('offline_visual_public_receipt_invalid')
 
 
+def frame_inventory(private):
+    files = sorted(private.iterdir())
+    required = {'MANIFEST.json'} | {f'case-{case:02d}.{suffix}'
+               for case in range(COUNT) for suffix in ('png', 'xml', 'json')}
+    names = {path.name for path in files}
+    if not required <= names or any(path.is_symlink() or not path.is_file() for path in files):
+        raise GateError('offline_visual_private_export_scope_invalid')
+    extras = names - required
+    sequences = {}
+    for name in extras:
+        match = re.fullmatch(r'case-([0-9]{2})-scroll-([0-9]{2})\.(png|xml|json)', name)
+        if not match or int(match[1]) not in SCROLL_TARGETS or not 1 <= int(match[2]) <= MAX_SCROLLS:
+            raise GateError('offline_visual_private_export_scope_invalid')
+        case, index, suffix = int(match[1]), int(match[2]), match[3]
+        sequences.setdefault(case, {}).setdefault(index, set()).add(suffix)
+    for steps in sequences.values():
+        if (sorted(steps) != list(range(1, max(steps) + 1)) or
+                any(suffixes != {'png', 'xml', 'json'} for suffixes in steps.values())):
+            raise GateError('offline_visual_private_export_scope_invalid')
+    return files, COUNT + sum(len(steps) for steps in sequences.values())
+
+
 def seal(private, output, receipt, encryptor=encrypt):
     """The export directory is exclusive and contains no plaintext or APK."""
     safe_receipt(receipt)
-    files = sorted(private.iterdir())
-    allowed = {'MANIFEST.json'} | {f'case-{case:02d}.{suffix}'
-              for case in range(COUNT) for suffix in ('png', 'xml', 'json')}
-    if {path.name for path in files} != allowed or any(
-            path.is_symlink() or not path.is_file() for path in files):
-        raise GateError('offline_visual_private_export_scope_invalid')
+    files, frame_count = frame_inventory(private)
     output.mkdir(mode=0o700)
     try:
         archive = private.parent / (private.name + '.zip')
@@ -322,7 +434,8 @@ def seal(private, output, receipt, encryptor=encrypt):
             archive.unlink(missing_ok=True)
         public = {**receipt, 'encrypted_evidence': encrypted,
                   'recipient_sha256': RECIPIENT_SHA256,
-                  'frame_count': COUNT, 'plaintext_exported': False,
+                  'case_count': COUNT, 'frame_count': frame_count,
+                  'supplemental_frame_count': frame_count - COUNT, 'plaintext_exported': False,
                   'apk_exported': False, 'phase23_accepted': False, 'scope': SCOPE}
         (output / 'PUBLIC_RECEIPT.json').write_text(json.dumps(public, indent=2) + '\n')
         if {path.name for path in output.iterdir()} != {'visual.cms', 'PUBLIC_RECEIPT.json'}:
@@ -381,25 +494,29 @@ def collect(args, env=os.environ):
                 raise GateError('offline_visual_clear_failed')
             device.adb('logcat', '-c')
             device.adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/com.example.real_estate_mobile.MainActivity')
-            frames = []
+            frames, coverage = [], []
             for case in range(COUNT):
-                xml, tap, event = device.wait_frame(case, size)
-                png = device.adb('exec-out', 'screencap', '-p', binary=True)
-                if (len(png) < 24 or png[:8] != b'\x89PNG\r\n\x1a\n' or
-                        struct.unpack('>II', png[16:24]) != size):
-                    raise GateError('offline_visual_screenshot_invalid')
-                after_xml, after_log = device.xml(), device.log()
-                after_tap, after_event = verified_frame(after_xml, after_log, case, size)
-                if tap != after_tap or event != after_event:
-                    raise GateError('offline_visual_capture_state_changed')
-                prefix = private / f'case-{case:02d}'
-                prefix.with_suffix('.png').write_bytes(png)
-                prefix.with_suffix('.xml').write_text(xml, encoding='utf-8')
-                record = {**event, 'case_marker': marker(case), 'synthetic_offline': True,
-                          'png_sha256': hashlib.sha256(png).hexdigest(),
-                          'xml_sha256': hashlib.sha256(xml.encode()).hexdigest()}
-                prefix.with_suffix('.json').write_text(json.dumps(record, indent=2) + '\n')
-                frames.append(record)
+                required = set(SCROLL_TARGETS.get(case, ()))
+                covered = set()
+                for scroll_index in range(MAX_SCROLLS + 1):
+                    if scroll_index:
+                        # Refresh the synthetic/case witness immediately before
+                        # choosing the only permitted gesture from observed bounds.
+                        xml = device.xml()
+                        verified_frame(xml, device.log(), case, size)
+                        gesture = scroll_gesture(xml, case, size)
+                        device.adb('shell', 'input', 'swipe', *map(str, gesture), '350')
+                        time.sleep(.35)
+                    record, xml, tap = capture_frame(device, private, case, size, scroll_index)
+                    frames.append(record)
+                    covered.update(record['fully_visible_targets'])
+                    if required <= covered:
+                        break
+                else:
+                    raise GateError(f'offline_visual_scroll_target_unreached_case_{case:02d}')
+                coverage.append({'case': case, 'scrolls': scroll_index,
+                                 'required_targets': sorted(required),
+                                 'fully_visible_targets': sorted(covered), 'complete': True})
                 if tap is not None:
                     # Coordinates derive exclusively from the fresh XML above.
                     device.adb('shell', 'input', 'tap', str(tap[0]), str(tap[1]))
@@ -409,15 +526,18 @@ def collect(args, env=os.environ):
                        'run_id': env['GITHUB_RUN_ID'], 'package': PACKAGE, 'version_code': version,
                        'target_marker': TARGET, 'apk_sha256': digest(apk), 'api_level': 36,
                        'display_size_px': list(size),
+                       'scroll_cases': sorted(SCROLL_TARGETS), 'scroll_coverage_complete': True,
                        'network_disabled': True, 'live_authentication': False}
-            (private / 'MANIFEST.json').write_text(json.dumps({**receipt, 'frames': frames, 'scope': SCOPE}, indent=2) + '\n')
+            (private / 'MANIFEST.json').write_text(json.dumps(
+                {**receipt, 'frames': frames, 'coverage': coverage, 'scope': SCOPE},
+                ensure_ascii=False, indent=2) + '\n')
             STAGE = 'seal'
             seal(private, output, receipt)
         finally:
             # A bounded cleanup uses no UI input and never prints device output.
             subprocess.run(['adb', '-s', args.serial, 'shell', 'am', 'force-stop', PACKAGE],
                            capture_output=True, timeout=5, check=False)
-    print('AQER_OFFLINE_VISUAL_SEALED_14_SYNTHETIC_FRAMES')
+    print('AQER_OFFLINE_VISUAL_SEALED_14_SYNTHETIC_CASES_WITH_COVERAGE')
 
 
 def failure_message(error):
@@ -429,9 +549,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apk', required=True)
     parser.add_argument('--serial', default='emulator-5554')
-    parser.add_argument('--max-seconds', type=int, default=300)
+    parser.add_argument('--max-seconds', type=int, default=600)
     args = parser.parse_args()
-    if not 30 <= args.max_seconds <= 300:
+    if not 30 <= args.max_seconds <= 600:
         raise GateError('offline_visual_duration_invalid')
     def timed_out(_signum, _frame):
         raise GateError('offline_visual_timeout')
