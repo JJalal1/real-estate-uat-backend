@@ -1,7 +1,23 @@
 {
   "run_id": "43333305676",
-  "seq": 18,
-  "challenge": "854ec9740c4c7f5ba3ce0e7bce21f9927539311b597eb2c1a127f18603731caa",
-  "op": "back",
-  "args": {}
+  "seq": 19,
+  "challenge": "6bc03b309472da641324bbed6f80ba9bb02d05a1707596304bc45afd4cb71120",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "حفظ المسودة"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "تعذر الحفظ على الحساب. تقدمك محفوظ على الجهاز. أعد المحاولة.",
+          "seconds": 30
+        }
+      }
+    ]
+  }
 }
