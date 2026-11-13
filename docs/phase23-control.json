@@ -1,9 +1,7 @@
 {
   "run_id": "43522135676",
-  "seq": 7,
-  "challenge": "0e95fe37b5e68d4000100ee19d8895cca3039481a2db5f3754d7e53d8469e290",
-  "op": "tap",
-  "args": {
-    "label": "Got it"
-  }
+  "seq": 8,
+  "challenge": "a6bb449bff53d6baeddece83eacabe1c7db5ac07b357595999ff687e51047abc",
+  "op": "network_metrics",
+  "args": {}
 }
