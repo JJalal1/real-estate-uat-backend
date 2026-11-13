@@ -1,26 +1,20 @@
 {
   "run_id": "43401245346",
-  "seq": 19,
-  "challenge": "c3fc658a5213572d0c14cce8ccb4fa8ff66a94e9bc5dd05e37838630c0c3eaba",
+  "seq": 20,
+  "challenge": "d23182a769cef2e3c29e3120da8c29e77ce2eba653e5df0878af7fd64ef982ae",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "إعادة المحاولة"
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
+          "label": "AQER-P23-NOTIF1607-01"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "AQER-P23-NOTIF1607-01",
+          "label": "شقة النور اختبار المرحلة23",
           "seconds": 30
         }
       },
@@ -28,7 +22,14 @@
         "op": "api_get",
         "args": {
           "alias": "erasure",
-          "path": "/notifications?page=2&per_page=40"
+          "path": "/notifications?page=1&per_page=40"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/properties/106"
         }
       }
     ]
