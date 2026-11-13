@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'main.dart' show RealEstateApp;
 import 'core/local/stage6_secure_session_store.dart';
+import 'core/local/listing_recovery_store.dart';
 import 'core/network/api_client.dart';
 import 'features/account/data/auth_controller.dart';
 import 'features/account/data/auth_repository.dart';
@@ -70,12 +71,13 @@ String callbackState(SmartSearchState s) => jsonEncode({
 class CallbackGate extends ChangeNotifier {
   late int? Function() actor;
   late SmartSearchSession Function() aiSession, resultsSession;
+  late Future<Map<String, dynamic>?> Function(int) readLocalRecovery;
   int get epoch => Stage6SecureSessionStore.instance.sessionEpoch;
   int clock = 0, bLoginOrder = 0, errors = 0, forbiddenOldSearches = 0;
   int aiCapture = 0, aiEpoch = -1, aiRevision = 0, aiRelease = 0, aiComplete = 0;
   int resultsCapture = 0, resultsEpoch = -1, resultsRelease = 0, resultsComplete = 0;
   int gpsCapture = 0, gpsEpoch = -1, gpsRelease = 0, gpsComplete = 0;
-  int bSeedOrder = 0, bEpoch = -1;
+  int bSeedOrder = 0, bEpoch = -1, cacheClean = 0;
   String aiStatus = 'CB AI idle', resultsStatus = 'CB results idle', gpsStatus = 'CB GPS idle';
   String? bAi, bResults;
   Completer<Map<String, dynamic>>? aiReply;
@@ -155,11 +157,14 @@ class CallbackGate extends ChangeNotifier {
   Future<void> releaseGps() async {
     _requireB(gpsEpoch);
     if (gpsReply == null || gpsReply!.isCompleted || !bEditorEmpty()) throw StateError('Actual B editor must be empty first');
+    if (await readLocalRecovery(66) != null || await readLocalRecovery(26) != null) throw StateError('Fresh A and B local scopes required');
+    _requireB(gpsEpoch);
     gpsRelease = ++clock; gpsReply!.complete(const PropertyLocationSelection(latitude: 15.3694, longitude: 44.1910, method: 'gps'));
     await WidgetsBinding.instance.endOfFrame;
     await Future<void>.delayed(const Duration(milliseconds: 300));
     await WidgetsBinding.instance.endOfFrame;
-    gpsStatus = bUnchanged() && bEditorEmpty() && gpsComplete > gpsRelease ? 'CB GPS PASS' : 'CB GPS FAIL'; changed();
+    cacheClean = await readLocalRecovery(66) == null && await readLocalRecovery(26) == null ? 1 : 0;
+    gpsStatus = bUnchanged() && bEditorEmpty() && gpsComplete > gpsRelease && cacheClean == 1 ? 'CB GPS PASS' : 'CB GPS FAIL'; changed();
   }
   Map<String, int> get metadata => {
     'v':1, 'actor': actor() == 66 ? 1 : actor() == 26 ? 2 : 0, 'bLogin': bLoginOrder,
@@ -167,7 +172,7 @@ class CallbackGate extends ChangeNotifier {
     'aiRelease': aiRelease, 'aiComplete': aiComplete, 'resultsCapture': resultsCapture,
     'resultsEpoch': resultsEpoch, 'resultsRelease': resultsRelease, 'resultsComplete': resultsComplete,
     'gpsCapture': gpsCapture, 'gpsEpoch': gpsEpoch, 'gpsRelease': gpsRelease, 'gpsComplete': gpsComplete,
-    'cancelled': oldResultsTransfer?.isCancelled == true ? 1 : 0, 'errors': errors, 'forbidden': forbiddenOldSearches,
+    'cancelled': oldResultsTransfer?.isCancelled == true ? 1 : 0, 'cacheClean':cacheClean, 'errors': errors, 'forbidden': forbiddenOldSearches,
   };
 }
 
@@ -209,6 +214,7 @@ class _CallbackAppState extends ConsumerState<CallbackApp> {
     g.actor = () => ref.read(authControllerProvider).asData?.value?.id;
     g.aiSession = () => ref.read(smartSearchSessionProvider.notifier);
     g.resultsSession = () => ref.read(homeSearchResultsProvider.notifier);
+    g.readLocalRecovery = (id) => ref.read(listingRecoveryStoreProvider).read(id, null);
     blocker = NoPaidAi(); ref.read(dioProvider).interceptors.insert(0, blocker);
     ref.listenManual(authControllerProvider, (before, after) {
       if (before?.asData?.value?.id != after.asData?.value?.id) g.recordActor(after.asData?.value?.id);

@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).parents[1]))
-from phase23_callback_metadata import FIELDS,safe_callback_label
+from phase23_callback_metadata import FIELDS,safe_callback_label,completed_callback_proof
 from run_phase23_native import NativeRun
 
 class CallbackMetadataPrivacy(unittest.TestCase):
@@ -34,3 +34,11 @@ class CallbackMetadataPrivacy(unittest.TestCase):
         self.assertIn("contains(github.event.head_commit.message, '[run-callbacks]')",workflow)
         self.assertIn('--target lib/phase23_native_callback_main.dart',workflow)
         self.assertIn('--dart-define=AQER_PHASE23_CALLBACK_HARNESS=true',workflow)
+
+    def test_acceptance_requires_all_completions_after_normal_replacement_and_clean_scopes(self):
+        v={k:0 for k in FIELDS}
+        v.update(v=1,actor=2,bLogin=4,bSeed=5,bEpoch=3,aiCapture=1,resultsCapture=2,gpsCapture=3,aiEpoch=1,resultsEpoch=1,gpsEpoch=1,aiRelease=6,aiComplete=7,resultsRelease=8,resultsComplete=9,gpsRelease=10,gpsComplete=11,cancelled=1,cacheClean=1)
+        label=lambda x:'CB-META:'+json.dumps(x)
+        self.assertTrue(completed_callback_proof(label(v)))
+        for changes in [{'aiComplete':3},{'gpsRelease':4},{'resultsEpoch':3},{'errors':1},{'forbidden':1},{'cacheClean':0},{'cancelled':0},{'actor':1}]:
+            self.assertFalse(completed_callback_proof(label(dict(v,**changes))))
