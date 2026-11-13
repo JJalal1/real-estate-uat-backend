@@ -1,9 +1,37 @@
 {
   "run_id": "43401245346",
-  "seq": 6,
-  "challenge": "b9e690ff480d0fe96576703d1be07246a4e2eb395c65ec0bcf58c371a288f3e0",
-  "op": "login",
+  "seq": 7,
+  "challenge": "4c0d16ba1ef625c91d1caa84b47a84ec9f234ed1169d2c608b2b27c05024cb63",
+  "op": "batch",
   "args": {
-    "alias": "erasure"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/auth/me"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/notifications?page=1&per_page=40"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "العقارات"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "ماذا تبحث عنه؟",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
