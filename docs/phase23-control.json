@@ -1,9 +1,24 @@
 {
   "run_id": "43395970989",
-  "seq": 8,
-  "challenge": "77eb1f0fc11d9831a0ea74b8eb94cab5726e7d539cb36e782c7826942d2a3845",
-  "op": "tap",
+  "seq": 9,
+  "challenge": "7093a95ba37b57ff8c7843046c3afd0a3e50dfc8c20c7819a25e64b96f621f86",
+  "op": "batch",
   "args": {
-    "label": "CB done"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/listing-editor-drafts"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/listing-editor-drafts"
+        }
+      }
+    ]
   }
 }
