@@ -1,7 +1,30 @@
 {
   "run_id": "43522135676",
-  "seq": 22,
-  "challenge": "acaff36fb9bb31a85087a1f2f2e266d963d530317093de37a1f5cffa919f2a60",
-  "op": "network_metrics",
-  "args": {}
+  "seq": 23,
+  "challenge": "8ca8962d8a6a70d247a7f7de9a1b80d7dc13f1c96abdd92ae044e066121675e5",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "touch",
+        "args": {
+          "x": 850,
+          "y": 1500
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "فتح صورة العقار 1 من 1",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "مشاركة العقار"
+        }
+      }
+    ]
+  }
 }
