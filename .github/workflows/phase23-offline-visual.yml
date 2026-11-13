@@ -90,6 +90,7 @@ jobs:
             ${{ env.GRADLE_USER_HOME }}/wrapper/dists
           key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
       - name: Validate the shared state contrast correction and build ordinary UAT
+        if: ${{ contains(github.event.head_commit.message, '[build-owner-apk]') }}
         working-directory: mobile_app
         run: |
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
@@ -114,6 +115,7 @@ jobs:
           done
           python3 -B ../scripts/prepare_phase23_visual_delivery.py
       - name: Preserve encrypted ordinary UAT delivery separately from synthetic captures
+        if: ${{ contains(github.event.head_commit.message, '[build-owner-apk]') }}
         uses: actions/upload-artifact@v4
         with:
           name: phase23-contrast-installer-${{ github.run_id }}
@@ -132,7 +134,7 @@ jobs:
           flutter pub get --enforce-lockfile
           flutter analyze --fatal-infos lib/phase23_offline_visual_main.dart
           flutter build apk --flavor uat --release --no-pub \
-            --target=lib/phase23_offline_visual_main.dart --build-number="$PHASE23_VISUAL_BUILD" \
+            --target=lib/phase23_offline_visual_main.dart --target-platform=android-x64 --build-number="$PHASE23_VISUAL_BUILD" \
             --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_OFFLINE_VISUAL_QA=true \
             --dart-define=API_BASE_URL=https://synthetic.invalid/api
           cmp lib/phase23_offline_visual_main.dart ../scripts/phase23_offline_visual_main.dart
@@ -192,6 +194,7 @@ jobs:
             --serial emulator-5554 --max-seconds 600
           mv phase23-offline-visual-sealed phase23-offline-visual-compact-sealed
       - name: Upload only encrypted synthetic frames and the public scoped receipt
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase23-offline-visual-${{ github.run_id }}
@@ -200,8 +203,10 @@ jobs:
             phase23-offline-visual-default-sealed/PUBLIC_RECEIPT.json
             phase23-offline-visual-compact-sealed/visual.cms
             phase23-offline-visual-compact-sealed/PUBLIC_RECEIPT.json
+            phase23-offline-visual-sealed/visual.cms
+            phase23-offline-visual-sealed/PUBLIC_RECEIPT.json
           retention-days: 30
-          if-no-files-found: error
+          if-no-files-found: warn
       - name: Stop the disposable device
         if: always()
         run: |

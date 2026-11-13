@@ -46,6 +46,17 @@ SCROLL_TARGETS = {
     12: ('إشعار اصطناعي للاختبار 2',),
     13: ('عقار اصطناعي 1',),
 }
+
+
+class CoverageIncomplete(GateError):
+    """Only this controlled, already-verified coverage failure may be sealed."""
+    def __init__(self, case):
+        if type(case) is not int or case not in SCROLL_TARGETS:
+            raise GateError('offline_visual_partial_case_invalid')
+        self.case = case
+        super().__init__(f'offline_visual_scroll_target_unreached_case_{case:02d}')
+
+
 STAGE = 'startup'
 RECIPIENT = ROOT / 'scripts/phase23_recipient.pem'
 RECIPIENT_SHA256 = 'b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070'
@@ -376,7 +387,15 @@ def safe_receipt(receipt):
     expected = {'schema', 'source_sha', 'product_trees', 'run_id', 'package',
                 'version_code', 'target_marker', 'apk_sha256', 'api_level',
                 'network_disabled', 'live_authentication', 'display_size_px',
-                'scroll_coverage_complete', 'scroll_cases'}
+                'scroll_coverage_complete', 'scroll_cases',
+                'coverage_failure_reason', 'coverage_failure_case'}
+    complete = receipt.get('scroll_coverage_complete')
+    failure_case = receipt.get('coverage_failure_case')
+    failure_reason = receipt.get('coverage_failure_reason')
+    coverage_valid = (
+        (complete is True and failure_case is None and failure_reason is None) or
+        (complete is False and type(failure_case) is int and failure_case in SCROLL_TARGETS
+         and failure_reason == 'scroll_target_unreached'))
     if (set(receipt) != expected or receipt['schema'] != 1 or
             not re.fullmatch('[a-f0-9]{40}', str(receipt['source_sha'])) or
             receipt['product_trees'] != TREES or
@@ -388,17 +407,22 @@ def safe_receipt(receipt):
             receipt['api_level'] != 36 or type(receipt['display_size_px']) is not list or
             any(type(value) is not int for value in receipt['display_size_px']) or
             receipt['display_size_px'] not in ([1080, 1920], [840, 1493]) or
-            receipt['scroll_coverage_complete'] is not True or
+            not coverage_valid or
             receipt['scroll_cases'] != sorted(SCROLL_TARGETS) or
             receipt['network_disabled'] is not True or
             receipt['live_authentication'] is not False):
         raise GateError('offline_visual_public_receipt_invalid')
 
 
-def frame_inventory(private):
+def frame_inventory(private, complete=True, failure_case=None):
     files = sorted(private.iterdir())
+    if (type(complete) is not bool or
+            (complete and failure_case is not None) or
+            (not complete and (type(failure_case) is not int or failure_case not in SCROLL_TARGETS))):
+        raise GateError('offline_visual_partial_case_invalid')
+    case_count = COUNT if complete else failure_case + 1
     required = {'MANIFEST.json'} | {f'case-{case:02d}.{suffix}'
-               for case in range(COUNT) for suffix in ('png', 'xml', 'json')}
+               for case in range(case_count) for suffix in ('png', 'xml', 'json')}
     names = {path.name for path in files}
     if not required <= names or any(path.is_symlink() or not path.is_file() for path in files):
         raise GateError('offline_visual_private_export_scope_invalid')
@@ -406,7 +430,8 @@ def frame_inventory(private):
     sequences = {}
     for name in extras:
         match = re.fullmatch(r'case-([0-9]{2})-scroll-([0-9]{2})\.(png|xml|json)', name)
-        if not match or int(match[1]) not in SCROLL_TARGETS or not 1 <= int(match[2]) <= MAX_SCROLLS:
+        if (not match or int(match[1]) not in SCROLL_TARGETS or int(match[1]) >= case_count
+                or not 1 <= int(match[2]) <= MAX_SCROLLS):
             raise GateError('offline_visual_private_export_scope_invalid')
         case, index, suffix = int(match[1]), int(match[2]), match[3]
         sequences.setdefault(case, {}).setdefault(index, set()).add(suffix)
@@ -414,13 +439,16 @@ def frame_inventory(private):
         if (sorted(steps) != list(range(1, max(steps) + 1)) or
                 any(suffixes != {'png', 'xml', 'json'} for suffixes in steps.values())):
             raise GateError('offline_visual_private_export_scope_invalid')
-    return files, COUNT + sum(len(steps) for steps in sequences.values())
+    if not complete and sorted(sequences.get(failure_case, {})) != list(range(1, MAX_SCROLLS + 1)):
+        raise GateError('offline_visual_partial_scroll_proof_missing')
+    return files, case_count + sum(len(steps) for steps in sequences.values()), case_count
 
 
 def seal(private, output, receipt, encryptor=encrypt):
     """The export directory is exclusive and contains no plaintext or APK."""
     safe_receipt(receipt)
-    files, frame_count = frame_inventory(private)
+    files, frame_count, case_count = frame_inventory(
+        private, receipt['scroll_coverage_complete'], receipt['coverage_failure_case'])
     output.mkdir(mode=0o700)
     try:
         archive = private.parent / (private.name + '.zip')
@@ -434,8 +462,9 @@ def seal(private, output, receipt, encryptor=encrypt):
             archive.unlink(missing_ok=True)
         public = {**receipt, 'encrypted_evidence': encrypted,
                   'recipient_sha256': RECIPIENT_SHA256,
-                  'case_count': COUNT, 'frame_count': frame_count,
-                  'supplemental_frame_count': frame_count - COUNT, 'plaintext_exported': False,
+                  'case_count': case_count, 'expected_case_count': COUNT, 'frame_count': frame_count,
+                  'supplemental_frame_count': frame_count - case_count, 'plaintext_exported': False,
+                  'result': 'COMPLETE' if receipt['scroll_coverage_complete'] else 'INCOMPLETE',
                   'apk_exported': False, 'phase23_accepted': False, 'scope': SCOPE}
         (output / 'PUBLIC_RECEIPT.json').write_text(json.dumps(public, indent=2) + '\n')
         if {path.name for path in output.iterdir()} != {'visual.cms', 'PUBLIC_RECEIPT.json'}:
@@ -444,6 +473,17 @@ def seal(private, output, receipt, encryptor=encrypt):
     except BaseException:
         shutil.rmtree(output)
         raise
+
+
+def seal_recording(private, output, base_receipt, frames, coverage, failure_case=None):
+    receipt = {**base_receipt, 'scroll_cases': sorted(SCROLL_TARGETS),
+               'scroll_coverage_complete': failure_case is None,
+               'coverage_failure_case': failure_case,
+               'coverage_failure_reason': 'scroll_target_unreached' if failure_case is not None else None}
+    (private / 'MANIFEST.json').write_text(json.dumps(
+        {**receipt, 'frames': frames, 'coverage': coverage, 'scope': SCOPE},
+        ensure_ascii=False, indent=2) + '\n')
+    return seal(private, output, receipt)
 
 
 def collect(args, env=os.environ):
@@ -487,6 +527,12 @@ def collect(args, env=os.environ):
     with tempfile.TemporaryDirectory(prefix='phase23-offline-visual-', dir=env['RUNNER_TEMP']) as directory:
         private = Path(directory) / 'frames'
         private.mkdir(mode=0o700)
+        frames, coverage = [], []
+        receipt = {'schema': 1, 'source_sha': env['GITHUB_SHA'], 'product_trees': TREES,
+                   'run_id': env['GITHUB_RUN_ID'], 'package': PACKAGE, 'version_code': version,
+                   'target_marker': TARGET, 'apk_sha256': digest(apk), 'api_level': 36,
+                   'display_size_px': list(size),
+                   'network_disabled': True, 'live_authentication': False}
         try:
             STAGE = 'capture'
             device.adb('shell', 'am', 'force-stop', PACKAGE)
@@ -494,7 +540,6 @@ def collect(args, env=os.environ):
                 raise GateError('offline_visual_clear_failed')
             device.adb('logcat', '-c')
             device.adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/com.example.real_estate_mobile.MainActivity')
-            frames, coverage = [], []
             for case in range(COUNT):
                 required = set(SCROLL_TARGETS.get(case, ()))
                 covered = set()
@@ -513,7 +558,10 @@ def collect(args, env=os.environ):
                     if required <= covered:
                         break
                 else:
-                    raise GateError(f'offline_visual_scroll_target_unreached_case_{case:02d}')
+                    coverage.append({'case': case, 'scrolls': MAX_SCROLLS,
+                                     'required_targets': sorted(required),
+                                     'fully_visible_targets': sorted(covered), 'complete': False})
+                    raise CoverageIncomplete(case)
                 coverage.append({'case': case, 'scrolls': scroll_index,
                                  'required_targets': sorted(required),
                                  'fully_visible_targets': sorted(covered), 'complete': True})
@@ -522,17 +570,17 @@ def collect(args, env=os.environ):
                     device.adb('shell', 'input', 'tap', str(tap[0]), str(tap[1]))
             device.offline()
             ready_events(device.log())
-            receipt = {'schema': 1, 'source_sha': env['GITHUB_SHA'], 'product_trees': TREES,
-                       'run_id': env['GITHUB_RUN_ID'], 'package': PACKAGE, 'version_code': version,
-                       'target_marker': TARGET, 'apk_sha256': digest(apk), 'api_level': 36,
-                       'display_size_px': list(size),
-                       'scroll_cases': sorted(SCROLL_TARGETS), 'scroll_coverage_complete': True,
-                       'network_disabled': True, 'live_authentication': False}
-            (private / 'MANIFEST.json').write_text(json.dumps(
-                {**receipt, 'frames': frames, 'coverage': coverage, 'scope': SCOPE},
-                ensure_ascii=False, indent=2) + '\n')
             STAGE = 'seal'
-            seal(private, output, receipt)
+            seal_recording(private, output, receipt, frames, coverage)
+        except CoverageIncomplete as error:
+            # Preserve only frames that already passed all before/after guards.
+            # A target failure, foreign surface, network failure or timeout is
+            # deliberately not eligible for this narrow diagnostic export.
+            device.offline()
+            ready_events(device.log())
+            STAGE = 'seal_incomplete'
+            seal_recording(private, output, receipt, frames, coverage, error.case)
+            raise
         finally:
             # A bounded cleanup uses no UI input and never prints device output.
             subprocess.run(['adb', '-s', args.serial, 'shell', 'am', 'force-stop', PACKAGE],

@@ -45,7 +45,8 @@ def receipt():
                 run_id='123', package=collector.PACKAGE, version_code=1612,
                 target_marker=collector.TARGET, apk_sha256='b'*64,
                 api_level=36, display_size_px=[1080, 1920], network_disabled=True, live_authentication=False,
-                scroll_cases=sorted(collector.SCROLL_TARGETS), scroll_coverage_complete=True)
+                scroll_cases=sorted(collector.SCROLL_TARGETS), scroll_coverage_complete=True,
+                coverage_failure_case=None, coverage_failure_reason=None)
 
 
 class SurfaceTests(unittest.TestCase):
@@ -226,7 +227,7 @@ class ArchiveTests(unittest.TestCase):
 
     def fake_encrypt(self, plain, destination, recipient):
         with zipfile.ZipFile(plain) as archive:
-            self.assertGreaterEqual(len(archive.namelist()), 43)
+            self.assertIn('MANIFEST.json', archive.namelist())
             self.assertFalse(any(name.endswith('.apk') for name in archive.namelist()))
         destination.write_bytes(b'\x30ciphertext-placeholder')
         return {'file': destination.name, 'bytes': destination.stat().st_size,
@@ -257,6 +258,45 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual((public['case_count'], public['frame_count'], public['supplemental_frame_count']), (14, 15, 1))
             self.assertTrue(public['scroll_coverage_complete'])
             self.assertNotIn('SYNTHETIC_PRIVATE', (output/'PUBLIC_RECEIPT.json').read_text())
+
+    def test_controlled_coverage_failure_preserves_encrypted_partial_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); private = base/'private'; output = base/'sealed'
+            self.make_frames(private)
+            for case in range(8, 14):
+                for suffix in ('png', 'xml', 'json'):
+                    (private/f'case-{case:02d}.{suffix}').unlink()
+            for index in range(1, 5):
+                for suffix in ('png', 'xml', 'json'):
+                    (private/f'case-07-scroll-{index:02d}.{suffix}').write_text('SYNTHETIC_PRIVATE_PARTIAL')
+            partial = dict(receipt(), scroll_coverage_complete=False, coverage_failure_case=7,
+                           coverage_failure_reason='scroll_target_unreached')
+            public = collector.seal(private, output, partial, self.fake_encrypt)
+            self.assertEqual((public['case_count'], public['expected_case_count'], public['frame_count']), (8, 14, 12))
+            self.assertEqual(public['result'], 'INCOMPLETE')
+            self.assertFalse(public['phase23_accepted'])
+            self.assertFalse(public['scroll_coverage_complete'])
+            self.assertEqual(public['coverage_failure_case'], 7)
+            self.assertNotIn('SYNTHETIC_PRIVATE', (output/'PUBLIC_RECEIPT.json').read_text())
+            (private/'case-07-scroll-04.xml').unlink()
+            with self.assertRaises(GateError):
+                collector.frame_inventory(private, False, 7)
+
+    def test_only_controlled_coverage_failure_is_eligible_for_partial_export(self):
+        invalid = [dict(receipt(), scroll_coverage_complete=False),
+                   dict(receipt(), scroll_coverage_complete=False, coverage_failure_case=7,
+                        coverage_failure_reason='target_failure'),
+                   dict(receipt(), scroll_coverage_complete=False, coverage_failure_case=3,
+                        coverage_failure_reason='scroll_target_unreached'),
+                   dict(receipt(), coverage_failure_case=7, coverage_failure_reason='scroll_target_unreached')]
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaises(GateError):
+                collector.safe_receipt(value)
+        error = collector.CoverageIncomplete(7)
+        self.assertIsInstance(error, GateError)
+        self.assertEqual(collector.failure_message(error), 'offline_visual_scroll_target_unreached_case_07')
+        with self.assertRaises(GateError):
+            collector.CoverageIncomplete(3)
 
     def test_display_metadata_accepts_only_actual_reviewed_pixel_sizes(self):
         for size in ([1080, 1920], [840, 1493]):

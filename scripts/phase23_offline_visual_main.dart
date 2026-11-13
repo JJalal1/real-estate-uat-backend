@@ -272,7 +272,7 @@ class _OfflineVisualAppState extends State<_OfflineVisualApp> {
     _markReady();
   }
 
-  ScrollPosition? _verticalPosition() {
+  ScrollPosition? _verticalPosition(bool forward) {
     ScrollPosition? position;
     void visit(Element element) {
       if (position != null) return;
@@ -281,7 +281,10 @@ class _OfflineVisualAppState extends State<_OfflineVisualApp> {
         final candidate = scrollable.position;
         if ((candidate.axisDirection == AxisDirection.down ||
              candidate.axisDirection == AxisDirection.up) &&
-            candidate.hasContentDimensions && candidate.maxScrollExtent > 0) {
+            candidate.hasContentDimensions && candidate.maxScrollExtent > 0 &&
+            (forward
+              ? candidate.pixels < candidate.maxScrollExtent - .5
+              : candidate.pixels > candidate.minScrollExtent + .5)) {
           position = candidate;
           return;
         }
@@ -294,7 +297,9 @@ class _OfflineVisualAppState extends State<_OfflineVisualApp> {
 
   void _scrollBy(double delta) {
     if (_busy || _failures.value != 0) return;
-    final position = _verticalPosition();
+    // A real state panel can have its own scrollable inside a sliver viewport.
+    // Once the outer viewport reaches its boundary, descend to that inner one.
+    final position = _verticalPosition(delta > 0);
     if (position == null) return;
     final offset = (position.pixels + delta)
       .clamp(position.minScrollExtent, position.maxScrollExtent).toDouble();
@@ -302,7 +307,7 @@ class _OfflineVisualAppState extends State<_OfflineVisualApp> {
   }
 
   void _scrollPage(bool forward) {
-    final position = _verticalPosition();
+    final position = _verticalPosition(forward);
     if (position != null) _scrollBy(position.viewportDimension * (forward ? .65 : -.65));
   }
 

@@ -79,6 +79,15 @@ class OfflineVisualContract(unittest.TestCase):
                           'GlobalMaterialLocalizations.delegate', 'TextDirection.rtl'):
             self.assertIn(component, self.source)
 
+    def test_nested_scroll_viewports_are_not_stuck_at_outer_boundary(self):
+        selection = self.source.split('ScrollPosition? _verticalPosition(bool forward)')[1].split('void _scrollBy')[0]
+        for guard in ('candidate.pixels < candidate.maxScrollExtent - .5',
+                      'candidate.pixels > candidate.minScrollExtent + .5',
+                      'element.visitChildElements(visit)'):
+            self.assertIn(guard, selection)
+        self.assertIn('_verticalPosition(delta > 0)', self.source)
+        self.assertIn('_verticalPosition(forward)', self.source)
+
 
 if __name__ == '__main__':
     unittest.main()
