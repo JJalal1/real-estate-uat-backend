@@ -1,9 +1,10 @@
 {
   "run_id": "43494440838",
-  "seq": 7,
-  "challenge": "2957850c86490154a88f3281ba00355c6cb8c408861cf7971de763969bc13212",
-  "op": "tap",
+  "seq": 8,
+  "challenge": "9fe603c4407b0c2488f43da902fcf7594b56e85f207b06ee941a4476f1bec532",
+  "op": "touch",
   "args": {
-    "label": "Got it"
+    "x": 926,
+    "y": 499
   }
 }
