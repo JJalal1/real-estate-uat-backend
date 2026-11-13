@@ -1,9 +1,10 @@
 {
   "run_id": "43333305676",
-  "seq": 30,
-  "challenge": "3559fef7afd9533263319cdebbadc750eda6488c54b5daeaf2848fc2557a3350",
-  "op": "network",
+  "seq": 31,
+  "challenge": "6c5b6fafc3db4d444181788dd2b650ea469861ff8adce30d332be6824a546284",
+  "op": "api_get",
   "args": {
-    "state": "online"
+    "alias": "broker",
+    "path": "/listing-editor-drafts"
   }
 }
