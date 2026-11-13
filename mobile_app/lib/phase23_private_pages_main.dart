@@ -110,13 +110,13 @@ class PrivatePagesTransport extends Interceptor {
     handler.next(response);
   }
   @override
-  void onError(DioException error, ErrorInterceptorHandler handler) {
-    final trace = error.requestOptions.extra[_key];
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final trace = err.requestOptions.extra[_key];
     if (trace is (Map<String, int>, String)) {
       gate.event({...trace.$1, 'phase': 3,
         'changed': gate.actor() == trace.$1['actor'] && gate.epoch() == trace.$1['epoch'] ? 0 : 1});
     }
-    handler.next(error);
+    handler.next(err);
   }
 }
 
