@@ -1,9 +1,37 @@
 {
   "run_id": "43401245346",
-  "seq": 42,
-  "challenge": "94859453a446d987ba2b5e696b1e4ff69e6da9afe8b25e395cfcd302eb9be569",
-  "op": "tap",
+  "seq": 43,
+  "challenge": "c327179f2a6535fef565026b15fd96a4d805decc2fd91b24de586d96f58a5fa4",
+  "op": "batch",
   "args": {
-    "label": "حذف الحساب"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/auth/me"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/notifications?page=1&per_page=40"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "حسابي"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "تسجيل الدخول أو إنشاء حساب",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
