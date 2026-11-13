@@ -1,9 +1,37 @@
 {
   "run_id": "43333305676",
-  "seq": 55,
-  "challenge": "af90b6813daa703874049a6f8aedc33082c3989197acd6772c36cbad2a49f860",
-  "op": "open_link",
+  "seq": 56,
+  "challenge": "45d51455f220d7129fe0dc2dcd98e50a83c15aa0e5186efe4b399109cff87ca8",
+  "op": "batch",
   "args": {
-    "uri": "realestate://app/properties/106"
+    "steps": [
+      {
+        "op": "wait",
+        "args": {
+          "label": "تكبير الصور",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تكبير الصور"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "إغلاق الصور",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "double_tap",
+        "args": {
+          "x": 540,
+          "y": 850
+        }
+      }
+    ]
   }
 }
