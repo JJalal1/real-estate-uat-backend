@@ -1,9 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 10,
-  "challenge": "eb7f620521c1d85adfa9185fd987421d0792995b3a47567ac33a176a8b1b41d9",
-  "op": "tap",
+  "seq": 11,
+  "challenge": "813c7772c61e31a7d7b4fed2a2c3a193c49e4324cafe84fe410a5623108514c1",
+  "op": "network",
   "args": {
-    "label": "حدد نقطة العقار على الخريطة أو من موقعك الحالي، ثم أكد الموقع."
+    "state": "online"
   }
 }
