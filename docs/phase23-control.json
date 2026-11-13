@@ -1,10 +1,9 @@
 {
   "run_id": "43494440838",
-  "seq": 5,
-  "challenge": "55434d79cf47eb8797a6332f3e95328c97e330e210d5651f3b4b87f1ba5e8c29",
-  "op": "wait",
+  "seq": 6,
+  "challenge": "1121bfbcf219de03a3beab2ebe46b34c21f8c7465f3db3def1c8e0d227fd9162",
+  "op": "tap",
   "args": {
-    "label": "تكبير الصور",
-    "seconds": 25
+    "label": "تكبير الصور"
   }
 }
