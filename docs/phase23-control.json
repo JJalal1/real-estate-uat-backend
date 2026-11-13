@@ -1,34 +1,46 @@
 {
   "run_id": "43356915577",
-  "seq": 3,
-  "challenge": "94e87c63839cee40eecd3785e8ad7c93e3bfd72aa01cab6e1517e1fd1dc0d42a",
+  "seq": 4,
+  "challenge": "67081530482f35c5b743f107a158ab4710bbd4336c5d2bb4ae23e1144267fe69",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "CB AI start"
+          "label": "CB editor"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "حدد نقطة العقار أولًا",
+          "seconds": 30
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "CB results start"
+          "label": "تحديد موقعي الحالي"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB controls"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "CB AI held",
+          "label": "CB GPS held",
           "seconds": 30
         }
       },
       {
-        "op": "wait",
+        "op": "tap",
         "args": {
-          "label": "CB results held",
-          "seconds": 30
+          "label": "CB hide"
         }
       }
     ]
