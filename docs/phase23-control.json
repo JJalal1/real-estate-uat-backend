@@ -15,7 +15,7 @@
         "op": "wait",
         "args": {
           "label": "حدد نقطة العقار أولًا",
-          "timeout": 30
+          "seconds": 30
         }
       },
       {
