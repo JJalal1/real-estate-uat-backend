@@ -1,7 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 41,
-  "challenge": "35b85a6fd069f4ad894233d5b8e080f698804e6b885c9654adfed6d52f2c2b68",
-  "op": "private_metrics",
-  "args": {}
+  "seq": 42,
+  "challenge": "ba21594adea254229958fbd1433af0d7cd74551a85b27f41184b91572998d1fc",
+  "op": "tap",
+  "args": {
+    "label": "كل العملاء"
+  }
 }
