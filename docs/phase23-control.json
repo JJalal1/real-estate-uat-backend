@@ -1,22 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 144,
-  "challenge": "3d7e4d536ea3e2a2ad373bf483636761a12222d62b7b9d568ecb0e4b024fd309",
-  "op": "batch",
+  "seq": 145,
+  "challenge": "17bef3146d33f8dfc9941d5b69c0675984d06eb48c069f7535c1db295c69d45b",
+  "op": "display",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "PC light"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "PC home"
-        }
-      }
-    ]
+    "mode": "default"
   }
 }
