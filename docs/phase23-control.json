@@ -1,33 +1,22 @@
 {
   "run_id": "43356915577",
-  "seq": 6,
-  "challenge": "7ef8c6dabfba0ded00952ffba9d1afa607718f7038dba3868f8438366e96919e",
+  "seq": 7,
+  "challenge": "9015095524c64f8472dd60a9a4f5980817e8dc79ad359e7da58c7e0ff6b3f9ac",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
+        "op": "wait",
         "args": {
-          "label": "تجاهل التغييرات"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "CB controls"
+          "label": "لديك تعديلات غير محفوظة",
+          "seconds": 30
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "CB GPS held",
+          "label": "حفظ المسودة",
           "seconds": 30
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "CB hide"
         }
       }
     ]
