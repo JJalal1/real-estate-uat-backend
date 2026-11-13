@@ -1,7 +1,9 @@
 {
-  "run_id": "43395970989",
-  "seq": 10,
-  "challenge": "480f5aa740a97308d03cb3f5522352ddd099c42f4bcc1e611f82a29f6c65116f",
-  "op": "finish",
-  "args": {}
+  "run_id": "43401245346",
+  "seq": 0,
+  "challenge": "e60b28cd1849fcb7b3cef04ba481ea55be6d9be14a318512fce683368494bf15",
+  "op": "login",
+  "args": {
+    "alias": "manager"
+  }
 }
