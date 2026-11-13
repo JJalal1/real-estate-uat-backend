@@ -1,29 +1,7 @@
 {
   "run_id": "43507896943",
-  "seq": 8,
-  "challenge": "73e8c8b7ad757120da2d6782360b32ef2cafb7c78cc1d349095a85ce9bacb71c",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "backward"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "بيع",
-          "seconds": 15
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "بيع"
-        }
-      }
-    ]
-  }
+  "seq": 9,
+  "challenge": "eed57da6cd2a4512d8bbe437f483e0090fa8674e81d7af8ffb419817bc8a8967",
+  "op": "prefetch_metrics",
+  "args": {}
 }
