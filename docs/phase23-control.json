@@ -1,20 +1,44 @@
 {
   "run_id": "43430097013",
-  "seq": 1,
-  "challenge": "e1b49d7976fe5f9be3c979d62bdf5b845ea17c542b3faa1ec8f83764d4a0acc8",
+  "seq": 2,
+  "challenge": "47cd977b2c5a73067d7eb6be4163ff8ea9a6069360e7a6342f9c9d48f1d01caf",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
+        "op": "scroll",
         "args": {
-          "label": "PC controls"
+          "direction": "forward"
         }
       },
       {
-        "op": "tap",
+        "op": "scroll",
         "args": {
-          "label": "PC listings"
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
         }
       }
     ]
