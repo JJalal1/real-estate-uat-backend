@@ -1,6 +1,7 @@
 // Separate, opt-in UAT entrypoint. The product main never imports this file.
 // Authentication, secure storage, routing and the controllers under test are real.
-// Only the three external completions are controlled; no provider is charged.
+// Only external completions are controlled. All server mutations except normal
+// phone login/logout are blocked before transport, including drafts and erasure.
 import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
@@ -24,7 +25,7 @@ import 'features/properties/presentation/personal_listing_creation_gate.dart';
 import 'features/properties/presentation/property_location_picker_screen.dart';
 import 'router/app_router.dart';
 
-const callbackHarnessMarker = 'AQER_PHASE23_CALLBACK_HARNESS_V1';
+const callbackHarnessMarker = 'AQER_PHASE23_CALLBACK_READ_ONLY_V1';
 const callbackApi = 'https://real-estate-uat-api-frankfurt.onrender.com/api';
 const oldAiInput = 'P23 A controlled AI';
 const oldResultsInput = 'P23 A controlled results';
@@ -51,12 +52,20 @@ void main() {
 }
 
 // Installed on the existing Dio before any product widget builds. Auth and
-// ordinary API requests retain their normal transport, interceptors and TLS.
-class NoPaidAi extends Interceptor {
+// ordinary reads retain their normal transport, interceptors and TLS. All
+// business mutations, including account deletion and notification writes, fail closed.
+class CallbackReadOnlyTransport extends Interceptor {
+  CallbackReadOnlyTransport({this.onForbiddenWrite});
+  final void Function()? onForbiddenWrite;
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (RegExp(r'(^|/)ai(/|$)').hasMatch(options.uri.path) || RegExp(r'/properties/[0-9]+/ask$').hasMatch(options.uri.path)) {
-      handler.reject(DioException(requestOptions: options, error: 'Controlled UAT target: external AI disabled'));
+    final normalAuth = options.uri.origin == Uri.parse(callbackApi).origin && options.method == 'POST' &&
+      const {'/api/auth/whatsapp/start','/api/auth/whatsapp/verify','/api/auth/logout'}.contains(options.uri.path);
+    final read = options.method == 'GET' || options.method == 'HEAD';
+    if ((!read && !normalAuth) || RegExp(r'(^|/)ai(/|$)').hasMatch(options.uri.path) ||
+        RegExp(r'/properties/[0-9]+/ask$').hasMatch(options.uri.path)) {
+      onForbiddenWrite?.call();
+      handler.reject(DioException(requestOptions: options, error: 'Read-only UAT target: mutations and external AI disabled'));
     } else { handler.next(options); }
   }
 }
@@ -73,7 +82,7 @@ class CallbackGate extends ChangeNotifier {
   late SmartSearchSession Function() aiSession, resultsSession;
   late Future<Map<String, dynamic>?> Function(int) readLocalRecovery;
   int get epoch => Stage6SecureSessionStore.instance.sessionEpoch;
-  int clock = 0, bLoginOrder = 0, errors = 0, forbiddenOldSearches = 0;
+  int clock = 0, bLoginOrder = 0, errors = 0, forbiddenOldSearches = 0, blockedWrites = 0;
   int aiCapture = 0, aiEpoch = -1, aiRevision = 0, aiRelease = 0, aiComplete = 0;
   int resultsCapture = 0, resultsEpoch = -1, resultsRelease = 0, resultsComplete = 0;
   int gpsCapture = 0, gpsEpoch = -1, gpsRelease = 0, gpsComplete = 0;
@@ -128,7 +137,7 @@ class CallbackGate extends ChangeNotifier {
     bSeedOrder = ++clock; changed();
   }
   bool bUnchanged() => actor() == 26 && epoch == bEpoch && bAi == callbackState(aiSession().snapshot) &&
-    bResults == callbackState(resultsSession().snapshot) && forbiddenOldSearches == 0 && errors == 0;
+    bResults == callbackState(resultsSession().snapshot) && forbiddenOldSearches == 0 && errors == 0 && blockedWrites == 0;
   Future<void> releaseAi() async {
     _requireB(aiEpoch); if (aiReply == null || aiReply!.isCompleted) throw StateError('AI not held');
     aiRelease = ++clock; aiReply!.complete({'revision': aiRevision, 'filters': {'search': oldAiResult, 'type': 'apartment'}, 'message': oldAiResult});
@@ -172,7 +181,7 @@ class CallbackGate extends ChangeNotifier {
     'aiRelease': aiRelease, 'aiComplete': aiComplete, 'resultsCapture': resultsCapture,
     'resultsEpoch': resultsEpoch, 'resultsRelease': resultsRelease, 'resultsComplete': resultsComplete,
     'gpsCapture': gpsCapture, 'gpsEpoch': gpsEpoch, 'gpsRelease': gpsRelease, 'gpsComplete': gpsComplete,
-    'cancelled': oldResultsTransfer?.isCancelled == true ? 1 : 0, 'cacheClean':cacheClean, 'errors': errors, 'forbidden': forbiddenOldSearches,
+    'cancelled': oldResultsTransfer?.isCancelled == true ? 1 : 0, 'cacheClean':cacheClean, 'errors': errors, 'forbidden': forbiddenOldSearches, 'writes':blockedWrites,
   };
 }
 
@@ -207,7 +216,7 @@ class CallbackApp extends ConsumerStatefulWidget {
 }
 class _CallbackAppState extends ConsumerState<CallbackApp> {
   late final void Function(FlutterErrorDetails)? previousError;
-  late final NoPaidAi blocker;
+  late final CallbackReadOnlyTransport blocker;
   @override
   void initState() {
     super.initState(); final g = widget.gate;
@@ -215,7 +224,7 @@ class _CallbackAppState extends ConsumerState<CallbackApp> {
     g.aiSession = () => ref.read(smartSearchSessionProvider.notifier);
     g.resultsSession = () => ref.read(homeSearchResultsProvider.notifier);
     g.readLocalRecovery = (id) => ref.read(listingRecoveryStoreProvider).read(id, null);
-    blocker = NoPaidAi(); ref.read(dioProvider).interceptors.insert(0, blocker);
+    blocker = CallbackReadOnlyTransport(onForbiddenWrite: () { g.blockedWrites++; g.changed(); }); ref.read(dioProvider).interceptors.insert(0, blocker);
     ref.listenManual(authControllerProvider, (before, after) {
       if (before?.asData?.value?.id != after.asData?.value?.id) g.recordActor(after.asData?.value?.id);
     });

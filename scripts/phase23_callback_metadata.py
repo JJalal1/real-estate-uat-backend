@@ -1,10 +1,10 @@
 """Strictly numeric callback-harness telemetry; never export arbitrary AX text."""
 import json
 
-MARKER = 'AQER_PHASE23_CALLBACK_HARNESS_V1'
+MARKER = 'AQER_PHASE23_CALLBACK_READ_ONLY_V1'
 FIELDS = frozenset(('v','actor','bLogin','bSeed','bEpoch','aiCapture','aiEpoch','aiRelease','aiComplete',
     'resultsCapture','resultsEpoch','resultsRelease','resultsComplete','gpsCapture','gpsEpoch',
-    'gpsRelease','gpsComplete','cancelled','cacheClean','errors','forbidden'))
+    'gpsRelease','gpsComplete','cancelled','cacheClean','errors','forbidden','writes'))
 CONTROLS = frozenset(('CB controls','CB hide','CB AI start','CB results start','CB editor','CB seed B',
     'CB release AI','CB release results','CB release GPS', MARKER,
     *('CB '+kind+' '+state for kind in ('AI','results','GPS') for state in ('idle','held','PASS','FAIL'))))
@@ -30,7 +30,7 @@ def completed_callback_proof(label):
     if safe is None or not safe.startswith('CB-META:'):
         return False
     v=json.loads(safe[8:])
-    if v['actor']!=2 or v['errors']!=0 or v['forbidden']!=0 or v['cancelled']!=1 or v['cacheClean']!=1:
+    if v['actor']!=2 or v['errors']!=0 or v['forbidden']!=0 or v['writes']!=0 or v['cancelled']!=1 or v['cacheClean']!=1:
         return False
     if not 0<v['bLogin']<v['bSeed'] or v['bEpoch']<0:
         return False
@@ -39,4 +39,24 @@ def completed_callback_proof(label):
             return False
         if v[kind+'Epoch']<0 or v[kind+'Epoch']==v['bEpoch']:
             return False
+    return True
+
+
+READ_ONLY_OPS = frozenset(('observe','tap','scroll','back','login','logout','logout_in_place','api_get','wait','display','batch','finish'))
+READ_ONLY_LABELS = CONTROLS | frozenset(('حسابي','الإشعارات','رجوع','تحديد موقعي الحالي','تجاهل التغييرات','السابق'))
+
+def read_only_callback_command(command):
+    op,args=command.get('op'),command.get('args',{})
+    if op not in READ_ONLY_OPS:
+        return False
+    if op=='batch':
+        steps=args.get('steps')
+        return isinstance(steps,list) and 1<=len(steps)<=6 and all(read_only_callback_command(x) for x in steps)
+    if op=='login' and args.get('alias') not in ('erasure','regular'):
+        return False
+    if op=='tap' and args.get('label') not in READ_ONLY_LABELS:
+        return False
+    if op=='api_get' and (args.get('alias') not in ('erasure','regular') or args.get('path') not in
+            ('/auth/me','/notifications?page=1&per_page=40','/listing-editor-drafts')):
+        return False
     return True

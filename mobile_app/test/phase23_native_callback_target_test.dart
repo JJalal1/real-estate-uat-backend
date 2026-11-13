@@ -30,7 +30,7 @@ void main() {
     expect(callbackHarnessAllowed(enabled:true,environment:'uat',api:'https://other.invalid/api'),isFalse);
   });
   test('all provider endpoints fail before a transport adapter is called', () async {
-    final dio=Dio(BaseOptions(baseUrl:callbackApi))..interceptors.add(NoPaidAi());
+    final dio=Dio(BaseOptions(baseUrl:callbackApi))..interceptors.add(CallbackReadOnlyTransport());
     var sent=0;
     dio.interceptors.add(InterceptorsWrapper(onRequest:(r,h){sent++;h.resolve(Response(requestOptions:r,statusCode:200));}));
     for(final path in ['/ai/search','/ai/listing-description','/properties/106/ask', '$callbackApi/ai/search']) {
@@ -39,6 +39,22 @@ void main() {
     expect(sent,0);
     await dio.get<dynamic>('/auth/me');expect(sent,1);
     dio.close();
+  });
+  test('business writes cannot reach transport; only pinned normal phone login/logout are permitted', () async {
+    final dio=Dio(BaseOptions(baseUrl:callbackApi))..interceptors.add(CallbackReadOnlyTransport());
+    var sent=0;
+    dio.interceptors.add(InterceptorsWrapper(onRequest:(r,h){sent++;h.resolve(Response(requestOptions:r,statusCode:200));}));
+    for(final path in ['/account/erase','/listing-editor-drafts','/notifications/read-all','/properties','/auth/profile']) {
+      await expectLater(dio.post<dynamic>(path),throwsA(isA<DioException>()));
+      await expectLater(dio.delete<dynamic>(path),throwsA(isA<DioException>()));
+      await expectLater(dio.put<dynamic>(path),throwsA(isA<DioException>()));
+    }
+    await expectLater(dio.post<dynamic>('https://other.invalid/api/auth/logout'),throwsA(isA<DioException>()));
+    expect(sent,0);
+    for(final path in ['/auth/whatsapp/start','/auth/whatsapp/verify','/auth/logout']) {
+      await dio.post<dynamic>(path);
+    }
+    expect(sent,3);dio.close();
   });
   test('held completions ignore cancellation but actual account-bound controllers reject both after B', () async {
     final auth=_Auth(),gate=CallbackGate(),dio=Dio();final repo=AuthRepository(dio);

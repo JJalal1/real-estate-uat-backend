@@ -58,7 +58,7 @@ def prepare():
         assert {n.split('/')[1] for n in libs} == {'arm64-v8a', 'armeabi-v7a', 'x86_64'}
         assert all(API.encode() in app.read(n) for n in libs)
         if os.environ.get('PHASE23_CALLBACK_HARNESS') == 'true':
-            assert all(b'AQER_PHASE23_CALLBACK_HARNESS_V1' in app.read(n) for n in libs), 'callback target marker required'
+            assert all(b'AQER_PHASE23_CALLBACK_READ_ONLY_V1' in app.read(n) for n in libs), 'callback target marker required'
         for n in app.namelist():
             if n.startswith(('lib/arm64-v8a/', 'lib/x86_64/')) and n.endswith('.so'):
                 tools.elf(app.read(n))
@@ -75,7 +75,8 @@ def prepare():
                'experiments': {'conditional_prefetch': os.environ.get('PHASE23_PREFETCH_ON') == 'true'}}
     if os.environ.get('PHASE23_CALLBACK_HARNESS') == 'true':
         receipt['experiments']['callback_harness'] = True
-        receipt['acceptance_scope'] = 'Controlled external completions with real product controllers and ordinary auth; no live provider or production acceptance'
+        receipt['experiments']['callback_read_only'] = True
+        receipt['acceptance_scope'] = 'Read-only controlled completions with real controllers and ordinary auth; business writes and account deletion blocked; no live provider acceptance'
     (PRIVATE / 'APK_VERIFICATION.json').write_text(json.dumps(receipt, indent=2) + '\n')
     out = ROOT / 'phase23-installer-sealed'
     out.mkdir(mode=0o700)

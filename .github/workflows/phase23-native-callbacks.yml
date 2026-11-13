@@ -1,5 +1,6 @@
-name: Phase23 controlled callbacks API36
+name: Phase23 read-only controlled callbacks API36
 # Held synthetic completions, ordinary authentication and real product controllers.
+# Business mutations and account deletion are blocked by both the target transport and executor.
 # This cycle uses verified product gates and existing scoped synthetic actors only.
 on:
   push:

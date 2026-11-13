@@ -22,7 +22,7 @@ import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
 import zipfile
-from phase23_callback_metadata import safe_callback_label
+from phase23_callback_metadata import safe_callback_label, read_only_callback_command
 
 from phase23_preflight import API, BRANCH, GateError, guard, http
 from phase1_native_account_readiness import SECRET_NAME, validate_access
@@ -393,6 +393,8 @@ class NativeRun:
             self.private_values.update({digits, '+' + digits})
             if digits.startswith('00'): self.private_values.update({digits[2:], '+' + digits[2:]})
         self.callback_harness = json.loads((PRIVATE / 'APK_VERIFICATION.json').read_text()).get('experiments',{}).get('callback_harness') is True
+        if self.callback_harness and json.loads((PRIVATE / 'APK_VERIFICATION.json').read_text()).get('experiments',{}).get('callback_read_only') is not True:
+            raise GateError('read_only_callback_receipt_required')
         self.driver = Phase23Account(PRIVATE, dict(os.environ))
         self.driver.private_values.update(self.private_values)
         self.driver._active_case = 'P23'
@@ -797,6 +799,8 @@ class NativeRun:
         return {'operation': 'upgrade_install', **self.report['upgrade']}
 
     def apply(self, command):
+        if getattr(self, 'callback_harness', False) and not read_only_callback_command(command):
+            raise GateError('read_only_callback_command_required')
         op, args, d = command['op'], command['args'], self.driver
         d.phase23_last_input_failure=None
         if d.recorder is not None:
