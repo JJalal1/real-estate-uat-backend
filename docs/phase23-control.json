@@ -1,21 +1,22 @@
 {
   "run_id": "43333305676",
-  "seq": 16,
-  "challenge": "187ff94bc1eec21f04cfbfaa29828aef5f224826e3f59aae3c7ca42670c83ca3",
+  "seq": 17,
+  "challenge": "39a2fb3f893b8c3737ba5a25952558f6f169c069aebaa8e08b8d5892eb0c50b1",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "api_get",
+        "op": "touch",
         "args": {
-          "alias": "broker",
-          "path": "/listing-editor-drafts"
+          "x": 510,
+          "y": 670
         }
       },
       {
-        "op": "tap",
+        "op": "wait",
         "args": {
-          "label": "إضافة صور"
+          "label": "صور الإعلان (1/12)",
+          "seconds": 30
         }
       }
     ]
