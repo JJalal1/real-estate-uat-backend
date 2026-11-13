@@ -1,9 +1,23 @@
 {
   "run_id": "43333305676",
-  "seq": 15,
-  "challenge": "599c4061f765b38711fb6e02b06fa8a00aa49faa650760ce9c4d53c63cffdc07",
-  "op": "network",
+  "seq": 16,
+  "challenge": "187ff94bc1eec21f04cfbfaa29828aef5f224826e3f59aae3c7ca42670c83ca3",
+  "op": "batch",
   "args": {
-    "state": "offline"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إضافة صور"
+        }
+      }
+    ]
   }
 }
