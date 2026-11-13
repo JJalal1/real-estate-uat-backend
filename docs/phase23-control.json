@@ -1,9 +1,9 @@
 {
   "run_id": "43395970989",
-  "seq": 1,
-  "challenge": "3f282f06b572727bd93d28f458d1cbaa7970e4ea289ea9c749100fa9f5147ce2",
-  "op": "tap",
+  "seq": 2,
+  "challenge": "611527def9f9dab832c8291f0c255eca71593a26ce6cbd89e2aa10d62803053f",
+  "op": "login",
   "args": {
-    "label": "CB hide"
+    "alias": "erasure"
   }
 }
