@@ -1,37 +1,7 @@
 {
   "run_id": "43522135676",
-  "seq": 12,
-  "challenge": "4195dc1f1dd540d79ffbe059e98eec9f395c60f4e684b28278b667f6792f787f",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "touch",
-        "args": {
-          "x": 800,
-          "y": 1650
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "فتح صورة العقار 1 من 1",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "فتح صورة العقار 1 من 1"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تحميل صورة أوضح",
-          "seconds": 20
-        }
-      }
-    ]
-  }
+  "seq": 13,
+  "challenge": "96c18275eb379e17c51cfc50bfecb5c7372cef41b359dd23b608731c88893404",
+  "op": "network_metrics",
+  "args": {}
 }
