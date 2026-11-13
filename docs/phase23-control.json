@@ -1,23 +1,9 @@
 {
   "run_id": "43395970989",
-  "seq": 0,
-  "challenge": "673425c99ac4b44ea8817a863dd0e1a094f183225ea153c9fbc7e5eddb027868",
-  "op": "batch",
+  "seq": 1,
+  "challenge": "3f282f06b572727bd93d28f458d1cbaa7970e4ea289ea9c749100fa9f5147ce2",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "CB controls"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "AQER_PHASE23_CALLBACK_READ_ONLY_V1",
-          "seconds": 30
-        }
-      }
-    ]
+    "label": "CB hide"
   }
 }
