@@ -1,22 +1,21 @@
 {
   "run_id": "43395970989",
-  "seq": 6,
-  "challenge": "a19904b8b450167990c63f824b39dd943028dd9c463daeaed3e6105c124da3c8",
+  "seq": 7,
+  "challenge": "792cda178c61678382da6f332a5d591a61eb7e7e0a92b9888e5d8eb6deecfaa1",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "api_get",
+        "op": "tap",
         "args": {
-          "alias": "regular",
-          "path": "/auth/me"
+          "label": "CB editor"
         }
       },
       {
-        "op": "api_get",
+        "op": "wait",
         "args": {
-          "alias": "regular",
-          "path": "/listing-editor-drafts"
+          "label": "حدد نقطة العقار أولًا",
+          "seconds": 30
         }
       },
       {
@@ -28,19 +27,7 @@
       {
         "op": "tap",
         "args": {
-          "label": "CB seed B"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "CB release AI"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "CB release results"
+          "label": "CB release GPS"
         }
       }
     ]
