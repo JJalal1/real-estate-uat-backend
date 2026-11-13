@@ -1,29 +1,7 @@
 {
   "run_id": "43494440838",
-  "seq": 22,
-  "challenge": "600bfb3a268756ee00e71077aaa7eacc6043af90251cbe9b1c9948022a9e1d23",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "إغلاق الصور"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "رجوع",
-          "seconds": 5
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "رجوع"
-        }
-      }
-    ]
-  }
+  "seq": 23,
+  "challenge": "f04c5d9bb41023d6f19f65c5b70993a0e6cb7a55f15e756252444d3522f1f727",
+  "op": "prefetch_metrics",
+  "args": {}
 }
