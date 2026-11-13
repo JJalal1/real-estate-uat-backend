@@ -1,9 +1,35 @@
 {
   "run_id": "43395970989",
-  "seq": 0,
-  "challenge": "b6ad752ae1dd21019cc87c0c1ec6b3f8495161e4ea0b313278eaa738c2e47e5a",
-  "op": "login",
+  "seq": 1,
+  "challenge": "c9b67d8abeb2cc4ce45a8cd7630a15d47a9aeb3e7995c91d1c135e04fda4b91f",
+  "op": "batch",
   "args": {
-    "alias": "erasure"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/auth/me"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB controls"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB AI start"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB results start"
+        }
+      }
+    ]
   }
 }
