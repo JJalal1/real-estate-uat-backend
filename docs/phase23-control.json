@@ -1,9 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 11,
-  "challenge": "813c7772c61e31a7d7b4fed2a2c3a193c49e4324cafe84fe410a5623108514c1",
-  "op": "network",
+  "seq": 12,
+  "challenge": "bcb8ecd315fcc92c983cc6b69d485ab299f67a0e76ebc9ad0bf6882c7b97b591",
+  "op": "tap",
   "args": {
-    "state": "online"
+    "label": "تأكيد الموقع على الخريطة"
   }
 }
