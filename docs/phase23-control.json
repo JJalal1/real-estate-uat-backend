@@ -1,9 +1,10 @@
 {
   "run_id": "43494440838",
-  "seq": 4,
-  "challenge": "b5021efcaedbcfe420fa1a7d16b9a1ec6bd57f70f81981381ee292b7b9abfc3c",
-  "op": "open_link",
+  "seq": 5,
+  "challenge": "55434d79cf47eb8797a6332f3e95328c97e330e210d5651f3b4b87f1ba5e8c29",
+  "op": "wait",
   "args": {
-    "uri": "realestate://app/properties/106"
+    "label": "تكبير الصور",
+    "seconds": 25
   }
 }
