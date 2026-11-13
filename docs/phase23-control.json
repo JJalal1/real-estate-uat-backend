@@ -1,9 +1,37 @@
 {
   "run_id": "43401245346",
-  "seq": 15,
-  "challenge": "c46ac55417e9b487657724c3df24f08bfb7b890eca6898120b0f25ca2c7a90cd",
-  "op": "network",
+  "seq": 16,
+  "challenge": "67a4460c76e2f23d1109ce4562f3c29090f060fdd3cb61c8f041db74f2f3e5e3",
+  "op": "batch",
   "args": {
-    "state": "offline"
+    "steps": [
+      {
+        "op": "wait",
+        "args": {
+          "label": "AQER-P23-NOTIF1607-02",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تحميل المزيد"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "إعادة المحاولة",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "AQER-P23-NOTIF1607-02",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
