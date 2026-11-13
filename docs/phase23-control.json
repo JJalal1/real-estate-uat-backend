@@ -1,10 +1,37 @@
 {
   "run_id": "43401245346",
-  "seq": 8,
-  "challenge": "40c62a3e49498f7ddb8c86bcdd5a05c0c239b50d9308f962023e25df35229931",
+  "seq": 9,
+  "challenge": "fa8820145f356065819fe55f48452c7a69079741886e8e7c553690fc403a53cf",
   "op": "batch",
   "args": {
     "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/notifications?page=1&per_page=40"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/notifications?page=2&per_page=40"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/notifications?page=3&per_page=40"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "رجوع"
+        }
+      },
       {
         "op": "tap",
         "args": {
@@ -14,7 +41,7 @@
       {
         "op": "wait",
         "args": {
-          "label": "أنت مطّلع على كل شيء",
+          "label": "AQER-P23-NOTIF1607-41",
           "seconds": 30
         }
       }
