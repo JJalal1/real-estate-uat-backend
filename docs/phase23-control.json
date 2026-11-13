@@ -1,7 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 20,
-  "challenge": "3a69895fb3fb91b92438aa7beffaf514212b45dd87af91334e5aaca4e56924c6",
-  "op": "upgrade_install",
-  "args": {}
+  "seq": 21,
+  "challenge": "144a8affcd59459a09e89aff3353a1f8deee266313b7df79a500778a840c5a4e",
+  "op": "network",
+  "args": {
+    "state": "online"
+  }
 }
