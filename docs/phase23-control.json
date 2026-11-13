@@ -1,9 +1,30 @@
 {
   "run_id": "43333305676",
-  "seq": 12,
-  "challenge": "bcb8ecd315fcc92c983cc6b69d485ab299f67a0e76ebc9ad0bf6882c7b97b591",
-  "op": "tap",
+  "seq": 13,
+  "challenge": "240ed3db290dd035f24d10e2ed3e9715a6b9e80bc468e45f473ece6c6f8a37eb",
+  "op": "batch",
   "args": {
-    "label": "تأكيد الموقع على الخريطة"
+    "steps": [
+      {
+        "op": "wait",
+        "args": {
+          "label": "اسحب الدبوس إلى العقار، أو حرّك الخريطة ليعود الدبوس إلى المنتصف.",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "تأكيد هذا الموقع"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "إضافة عقار",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
