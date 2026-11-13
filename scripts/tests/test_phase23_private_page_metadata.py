@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from phase23_private_page_metadata import (META, EVENT, safe_private_page_label,
     private_page_events, read_only_private_page_command)
@@ -17,8 +17,42 @@ class PrivatePageSafety(unittest.TestCase):
         self.assertIsNone(safe_private_page_label('PRIVATE PERSON'))
         event={k:0 for k in EVENT};event.update(seq=1,actor=2,surface=2,page=1,phase=2)
         self.assertEqual(private_page_events('flutter AQER_PRIVATE:'+json.dumps(event)),[event])
-        for change in [{'body':'PRIVATE'},{'actor':66},{'phase':9},{'count':True}]:
+        known=dict(event,totalKnown=1,total=2)
+        self.assertEqual(private_page_events('AQER_PRIVATE:'+json.dumps(known)),[known])
+        for change in [{'body':'PRIVATE'},{'actor':66},{'phase':9},{'count':True},
+                       {'totalKnown':2},{'totalKnown':True},{'totalKnown':-1}]:
             self.assertEqual(private_page_events('AQER_PRIVATE:'+json.dumps(dict(event,**change))),[])
+        missing=dict(event)
+        del missing['totalKnown']
+        self.assertEqual(private_page_events('AQER_PRIVATE:'+json.dumps(missing)),[event])
+        missing['total']=2
+        self.assertEqual(private_page_events('AQER_PRIVATE:'+json.dumps(missing)),
+                         [dict(event,total=2,totalKnown=0)])
+
+    def test_read_only_target_allows_only_real_bounded_emulator_network_profiles(self):
+        run=object.__new__(NativeRun)
+        run.private_pages=True
+        run.driver=Mock(recorder=None)
+        for mode in ('slow','normal'):
+            command={'run_id':'1234','seq':1,'challenge':'a'*64,
+                     'op':'network_profile','args':{'mode':mode}}
+            self.assertTrue(read_only_private_page_command(command))
+            validated=validate_command(command,'1234',1,'a'*64)
+            self.assertEqual(run.apply(validated)['mode'],mode)
+        self.assertEqual(run.driver.adb.call_args_list,[
+            call('emu','network','speed','gsm'),
+            call('emu','network','delay','gprs'),
+            call('shell','svc','data','enable'),
+            call('shell','svc','wifi','disable'),
+            call('emu','network','speed','full'),
+            call('emu','network','delay','none'),
+            call('shell','svc','data','enable'),
+            call('shell','svc','wifi','enable'),
+        ])
+        self.assertFalse(run.network_profile_changed)
+        for args in ({'mode':'full; arbitrary'},{'mode':'custom'},
+                     {'mode':'slow','endpoint':'PRIVATE'},{}):
+            self.assertFalse(read_only_private_page_command({'op':'network_profile','args':args}))
 
     def test_verified_target_only_exports_fixed_controls_and_never_pixels_or_content(self):
         rows=[{'text':'PC controls'},{'text':'PRIVATE PERSON'},{'text':'إعادة المحاولة'}]

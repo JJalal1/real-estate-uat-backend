@@ -79,7 +79,7 @@ class PrivatePagesTransport extends Interceptor {
       if (config.$2 > 0) options.queryParameters['per_page'] = config.$2;
       final row = {'surface': config.$1, 'actor': gate.actor(), 'epoch': gate.epoch(),
         'page': page, 'original': original, 'size': config.$2, 'phase': 1,
-        'count': 0, 'last': 0, 'total': 0, 'duplicate': 0, 'changed': 0};
+        'count': 0, 'last': 0, 'total': 0, 'totalKnown': 0, 'duplicate': 0, 'changed': 0};
       // Internal key may contain filters; it is never logged or exported.
       final filters = Map<String, dynamic>.from(options.queryParameters)..remove('page');
       options.extra[_key] = (row, '${row['actor']}:${row['epoch']}:$endpoint:${jsonEncode(filters)}');
@@ -93,8 +93,13 @@ class PrivatePagesTransport extends Interceptor {
     if (trace is (Map<String, int>, String)) {
       final row = Map<String, int>.from(trace.$1), body = response.data;
       final data = body is Map ? body['data'] : null, meta = body is Map ? body['meta'] : null;
+      final hasTotal = meta is Map && meta.containsKey('total');
+      final total = meta is Map ? meta['total'] : null;
+      // Customers have a fixed30 contract without total. Do not infer a total
+      // from loaded rows or relax the required metadata of other endpoints.
+      final validTotal = hasTotal ? total is int && total >= 0 : row['surface'] == 4;
       if (data is List && meta is Map && meta['current_page'] == row['page'] &&
-          meta['last_page'] is int && meta['total'] is int) {
+          meta['last_page'] is int && validTotal) {
         final ids = data.map((item) => item is Map
           ? '${item['id'] ?? item['user_id'] ?? item['thread_id'] ?? (item['property'] is Map ? (item['property'] as Map)['id'] : null)}'
           : 'invalid').toList();
@@ -102,7 +107,7 @@ class PrivatePagesTransport extends Interceptor {
         row['duplicate'] = ids.length - ids.toSet().length + ids.where(seen.contains).length;
         seen.addAll(ids); gate._seen[trace.$2] = seen;
         row.addAll({'phase': 2, 'count': data.length, 'last': meta['last_page'] as int,
-          'total': meta['total'] as int,
+          'total': hasTotal ? total as int : 0, 'totalKnown': hasTotal ? 1 : 0,
           'changed': gate.actor() == row['actor'] && gate.epoch() == row['epoch'] ? 0 : 1});
       } else { row['phase'] = 4; }
       gate.event(row);

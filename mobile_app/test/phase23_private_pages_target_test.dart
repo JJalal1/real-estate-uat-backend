@@ -68,6 +68,7 @@ void main() {
     expect(result.data, adapter.body);
     expect(logs.last, contains('"original":50'));
     expect(logs.last, contains('"count":1'));
+    expect(logs.last, contains('"totalKnown":1'));
     expect(logs.join(), isNot(contains('PRIVATE_NOTE_SENTINEL')));
     expect(logs.join(), isNot(contains('private-filter')));
     final row = jsonDecode(logs.last.split('AQER_PRIVATE:').last) as Map<String, dynamic>;
@@ -84,6 +85,57 @@ void main() {
     gate.actor = () => 3; gate.epoch = () => 2;
     await page(1, 91); await page(2, 92);
     expect(logs.last, contains('"duplicate":0'));
+  });
+  test('fixed customer pages preserve real counts and overlap without inventing a total', () async {
+    Future<Map<String, dynamic>> page(int page, List<int> ids) async {
+      adapter.body = {'data': ids.map((id) => {'thread_id': id}).toList(),
+        'meta': {'current_page': page, 'last_page': 2}};
+      final result = await dio.get<Map<String, dynamic>>('/broker/customers', queryParameters: {'page': page});
+      expect(result.data, adapter.body);
+      expect(adapter.requests.last.queryParameters, {'page': page});
+      return jsonDecode(logs.last.split('AQER_PRIVATE:').last) as Map<String, dynamic>;
+    }
+    final first = await page(1, List<int>.generate(30, (index) => index + 1));
+    expect(first, containsPair('phase', 2));
+    expect(first, containsPair('count', 30));
+    expect(first, containsPair('last', 2));
+    expect(first, containsPair('totalKnown', 0));
+    expect(first, containsPair('total', 0));
+    final second = await page(2, [30, 31]);
+    expect(second, containsPair('phase', 2));
+    expect(second, containsPair('count', 2));
+    expect(second, containsPair('duplicate', 1));
+    expect(second, containsPair('totalKnown', 0));
+    expect(second, containsPair('total', 0));
+    gate.actor = () => 3; gate.epoch = () => 2;
+    expect(await page(1, [31]), containsPair('duplicate', 0));
+  });
+  test('absent customer total differs from a known zero and malformed supplied totals', () async {
+    for (final total in <dynamic>[0, null, '0', 0.5, true, -1]) {
+      adapter.body = {'data': <dynamic>[],
+        'meta': {'current_page': 1, 'last_page': 1, 'total': total}};
+      final result = await dio.get<Map<String, dynamic>>('/broker/customers');
+      expect(result.data, adapter.body);
+      final row = jsonDecode(logs.last.split('AQER_PRIVATE:').last) as Map<String, dynamic>;
+      final valid = total is int && total >= 0;
+      expect(row['phase'], valid ? 2 : 4);
+      expect(row['totalKnown'], valid ? 1 : 0);
+    }
+  });
+  test('missing totals on other endpoints and mismatched customer pages remain unobserved', () async {
+    for (final endpoint in privatePageSizes.keys.where((path) => path != '/broker/customers')) {
+      adapter.body = {'data': <dynamic>[], 'meta': {'current_page': 1, 'last_page': 1}};
+      await dio.get<dynamic>(endpoint);
+      expect(logs.last, contains('"phase":4'));
+    }
+    for (final meta in <Map<String, dynamic>>[
+      {'current_page': 2, 'last_page': 2},
+      {'current_page': 1, 'last_page': '2'},
+    ]) {
+      adapter.body = {'data': <dynamic>[], 'meta': meta};
+      await dio.get<dynamic>('/broker/customers', queryParameters: {'page': 1});
+      expect(logs.last, contains('"phase":4'));
+    }
   });
   test('failed native request reports the exact requested page without substituting a success', () async {
     adapter.fail = true;

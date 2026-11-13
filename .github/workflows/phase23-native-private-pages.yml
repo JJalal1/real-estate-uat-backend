@@ -70,6 +70,48 @@ jobs:
           PHASE23_HAS_AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS != '' }}
           PHASE23_HAS_AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD != '' }}
         run: python3 -B scripts/phase23_build_readiness.py
+      - name: Prove the new review channel before reserving a device
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+          AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION: ${{ secrets.AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION }}
+        run: |
+          python3 -B - <<'PY'
+          import hashlib,json,os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts')
+          from run_phase23_native import native_access
+          from phase1_native_account_readiness import SECRET_NAME
+          from phase23_actor_readiness import ATTESTATION_NAME,REASONS
+          base=native_access({SECRET_NAME:os.environ.get(SECRET_NAME,'')})
+          assert {'broker','support','regular'} <= set(base['phones'])
+          receipt={'schema':1,'purpose':'phase23 review channel probe','source_sha':os.environ['GITHUB_SHA'],
+                   'base_aliases':sorted(base['phones']),'extended_actors_ready':False}
+          del base
+          try:
+              full=native_access(os.environ)
+              receipt['extended_actors_ready']={'advertiser','manager','admin'} <= set(full['phones'])
+              del full
+          except Exception as error:
+              reason=str(error)
+              receipt['extended_actor_reason']=reason if reason in REASONS else type(error).__name__
+          out=Path('phase23-channel-sealed');out.mkdir(mode=0o700)
+          plain=out/'probe.json';plain.write_text(json.dumps(receipt,sort_keys=True)+'\n')
+          cipher=out/'probe.cms'
+          subprocess.run(['openssl','cms','-encrypt','-aes-256-cbc','-binary','-outform','DER',
+                          '-in',str(plain),'-out',str(cipher),'scripts/phase23_recipient.pem'],check=True)
+          plain.unlink()
+          public={'source_sha':receipt['source_sha'],'cipher_sha256':hashlib.sha256(cipher.read_bytes()).hexdigest(),
+                  'base_roster_ready':True,'extended_actors_ready':receipt['extended_actors_ready']}
+          if 'extended_actor_reason' in receipt:public['extended_actor_reason']=receipt['extended_actor_reason']
+          (out/'CHANNEL_RECEIPT.json').write_text(json.dumps(public,sort_keys=True)+'\n')
+          print(json.dumps(public,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase23-channel-${{ github.run_id }}
+          path: phase23-channel-sealed/
+          retention-days: 30
+          if-no-files-found: error
   native:
     if: ${{ contains(github.event.head_commit.message, '[run-private-pages]') && !contains(github.event.head_commit.message, '[collector-only]') }}
     needs: collector-safety
@@ -99,7 +141,7 @@ jobs:
           code,body=http('GET','/properties?per_page=2')
           assert code == 200, 'public_discovery_readiness_required'
           with open(os.environ['GITHUB_ENV'],'a') as env:
-              env.write('PHASE23_BUILD='+str(1608)+'\n')
+              env.write('PHASE23_BUILD='+str(1609)+'\n')
               env.write('GRADLE_USER_HOME='+os.environ['RUNNER_TEMP']+'/aqer-native-account-gradle\n')
           print('AQER_PHASE23_CHANNEL_AND_SOURCE_READY')
           PY
@@ -235,7 +277,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
-          AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION: ${{ secrets.AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION }}
+          # This continuation is restricted to the existing base synthetic roster.
+          # Extra actors need a fresh effective allowlist attestation separately.
+          AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION: ''
       - name: Stop the disposable device
         if: always()
         run: adb -s emulator-5554 emu kill || true

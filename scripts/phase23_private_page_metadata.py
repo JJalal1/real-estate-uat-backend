@@ -4,7 +4,7 @@ import json
 MARKER = 'AQER_PHASE23_PRIVATE_PAGES_READ_ONLY_V1'
 META = frozenset(('v','actor','epoch','events','errors','writes','pushCleanup'))
 EVENT = frozenset(('seq','surface','actor','epoch','page','original','size','phase',
-                   'count','last','total','duplicate','changed'))
+                   'count','last','total','totalKnown','duplicate','changed'))
 CONTROLS = frozenset(('PC controls','PC hide','PC home','PC listings','PC favorites',
     'PC availability','PC customers','PC verification','PC messages','PC support','PC light','PC dark',MARKER))
 LABELS = frozenset(('حسابي','العقارات','المفضلة','إعلاناتي','عقاراتي','الرسائل',
@@ -49,16 +49,20 @@ def private_page_events(log):
         if 'AQER_PRIVATE:' not in line: continue
         try: value=json.loads(line.split('AQER_PRIVATE:',1)[1])
         except (TypeError,ValueError): continue
+        # Historical1608 events did not record presence of total. Retain them
+        # with explicit unknown metadata instead of inferring a missing total.
+        if numbers(value,EVENT-{'totalKnown'}):
+            value={**value,'totalKnown':0}
         if (not numbers(value,EVENT) or not 1<=value['surface']<=10 or
             value['actor'] not in range(1,6) or value['phase'] not in (1,2,3,4) or
-            value['changed'] not in (0,1) or value['page']<1): continue
+            value['changed'] not in (0,1) or value['totalKnown'] not in (0,1) or value['page']<1): continue
         rows.append(value)
     return rows[-2000:]
 
 def read_only_private_page_command(command):
     op,args=command.get('op'),command.get('args',{})
     if op not in {'observe','tap','scroll','back','login','logout','logout_in_place',
-                  'wait','display','network','private_metrics','batch','finish'}:
+                  'wait','display','network','network_profile','private_metrics','batch','finish'}:
         return False
     if op=='batch':
         steps=args.get('steps')
@@ -66,5 +70,7 @@ def read_only_private_page_command(command):
     if op=='login' and args.get('alias') not in ('broker','regular','advertiser','manager','admin'):
         return False
     if op=='tap' and args.get('label') not in CONTROLS | LABELS:
+        return False
+    if op=='network_profile' and (set(args)!={'mode'} or args.get('mode') not in ('normal','slow')):
         return False
     return True
