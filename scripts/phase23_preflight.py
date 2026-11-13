@@ -15,7 +15,7 @@ from phase1_native_account_readiness import SECRET_NAME, validate_access
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 BRANCH = 'refs/heads/work/phase23-acceptance-20261111'
 TREES = {'mobile_app': '610da2b6ad3c411921177dd236d9edf047b23316',
-         'backend-api-runtime': '953452cd29d27ba3b5fe902cd55d0321973d643c'}
+         'backend-api-runtime': '76dcc5b61ed2bf55d05935289d09885182fef96e'}
 
 
 class GateError(RuntimeError):

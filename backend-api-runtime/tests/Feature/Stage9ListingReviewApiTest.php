@@ -45,7 +45,20 @@ class Stage9ListingReviewApiTest extends TestCase
 
         $this->withHeaders(['Authorization' => ''])->get("/api/property-media/$imageId")->assertNotFound();
         $this->withHeaders($modHeaders)->get("/api/property-media/$imageId")->assertOk();
-        $this->withHeaders($modHeaders)->get("/api/listing-documents/$documentId")->assertOk();
+        foreach ([$ownerHeaders, $modHeaders] as $authorizedHeaders) {
+            foreach (['get', 'head'] as $method) {
+                $response = $this->withHeaders($authorizedHeaders)
+                    ->{$method}("/api/listing-documents/$documentId")
+                    ->assertOk()
+                    ->assertHeader('X-Content-Type-Options', 'nosniff');
+                $cache = $response->headers->get('Cache-Control');
+                $this->assertStringContainsString('private', $cache);
+                $this->assertStringContainsString('no-store', $cache);
+            }
+        }
+        [, $otherHeaders] = $this->user('s9-other@example.test', '+967710000003');
+        $this->withHeaders($otherHeaders)->head("/api/listing-documents/$documentId")->assertForbidden();
+        $this->withHeaders(['Authorization' => ''])->head("/api/listing-documents/$documentId")->assertUnauthorized();
         $this->getJson('/api/properties')->assertJsonPath('meta.total', 0);
 
         $this->withHeaders($ownerHeaders)->postJson("/api/properties/$id/submit")

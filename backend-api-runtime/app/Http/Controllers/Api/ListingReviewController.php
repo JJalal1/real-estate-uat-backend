@@ -223,7 +223,11 @@ class ListingReviewController extends Controller
         return app(\App\Services\CloudAssetStorageService::class)->downloadPrivate(
             $document->path,
             $document->original_name,
-            ['Content-Type' => $document->mime_type ?: 'application/octet-stream'],
+            [
+                'Content-Type' => $document->mime_type ?: 'application/octet-stream',
+                'Cache-Control' => 'private, no-store',
+                'X-Content-Type-Options' => 'nosniff',
+            ],
         );
     }
 
