@@ -1,35 +1,9 @@
 {
   "run_id": "43401245346",
-  "seq": 1,
-  "challenge": "e0c439cf634cdfc26ca7ed263afff6c5fb9f15761a2355a63080f50e1f58e6e8",
-  "op": "batch",
+  "seq": 2,
+  "challenge": "98ffd2a275c159482a1bbf377066205a5d679a0a12f85496831a3dd694a5d68e",
+  "op": "display",
   "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "manager",
-          "path": "/auth/me"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "الأعمال"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "المنجزة"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تذاكر"
-        }
-      }
-    ]
+    "mode": "compact_large"
   }
 }
