@@ -1,7 +1,9 @@
 {
-  "run_id": "43494440838",
-  "seq": 30,
-  "challenge": "bd09c8620982469ae212a584e1b81e732d2093437ec742591cd9a8eea25c1934",
-  "op": "finish",
-  "args": {}
+  "run_id": "43507896943",
+  "seq": 0,
+  "challenge": "a622df0fe1f171658d78ef58154aa3e2053c1f4bafc13eeffc76a7eaf9fc7599",
+  "op": "tap",
+  "args": {
+    "label": "بيع"
+  }
 }
