@@ -1,7 +1,9 @@
 {
   "run_id": "43494440838",
-  "seq": 16,
-  "challenge": "7380954c068beeb11c938419a7e0c01aebd4f9d071931a337c034be813b58eab",
-  "op": "observe",
-  "args": {}
+  "seq": 17,
+  "challenge": "a3bbac83be5e51a6268ae9047aebebc8f08a5c8f86ef3f44f197a9ebb9577e0d",
+  "op": "tap",
+  "args": {
+    "label": "رجوع"
+  }
 }
