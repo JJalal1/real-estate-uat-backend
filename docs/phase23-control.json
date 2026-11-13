@@ -1,9 +1,29 @@
 {
   "run_id": "43493825181",
-  "seq": 0,
-  "challenge": "2035dd58a0c533136493818cfcbf32dd8b0526e6ae331ec37557eefcd801e488",
-  "op": "login",
+  "seq": 1,
+  "challenge": "7e0dcb6dc392d88cbf100ca41ff6af8af94cdd6c6b6c1cdaf0e9a501f8a5ec0c",
+  "op": "batch",
   "args": {
-    "alias": "broker"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "PC controls"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "PC customers"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "كل العملاء",
+          "seconds": 10
+        }
+      }
+    ]
   }
 }
