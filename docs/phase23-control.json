@@ -1,34 +1,7 @@
 {
   "run_id": "43430097013",
-  "seq": 141,
-  "challenge": "ac2a6af997b153e44c338f5eef381b98fd6d9e643cbef2afd2784b05d2b89024",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "PC controls"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "PC verification"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "قيد المراجعة"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "يحتاج مستندًا إضافيًا"
-        }
-      }
-    ]
-  }
+  "seq": 142,
+  "challenge": "08d4a72220d1861e9156f0dac459514fdf4bf7d8c5cd4fc585e44a0f274778fa",
+  "op": "private_metrics",
+  "args": {}
 }
