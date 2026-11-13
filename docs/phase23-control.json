@@ -1,24 +1,7 @@
 {
   "run_id": "43333305676",
-  "seq": 17,
-  "challenge": "39a2fb3f893b8c3737ba5a25952558f6f169c069aebaa8e08b8d5892eb0c50b1",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "touch",
-        "args": {
-          "x": 510,
-          "y": 670
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "صور الإعلان (1/12)",
-          "seconds": 30
-        }
-      }
-    ]
-  }
+  "seq": 18,
+  "challenge": "854ec9740c4c7f5ba3ce0e7bce21f9927539311b597eb2c1a127f18603731caa",
+  "op": "back",
+  "args": {}
 }
