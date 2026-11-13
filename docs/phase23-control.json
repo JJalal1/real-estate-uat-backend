@@ -1,23 +1,7 @@
 {
   "run_id": "43430097013",
-  "seq": 129,
-  "challenge": "cb6e6f63728013a778ff0172b341336dfedf31e5c9abde502cbab179d1e34179",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "المزيد من الحالات"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "PC controls",
-          "seconds": 3
-        }
-      }
-    ]
-  }
+  "seq": 130,
+  "challenge": "75b5253dad68cb739b806e054e64827706cd0acd982496daf1a11dccfba72a84",
+  "op": "private_metrics",
+  "args": {}
 }
