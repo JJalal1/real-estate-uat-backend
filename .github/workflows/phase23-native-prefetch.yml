@@ -1,5 +1,7 @@
-name: Phase23 ordinary-main native prefetch1610
-# One ordinary main.dart UAT installer and a bounded public-only prefetch pass.
+name: Phase23 ordinary-main native prefetch1611
+# One ordinary main.dart UAT installer and a bounded idle-to-browse prefetch pass.
+# Let the real 60-second foreground estimate expire before one uncached zoom89.
+# Do not alter policy thresholds, inject throughput, or replay accepted journeys.
 # Reuses the reviewed2ec3a81 product components and the already verified review recipient.
 # No replay of accepted erasure, notifications, upgrade or private-page journeys.
 on:
@@ -100,7 +102,7 @@ jobs:
           code,body=http('GET','/properties?per_page=2')
           assert code == 200, 'public_discovery_readiness_required'
           with open(os.environ['GITHUB_ENV'],'a') as env:
-              env.write('PHASE23_BUILD='+str(1610)+'\n')
+              env.write('PHASE23_BUILD='+str(1611)+'\n')
               env.write('GRADLE_USER_HOME='+os.environ['RUNNER_TEMP']+'/aqer-native-account-gradle\n')
           print('AQER_PHASE23_CHANNEL_AND_SOURCE_READY')
           PY
@@ -176,7 +178,7 @@ jobs:
                   content=apk.read(name)
                   assert b'AQER_PHASE23_PRIVATE_PAGES_READ_ONLY_V1' not in content
                   assert b'AQER_PHASE23_CALLBACK_READ_ONLY_V1' not in content
-          print('AQER_PHASE23_ORDINARY_MAIN_1610_VERIFIED')
+          print('AQER_PHASE23_ORDINARY_MAIN_1611_VERIFIED')
           PYVERIFY
       - name: Preserve only public dependencies before the native session
         if: steps.gradle-deps.outputs.cache-hit != 'true' && steps.gradle-deps.outputs.cache-primary-key != ''
