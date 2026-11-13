@@ -31,6 +31,20 @@ class DocumentHeaderProbeTest(unittest.TestCase):
             head_document('../users/26', opener=opener)
         opener.open.assert_not_called()
 
+    def test_property_proof_uses_only_the_inventoried_fixed_document(self):
+        headers = email.message.Message()
+        headers['Content-Type'] = 'image/png'
+        headers['Cache-Control'] = 'private, no-store'
+        response = Mock(code=200, headers=headers)
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        opener = Mock()
+        opener.open.return_value = response
+        self.assertTrue(accepted(head_document('ownership_proof', opener=opener), 200))
+        self.assertEqual(opener.open.call_args.args[0].full_url,
+                         'https://real-estate-uat-api-frankfurt.onrender.com/api/listing-documents/23')
+        response.read.assert_not_called()
+
     def test_redirect_and_public_cache_never_count_as_private_success(self):
         base = {'http': 200, 'redirect_received': False,
                 'content_type': 'image/png', 'cache_control': 'public, max-age=3600'}

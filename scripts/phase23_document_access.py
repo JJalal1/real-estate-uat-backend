@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check headers of two existing synthetic UAT documents; never read a body."""
+"""Check existing synthetic account/property document headers, never bodies."""
 import datetime
 import hashlib
 import json
@@ -14,7 +14,7 @@ import urllib.request
 from phase23_preflight import API, NoRedirect, guard
 from run_phase23_native import Session, native_access
 
-KINDS = ('identity_document', 'selfie')
+KINDS = ('identity_document', 'selfie', 'ownership_proof')
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -24,8 +24,11 @@ def head_document(kind, token=None, opener=None):
     headers = {'Accept': 'application/json'}
     if token:
         headers['Authorization'] = 'Bearer ' + token
+    # Document23 belongs to published synthetic property33, owned by user25.
+    path = '/listing-documents/23' if kind == 'ownership_proof' else (
+        '/account-verification/users/25/documents/' + kind)
     request = urllib.request.Request(
-        API + '/account-verification/users/25/documents/' + kind,
+        API + path,
         headers=headers, method='HEAD')
     transport = opener or urllib.request.build_opener(NoRedirect())
     try:
@@ -74,11 +77,11 @@ def run():
         finally:
             cleanup.append({'actor': alias, 'session_closed': session.close()})
     access.clear()
-    return {'scope': 'Existing synthetic user25 document HEAD only; no file contents, no URLs from responses, no native acceptance',
+    return {'scope': 'Synthetic user25 account documents and property33 proof document23 HEAD only; no file contents, no response URLs, no native acceptance',
             'source_sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
             'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'checks': rows, 'cleanup': cleanup,
-            'pass': len(rows) == 8 and all(r['pass'] for r in rows)
+            'pass': len(rows) == 12 and all(r['pass'] for r in rows)
                     and all(r['session_closed'] for r in cleanup)}
 
 
