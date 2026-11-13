@@ -1,23 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 2,
-  "challenge": "30ea880de31de9f963f63074f27a6da520f482f5278601c0650fb0d01f540584",
-  "op": "batch",
+  "seq": 3,
+  "challenge": "8ced690c4ed47f5f3a1ebd35de0f8ed3738df06f98e60fa10740d38ffdcd4c8c",
+  "op": "network",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "تعبئة يدوي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "متابعة الإعلان",
-          "seconds": 30
-        }
-      }
-    ]
+    "state": "offline"
   }
 }
