@@ -1,9 +1,43 @@
 {
   "run_id": "43356915577",
-  "seq": 0,
-  "challenge": "4b5780959c1defbadeb6dc1d0377970d8f3c051bfb3de37aba680281ebc1de77",
-  "op": "login",
+  "seq": 1,
+  "challenge": "7c73fea2486488c3109292a3cb9c34cda6391b96bd7434c9ffaa57cfc9c2f497",
+  "op": "batch",
   "args": {
-    "alias": "erasure"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/auth/me"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/notifications?page=1&per_page=40"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "حسابي"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "الإشعارات"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "أنت مطّلع على كل شيء",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
