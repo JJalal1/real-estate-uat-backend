@@ -1,9 +1,9 @@
 {
   "run_id": "43493825181",
-  "seq": 11,
-  "challenge": "3748abd159c60edbc66c87663ab168ce4c85b4aeced51c00bd8719beca4c2aad",
-  "op": "tap",
+  "seq": 12,
+  "challenge": "925fb8a62ef5c7bb3b08e07132a9f4073bb7516dfadcffea49fd24cdc630404c",
+  "op": "network_profile",
   "args": {
-    "label": "PC controls"
+    "mode": "slow"
   }
 }
