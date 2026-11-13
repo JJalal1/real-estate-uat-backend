@@ -1,9 +1,22 @@
 {
   "run_id": "43493825181",
-  "seq": 8,
-  "challenge": "eb042e6bcb290fc968b53b06d4133a638b7436999f420fcce2bf647080df51c8",
-  "op": "network",
+  "seq": 9,
+  "challenge": "e08afb37122c973811661293ef57dd88e2a6882c7ecfca14109dc3956f5180ca",
+  "op": "batch",
   "args": {
-    "state": "online"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إعادة المحاولة"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      }
+    ]
   }
 }
