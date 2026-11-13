@@ -1,37 +1,9 @@
 {
   "run_id": "43401245346",
-  "seq": 43,
-  "challenge": "c327179f2a6535fef565026b15fd96a4d805decc2fd91b24de586d96f58a5fa4",
-  "op": "batch",
+  "seq": 44,
+  "challenge": "9de5a848e4b7fd23c2087ff9d29bd0d425a2a1cb8063388e16cb4802a05f1921",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/auth/me"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/notifications?page=1&per_page=40"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "حسابي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تسجيل الدخول أو إنشاء حساب",
-          "seconds": 30
-        }
-      }
-    ]
+    "label": "رجوع"
   }
 }
