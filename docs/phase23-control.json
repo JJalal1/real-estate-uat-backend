@@ -1,7 +1,9 @@
 {
   "run_id": "43522135676",
-  "seq": 5,
-  "challenge": "f92989891c8f72d38aa7219bbaf2841a6aca15426ace4b61df9bc14d80d2a0aa",
-  "op": "network_metrics",
-  "args": {}
+  "seq": 6,
+  "challenge": "37e4d54e029d441d97b4e8509c306af4332592b62af1b91821d5aae9eb00fde7",
+  "op": "tap",
+  "args": {
+    "label": "فتح صورة العقار 1 من 1"
+  }
 }
