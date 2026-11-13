@@ -1,15 +1,14 @@
 {
   "run_id": "43333305676",
-  "seq": 37,
-  "challenge": "9e57167b5c053708c2785349e7c1743a7daac3df17beb6e65eaf0250491e836f",
+  "seq": 38,
+  "challenge": "161b2459c7dde418c4fa991cef02b68927e21c402bed3863db7e86ad2dde3214",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "wait",
+        "op": "scroll",
         "args": {
-          "label": "مكتمل",
-          "seconds": 10
+          "direction": "forward"
         }
       },
       {
