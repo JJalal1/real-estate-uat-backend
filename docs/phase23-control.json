@@ -1,37 +1,10 @@
 {
   "run_id": "43333305676",
-  "seq": 56,
-  "challenge": "45d51455f220d7129fe0dc2dcd98e50a83c15aa0e5186efe4b399109cff87ca8",
-  "op": "batch",
+  "seq": 57,
+  "challenge": "c2a0fd5552fba5fadc0e3c33f6b672b5da384567bb94246d605a5a15a1dfe8cb",
+  "op": "touch",
   "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "تكبير الصور",
-          "seconds": 30
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تكبير الصور"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "إغلاق الصور",
-          "seconds": 30
-        }
-      },
-      {
-        "op": "double_tap",
-        "args": {
-          "x": 540,
-          "y": 850
-        }
-      }
-    ]
+    "x": 925,
+    "y": 500
   }
 }
