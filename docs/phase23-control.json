@@ -1,7 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 147,
-  "challenge": "79caee7e820f6428e45ac775ae47c3693f39b080f7cc3177c5ad92e814f85ea1",
-  "op": "logout_in_place",
-  "args": {}
+  "seq": 148,
+  "challenge": "85f0d5d6dab5cd8579998767ce3f4e90c7c4da53be8fc406ec27629510d3f731",
+  "op": "tap",
+  "args": {
+    "label": "PC controls"
+  }
 }
