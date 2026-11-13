@@ -1,9 +1,7 @@
 {
   "run_id": "43401245346",
-  "seq": 39,
-  "challenge": "7a613df803824ee2e28cf8bee1a008983a5adc55d4d47c5b4ae2d8bc25bfb4c5",
-  "op": "tap",
-  "args": {
-    "label": "حذف الحساب نهائيًا"
-  }
+  "seq": 40,
+  "challenge": "a55bf63f2550acef71967ffe62bafd2a6488aa337b86174a75964cb3621f9236",
+  "op": "observe",
+  "args": {}
 }
