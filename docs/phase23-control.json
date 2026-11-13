@@ -1,20 +1,15 @@
 {
   "run_id": "43507896943",
-  "seq": 2,
-  "challenge": "69577025e7b34b7e38c95e0cd416c60ba0d30a15fcf3395b1b3d22a7745923cc",
+  "seq": 3,
+  "challenge": "892e42b77b28a922845c8f0baf3e7c2e210ab7072d3a6d91aa7ebfa789801e81",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "scroll",
+        "op": "touch",
         "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "شقة عائلية مشرقة في حدة"
+          "x": 600,
+          "y": 900
         }
       },
       {
