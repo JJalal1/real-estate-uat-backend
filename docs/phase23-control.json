@@ -1,9 +1,23 @@
 {
   "run_id": "43401245346",
-  "seq": 36,
-  "challenge": "2595df2a26c959ff1153e2300fc835186d7df4d0cb19964a982a4f4430bb669f",
-  "op": "tap",
+  "seq": 37,
+  "challenge": "3e382f6a205adfea85709ec95ed286cf001b51c0a59de558f3c2de7346e80b7d",
+  "op": "batch",
   "args": {
-    "label": "حذف الحساب نهائيًا"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إلغاء"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "الأمان والخصوصية",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
