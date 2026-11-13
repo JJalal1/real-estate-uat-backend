@@ -1,23 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 25,
-  "challenge": "b6db9888e10bc6b03277e8fb7d6175b8a006415c0639c73875efe24819ac2b1e",
-  "op": "batch",
+  "seq": 26,
+  "challenge": "3124b64d7e49f7e0db1c2ba2a3da3dd880ab0c91619e02f01fd5de7ff09393ad",
+  "op": "network",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "المزيد من الإعلانات"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "إعادة المحاولة",
-          "seconds": 30
-        }
-      }
-    ]
+    "state": "online"
   }
 }
