@@ -1,24 +1,7 @@
 {
   "run_id": "43356915577",
-  "seq": 7,
-  "challenge": "9015095524c64f8472dd60a9a4f5980817e8dc79ad359e7da58c7e0ff6b3f9ac",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "wait",
-        "args": {
-          "label": "لديك تعديلات غير محفوظة",
-          "seconds": 30
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "حفظ المسودة",
-          "seconds": 30
-        }
-      }
-    ]
-  }
+  "seq": 8,
+  "challenge": "afbf8a8f41055f9b4672959dfc5783ffa09ccdcf6b77e370f9c896b2abfa71ad",
+  "op": "finish",
+  "args": {}
 }
