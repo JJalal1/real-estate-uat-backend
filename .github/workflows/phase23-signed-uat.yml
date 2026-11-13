@@ -64,7 +64,6 @@ jobs:
       AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
       UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
       PHASE23_PREFETCH_ON: 'true'
-      GRADLE_USER_HOME: ${{ runner.temp }}/aqer-signed-uat-gradle
     steps:
       - uses: actions/checkout@v4
         with:
@@ -84,6 +83,7 @@ jobs:
           assert run_number.isdigit(), 'invalid_run_number'
           with open(os.environ['GITHUB_ENV'], 'a') as stream:
               stream.write('PHASE23_BUILD=' + str(1611 + int(run_number)) + '\n')
+              stream.write('GRADLE_USER_HOME=' + os.environ['RUNNER_TEMP'] + '/aqer-signed-uat-gradle\n')
           print('AQER_REVIEWED_PRODUCT_COMPONENTS_UNCHANGED')
           PY
       - uses: actions/setup-java@v4
