@@ -43,7 +43,7 @@ def receipt():
     return dict(schema=1, source_sha='a'*40, product_trees=collector.TREES,
                 run_id='123', package=collector.PACKAGE, version_code=1612,
                 target_marker=collector.TARGET, apk_sha256='b'*64,
-                api_level=36, network_disabled=True, live_authentication=False)
+                api_level=36, display_size_px=[1080, 1920], network_disabled=True, live_authentication=False)
 
 
 class SurfaceTests(unittest.TestCase):
@@ -169,9 +169,17 @@ class ArchiveTests(unittest.TestCase):
             exported = b''.join(path.read_bytes() for path in output.iterdir())
             self.assertNotIn(b'SYNTHETIC_PRIVATE', exported)
             self.assertNotIn(b'.png', exported)
+            self.assertEqual(json.loads((output/'PUBLIC_RECEIPT.json').read_text())['display_size_px'], [1080, 1920])
             self.assertFalse((base/'private.zip').exists())
             with self.assertRaises(FileExistsError):
                 collector.seal(private, output, receipt(), self.fake_encrypt)
+
+    def test_display_metadata_accepts_only_actual_reviewed_pixel_sizes(self):
+        for size in ([1080, 1920], [840, 1493]):
+            collector.safe_receipt(dict(receipt(), display_size_px=size))
+        for size in ([1080, 1921], [320, 568], [1080.0, 1920], [True, 1920], '1080x1920', (1080, 1920)):
+            with self.subTest(size=size), self.assertRaises(GateError):
+                collector.safe_receipt(dict(receipt(), display_size_px=size))
 
     def test_unknown_public_fields_and_private_apk_refused(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -207,6 +215,15 @@ class ContextTests(unittest.TestCase):
                             {'AQER_PHASE1_TEST_ACCESS_JSON': 'secret'}, {'AQER_RELEASE_KEY_PASSWORD': 'secret'}):
                 with self.subTest(changes=changes), self.assertRaises(GateError):
                     collector.context(dict(good, **changes))
+
+    def test_static_failure_diagnostics_exclude_command_output_and_private_values(self):
+        error = collector.subprocess.CalledProcessError(1, ['private-command', '/private/path'],
+                                                       output='private output', stderr='private stderr')
+        with patch.object(collector, 'STAGE', 'context'):
+            self.assertEqual(collector.failure_message(error),
+                             'offline_visual_collection_failed stage=context exception=CalledProcessError')
+            self.assertEqual(collector.failure_message(GateError('offline_visual_timeout')),
+                             'offline_visual_timeout')
 
     def test_physical_device_serial_refused(self):
         with self.assertRaises(GateError):

@@ -31,6 +31,7 @@ BANNER = 'SYNTHETIC OFFLINE'
 NEXT = 'AQER_VISUAL_NEXT'
 FAILURE = 'AQER_VISUAL_FAILURE'
 COUNT = 14
+STAGE = 'startup'
 RECIPIENT = ROOT / 'scripts/phase23_recipient.pem'
 RECIPIENT_SHA256 = 'b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070'
 SCOPE = ('Synthetic offline fixture rendering on API36 only; no live account, '
@@ -42,16 +43,16 @@ CASES = (
     ('favorites', 'regular', 'empty', True, 1),
     ('favorites', 'regular', 'error', False, 1),
     ('favorites', 'regular', 'loading', True, 1),
-    ('availability', 'broker', 'populated', True, 2),
-    ('customers', 'broker', 'populated', False, 2),
+    ('availability', 'broker', 'populated', True, 2.4),
+    ('customers', 'broker', 'populated', False, 2.4),
     ('messages', 'regular', 'populated', True, 1),
-    ('messages', 'regular', 'empty', False, 2),
+    ('messages', 'regular', 'empty', False, 2.4),
     ('support', 'support', 'populated', True, 1),
     ('support', 'support', 'empty', False, 1),
-    ('support', 'support', 'error', True, 2),
+    ('support', 'support', 'error', True, 2.4),
     ('support', 'support', 'loading', False, 1),
-    ('notifications', 'regular', 'populated', True, 2),
-    ('reports', 'support', 'populated', False, 2),
+    ('notifications', 'regular', 'populated', True, 2.4),
+    ('reports', 'support', 'populated', False, 2.4),
 )
 
 
@@ -262,7 +263,7 @@ class Device:
 def safe_receipt(receipt):
     expected = {'schema', 'source_sha', 'product_trees', 'run_id', 'package',
                 'version_code', 'target_marker', 'apk_sha256', 'api_level',
-                'network_disabled', 'live_authentication'}
+                'network_disabled', 'live_authentication', 'display_size_px'}
     if (set(receipt) != expected or receipt['schema'] != 1 or
             not re.fullmatch('[a-f0-9]{40}', str(receipt['source_sha'])) or
             receipt['product_trees'] != TREES or
@@ -271,7 +272,10 @@ def safe_receipt(receipt):
             not 1 <= receipt['version_code'] <= 2100000000 or
             receipt['target_marker'] != TARGET or
             not re.fullmatch('[a-f0-9]{64}', str(receipt['apk_sha256'])) or
-            receipt['api_level'] != 36 or receipt['network_disabled'] is not True or
+            receipt['api_level'] != 36 or type(receipt['display_size_px']) is not list or
+            any(type(value) is not int for value in receipt['display_size_px']) or
+            receipt['display_size_px'] not in ([1080, 1920], [840, 1493]) or
+            receipt['network_disabled'] is not True or
             receipt['live_authentication'] is not False):
         raise GateError('offline_visual_public_receipt_invalid')
 
@@ -310,6 +314,8 @@ def seal(private, output, receipt, encryptor=encrypt):
 
 
 def collect(args, env=os.environ):
+    global STAGE
+    STAGE = 'context'
     context(env)
     deadline = time.monotonic() + args.max_seconds
     device = Device(args.serial, deadline)
@@ -317,16 +323,20 @@ def collect(args, env=os.environ):
     output = ROOT / 'phase23-offline-visual-sealed'
     if output.exists() or output.is_symlink():
         raise GateError('offline_visual_fresh_output_required')
+    STAGE = 'apk_archive'
     verify_archive(apk)
+    STAGE = 'apk_tools'
     bt = Path(env['ANDROID_HOME']) / 'build-tools/36.0.0'
     device.command([bt / 'apksigner', 'verify', apk])
     version = verify_badging(device.command([bt / 'aapt', 'dump', 'badging', apk]))
+    STAGE = 'emulator_preflight'
     if (device.adb('shell', 'getprop', 'ro.kernel.qemu') != '1' or
             device.adb('shell', 'getprop', 'ro.build.version.sdk') != '36'):
         raise GateError('offline_visual_api36_emulator_required')
     if device.adb('shell', 'pm', 'path', PACKAGE, check=False):
         raise GateError('offline_visual_fresh_emulator_required')
     device.offline()
+    STAGE = 'install_identity'
     device.adb('install', '--no-streaming', str(apk), timeout=180)
     installed = device.adb('shell', 'pm', 'path', PACKAGE)
     if not re.fullmatch(r'package:/data/app/[A-Za-z0-9_./=+~-]+/base\.apk', installed):
@@ -338,13 +348,14 @@ def collect(args, env=os.environ):
     if not sizes:
         raise GateError('offline_visual_display_size_invalid')
     size = tuple(map(int, sizes[-1]))
-    if not all(200 <= part <= 5000 for part in size):
+    if size not in ((1080, 1920), (840, 1493)):
         raise GateError('offline_visual_display_size_invalid')
     # TemporaryDirectory removes every plaintext file even on failure.
     with tempfile.TemporaryDirectory(prefix='phase23-offline-visual-', dir=env['RUNNER_TEMP']) as directory:
         private = Path(directory) / 'frames'
         private.mkdir(mode=0o700)
         try:
+            STAGE = 'capture'
             device.adb('shell', 'am', 'force-stop', PACKAGE)
             if device.adb('shell', 'pm', 'clear', PACKAGE) != 'Success':
                 raise GateError('offline_visual_clear_failed')
@@ -377,14 +388,21 @@ def collect(args, env=os.environ):
             receipt = {'schema': 1, 'source_sha': env['GITHUB_SHA'], 'product_trees': TREES,
                        'run_id': env['GITHUB_RUN_ID'], 'package': PACKAGE, 'version_code': version,
                        'target_marker': TARGET, 'apk_sha256': digest(apk), 'api_level': 36,
+                       'display_size_px': list(size),
                        'network_disabled': True, 'live_authentication': False}
             (private / 'MANIFEST.json').write_text(json.dumps({**receipt, 'frames': frames, 'scope': SCOPE}, indent=2) + '\n')
+            STAGE = 'seal'
             seal(private, output, receipt)
         finally:
             # A bounded cleanup uses no UI input and never prints device output.
             subprocess.run(['adb', '-s', args.serial, 'shell', 'am', 'force-stop', PACKAGE],
                            capture_output=True, timeout=5, check=False)
     print('AQER_OFFLINE_VISUAL_SEALED_14_SYNTHETIC_FRAMES')
+
+
+def failure_message(error):
+    return (str(error) if isinstance(error, GateError) else
+            f'offline_visual_collection_failed stage={STAGE} exception={type(error).__name__}')
 
 
 def main():
@@ -409,5 +427,5 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
-        print(str(error) if isinstance(error, GateError) else 'offline_visual_collection_failed', file=sys.stderr)
+        print(failure_message(error), file=sys.stderr)
         raise SystemExit(1) from None

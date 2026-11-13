@@ -1,5 +1,6 @@
 name: Phase23 isolated Android private layout acceptance
-# A separate offline fixture target. Never export live private-screen pixels.
+# One offline target at nominal412dp and320dp; large cases use font scale2.4.
+# Each width starts with a fresh synthetic installation. Never export live private pixels.
 on:
   push:
     branches: [work/phase23-acceptance-20261111]
@@ -95,6 +96,15 @@ jobs:
           # The approved override resolves extra packages; the verified APK is
           # already built. Restore only this generated lock before source guard.
           git show HEAD:mobile_app/pubspec.lock > pubspec.lock
+          # pub get also regenerates desktop registrants for the approved
+          # overrides. They are not inputs to this Android artifact.
+          for file in linux/flutter/generated_plugin_registrant.cc \
+              linux/flutter/generated_plugin_registrant.h linux/flutter/generated_plugins.cmake \
+              macos/Flutter/GeneratedPluginRegistrant.swift \
+              windows/flutter/generated_plugin_registrant.cc \
+              windows/flutter/generated_plugin_registrant.h windows/flutter/generated_plugins.cmake; do
+            git show "HEAD:mobile_app/$file" > "$file"
+          done
           git diff --exit-code -- lib android assets pubspec.yaml
       - name: Boot one fresh API36 device for synthetic-only screen captures
         run: |
@@ -125,18 +135,27 @@ jobs:
             sleep 2
           done
           test "$SECONDS" -lt "$deadline"
-      - name: Collect the finite synthetic private-widget matrix
+      - name: Collect the finite synthetic private-widget matrix at both required widths
         run: |
           python3 -B scripts/run_phase23_offline_visual.py \
             --apk mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk \
             --serial emulator-5554 --max-seconds 300
+          mv phase23-offline-visual-sealed phase23-offline-visual-default-sealed
+          test "$(adb -s emulator-5554 uninstall com.aqer.yemen.uat)" = Success
+          adb -s emulator-5554 shell wm size 840x1493
+          python3 -B scripts/run_phase23_offline_visual.py \
+            --apk mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk \
+            --serial emulator-5554 --max-seconds 300
+          mv phase23-offline-visual-sealed phase23-offline-visual-compact-sealed
       - name: Upload only encrypted synthetic frames and the public scoped receipt
         uses: actions/upload-artifact@v4
         with:
           name: phase23-offline-visual-${{ github.run_id }}
           path: |
-            phase23-offline-visual-sealed/visual.cms
-            phase23-offline-visual-sealed/PUBLIC_RECEIPT.json
+            phase23-offline-visual-default-sealed/visual.cms
+            phase23-offline-visual-default-sealed/PUBLIC_RECEIPT.json
+            phase23-offline-visual-compact-sealed/visual.cms
+            phase23-offline-visual-compact-sealed/PUBLIC_RECEIPT.json
           retention-days: 30
           if-no-files-found: error
       - name: Stop the disposable device

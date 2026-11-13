@@ -76,16 +76,16 @@ const _cases = <_VisualCase>[
   _VisualCase('favorites', 'regular', 'empty', true, 1),
   _VisualCase('favorites', 'regular', 'error', false, 1),
   _VisualCase('favorites', 'regular', 'loading', true, 1),
-  _VisualCase('availability', 'broker', 'populated', true, 2),
-  _VisualCase('customers', 'broker', 'populated', false, 2),
+  _VisualCase('availability', 'broker', 'populated', true, 2.4),
+  _VisualCase('customers', 'broker', 'populated', false, 2.4),
   _VisualCase('messages', 'regular', 'populated', true, 1),
-  _VisualCase('messages', 'regular', 'empty', false, 2),
+  _VisualCase('messages', 'regular', 'empty', false, 2.4),
   _VisualCase('support', 'support', 'populated', true, 1),
   _VisualCase('support', 'support', 'empty', false, 1),
-  _VisualCase('support', 'support', 'error', true, 2),
+  _VisualCase('support', 'support', 'error', true, 2.4),
   _VisualCase('support', 'support', 'loading', false, 1),
-  _VisualCase('notifications', 'regular', 'populated', true, 2),
-  _VisualCase('reports', 'support', 'populated', false, 2),
+  _VisualCase('notifications', 'regular', 'populated', true, 2.4),
+  _VisualCase('reports', 'support', 'populated', false, 2.4),
 ];
 
 class _SyntheticAuth extends AuthController {

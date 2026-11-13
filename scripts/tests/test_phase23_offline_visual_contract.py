@@ -42,7 +42,7 @@ class OfflineVisualContract(unittest.TestCase):
 
     def test_matrix_is_bounded_and_has_all_four_visual_states(self):
         block = self.source.split('const _cases = <_VisualCase>[')[1].split('];')[0]
-        rows = re.findall(r"_VisualCase\('([^']+)', '([^']+)', '([^']+)', (true|false), ([12])\)", block)
+        rows = re.findall(r"_VisualCase\('([^']+)', '([^']+)', '([^']+)', (true|false), (1|2\.4)\)", block)
         self.assertEqual(len(rows), 14)
         self.assertEqual({r[1] for r in rows}, {'regular', 'broker', 'support'})
         self.assertEqual({r[2] for r in rows}, {'populated', 'empty', 'error', 'loading'})
@@ -50,7 +50,7 @@ class OfflineVisualContract(unittest.TestCase):
             self.assertEqual({r[2] for r in rows if r[0] == surface},
                              {'populated', 'empty', 'error', 'loading'})
         self.assertEqual({r[3] for r in rows}, {'true', 'false'})
-        self.assertEqual({r[4] for r in rows}, {'1', '2'})
+        self.assertEqual({r[4] for r in rows}, {'1', '2.4'})
 
     def test_native_collector_handshake_and_failure_are_explicit(self):
         for marker in ('SYNTHETIC OFFLINE', 'AQER_VISUAL_CASE_', 'AQER_VISUAL_NEXT',
