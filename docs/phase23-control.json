@@ -1,9 +1,23 @@
 {
   "run_id": "43430097013",
-  "seq": 64,
-  "challenge": "fe7dc4f9401a5f477666fa396c13684d1619a457f7f312ad5a4a6f5d02311c4f",
-  "op": "network",
+  "seq": 65,
+  "challenge": "9280b29158bc1ccd5e6658f5cb0fc19f2f63332bf704412d82cf9c4212c6a1e7",
+  "op": "batch",
   "args": {
-    "state": "offline"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "تحميل المزيد"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "إعادة المحاولة",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
