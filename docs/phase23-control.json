@@ -1,9 +1,7 @@
 {
   "run_id": "43493825181",
-  "seq": 16,
-  "challenge": "d8eee9d1df8e8f030eab6f3237b65782137f2238e3da0ac94dad57128bb2c066",
-  "op": "tap",
-  "args": {
-    "label": "PC controls"
-  }
+  "seq": 17,
+  "challenge": "e51fa04806a42b5dd8e9179be814b22c74c4dec8f2129f2a7146c36567a3fa00",
+  "op": "finish",
+  "args": {}
 }
