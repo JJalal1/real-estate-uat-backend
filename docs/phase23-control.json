@@ -1,9 +1,23 @@
 {
   "run_id": "43333305676",
-  "seq": 47,
-  "challenge": "788fb71c1ca0bd9011c6a3e2750ac34b9d399fa14398e2763830edb95f919ae8",
-  "op": "display",
+  "seq": 48,
+  "challenge": "c5e4af2af0e50810659096e3ec23b5bf38b0d687daf993c24d32575dd6511c33",
+  "op": "batch",
   "args": {
-    "mode": "compact_large"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "تحديث"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "لا توجد مهام مطابقة لهذه الفلاتر.",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
