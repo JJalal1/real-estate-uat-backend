@@ -1,9 +1,48 @@
 {
   "run_id": "43507896943",
-  "seq": 6,
-  "challenge": "f07c22dae6c9cca7605ad2c753a7e86cedf7c96c283b85b965082e5b087d1531",
-  "op": "tap",
+  "seq": 7,
+  "challenge": "89026bd92758320815d7d21c61d7c18a0069b7718ae26f09f9a92659e7353e1d",
+  "op": "batch",
   "args": {
-    "label": "تحميل صورة أوضح"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إغلاق الصور"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "رجوع",
+          "seconds": 15
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "رجوع"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "backward"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "بيع",
+          "seconds": 15
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "بيع"
+        }
+      }
+    ]
   }
 }
