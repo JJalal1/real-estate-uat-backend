@@ -1,9 +1,36 @@
 {
   "run_id": "43401245346",
-  "seq": 18,
-  "challenge": "c7e4bf8adbe9981b8c1b31a1e274855263a4461a5f9e9eba640f8e42d714090f",
-  "op": "network",
+  "seq": 19,
+  "challenge": "c3fc658a5213572d0c14cce8ccb4fa8ff66a94e9bc5dd05e37838630c0c3eaba",
+  "op": "batch",
   "args": {
-    "state": "online"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إعادة المحاولة"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "AQER-P23-NOTIF1607-01",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/notifications?page=2&per_page=40"
+        }
+      }
+    ]
   }
 }
