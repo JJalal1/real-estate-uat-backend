@@ -2,7 +2,7 @@ name: Phase23 read-only private pages API36
 # Actual authenticated pages, ordinary authentication and existing product screens.
 # Business mutations and account deletion are blocked by both the target transport and executor.
 # Only declared UAT request page sizes change; no fixtures, provider calls or business writes.
-# This cycle uses verified product gates and existing scoped synthetic actors only.
+# Native1609: finish customer page two and observed loading with the verified review channel.
 on:
   push:
     branches: [work/phase23-acceptance-20261111]
