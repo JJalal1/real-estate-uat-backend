@@ -65,7 +65,9 @@ def run():
         row = head_document(kind)
         rows.append({'actor': 'guest', 'kind': kind, 'expected': 401,
                      **row, 'pass': accepted(row, 401)})
-    for alias, expected in [('advertiser', 200), ('admin', 200), ('erasure', 403)]:
+    # Use the stable unrelated buyer so this regression remains usable after
+    # the dedicated disposable erasure actor has completed its final test.
+    for alias, expected in [('advertiser', 200), ('admin', 200), ('regular', 403)]:
         session = Session(alias, access)
         try:
             session.login()
