@@ -1,9 +1,23 @@
 {
   "run_id": "43493825181",
-  "seq": 12,
-  "challenge": "925fb8a62ef5c7bb3b08e07132a9f4073bb7516dfadcffea49fd24cdc630404c",
-  "op": "network_profile",
+  "seq": 13,
+  "challenge": "7059fda1ebf1c618636593d41020d413c8b7fbbf74490ffd3dffd143d33acd9a",
+  "op": "batch",
   "args": {
-    "mode": "slow"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "PC favorites"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "جارٍ التحميل...",
+          "seconds": 2
+        }
+      }
+    ]
   }
 }
