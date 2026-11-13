@@ -1,9 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 3,
-  "challenge": "8ced690c4ed47f5f3a1ebd35de0f8ed3738df06f98e60fa10740d38ffdcd4c8c",
-  "op": "network",
+  "seq": 4,
+  "challenge": "a036de5cae2a4bf02fe4fd61fa2e029a9c3897201a1ef3fc8848b5cceb90ef8b",
+  "op": "tap",
   "args": {
-    "state": "offline"
+    "label": "بدء إعلان جديد"
   }
 }
