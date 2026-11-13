@@ -1,35 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 7,
-  "challenge": "8ea518313718d4f29b2bb4dc927c67f7dedffcc8fe1bab6275bb4fe431fb38c4",
-  "op": "batch",
+  "seq": 8,
+  "challenge": "1ab6604ee9ad293500f04f7205ba0ce3131ab0c2aa7db07ff91460fa4701bcec",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "نوع الملكية *"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "حر"
-        }
-      },
-      {
-        "op": "set",
-        "args": {
-          "label": "عنوان الإعلان *",
-          "value": "AQER P23 IMAGE 1603 TEST"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "التالي"
-        }
-      }
-    ]
+    "label": "نواقص الإعلان"
   }
 }
