@@ -168,7 +168,7 @@ jobs:
           from pathlib import Path
           root=Path('phase23-native-private')
           receipt=json.loads((root/'APK_VERIFICATION.json').read_text())
-          assert receipt['version_code']==1610
+          assert receipt['version_code']==1611
           experiments=receipt['experiments']
           assert experiments.get('conditional_prefetch') is True
           assert not any(experiments.get(k) for k in ('callback_harness','private_pages'))
