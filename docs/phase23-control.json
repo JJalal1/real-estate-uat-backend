@@ -1,30 +1,9 @@
 {
   "run_id": "43401245346",
-  "seq": 23,
-  "challenge": "5e22eeab564606c5825adc77f464e00b0c9f90e1f226d0e694bb53000c32a8fc",
-  "op": "batch",
+  "seq": 24,
+  "challenge": "d49aba92eef39684348ed34b300416fc17992fd0314e50fbb259f504768f8758",
+  "op": "display",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "رجوع"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "AQER-P23-NOTIF1607-41",
-          "seconds": 30
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/notifications?page=2&per_page=40"
-        }
-      }
-    ]
+    "mode": "compact_large"
   }
 }
