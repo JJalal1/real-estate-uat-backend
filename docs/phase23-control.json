@@ -1,9 +1,23 @@
 {
   "run_id": "43401245346",
-  "seq": 31,
-  "challenge": "7285d5f9a8c7f29aa8bc7e0c4f719c4186b9c11f22f732be87af1fb56af6b7c9",
-  "op": "scroll",
+  "seq": 32,
+  "challenge": "f22cd9160002a4364ed16d75612c25d87bb7db71e0bdc06883d3b0265b34d5f0",
+  "op": "batch",
   "args": {
-    "direction": "backward"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "الأمان والخصوصية"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "لا توجد حسابات محظورة.",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
