@@ -1,9 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 55,
-  "challenge": "c97b2f842405492bc5696f675334a6e3b3dc33ffcc274517931e904d5588430d",
-  "op": "network",
+  "seq": 56,
+  "challenge": "f3cbdb8fff1ed51ec378b5d59f690cb26dfa29925d7d7311932ce351945344a4",
+  "op": "tap",
   "args": {
-    "state": "online"
+    "label": "إعادة المحاولة"
   }
 }
