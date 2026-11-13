@@ -1,47 +1,34 @@
 {
   "run_id": "43333305676",
-  "seq": 28,
-  "challenge": "9735c9fae808ab12e1fcdfdd11839d76eff968483c9271bb6c0a802c0cfa21bc",
+  "seq": 29,
+  "challenge": "7bb6b10235604bdfb7ca965e007e048f316d58bbde22a69fa35cdfa803957399",
   "op": "batch",
   "args": {
     "steps": [
       {
         "op": "tap",
         "args": {
-          "label": "إضافة عقار"
+          "label": "حذف المسودة المحلية"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "تعبئة يدوي",
+          "label": "تأكيد",
           "seconds": 20
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "تعبئة يدوي"
+          "label": "تأكيد"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "AQER P23 IMAGE 1603 TEST",
+          "label": "لا توجد مسودات محفوظة.",
           "seconds": 30
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "مسوداتي"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "حذف المسودة المحلية",
-          "seconds": 20
         }
       }
     ]
