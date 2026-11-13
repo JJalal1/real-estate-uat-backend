@@ -1,7 +1,23 @@
 {
   "run_id": "43430097013",
-  "seq": 73,
-  "challenge": "4e0f0b730b261120c75cbfa17c6c95181e2b9b693eaec59eb5186f27d7f760ab",
-  "op": "private_metrics",
-  "args": {}
+  "seq": 74,
+  "challenge": "68f38f45825608ee11ef582ca9aa8d904bb5d11d04fa6f30d6515a64e866c602",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "backward"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "غير المقروء فقط",
+          "seconds": 5
+        }
+      }
+    ]
+  }
 }
