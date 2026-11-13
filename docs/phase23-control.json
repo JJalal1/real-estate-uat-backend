@@ -1,37 +1,9 @@
 {
   "run_id": "43401245346",
-  "seq": 20,
-  "challenge": "d23182a769cef2e3c29e3120da8c29e77ce2eba653e5df0878af7fd64ef982ae",
-  "op": "batch",
+  "seq": 21,
+  "challenge": "8fb7d1e1eb85d49ebcb1b7bdfa5c7b643ff444af9534f080f63a6ec7037b9c96",
+  "op": "display",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "AQER-P23-NOTIF1607-01"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "شقة النور اختبار المرحلة23",
-          "seconds": 30
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/notifications?page=1&per_page=40"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/properties/106"
-        }
-      }
-    ]
+    "mode": "default"
   }
 }
