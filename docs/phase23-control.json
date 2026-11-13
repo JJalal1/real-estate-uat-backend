@@ -1,9 +1,7 @@
 {
   "run_id": "43333305676",
-  "seq": 49,
-  "challenge": "0836fac736178e62478020586bce12972e9f83ddab5c8aeaa0832333869ef87c",
-  "op": "display",
-  "args": {
-    "mode": "default"
-  }
+  "seq": 50,
+  "challenge": "c6b1cf780da0c1ecd68b697c74a37542b9e966dd4e543e1b1648f27f9ce38e34",
+  "op": "logout",
+  "args": {}
 }
