@@ -1,12 +1,9 @@
 {
   "run_id": "43494440838",
-  "seq": 26,
-  "challenge": "98bf9c02f6ae729800e429a20aca56a961304b8cb8b2f82c8e399f957ab740c8",
-  "op": "swipe",
+  "seq": 27,
+  "challenge": "53298c6f89088a501b70170a29c12d2650c8fdd6f3acc9b3801c8ec022e581db",
+  "op": "tap",
   "args": {
-    "x1": 530,
-    "y1": 1400,
-    "x2": 530,
-    "y2": 800
+    "label": "تملّك في منطقتك"
   }
 }
