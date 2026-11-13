@@ -1,23 +1,9 @@
 {
   "run_id": "43493825181",
-  "seq": 6,
-  "challenge": "08764a147cb8e4169f04b9aab2fbfa06b11369ade34638a9c1f15d79213c2a30",
-  "op": "batch",
+  "seq": 7,
+  "challenge": "b16d80a5b9b5ef2735a918e8ff16ec369969604be4f6e53311645edf46dfb7e9",
+  "op": "scroll",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "تحميل المزيد"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "إعادة المحاولة",
-          "seconds": 10
-        }
-      }
-    ]
+    "direction": "forward"
   }
 }
