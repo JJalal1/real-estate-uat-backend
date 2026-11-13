@@ -1,9 +1,7 @@
 {
   "run_id": "43430097013",
-  "seq": 75,
-  "challenge": "7ff2b022e5b9fb7d5efae3997a91c98f1a3cc5194edf31a3520ee04217058490",
-  "op": "tap",
-  "args": {
-    "label": "غير المقروء فقط"
-  }
+  "seq": 76,
+  "challenge": "ec3b3fc78ffca29ee95617d3389f430a7b84be7a0225eb2aca05a490fcc599c0",
+  "op": "private_metrics",
+  "args": {}
 }
