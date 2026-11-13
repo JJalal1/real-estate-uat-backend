@@ -266,6 +266,17 @@ class _CallbackPanelState extends ConsumerState<CallbackPanel> {
     unawaited(nav.push<void>(MaterialPageRoute<void>(builder: (_) => PersonalListingCreationGate(
       child: ListingEditorScreen(key:key, localRecovery:snapshot, startFresh:true)))));
   }
+  void closeFixture({required bool done}) {
+    final g=widget.gate;
+    if (done ? (g.actor()!=26 || g.gpsStatus!='CB GPS PASS')
+        : (g.actor()!=66 || g.gpsReply==null || g.gpsReply!.isCompleted || g.bSeedOrder!=0)) {
+      throw StateError('Only this controlled partial fixture can be closed');
+    }
+    // Explicit test navigation: discard this unsaved, below-threshold fixture
+    // route without invoking Save. Authentication and epoch are untouched.
+    ref.read(appRouterProvider).routerDelegate.navigatorKey.currentState!.popUntil((route)=>route.isFirst);
+    setState(()=>expanded=false);
+  }
   @override
   Widget build(BuildContext context) => AnimatedBuilder(animation:widget.gate, builder:(context, _) {
     final g = widget.gate;
@@ -275,12 +286,27 @@ class _CallbackPanelState extends ConsumerState<CallbackPanel> {
         child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:300), child:Column(mainAxisSize:MainAxisSize.min,children:[
           TextButton(onPressed:()=>setState(()=>expanded=!expanded),child:Text(expanded?'CB hide':'CB controls')),
           if(expanded) ...[
-            const Text(callbackHarnessMarker,style:TextStyle(fontSize:8)),
+            CallbackReadout(gate:g),
             Wrap(children:[button('CB AI start',g.startAi),button('CB results start',g.startResults),button('CB editor',editor),
-              button('CB seed B',g.seedB),button('CB release AI',g.releaseAi),button('CB release results',g.releaseResults),button('CB release GPS',g.releaseGps)]),
+              button('CB seed B',g.seedB),button('CB release AI',g.releaseAi),button('CB release results',g.releaseResults),button('CB release GPS',g.releaseGps),
+              button('CB account',()=>closeFixture(done:false)),button('CB done',()=>closeFixture(done:true))]),
             Text(g.aiStatus),Text(g.resultsStatus),Text(g.gpsStatus),
-            Semantics(label:'CB-META:${jsonEncode(g.metadata)}', child:const SizedBox(width:2,height:2)),
           ],
         ])))))]);
   });
+}
+
+// Separate, visible semantic nodes: the Android collector must not depend on a
+// tiny label merged into the whole page's private accessibility description.
+class CallbackReadout extends StatelessWidget {
+  const CallbackReadout({required this.gate,super.key});
+  final CallbackGate gate;
+  @override
+  Widget build(BuildContext context) => Column(mainAxisSize:MainAxisSize.min,children:[
+    Semantics(container:true,excludeSemantics:true,label:callbackHarnessMarker,
+      child:const Text('Read-only callbacks',style:TextStyle(fontSize:10))),
+    Semantics(container:true,excludeSemantics:true,button:true,onTap:(){},
+      label:'CB-META:${jsonEncode(gate.metadata)}',
+      child:const SizedBox(width:270,height:36,child:Center(child:Text('CB state',style:TextStyle(fontSize:10))))),
+  ]);
 }
