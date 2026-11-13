@@ -22,6 +22,7 @@ import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
 import zipfile
+from phase23_callback_metadata import safe_callback_label
 
 from phase23_preflight import API, BRANCH, GateError, guard, http
 from phase1_native_account_readiness import SECRET_NAME, validate_access
@@ -391,6 +392,7 @@ class NativeRun:
             digits = phone.lstrip('+')
             self.private_values.update({digits, '+' + digits})
             if digits.startswith('00'): self.private_values.update({digits[2:], '+' + digits[2:]})
+        self.callback_harness = json.loads((PRIVATE / 'APK_VERIFICATION.json').read_text()).get('experiments',{}).get('callback_harness') is True
         self.driver = Phase23Account(PRIVATE, dict(os.environ))
         self.driver.private_values.update(self.private_values)
         self.driver._active_case = 'P23'
@@ -454,13 +456,15 @@ class NativeRun:
     })
 
     @classmethod
-    def private_ui_controls(cls, rows, force_private=False):
-        if not force_private and not any(cls.PRIVATE_UI_ANCHORS & labels(row) or any(
+    def private_ui_controls(cls, rows, force_private=False, callback_harness=False):
+        if not force_private and not callback_harness and not any(cls.PRIVATE_UI_ANCHORS & labels(row) or any(
                 re.search(r'[^\s@]+@[^\s@]+\.[^\s@]+',name) for name in labels(row)) for row in rows):
             return rows, False
         controls=[]
         for row in rows:
             names=cls.PRIVATE_UI_CONTROLS & labels(row)
+            if callback_harness:
+                names |= {safe for label in labels(row) if (safe := safe_callback_label(label)) is not None}
             if names:
                 controls.append({'description':'\n'.join(sorted(names)),
                                  'bounds':row.get('bounds'),'editable':row.get('editable',False)})
@@ -617,7 +621,8 @@ class NativeRun:
         names = set().union(*(labels(row) for row in rows)) if rows else set()
         public_home = self.driver.public_marketplace_binding(rows) is not None
         sticky = getattr(self, 'private_surface_open', False) and not public_home
-        rows, private_ui = self.private_ui_controls(rows, force_private=sticky or getattr(self, 'actor', None) in {'manager','admin','erasure'})
+        rows, private_ui = self.private_ui_controls(rows, force_private=sticky or getattr(self, 'actor', None) in {'manager','admin','erasure'},
+            callback_harness=getattr(self, 'callback_harness', False))
         self.private_surface_open = private_ui
         protected = protected or private_ui
         if protected and self.driver.recorder is not None:

@@ -26,7 +26,7 @@ def sha(path):
 
 def tool_digest():
     paths = ['scripts/run_phase23_native.py', 'scripts/prepare_phase23_native.py',
-             'scripts/phase23_preflight.py', 'scripts/phase23_recipient.pem',
+             'scripts/phase23_preflight.py', 'scripts/phase23_recipient.pem', 'scripts/phase23_callback_metadata.py',
              'scripts/probe_phase1_native_account.py', 'scripts/phase1_device_input/Phase1Input.java',
              'scripts/prepare_phase23_upgrade.py',
              'scripts/phase23_firebase.py', 'scripts/phase23_build_readiness.py',
@@ -57,6 +57,8 @@ def prepare():
         libs = [n for n in app.namelist() if n.endswith('/libapp.so')]
         assert {n.split('/')[1] for n in libs} == {'arm64-v8a', 'armeabi-v7a', 'x86_64'}
         assert all(API.encode() in app.read(n) for n in libs)
+        if os.environ.get('PHASE23_CALLBACK_HARNESS') == 'true':
+            assert all(b'AQER_PHASE23_CALLBACK_HARNESS_V1' in app.read(n) for n in libs), 'callback target marker required'
         for n in app.namelist():
             if n.startswith(('lib/arm64-v8a/', 'lib/x86_64/')) and n.endswith('.so'):
                 tools.elf(app.read(n))
@@ -71,6 +73,9 @@ def prepare():
                'input_driver': {'sha256': sha(helper)},
                'firebase': firebase,
                'experiments': {'conditional_prefetch': os.environ.get('PHASE23_PREFETCH_ON') == 'true'}}
+    if os.environ.get('PHASE23_CALLBACK_HARNESS') == 'true':
+        receipt['experiments']['callback_harness'] = True
+        receipt['acceptance_scope'] = 'Controlled external completions with real product controllers and ordinary auth; no live provider or production acceptance'
     (PRIVATE / 'APK_VERIFICATION.json').write_text(json.dumps(receipt, indent=2) + '\n')
     out = ROOT / 'phase23-installer-sealed'
     out.mkdir(mode=0o700)
