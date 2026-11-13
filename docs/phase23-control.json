@@ -1,23 +1,7 @@
 {
   "run_id": "43333305676",
-  "seq": 19,
-  "challenge": "6bc03b309472da641324bbed6f80ba9bb02d05a1707596304bc45afd4cb71120",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "حفظ المسودة"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تعذر الحفظ على الحساب. تقدمك محفوظ على الجهاز. أعد المحاولة.",
-          "seconds": 30
-        }
-      }
-    ]
-  }
+  "seq": 20,
+  "challenge": "3a69895fb3fb91b92438aa7beffaf514212b45dd87af91334e5aaca4e56924c6",
+  "op": "upgrade_install",
+  "args": {}
 }
