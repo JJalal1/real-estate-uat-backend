@@ -1,36 +1,9 @@
 {
   "run_id": "43333305676",
-  "seq": 29,
-  "challenge": "7bb6b10235604bdfb7ca965e007e048f316d58bbde22a69fa35cdfa803957399",
-  "op": "batch",
+  "seq": 30,
+  "challenge": "3559fef7afd9533263319cdebbadc750eda6488c54b5daeaf2848fc2557a3350",
+  "op": "network",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "حذف المسودة المحلية"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "تأكيد",
-          "seconds": 20
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "تأكيد"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "لا توجد مسودات محفوظة.",
-          "seconds": 30
-        }
-      }
-    ]
+    "state": "online"
   }
 }
