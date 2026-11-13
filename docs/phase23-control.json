@@ -1,9 +1,7 @@
 {
   "run_id": "43430097013",
-  "seq": 34,
-  "challenge": "08cf724ab9c276efc0a355891931a75433e83fe8cbc9614a2b64720a115a12d0",
-  "op": "tap",
-  "args": {
-    "label": "PC customers"
-  }
+  "seq": 35,
+  "challenge": "ab014f5e59d9ab2b0c7815e639e83b4fbc30d46231c1b4296b38e04f2fe22fe7",
+  "op": "private_metrics",
+  "args": {}
 }
