@@ -1,7 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 46,
-  "challenge": "98a0578650b25dcfccac192e1910f6e2542ec57c0c8202ecbfc8707dcc128a64",
-  "op": "logout_in_place",
-  "args": {}
+  "seq": 47,
+  "challenge": "0ce9d7956e37ea5c61fa0ccb66ecb0ae47ddf82a0faf49ed49364aaf6f310e35",
+  "op": "login",
+  "args": {
+    "alias": "regular"
+  }
 }
