@@ -1,7 +1,22 @@
 {
   "run_id": "43494440838",
-  "seq": 14,
-  "challenge": "81999f326f134bc0b71c871af3afd3e7ae1e35ed44d05ea1b5b3b7854ed99a57",
-  "op": "network_metrics",
-  "args": {}
+  "seq": 15,
+  "challenge": "c5491a9cc06e157e9d5c890ba7710a41e69c46c9ab50e64d6dd472a4785d45d2",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إغلاق الصور"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "رجوع"
+        }
+      }
+    ]
+  }
 }
