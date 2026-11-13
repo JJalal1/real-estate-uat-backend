@@ -1,10 +1,42 @@
 {
   "run_id": "43333305676",
-  "seq": 58,
-  "challenge": "e2688f17e82dcfe8df66472ef52a28c3388097bbd89cad3930ec4cd809aad0f1",
-  "op": "double_tap",
+  "seq": 59,
+  "challenge": "f0dfc0a676822d389be25961816d5da3bd15d773cf19b0564f8fe32b27fafca3",
+  "op": "batch",
   "args": {
-    "x": 540,
-    "y": 850
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "إغلاق الصور"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "رجوع",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "رجوع"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "ابحث عن عقار أو منطقة…",
+          "seconds": 20
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      }
+    ]
   }
 }
