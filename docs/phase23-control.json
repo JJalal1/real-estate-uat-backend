@@ -1,23 +1,9 @@
 {
   "run_id": "43401245346",
-  "seq": 32,
-  "challenge": "f22cd9160002a4364ed16d75612c25d87bb7db71e0bdc06883d3b0265b34d5f0",
-  "op": "batch",
+  "seq": 33,
+  "challenge": "367bf463819ea4c00e59c5ca8eccd93e00e8f22fe2852bfd24d8e8f6b29e27cb",
+  "op": "display",
   "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "الأمان والخصوصية"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "لا توجد حسابات محظورة.",
-          "seconds": 30
-        }
-      }
-    ]
+    "mode": "compact_large"
   }
 }
