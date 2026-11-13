@@ -1,7 +1,7 @@
 {
   "run_id": "43401245346",
-  "seq": 16,
-  "challenge": "67a4460c76e2f23d1109ce4562f3c29090f060fdd3cb61c8f041db74f2f3e5e3",
+  "seq": 17,
+  "challenge": "52b0f7f4373a792bae0bb28e52c590da8e538bb86235ae40f1bb9677f139f567",
   "op": "batch",
   "args": {
     "steps": [
@@ -13,22 +13,15 @@
         }
       },
       {
-        "op": "tap",
+        "op": "scroll",
         "args": {
-          "label": "تحميل المزيد"
+          "direction": "forward"
         }
       },
       {
         "op": "wait",
         "args": {
           "label": "إعادة المحاولة",
-          "seconds": 30
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "AQER-P23-NOTIF1607-02",
           "seconds": 30
         }
       }
