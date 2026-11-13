@@ -172,7 +172,7 @@ class CallbackGate extends ChangeNotifier {
 }
 
 class CallbackAiRepository extends AiRepository {
-  CallbackAiRepository(Dio dio, AuthRepository auth, this.gate) : super(dio, auth);
+  CallbackAiRepository(super.dio, super.auth, this.gate);
   final CallbackGate gate;
   @override
   Future<Map<String, dynamic>> refine(String message, Map<String, dynamic> filters, int revision) {
@@ -181,7 +181,7 @@ class CallbackAiRepository extends AiRepository {
   }
 }
 class CallbackPropertyRepository extends PropertyRepository {
-  CallbackPropertyRepository(Dio dio, AuthRepository auth, this.gate) : super(dio, auth);
+  CallbackPropertyRepository(super.dio, super.auth, this.gate);
   final CallbackGate gate;
   @override
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters,
