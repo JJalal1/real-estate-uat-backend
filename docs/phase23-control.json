@@ -1,9 +1,22 @@
 {
   "run_id": "43430097013",
-  "seq": 0,
-  "challenge": "c984bc23584e90daa78768f8842657869e8ecd27d35c38a1669ee7eb4407f11d",
-  "op": "login",
+  "seq": 1,
+  "challenge": "e1b49d7976fe5f9be3c979d62bdf5b845ea17c542b3faa1ec8f83764d4a0acc8",
+  "op": "batch",
   "args": {
-    "alias": "broker"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "PC controls"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "PC listings"
+        }
+      }
+    ]
   }
 }
