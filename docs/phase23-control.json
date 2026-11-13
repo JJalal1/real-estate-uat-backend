@@ -1,9 +1,29 @@
 {
   "run_id": "43333305676",
-  "seq": 33,
-  "challenge": "499587888a5f542312c0a548ecca5af1fd5cef97c0c1aa6e973e13ba09e44615",
-  "op": "login",
+  "seq": 34,
+  "challenge": "6da64a248e8b690c7c51f87740529a3abc8622f86556b14701600ca7881cdcc6",
+  "op": "batch",
   "args": {
-    "alias": "manager"
+    "steps": [
+      {
+        "op": "tap",
+        "args": {
+          "label": "الأعمال"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "المنجزة",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "المنجزة"
+        }
+      }
+    ]
   }
 }
