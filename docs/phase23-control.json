@@ -1,9 +1,48 @@
 {
   "run_id": "43395970989",
-  "seq": 8,
-  "challenge": "450a46fc90528d13e024576f971543824fafa53bfd4893a0467daf734cb7ae29",
-  "op": "login",
+  "seq": 9,
+  "challenge": "92fd72caa90bc1b9b7394fe5a8b3e35d85fa816690d305e2792bd568a70239a5",
+  "op": "batch",
   "args": {
-    "alias": "regular"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/auth/me"
+        }
+      },
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "regular",
+          "path": "/listing-editor-drafts"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB controls"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB seed B"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB release AI"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB release results"
+        }
+      }
+    ]
   }
 }
