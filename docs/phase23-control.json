@@ -1,9 +1,23 @@
 {
   "run_id": "43333305676",
-  "seq": 0,
-  "challenge": "276feafb1f65513f32e11d18b6c0fe625d3b73da2dce201d62adefcd13f2a8f6",
-  "op": "login",
+  "seq": 1,
+  "challenge": "306456b447d0ae3908b51e71e9a6a0bf70a99c203a981f36c59c76eb23f9fa4c",
+  "op": "batch",
   "args": {
-    "alias": "broker"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "broker",
+          "path": "/listing-editor-drafts"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "إضافة عقار"
+        }
+      }
+    ]
   }
 }
