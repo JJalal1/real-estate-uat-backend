@@ -1,49 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 12,
-  "challenge": "a141088b2b88c79d39a0439a9ccf9f1f15a6fc7eab1f01a8f9c96e13ba47495e",
-  "op": "batch",
+  "seq": 13,
+  "challenge": "33ac49b1bb8c51029fe298c2c3f7d06df9d76a20fbe4e61fba2afddd948b85c2",
+  "op": "tap",
   "args": {
-    "steps": [
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "PC controls",
-          "seconds": 2
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "PC controls",
-          "seconds": 2
-        }
-      },
-      {
-        "op": "scroll",
-        "args": {
-          "direction": "forward"
-        }
-      },
-      {
-        "op": "wait",
-        "args": {
-          "label": "PC controls",
-          "seconds": 2
-        }
-      }
-    ]
+    "label": "PC controls"
   }
 }
