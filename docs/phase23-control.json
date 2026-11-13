@@ -1,27 +1,44 @@
 {
   "run_id": "43333305676",
-  "seq": 34,
-  "challenge": "6da64a248e8b690c7c51f87740529a3abc8622f86556b14701600ca7881cdcc6",
+  "seq": 35,
+  "challenge": "cca039d9f2cc74a62370ad6f37cf71ca2010c16c347a47122e9f482f3f5f3581",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "tap",
+        "op": "scroll",
         "args": {
-          "label": "الأعمال"
+          "direction": "forward"
         }
       },
       {
-        "op": "wait",
+        "op": "scroll",
         "args": {
-          "label": "المنجزة",
-          "seconds": 30
+          "direction": "forward"
         }
       },
       {
-        "op": "tap",
+        "op": "scroll",
         "args": {
-          "label": "المنجزة"
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
         }
       }
     ]
