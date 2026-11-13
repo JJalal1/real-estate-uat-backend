@@ -1,7 +1,36 @@
 {
   "run_id": "43430097013",
-  "seq": 109,
-  "challenge": "7c804c724b123cb1a383864c08554e7cd912da69f294981ab23b1f90ac393bb5",
-  "op": "private_metrics",
-  "args": {}
+  "seq": 110,
+  "challenge": "45e047214097f63bed7254d12749e093439a821b111f2387e2f70fa0d3d3a89d",
+  "op": "batch",
+  "args": {
+    "steps": [
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "PC controls",
+          "seconds": 2
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "PC controls",
+          "seconds": 2
+        }
+      }
+    ]
+  }
 }
