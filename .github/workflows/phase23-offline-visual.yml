@@ -1,0 +1,147 @@
+name: Phase23 isolated Android private layout acceptance
+# A separate offline fixture target. Never export live private-screen pixels.
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-offline-visual.yml
+      - scripts/phase23_offline_visual_main.dart
+      - scripts/run_phase23_offline_visual.py
+      - scripts/tests/test_phase23_offline_visual_contract.py
+      - scripts/tests/test_phase23_offline_visual_collector.py
+permissions:
+  contents: read
+concurrency:
+  group: phase23-offline-visual
+  cancel-in-progress: false
+jobs:
+  fixture-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_visual_contract.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_visual_collector.py -v
+  native-visual:
+    if: ${{ contains(github.event.head_commit.message, '[run-offline-visual]') }}
+    needs: fixture-safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PHASE23_OFFLINE_VISUAL: 'true'
+      SOURCE_COMMIT: ${{ github.sha }}
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Preserve the tested product and set isolated temporary paths
+        run: |
+          python3 -B - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'scripts')
+          from phase23_preflight import guard
+          guard(os.environ)
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('GRADLE_USER_HOME=' + os.environ['RUNNER_TEMP'] + '/aqer-visual-gradle\n')
+              stream.write('PHASE23_VISUAL_BUILD=' + str(1700 + int(os.environ['GITHUB_RUN_NUMBER'])) + '\n')
+          print('AQER_VISUAL_REVIEWED_PRODUCT_UNCHANGED')
+          PY
+          test -c /dev/kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Build the separate synthetic target with existing actual screen widgets
+        working-directory: mobile_app
+        run: |
+          test ! -e lib/phase23_offline_visual_main.dart
+          test ! -e android/firebase-uat.properties
+          cp ../scripts/phase23_offline_visual_main.dart lib/phase23_offline_visual_main.dart
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          flutter analyze --fatal-infos lib/phase23_offline_visual_main.dart
+          flutter build apk --flavor uat --release --no-pub \
+            --target=lib/phase23_offline_visual_main.dart --build-number="$PHASE23_VISUAL_BUILD" \
+            --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_OFFLINE_VISUAL_QA=true \
+            --dart-define=API_BASE_URL=https://synthetic.invalid/api
+          cmp lib/phase23_offline_visual_main.dart ../scripts/phase23_offline_visual_main.dart
+          rm lib/phase23_offline_visual_main.dart
+          # The approved override resolves extra packages; the verified APK is
+          # already built. Restore only this generated lock before source guard.
+          git show HEAD:mobile_app/pubspec.lock > pubspec.lock
+          git diff --exit-code -- lib android assets pubspec.yaml
+      - name: Boot one fresh API36 device for synthetic-only screen captures
+        run: |
+          (cd mobile_app/android && ./gradlew --stop --gradle-user-home "$GRADLE_USER_HOME")
+          sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/phase23-offline-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd --force --name aqer-offline-visual --device pixel \
+            --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-offline-visual.avd/config.ini" <<'PY'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          settings = {'hw.lcd.width':'1080','hw.lcd.height':'1920','hw.lcd.density':'420','showDeviceFrame':'no'}
+          lines = [s for s in path.read_text().splitlines() if s.split('=',1)[0].strip() not in settings]
+          path.write_text('\n'.join(lines + [k+'='+v for k,v in settings.items()])+'\n')
+          PY
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd aqer-offline-visual -port 5554 \
+            -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on \
+            -memory 2048 -cores 2 > "$RUNNER_TEMP/phase23-offline-emulator.log" 2>&1 &
+          deadline=$((SECONDS+250))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && \
+               [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
+            sleep 2
+          done
+          test "$SECONDS" -lt "$deadline"
+      - name: Collect the finite synthetic private-widget matrix
+        run: |
+          python3 -B scripts/run_phase23_offline_visual.py \
+            --apk mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk \
+            --serial emulator-5554 --max-seconds 300
+      - name: Upload only encrypted synthetic frames and the public scoped receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase23-offline-visual-${{ github.run_id }}
+          path: |
+            phase23-offline-visual-sealed/visual.cms
+            phase23-offline-visual-sealed/PUBLIC_RECEIPT.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Stop the disposable device
+        if: always()
+        run: |
+          adb -s emulator-5554 shell am force-stop com.aqer.yemen.uat || true
+          adb -s emulator-5554 emu kill || true
+          rm -f mobile_app/lib/phase23_offline_visual_main.dart
