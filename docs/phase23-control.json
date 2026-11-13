@@ -1,28 +1,27 @@
 {
   "run_id": "43333305676",
-  "seq": 13,
-  "challenge": "240ed3db290dd035f24d10e2ed3e9715a6b9e80bc468e45f473ece6c6f8a37eb",
+  "seq": 14,
+  "challenge": "ae77b6e7fb0d1e7348ec686db2168d5ddac8b2e36078fb24332b087326b6ced5",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "wait",
-        "args": {
-          "label": "اسحب الدبوس إلى العقار، أو حرّك الخريطة ليعود الدبوس إلى المنتصف.",
-          "seconds": 30
-        }
-      },
-      {
         "op": "tap",
         "args": {
-          "label": "تأكيد هذا الموقع"
+          "label": "التالي"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "إضافة عقار",
+          "label": "3/4",
           "seconds": 30
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
         }
       }
     ]
