@@ -23,6 +23,8 @@ import urllib.error
 import xml.etree.ElementTree as ET
 import zipfile
 from phase23_callback_metadata import safe_callback_label, read_only_callback_command
+from phase23_private_page_metadata import (safe_private_page_label, private_page_events,
+    read_only_private_page_command, LABELS as PRIVATE_PAGE_LABELS)
 
 from phase23_preflight import API, BRANCH, GateError, guard, http
 from phase1_native_account_readiness import SECRET_NAME, validate_access
@@ -38,7 +40,7 @@ AUTH_FIELDS = {'رقم واتساب', 'رمز التحقق', 'كلمة المر�
 CONTACT_PATTERN = r'(?<![\d.])(?:(?:\+?967|00967)?7[0-9]{8}|٧[٠-٩]{٨})(?![\d.])'
 OPS = {'observe', 'tap', 'set', 'scroll', 'back', 'login', 'logout', 'api_get', 'fixture_contact',
        'record_start', 'record_stop', 'key', 'force_stop', 'touch', 'swipe', 'pinch', 'fling',
-       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'prefetch_metrics', 'prefetch_data_saver', 'network_metrics', 'network_profile', 'upgrade_install', 'logout_in_place', 'finish'}
+       'double_tap', 'draw_area', 'blocked_message_probe', 'send_synthetic_message', 'wait', 'network', 'display', 'open_link', 'batch', 'seed_media', 'prefetch_metrics', 'prefetch_data_saver', 'network_metrics', 'network_profile', 'upgrade_install', 'logout_in_place', 'private_metrics', 'finish'}
 
 
 def network_metric_rows(log):
@@ -90,6 +92,18 @@ def prefetch_metric_rows(log):
 
 
 class Phase23Account(NativeAccount):
+    def wait(self, label, seconds=45):
+        # Passive state observation must not require a static Text node to be
+        # enabled. Tap/set still use the original enabled/witness input guards.
+        if label not in PRIVATE_PAGE_LABELS:
+            return super().wait(label, seconds=seconds)
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if any(label in labels(row) and row.get('visible') for row in self.nodes()):
+                return
+            time.sleep(.6)
+        raise Blocked('expected_native_state_not_observed')
+
     def c4_prepare_input_failure(self, op, result, output, reason):
         # The original driver drops P23 diagnostics. Retain only fixed identifiers
         # and bounded counts from the first attempt; never replay a failed input.
@@ -279,7 +293,7 @@ def validate_command(value, run_id, seq, challenge):
                'batch': {'steps'}, 'seed_media': set(), 'fixture_contact': set(),
                'prefetch_metrics': set(), 'prefetch_data_saver': {'enabled'},
                'network_metrics': set(), 'network_profile': {'mode'}, 'fling': set(),
-               'upgrade_install': set(), 'logout_in_place': set(), 'finish': set()}
+               'upgrade_install': set(), 'logout_in_place': set(), 'private_metrics': set(), 'finish': set()}
     if set(args) != allowed[value['op']]:
         raise GateError('command_arguments_invalid')
     if value['op'] == 'set' and args['label'] in AUTH_FIELDS:
@@ -395,6 +409,10 @@ class NativeRun:
         self.callback_harness = json.loads((PRIVATE / 'APK_VERIFICATION.json').read_text()).get('experiments',{}).get('callback_harness') is True
         if self.callback_harness and json.loads((PRIVATE / 'APK_VERIFICATION.json').read_text()).get('experiments',{}).get('callback_read_only') is not True:
             raise GateError('read_only_callback_receipt_required')
+        experiment = json.loads((PRIVATE / 'APK_VERIFICATION.json').read_text()).get('experiments',{})
+        self.private_pages = experiment.get('private_pages') is True
+        if self.private_pages and experiment.get('private_pages_read_only') is not True:
+            raise GateError('read_only_private_pages_receipt_required')
         self.driver = Phase23Account(PRIVATE, dict(os.environ))
         self.driver.private_values.update(self.private_values)
         self.driver._active_case = 'P23'
@@ -458,8 +476,8 @@ class NativeRun:
     })
 
     @classmethod
-    def private_ui_controls(cls, rows, force_private=False, callback_harness=False):
-        if not force_private and not callback_harness and not any(cls.PRIVATE_UI_ANCHORS & labels(row) or any(
+    def private_ui_controls(cls, rows, force_private=False, callback_harness=False, private_pages=False):
+        if not force_private and not callback_harness and not private_pages and not any(cls.PRIVATE_UI_ANCHORS & labels(row) or any(
                 re.search(r'[^\s@]+@[^\s@]+\.[^\s@]+',name) for name in labels(row)) for row in rows):
             return rows, False
         controls=[]
@@ -467,6 +485,8 @@ class NativeRun:
             names=cls.PRIVATE_UI_CONTROLS & labels(row)
             if callback_harness:
                 names |= {safe for label in labels(row) if (safe := safe_callback_label(label)) is not None}
+            if private_pages:
+                names |= {safe for label in labels(row) if (safe := safe_private_page_label(label)) is not None}
             if names:
                 controls.append({'description':'\n'.join(sorted(names)),
                                  'bounds':row.get('bounds'),'editable':row.get('editable',False)})
@@ -624,7 +644,8 @@ class NativeRun:
         public_home = self.driver.public_marketplace_binding(rows) is not None
         sticky = getattr(self, 'private_surface_open', False) and not public_home
         rows, private_ui = self.private_ui_controls(rows, force_private=sticky or getattr(self, 'actor', None) in {'manager','admin','erasure'},
-            callback_harness=getattr(self, 'callback_harness', False))
+            callback_harness=getattr(self, 'callback_harness', False),
+            private_pages=getattr(self, 'private_pages', False))
         self.private_surface_open = private_ui
         protected = protected or private_ui
         if protected and self.driver.recorder is not None:
@@ -801,12 +822,20 @@ class NativeRun:
     def apply(self, command):
         if getattr(self, 'callback_harness', False) and not read_only_callback_command(command):
             raise GateError('read_only_callback_command_required')
+        if getattr(self, 'private_pages', False) and not read_only_private_page_command(command):
+            raise GateError('read_only_private_page_command_required')
         op, args, d = command['op'], command['args'], self.driver
         d.phase23_last_input_failure=None
         if d.recorder is not None:
             _, temporary_frame, _ = self.observe()
             if temporary_frame: temporary_frame.unlink()
         if op == 'observe': return {'operation': op}
+        if op == 'private_metrics':
+            if not getattr(self, 'private_pages', False):
+                raise GateError('verified_private_page_target_required')
+            rows = private_page_events(d.adb('logcat','-d','-s','flutter:I'))
+            return {'operation': op, 'samples': rows, 'sample_count': len(rows),
+                    'scope': 'actual private API numeric page metadata only; no IDs, URLs, filters or row content'}
         if op == 'upgrade_install': return self.upgrade_install()
         if op == 'logout_in_place':
             if self.actor is None:

@@ -27,6 +27,7 @@ def sha(path):
 def tool_digest():
     paths = ['scripts/run_phase23_native.py', 'scripts/prepare_phase23_native.py',
              'scripts/phase23_preflight.py', 'scripts/phase23_recipient.pem', 'scripts/phase23_callback_metadata.py',
+             'scripts/phase23_private_page_metadata.py',
              'scripts/probe_phase1_native_account.py', 'scripts/phase1_device_input/Phase1Input.java',
              'scripts/prepare_phase23_upgrade.py',
              'scripts/phase23_firebase.py', 'scripts/phase23_build_readiness.py',
@@ -59,6 +60,8 @@ def prepare():
         assert all(API.encode() in app.read(n) for n in libs)
         if os.environ.get('PHASE23_CALLBACK_HARNESS') == 'true':
             assert all(b'AQER_PHASE23_CALLBACK_READ_ONLY_V1' in app.read(n) for n in libs), 'callback target marker required'
+        if os.environ.get('PHASE23_PRIVATE_PAGES') == 'true':
+            assert all(b'AQER_PHASE23_PRIVATE_PAGES_READ_ONLY_V1' in app.read(n) for n in libs), 'private page target marker required'
         for n in app.namelist():
             if n.startswith(('lib/arm64-v8a/', 'lib/x86_64/')) and n.endswith('.so'):
                 tools.elf(app.read(n))
@@ -77,6 +80,9 @@ def prepare():
         receipt['experiments']['callback_harness'] = True
         receipt['experiments']['callback_read_only'] = True
         receipt['acceptance_scope'] = 'Read-only controlled completions with real controllers and ordinary auth; business writes and account deletion blocked; no live provider acceptance'
+    if os.environ.get('PHASE23_PRIVATE_PAGES') == 'true':
+        receipt['experiments'].update(private_pages=True, private_pages_read_only=True)
+        receipt['acceptance_scope'] = 'Real private screens and authenticated API pages with declared smaller UAT per_page; original defaults separate; business writes blocked; no private pixels exported'
     (PRIVATE / 'APK_VERIFICATION.json').write_text(json.dumps(receipt, indent=2) + '\n')
     out = ROOT / 'phase23-installer-sealed'
     out.mkdir(mode=0o700)
