@@ -1,22 +1,7 @@
 {
   "run_id": "43430097013",
-  "seq": 94,
-  "challenge": "ed42080e42b4ced5926c0259550406d6cfe476f327627dd2adac720026e9f12c",
-  "op": "batch",
-  "args": {
-    "steps": [
-      {
-        "op": "tap",
-        "args": {
-          "label": "PC controls"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "PC verification"
-        }
-      }
-    ]
-  }
+  "seq": 95,
+  "challenge": "ba2f0ed9e217ca3199afe1e3992ff2c0a06beecde95730851c89179aa3062546",
+  "op": "private_metrics",
+  "args": {}
 }
