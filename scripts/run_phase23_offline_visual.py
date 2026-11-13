@@ -205,6 +205,24 @@ def verify_badging(value):
     return int(packages[0][1])
 
 
+def network_state(airplane, wifi_global, mobile_global, wifi_status, connectivity):
+    """Return fixed enums only; legacy per-SIM settings are diagnostic fields."""
+    def setting(value):
+        return value.strip() if value.strip() in {'0', '1', '2', '3', 'null'} else 'unknown'
+    wifi = re.findall(r'^[ \t]*Wifi is (disabled|enabled)[ \t]*$', wifi_status, re.M)
+    active = re.findall(r'^[ \t]*Active default network:[ \t]*(\S[^\r\n]*)$', connectivity, re.M)
+    active = [value.strip() for value in active]
+    state = 'none' if active == ['none'] else ('present' if len(active) == 1 and re.fullmatch(r'[0-9]+', active[0]) else 'unknown')
+    return {'airplane': setting(airplane), 'wifi_global': setting(wifi_global),
+            'mobile_global': setting(mobile_global), 'active_default': state,
+            'wifi_disabled': wifi == ['disabled']}
+
+
+def network_is_offline(state):
+    return (state['airplane'] == '1' and state['wifi_disabled'] is True
+            and state['active_default'] == 'none')
+
+
 class Device:
     def __init__(self, serial, deadline):
         if not re.fullmatch(r'emulator-[0-9]{4,5}', serial):
@@ -251,13 +269,15 @@ class Device:
         self.adb('shell', 'svc', 'data', 'disable')
         self.adb('shell', 'cmd', 'connectivity', 'airplane-mode', 'enable')
         for _ in range(15):
-            state = [self.adb('shell', 'settings', 'get', 'global', name)
-                     for name in ('airplane_mode_on', 'wifi_on', 'mobile_data')]
-            connection = self.adb('shell', 'dumpsys', 'connectivity')
-            if state == ['1', '0', '0'] and re.search(r'Active default network:\s*none\b', connection):
+            globals_ = [self.adb('shell', 'settings', 'get', 'global', name)
+                        for name in ('airplane_mode_on', 'wifi_on', 'mobile_data')]
+            state = network_state(*globals_, self.adb('shell', 'cmd', 'wifi', 'status'),
+                                  self.adb('shell', 'dumpsys', 'connectivity'))
+            if network_is_offline(state):
                 return
             time.sleep(.25)
-        raise GateError('offline_visual_network_not_disabled')
+        raise GateError('offline_visual_network_not_disabled ' + json.dumps(state, sort_keys=True))
+
 
 
 def safe_receipt(receipt):

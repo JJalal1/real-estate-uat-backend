@@ -204,6 +204,40 @@ class ArchiveTests(unittest.TestCase):
             self.assertFalse((base/'private.zip').exists())
 
 
+class NetworkTests(unittest.TestCase):
+    def test_null_legacy_mobile_flag_with_actual_offline_network_passes(self):
+        state = collector.network_state('1', '3', 'null',
+                                        'Wifi is disabled\nWifi scanning is always available',
+                                        '  Active default network: none\n')
+        self.assertTrue(collector.network_is_offline(state))
+        self.assertEqual(state['mobile_global'], 'null')
+
+    def test_active_network_unknown_status_or_enabled_wifi_fails_closed(self):
+        for airplane, wifi, active in [('1', 'Wifi is disabled', 'Active default network: 123'),
+                                       ('1', 'Wifi is disabled', 'missing connectivity output'),
+                                       ('1', 'unknown wifi status', 'Active default network: none'),
+                                       ('1', 'Wifi is enabled', 'Active default network: none'),
+                                       ('0', 'Wifi is disabled', 'Active default network: none'),
+                                       ('null', 'Wifi is disabled', 'Active default network: none'),
+                                       ('1', 'Wifi is disabled\nWifi is enabled', 'Active default network: none')]:
+            with self.subTest(airplane=airplane, wifi=wifi, active=active):
+                self.assertFalse(collector.network_is_offline(
+                    collector.network_state(airplane, '0', '0', wifi, active)))
+
+    def test_failure_diagnostic_contains_only_safe_enums(self):
+        state = collector.network_state('private-airplane', 'SSID-private', 'SIM-private',
+                                        'secret device state', 'Active default network: secret-network-id')
+        self.assertEqual(state, {'airplane': 'unknown', 'wifi_global': 'unknown',
+                                 'mobile_global': 'unknown', 'active_default': 'unknown',
+                                 'wifi_disabled': False})
+        device = collector.Device('emulator-5554', 1)
+        with patch.object(device, 'adb', return_value='private-value'), patch.object(collector.time, 'sleep'):
+            with self.assertRaises(GateError) as raised:
+                device.offline()
+        self.assertNotIn('private-value', str(raised.exception))
+        self.assertIn('"active_default": "unknown"', str(raised.exception))
+
+
 class ContextTests(unittest.TestCase):
     def test_guard_reused_and_source_or_auth_mismatch_rejected(self):
         good = dict(PHASE23_OFFLINE_VISUAL='true', SOURCE_COMMIT='a'*40,
