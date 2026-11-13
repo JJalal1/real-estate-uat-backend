@@ -1,40 +1,46 @@
 {
   "run_id": "43356915577",
-  "seq": 1,
-  "challenge": "7c73fea2486488c3109292a3cb9c34cda6391b96bd7434c9ffaa57cfc9c2f497",
+  "seq": 2,
+  "challenge": "a2b4e847aad76390a44c1e5cc823bd8a2e33528220d172d4a7e4d15b556c38f9",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/auth/me"
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/notifications?page=1&per_page=40"
-        }
-      },
-      {
         "op": "tap",
         "args": {
-          "label": "حسابي"
-        }
-      },
-      {
-        "op": "tap",
-        "args": {
-          "label": "الإشعارات"
+          "label": "CB controls"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "أنت مطّلع على كل شيء",
+          "label": "AQER_PHASE23_CALLBACK_READ_ONLY_V1",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB AI start"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "CB results start"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "CB AI held",
+          "seconds": 30
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "CB results held",
           "seconds": 30
         }
       }
