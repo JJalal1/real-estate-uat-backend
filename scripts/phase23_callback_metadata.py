@@ -4,7 +4,7 @@ import json
 MARKER = 'AQER_PHASE23_CALLBACK_READ_ONLY_V1'
 FIELDS = frozenset(('v','actor','bLogin','bSeed','bEpoch','aiCapture','aiEpoch','aiRelease','aiComplete',
     'resultsCapture','resultsEpoch','resultsRelease','resultsComplete','gpsCapture','gpsEpoch',
-    'gpsRelease','gpsComplete','cancelled','cacheClean','errors','forbidden','writes'))
+    'gpsRelease','gpsComplete','cancelled','cacheClean','errors','forbidden','writes','pushCleanupBlocked'))
 CONTROLS = frozenset(('CB controls','CB hide','CB AI start','CB results start','CB editor','CB seed B',
     'CB release AI','CB release results','CB release GPS', MARKER,
     *('CB '+kind+' '+state for kind in ('AI','results','GPS') for state in ('idle','held','PASS','FAIL'))))

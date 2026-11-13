@@ -56,6 +56,16 @@ void main() {
     }
     expect(sent,3);dio.close();
   });
+  test('ordinary push cleanup remains blocked and is distinguished from unexpected writes', () async {
+    var writes=0,cleanup=0,sent=0;
+    final dio=Dio(BaseOptions(baseUrl:callbackApi))..interceptors.add(CallbackReadOnlyTransport(
+      onForbiddenWrite:()=>writes++,onBlockedPushCleanup:()=>cleanup++));
+    dio.interceptors.add(InterceptorsWrapper(onRequest:(r,h){sent++;h.resolve(Response(requestOptions:r,statusCode:200));}));
+    await expectLater(dio.delete<dynamic>('/push/devices'),throwsA(isA<DioException>()));
+    expect(cleanup,1);expect(writes,0);expect(sent,0);
+    await expectLater(dio.post<dynamic>('/listing-editor-drafts'),throwsA(isA<DioException>()));
+    expect(writes,1);expect(cleanup,1);expect(sent,0);dio.close();
+  });
   test('held completions ignore cancellation but actual account-bound controllers reject both after B', () async {
     final auth=_Auth(),gate=CallbackGate(),dio=Dio();final repo=AuthRepository(dio);
     final scope=ProviderContainer(overrides:[authControllerProvider.overrideWith(()=>auth),
