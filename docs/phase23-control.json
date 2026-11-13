@@ -1,1 +1,9 @@
-{"run_id":"43282970100","seq":64,"challenge":"1dd73b1b64adc81935c44b6d5f9b50c26775b80bfdc10a9e7f297cf1aa44cf2a","op":"finish","args":{}}
+{
+  "run_id": "43333305676",
+  "seq": 0,
+  "challenge": "276feafb1f65513f32e11d18b6c0fe625d3b73da2dce201d62adefcd13f2a8f6",
+  "op": "login",
+  "args": {
+    "alias": "broker"
+  }
+}
