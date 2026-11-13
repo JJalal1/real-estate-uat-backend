@@ -1,9 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 138,
-  "challenge": "5e30d7768b8b55785be779d749fdb8d00ae928a0aff0c53f405a76eb734764b7",
+  "seq": 139,
+  "challenge": "5dd536f339045bb9da08a3c5f4c7d1784b870165d9fb16a78d318a6e11379cf8",
   "op": "tap",
   "args": {
-    "label": "كل الحالات"
+    "label": "بانتظار المستخدم"
   }
 }
