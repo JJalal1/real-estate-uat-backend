@@ -1,7 +1,7 @@
 {
   "run_id": "43333305676",
-  "seq": 43,
-  "challenge": "52a2753113a5210d1d9e5f72c1367510e5b116ebd32a39cee31089f6a5ffa570",
+  "seq": 44,
+  "challenge": "ec003f01efa6e9796c67c89394ae9f50c92cb7217c7bb35f4dd14306142ff849",
   "op": "batch",
   "args": {
     "steps": [
@@ -12,23 +12,33 @@
         }
       },
       {
-        "op": "wait",
+        "op": "scroll",
         "args": {
-          "label": "إعادة المحاولة",
-          "seconds": 15
+          "direction": "forward"
         }
       },
       {
-        "op": "wait",
+        "op": "scroll",
         "args": {
-          "label": "مكتمل",
-          "seconds": 10
+          "direction": "forward"
         }
       },
       {
-        "op": "tap",
+        "op": "scroll",
         "args": {
-          "label": "إعادة المحاولة"
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
+        }
+      },
+      {
+        "op": "scroll",
+        "args": {
+          "direction": "forward"
         }
       }
     ]
