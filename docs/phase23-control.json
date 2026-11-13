@@ -1,9 +1,7 @@
 {
   "run_id": "43494440838",
-  "seq": 9,
-  "challenge": "73c65d3fcfab55a71c51ebfa12c845efab8f967e9bdbba7a7794eff5ccb95e95",
-  "op": "tap",
-  "args": {
-    "label": "تحميل صورة أوضح"
-  }
+  "seq": 10,
+  "challenge": "9806802bd5c148ebb8163d1c5cd9d850b13aa9b56c689b30ad219446fe3cc7ad",
+  "op": "network_metrics",
+  "args": {}
 }
