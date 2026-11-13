@@ -1,9 +1,30 @@
 {
   "run_id": "43333305676",
-  "seq": 62,
-  "challenge": "fefef0c48a95647d794f1759c4a0d5894d176e84e7a2825025ab1453916b1065",
-  "op": "login",
+  "seq": 63,
+  "challenge": "567bd016d7494e4cf9515cba1ddfb34e866eb2055f5c176fe2a688d28c650bb2",
+  "op": "batch",
   "args": {
-    "alias": "erasure"
+    "steps": [
+      {
+        "op": "api_get",
+        "args": {
+          "alias": "erasure",
+          "path": "/notifications?page=1&per_page=40"
+        }
+      },
+      {
+        "op": "tap",
+        "args": {
+          "label": "الإشعارات"
+        }
+      },
+      {
+        "op": "wait",
+        "args": {
+          "label": "أنت مطّلع على كل شيء",
+          "seconds": 30
+        }
+      }
+    ]
   }
 }
