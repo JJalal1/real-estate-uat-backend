@@ -1,12 +1,9 @@
 {
   "run_id": "43494440838",
-  "seq": 12,
-  "challenge": "9921f8a996dd2184fe2689bb2ca7df123a869e424be735becee4ae06f23736da",
-  "op": "swipe",
+  "seq": 13,
+  "challenge": "15cb84228e4d56a6d6c25e7f1add96ad8ee5764515078c59c9c3be516f85b796",
+  "op": "tap",
   "args": {
-    "x1": 250,
-    "y1": 980,
-    "x2": 850,
-    "y2": 980
+    "label": "تحميل صورة أوضح"
   }
 }
