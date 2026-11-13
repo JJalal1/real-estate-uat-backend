@@ -1,35 +1,27 @@
 {
   "run_id": "43401245346",
-  "seq": 25,
-  "challenge": "f36de9df246b8b63aa00157cef55a105e56cc47eb4c82c8880b67acf8b0a822f",
+  "seq": 26,
+  "challenge": "798e45a75a522386ae182c9068a87721d7d0831949dfe58a73d2619a9a28c03c",
   "op": "batch",
   "args": {
     "steps": [
       {
-        "op": "api_get",
+        "op": "tap",
         "args": {
-          "alias": "erasure",
-          "path": "/notifications?page=2&per_page=40"
+          "label": "رجوع"
         }
       },
       {
         "op": "tap",
         "args": {
-          "label": "قراءة الكل"
+          "label": "حسابي"
         }
       },
       {
         "op": "wait",
         "args": {
-          "label": "أنت مطّلع على كل شيء",
+          "label": "الأمان والخصوصية",
           "seconds": 30
-        }
-      },
-      {
-        "op": "api_get",
-        "args": {
-          "alias": "erasure",
-          "path": "/notifications?page=1&per_page=40"
         }
       }
     ]
