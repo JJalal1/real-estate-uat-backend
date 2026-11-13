@@ -1,7 +1,9 @@
 {
   "run_id": "43430097013",
-  "seq": 95,
-  "challenge": "ba2f0ed9e217ca3199afe1e3992ff2c0a06beecde95730851c89179aa3062546",
-  "op": "private_metrics",
-  "args": {}
+  "seq": 96,
+  "challenge": "e5099be89825063a36e2bb71f009567a5d93c195e5a8ec5c692d38356a3b58f4",
+  "op": "tap",
+  "args": {
+    "label": "قيد المراجعة"
+  }
 }
