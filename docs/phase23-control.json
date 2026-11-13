@@ -1,9 +1,7 @@
 {
   "run_id": "43430097013",
-  "seq": 91,
-  "challenge": "7dbd439e7b543c804e0bf2d2791b0814ba020882a78eb500a27c63f20247b455",
-  "op": "tap",
-  "args": {
-    "label": "PC home"
-  }
+  "seq": 92,
+  "challenge": "e385b8752ad1ecd2afb26fd6c7f0e854527a0c69c4acbffe0e46bd50b7dcccaa",
+  "op": "logout_in_place",
+  "args": {}
 }
