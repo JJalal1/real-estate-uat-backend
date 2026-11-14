@@ -150,6 +150,31 @@ class FixtureBoundaryTests(unittest.TestCase):
 
 
 class NativeInputBoundaryTests(unittest.TestCase):
+    def test_unlabelled_listing_menu_is_bound_to_the_visible_fixture_card(self):
+        title = fixture()['title']
+        primary = node('إرسال للمراجعة', '[210,1406][1012,1542]')
+        menu = node('', '[68,1406][194,1532]')
+        card = node(title, '[47,647][1033,1563]', **{'class': 'android.view.View'})
+        xml = screen(node('', '[126,74][252,200]'), card[:-3] + '>' + primary + menu + '</node>')
+        pick = lambda tree, label: c.select_control(tree, 'خيارات البطاقة', {c.PACKAGE}, listing_title=label)
+        self.assertEqual(pick(xml, title), (68, 1406, 194, 1532))
+        for tree, label in ((xml, 'Other listing'), (xml.replace(menu, ''), title),
+                            (xml.replace('[68,1406][194,1532]', '[70,1050][196,1176]'), title)):
+            with self.subTest(label=label), self.assertRaisesRegex(c.Incomplete, 'control_missing'):
+                pick(tree, label)
+
+    def test_picker_uses_only_the_fixture_filename_inside_documents_list(self):
+        package = 'com.android.documentsui'
+        filename = 'A-exterior.png'
+        tile = node(filename + ', 1.16 kB, 1:13 AM', '[28,240][500,570]', package=package, clickable='false')
+        xml = screen(f'<node package="{package}" resource-id="{package}:id/dir_list">{tile}</node>')
+        self.assertEqual(c.picker_item(xml, filename, package), (264, 487))
+        for invalid in (xml.replace(':id/dir_list', ':id/other'), xml.replace(filename, filename + '.bak')):
+            with self.subTest(xml=invalid), self.assertRaisesRegex(c.Incomplete, 'control_missing'):
+                c.picker_item(invalid, filename, package)
+        with self.assertRaisesRegex(GateError, 'picker_item_invalid'):
+            c.picker_item(xml, 'outside.png', package)
+
     def test_editor_opens_the_listing_menu_when_edit_is_not_the_primary_action(self):
         value = fixture()
         journey = c.Journey(Mock(deadline=time.monotonic()+60), value, Path('/tmp/fixture.json'), Path('/tmp/evidence'))

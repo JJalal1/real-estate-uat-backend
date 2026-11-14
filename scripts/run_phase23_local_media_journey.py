@@ -43,6 +43,7 @@ REVIEW_RECIPIENT_SHA256 = '4bdf43f77b92183d2902c1c4742116ff8c8a24310e0e86a2b190c
 ACTORS = ('advertiser', 'support', 'researcher')
 PHONES = dict(zip(ACTORS, ('+967700230101', '+967700230102', '+967700230103')))
 PICKERS = {'com.google.android.documentsui', 'com.android.documentsui'}
+MEDIA_NAMES = {'A-exterior.png', 'B-interior.png', 'C-replacement.jpg', 'X-brand-logo.png'}
 KEYBOARDS = {'com.google.android.inputmethod.latin', 'com.android.inputmethod.latin'}
 PERMISSIONS = {'com.google.android.permissioncontroller', 'com.android.permissioncontroller'}
 STARTUP_SYSTEM_PACKAGES = {'android', 'com.android.systemui', 'com.android.launcher3',
@@ -96,7 +97,7 @@ def validate_fixture(value, env):
         raise GateError('local_media_files_invalid')
     names = set()
     for item in files:
-        if (item.get('name') not in {'A-exterior.png','B-interior.png','C-replacement.jpg','X-brand-logo.png'} or
+        if (item.get('name') not in MEDIA_NAMES or
                 not re.fullmatch(r'[0-9a-f]{64}', item.get('sha256', '')) or
                 not Path(item.get('path', '')).is_absolute() or item['name'] in names):
             raise GateError('local_media_files_invalid')
@@ -204,7 +205,49 @@ def select_shell_tab(nodes, label, size):
     return matches[0]
 
 
-def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False, shell_tab=False):
+def select_overflow(nodes, label, listing_title, size):
+    def app_button(node):
+        return (node.get('package') == PACKAGE and node.get('class') == 'android.widget.Button'
+                and node.get('clickable') == 'true' and node.get('enabled') == 'true'
+                and node.get('visible-to-user', 'true') == 'true')
+
+    if listing_title is not None:
+        cards = [n for n in nodes if n.get('package') == PACKAGE and listing_title in labels(n)
+                 and any(app_button(c) for c in n if c is not n)]
+        if len(cards) != 1:
+            raise Incomplete('local_media_control_missing' if not cards else 'local_media_control_ambiguous')
+        buttons = [n for n in cards[0].iter('node') if app_button(n)]
+    else:
+        if not any(n.get('package') == PACKAGE and 'تعديل الإعلان' in labels(n) for n in nodes):
+            raise Incomplete('local_media_control_missing')
+        buttons = [n for n in nodes if app_button(n) and bounds(n.get('bounds'), size)[1] >= size[1]*.84]
+
+    named = [bounds(n.get('bounds'), size) for n in buttons if label in labels(n)]
+    if named:
+        if len(named) != 1:
+            raise Incomplete('local_media_control_ambiguous')
+        return named[0]
+
+    # On the API36 dump a Flutter popup can be an unnamed button. Only the
+    # small RTL sibling of an observed primary action can stand for this menu.
+    primary = [bounds(n.get('bounds'), size) for n in buttons if labels(n) & {
+        'إرسال للمراجعة', 'إعادة الإرسال', 'عرض', 'إقرار السعي', 'ما زال متوفرًا', 'معاينة الإعلان'}]
+    matches = set()
+    for node in buttons:
+        if labels(node):
+            continue
+        left, top, right, bottom = bounds(node.get('bounds'), size)
+        if not (80 <= right-left <= 150 and 80 <= bottom-top <= 150):
+            continue
+        if any(0 <= p[0]-right <= 40 and abs(p[1]-top) <= 35 and abs(p[3]-bottom) <= 35 for p in primary):
+            matches.add((left, top, right, bottom))
+    if len(matches) != 1:
+        raise Incomplete('local_media_control_missing' if not matches else 'local_media_control_ambiguous')
+    return matches.pop()
+
+
+def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False,
+                   shell_tab=False, listing_title=None):
     root, nodes = ui_nodes(xml, packages)
     if shell_tab:
         return select_shell_tab(nodes, label, size)
@@ -229,6 +272,8 @@ def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False
         matches[box] = action
     boxes = sorted(matches, key=lambda b: (b[1], -b[0]))
     if not boxes:
+        if (label == 'خيارات البطاقة' and listing_title is not None) or label == 'خيارات المسودة':
+            return select_overflow(nodes, label, listing_title, size)
         raise Incomplete('local_media_control_missing')
     if ordinal is None:
         if len(boxes) != 1:
@@ -274,6 +319,32 @@ def select_review_control(xml, image_number, packages, size=SIZE):
     if len(matches) != 1:
         raise Incomplete('local_media_review_card_ambiguous')
     return matches.pop()
+
+
+def picker_item(xml, name, package):
+    if name not in MEDIA_NAMES or package not in PICKERS:
+        raise GateError('local_media_picker_item_invalid')
+    root, nodes = ui_nodes(xml, {package, PACKAGE} | KEYBOARDS)
+    parents = {child: node for node in root.iter() for child in node}
+    pattern = re.compile(re.escape(name) + r'(?:, [^\r\n]{1,100})?')
+    hits = set()
+    for node in nodes:
+        if (node.get('package') != package or node.get('enabled') != 'true'
+                or not any(pattern.fullmatch(text) for text in labels(node))):
+            continue
+        child = node
+        ancestor = parents.get(node)
+        while ancestor is not None and ancestor.get('resource-id') != package+':id/dir_list':
+            child = ancestor
+            ancestor = parents.get(ancestor)
+        if ancestor is None or child.get('package') != package:
+            continue
+        left, top, right, bottom = bounds(child.get('bounds'), SIZE)
+        if 80 <= right-left <= 970 and 60 <= bottom-top <= 400:
+            hits.add(((left+right)//2, top+(bottom-top)*3//4))
+    if len(hits) != 1:
+        raise Incomplete('local_media_control_missing' if not hits else 'local_media_control_ambiguous')
+    return hits.pop()
 
 
 def media_drag_targets(xml, packages):
@@ -563,19 +634,19 @@ class Journey:
         if self.inputs > MAX_INPUTS:
             raise Incomplete('local_media_input_budget_exceeded')
 
-    def tap(self, label, ordinal=None, picker=False, seek=0, site='tap', shell_tab=False):
+    def tap(self, label, ordinal=None, picker=False, seek=0, site='tap', shell_tab=False, listing_title=None):
         packages = {PACKAGE} | KEYBOARDS | ({self.picker} if picker else set())
         for attempt in range(seek + 1):
             xml = self.xml(picker,site=site+'_candidate')
             try:
-                box = select_control(xml, label, packages, ordinal=ordinal, shell_tab=shell_tab)
+                box = select_control(xml, label, packages, ordinal=ordinal, shell_tab=shell_tab, listing_title=listing_title)
                 break
             except Incomplete as error:
                 if str(error) != 'local_media_control_missing' or attempt == seek:
                     raise
                 self.scroll()
         fresh = self.xml(picker,site=site+'_revalidate')
-        other = select_control(fresh, label, packages, ordinal=ordinal, shell_tab=shell_tab)
+        other = select_control(fresh, label, packages, ordinal=ordinal, shell_tab=shell_tab, listing_title=listing_title)
         if other != box:
             raise Incomplete('local_media_control_moved')
         self.input()
@@ -714,7 +785,7 @@ class Journey:
         self.tap('عقاراتي', seek=5, site='owned_listings')
         visible = self.wait(self.f['title'])
         if label not in self.names(visible):
-            self.tap('خيارات البطاقة', seek=5, site='listing_actions_menu')
+            self.tap('خيارات البطاقة', seek=5, site='listing_actions_menu', listing_title=self.f['title'])
             self.wait(label)
         self.tap(label, site='edit_listing')
         deadline = min(self.d.deadline,time.monotonic()+35)
@@ -766,28 +837,67 @@ class Journey:
         time.sleep(.5)
 
     def pick(self, item, replacement=False):
+        self.stage = 'pick_replacement_image' if replacement else 'pick_draft_image'
         if not replacement:
-            self.tap('إضافة صور', seek=5)
+            self.tap('إضافة صور', seek=5, site='open_android_picker')
         # ACTION_OPEN_DOCUMENT package was resolved and allowlisted before app start.
-        xml=self.xml(picker=True)
-        if item['name'] not in self.names(xml):
-            for name in ('Show roots','إظهار الجذور','فتح قائمة التنقل'):
-                if name in self.names(xml):
-                    self.tap(name,picker=True); xml=self.xml(picker=True); break
-            for name in ('Downloads','التنزيلات','Download'):
-                if name in self.names(xml):
-                    self.tap(name,picker=True); break
-        self.wait(item['name'],picker=True)
-        self.tap(item['name'],picker=True)
-        xml=self.xml(picker=True)
-        for name in ('Open','فتح','SELECT','اختيار'):
-            if name in self.names(xml) and self.picker in {n.get('package') for n in ET.fromstring(xml).iter('node')}:
-                self.tap(name,picker=True); break
-        self.wait('إضافة صور')
+        deadline = min(self.d.deadline, time.monotonic()+30)
+        reached = set()
+        while time.monotonic() < deadline:
+            xml = self.xml(picker=True, site='picker_item_candidate')
+            _, nodes = ui_nodes(xml, {self.picker, PACKAGE}|KEYBOARDS)
+            if self.picker not in {node.get('package') for node in nodes}:
+                time.sleep(.35); continue
+            try:
+                point = picker_item(xml, item['name'], self.picker)
+            except Incomplete as error:
+                if str(error) != 'local_media_control_missing': raise
+                names = self.names(xml)
+                for group in (('Downloads','التنزيلات','Download'),
+                              ('Show roots','Show navigation drawer','إظهار الجذور','فتح قائمة التنقل')):
+                    option = next((label for label in group if label in names), None)
+                    if option is not None and group not in reached:
+                        self.tap(option, picker=True, site='picker_open_downloads')
+                        reached.add(group)
+                        break
+                time.sleep(.35)
+                continue
+            fresh = self.xml(picker=True, site='picker_item_revalidate')
+            if picker_item(fresh, item['name'], self.picker) != point:
+                raise Incomplete('local_media_control_moved')
+            self.input()
+            self.d.adb('shell','input','tap',*map(str,point))
+            break
+        else:
+            raise Incomplete('local_media_picker_item_unobserved')
+
+        deadline = min(self.d.deadline, time.monotonic()+30)
+        confirmed = False
+        while time.monotonic() < deadline:
+            xml = self.xml(picker=True, site='picker_return_observe')
+            _, nodes = ui_nodes(xml, {self.picker, PACKAGE}|KEYBOARDS)
+            names = self.names(xml)
+            if self.picker not in {node.get('package') for node in nodes}:
+                if 'إضافة صور' in names:
+                    return
+            elif not confirmed:
+                option = next((name for name in ('Open','فتح','Select','اختيار','تحديد') if name in names), None)
+                if option is not None:
+                    self.tap(option, picker=True, site='picker_confirm_selection')
+                    confirmed = True
+            time.sleep(.35)
+        raise Incomplete('local_media_picker_return_unobserved')
 
     def final_actions(self):
         for _ in range(4):
-            if 'خيارات المسودة' in self.names(self.xml()): return
+            xml = self.xml()
+            if 'العودة إلى النواقص' in self.names(xml):
+                self.tap('العودة إلى النواقص'); continue
+            try:
+                select_control(xml, 'خيارات المسودة', {PACKAGE}|KEYBOARDS)
+                return
+            except Incomplete as error:
+                if str(error) != 'local_media_control_missing': raise
             self.tap('التالي')
         raise Incomplete('local_media_final_actions_unobserved')
 
@@ -857,7 +967,10 @@ class Journey:
         if initial['listing']['images'] or initial['listing']['review_status']!='draft':
             raise GateError('local_media_empty_seed_draft_required')
         good=[x for x in self.f['files'] if x['kind']=='good']; bad=next(x for x in self.f['files'] if x['kind']=='bad')
-        self.login('advertiser'); self.editor(); self.photos()
+        self.login('advertiser'); self.editor()
+        self.checkpoint('listing_editor_opened')
+        self.photos()
+        self.checkpoint('draft_photo_step_opened')
         for item in (good[0],good[1],bad): self.pick(item)
         self.save(); added=self.checkpoint('media_added',initial)
         self.editor(); self.photos(); self.gallery(); self.reorder()
@@ -955,11 +1068,14 @@ def main():
     d.adb('shell','am','force-stop',PACKAGE)
     d.adb('install','-r',str(args.apk),timeout=90)
     d.adb('shell','pm','clear',PACKAGE)
+    d.adb('shell','mkdir','-p','/sdcard/Download')
     for item in fixture['files']:
         path=Path(item['path'])
         if path.is_symlink() or digest(path)!=item['sha256']:
             raise GateError('local_media_seed_image_changed')
-        d.adb('push',str(path),'/sdcard/Download/'+item['name'])
+        filename = '/sdcard/Download/'+item['name']
+        d.adb('push',str(path),filename)
+        d.adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file://'+filename)
     resolved=d.adb('shell','cmd','package','resolve-activity','--brief','-a','android.intent.action.OPEN_DOCUMENT','-c','android.intent.category.OPENABLE','-t','image/*')
     components=re.findall(r'^([A-Za-z0-9_.]+)/[A-Za-z0-9_.$]+$',resolved,re.M)
     if len(components)!=1 or components[0] not in PICKERS:
