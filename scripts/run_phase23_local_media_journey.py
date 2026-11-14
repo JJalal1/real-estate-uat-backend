@@ -222,10 +222,19 @@ def select_overflow(nodes, label, listing_title, size):
             raise Incomplete('local_media_control_missing')
         buttons = [n for n in nodes if app_button(n) and bounds(n.get('bounds'), size)[1] >= size[1]*.84]
 
+    floating_add = [bounds(n.get('bounds'), size) for n in nodes
+                    if listing_title is not None and app_button(n) and 'إضافة عقار' in labels(n)]
+
+    def visible(box):
+        return not any(box[0] < right and left < box[2] and box[1] < bottom and top < box[3]
+                       for left, top, right, bottom in floating_add)
+
     named = [bounds(n.get('bounds'), size) for n in buttons if label in labels(n)]
     if named:
         if len(named) != 1:
             raise Incomplete('local_media_control_ambiguous')
+        if not visible(named[0]):
+            raise Incomplete('local_media_control_missing')
         return named[0]
 
     # On the API36 dump a Flutter popup can be an unnamed button. Only the
@@ -239,7 +248,8 @@ def select_overflow(nodes, label, listing_title, size):
         left, top, right, bottom = bounds(node.get('bounds'), size)
         if not (80 <= right-left <= 150 and 80 <= bottom-top <= 150):
             continue
-        if any(0 <= p[0]-right <= 40 and abs(p[1]-top) <= 35 and abs(p[3]-bottom) <= 35 for p in primary):
+        if (visible((left, top, right, bottom)) and
+                any(0 <= p[0]-right <= 40 and abs(p[1]-top) <= 35 and abs(p[3]-bottom) <= 35 for p in primary)):
             matches.add((left, top, right, bottom))
     if len(matches) != 1:
         raise Incomplete('local_media_control_missing' if not matches else 'local_media_control_ambiguous')
@@ -251,6 +261,8 @@ def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False
     root, nodes = ui_nodes(xml, packages)
     if shell_tab:
         return select_shell_tab(nodes, label, size)
+    if label == 'خيارات البطاقة' and listing_title is not None:
+        return select_overflow(nodes, label, listing_title, size)
     parents = {child: node for node in root.iter() for child in node}
     matches = {}
     for node in nodes:
@@ -272,7 +284,7 @@ def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False
         matches[box] = action
     boxes = sorted(matches, key=lambda b: (b[1], -b[0]))
     if not boxes:
-        if (label == 'خيارات البطاقة' and listing_title is not None) or label == 'خيارات المسودة':
+        if label == 'خيارات المسودة':
             return select_overflow(nodes, label, listing_title, size)
         raise Incomplete('local_media_control_missing')
     if ordinal is None:
@@ -575,10 +587,10 @@ class Journey:
     def names(self, xml):
         return set().union(*(labels(n) for n in ET.fromstring(xml).iter('node')))
 
-    def wait(self, label, seconds=35, picker=False):
+    def wait(self, label, seconds=35, picker=False, site='ordinary_read'):
         deadline = min(self.d.deadline, time.monotonic() + seconds)
         while time.monotonic() < deadline:
-            xml = self.xml(picker)
+            xml = self.xml(picker, site=site)
             if label in self.names(xml):
                 return xml
             time.sleep(.5)
@@ -786,11 +798,13 @@ class Journey:
         visible = self.wait(self.f['title'])
         if label not in self.names(visible):
             self.tap('خيارات البطاقة', seek=5, site='listing_actions_menu', listing_title=self.f['title'])
-            self.wait(label)
+            self.wait(label, site='listing_menu_action_observe')
         self.tap(label, site='edit_listing')
         deadline = min(self.d.deadline,time.monotonic()+35)
         while time.monotonic() < deadline:
-            if self.names(self.xml()) & {'التالي','إضافة صور','معاينة الإعلان','إرسال للمراجعة'}: return
+            names = self.names(self.xml(site='editor_ready_observe'))
+            if 'تعديل الإعلان' in names and names & {'التالي','إضافة صور','معاينة الإعلان','إرسال للمراجعة'}:
+                return
             time.sleep(.5)
         raise Incomplete('local_media_editor_unobserved')
 

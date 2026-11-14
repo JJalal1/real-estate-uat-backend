@@ -155,11 +155,13 @@ class NativeInputBoundaryTests(unittest.TestCase):
         primary = node('إرسال للمراجعة', '[210,1406][1012,1542]')
         menu = node('', '[68,1406][194,1532]')
         card = node(title, '[47,647][1033,1563]', **{'class': 'android.view.View'})
-        xml = screen(node('', '[126,74][252,200]'), card[:-3] + '>' + primary + menu + '</node>')
+        card = card[:-3] + '>' + primary + menu + '</node>'
+        xml = screen(node('', '[126,74][252,200]'), card)
         pick = lambda tree, label: c.select_control(tree, 'خيارات البطاقة', {c.PACKAGE}, listing_title=label)
         self.assertEqual(pick(xml, title), (68, 1406, 194, 1532))
         for tree, label in ((xml, 'Other listing'), (xml.replace(menu, ''), title),
-                            (xml.replace('[68,1406][194,1532]', '[70,1050][196,1176]'), title)):
+                            (xml.replace('[68,1406][194,1532]', '[70,1050][196,1176]'), title),
+                            (screen(card, node('إضافة عقار', '[42,1480][361,1616]')), title)):
             with self.subTest(label=label), self.assertRaisesRegex(c.Incomplete, 'control_missing'):
                 pick(tree, label)
 
@@ -180,7 +182,7 @@ class NativeInputBoundaryTests(unittest.TestCase):
         journey = c.Journey(Mock(deadline=time.monotonic()+60), value, Path('/tmp/fixture.json'), Path('/tmp/evidence'))
         with patch.object(journey,'shell'), patch.object(journey,'tap') as tap, \
                 patch.object(journey,'wait',side_effect=[screen(node(value['title'])), screen(node('إكمال الإعلان'))]), \
-                patch.object(journey,'xml',return_value=screen(node('التالي'))):
+                patch.object(journey,'xml',return_value=screen(node('تعديل الإعلان'), node('التالي'))):
             journey.editor()
         self.assertEqual([call.args[0] for call in tap.call_args_list],
                          ['حسابي','عقاراتي','خيارات البطاقة','إكمال الإعلان'])
