@@ -38,6 +38,8 @@ DATABASE = 'phase23_local_media_ci'
 MARKER = 'AQER_LOCAL_MEDIA_FIXTURE_V1'
 RECIPIENT = ROOT / 'scripts/phase23_recipient.pem'
 RECIPIENT_SHA256 = 'b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070'
+REVIEW_RECIPIENT = ROOT / 'scripts/phase23_owner_delivery_recipient.pem'
+REVIEW_RECIPIENT_SHA256 = '4bdf43f77b92183d2902c1c4742116ff8c8a24310e0e86a2b190c8f42bfd810e'
 ACTORS = ('advertiser', 'support', 'researcher')
 PHONES = dict(zip(ACTORS, ('+967700230101', '+967700230102', '+967700230103')))
 PICKERS = {'com.google.android.documentsui', 'com.android.documentsui'}
@@ -122,7 +124,7 @@ def verify_build(apk, receipt, fixture):
 def labels(node):
     # Android wraps explicit LTR phone/OTP/title semantics in bidi controls.
     # Match their visible text, retaining the original XML as private evidence.
-    return {x.translate(BIDI_FORMAT).strip() for k in ('text', 'content-desc', 'hint')
+    return {x.translate(BIDI_FORMAT).strip() for k in ('text', 'content-desc', 'hint', 'tooltip-text')
             for x in node.get(k, '').splitlines() if x.strip()}
 
 
@@ -706,11 +708,15 @@ class Journey:
         raise Incomplete('local_media_shell_unobserved')
 
     def editor(self, label='إكمال الإعلان'):
+        self.stage = 'open_listing_editor'
         self.shell()
         self.tap('حسابي', shell_tab=True, site='account_tab')
-        self.tap('عقاراتي', seek=5)
-        self.wait(self.f['title'])
-        self.tap(label, seek=5)
+        self.tap('عقاراتي', seek=5, site='owned_listings')
+        visible = self.wait(self.f['title'])
+        if label not in self.names(visible):
+            self.tap('خيارات البطاقة', seek=5, site='listing_actions_menu')
+            self.wait(label)
+        self.tap(label, site='edit_listing')
         deadline = min(self.d.deadline,time.monotonic()+35)
         while time.monotonic() < deadline:
             if self.names(self.xml()) & {'التالي','إضافة صور','معاينة الإعلان','إرسال للمراجعة'}: return
@@ -718,6 +724,7 @@ class Journey:
         raise Incomplete('local_media_editor_unobserved')
 
     def photos(self):
+        self.stage = 'open_photo_step'
         for _ in range(4):
             names = self.names(self.xml())
             if names & {'المواصفات','3/4','إضافة صور'}:
@@ -726,7 +733,7 @@ class Journey:
                     if 'إضافة صور' in names: return
                     self.scroll()
                 raise Incomplete('local_media_photo_step_unobserved')
-            self.tap('التالي')
+            self.tap('التالي', site='next_editor_step')
         raise Incomplete('local_media_photo_step_unobserved')
 
     def gallery(self):
@@ -907,12 +914,15 @@ def seal(private, output, fixture, records, result, reason, failure_context=None
                 if path.is_symlink() or not path.is_file() or path.suffix not in {'.json','.xml','.png'}:
                     raise GateError('local_media_export_inventory_invalid')
                 target.write(path,path.name)
-        encrypted=encrypt(archive,output/'journey.cms',RECIPIENT)
+        recipient = REVIEW_RECIPIENT if os.environ.get('PHASE23_LOCAL_JOURNEY_RECIPIENT_SHA256') else RECIPIENT
+        encrypted=encrypt(archive,output/'journey.cms',recipient)
     finally:
         archive.unlink(missing_ok=True)
     receipt={**manifest,'checkpoint_count':len(records),'checkpoints':[x['stage'] for x in records],
              'encrypted_evidence':encrypted,'recipient_sha256':RECIPIENT_SHA256,
              'plaintext_exported':False,'apk_exported':False}
+    if recipient == REVIEW_RECIPIENT:
+        receipt['journey_recipient_sha256'] = REVIEW_RECIPIENT_SHA256
     (output/'PUBLIC_RECEIPT.json').write_text(json.dumps(receipt,indent=2)+'\n')
 
 
@@ -929,6 +939,11 @@ def main():
         raise GateError('local_media_live_credentials_refused')
     if digest(RECIPIENT)!=RECIPIENT_SHA256 or RECIPIENT.is_symlink():
         raise GateError('local_media_recipient_invalid')
+    if os.environ.get('PHASE23_LOCAL_JOURNEY_RECIPIENT_SHA256') is not None and (
+        os.environ['PHASE23_LOCAL_JOURNEY_RECIPIENT_SHA256'] != REVIEW_RECIPIENT_SHA256 or
+        REVIEW_RECIPIENT.is_symlink() or not REVIEW_RECIPIENT.is_file() or
+        digest(REVIEW_RECIPIENT) != REVIEW_RECIPIENT_SHA256):
+        raise GateError('local_media_journey_recipient_invalid')
     fixture=validate_fixture(json.loads(args.fixture.read_text()),os.environ)
     verify_build(args.apk,json.loads((args.fixture.parent/'BUILD_RECEIPT.json').read_text()),fixture)
     d=BaseDevice(args.serial,time.monotonic()+args.max_seconds)

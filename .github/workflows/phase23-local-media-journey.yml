@@ -201,6 +201,8 @@ jobs:
           adb -s emulator-5554 shell iptables -S OUTPUT > "$RUNNER_TEMP/phase23-local-media/ipv4-rules.txt"
           adb -s emulator-5554 shell ip6tables -S OUTPUT > "$RUNNER_TEMP/phase23-local-media/ipv6-rules.txt"
       - name: Exercise real app media, review and reader refresh in the local runtime
+        env:
+          PHASE23_LOCAL_JOURNEY_RECIPIENT_SHA256: '4bdf43f77b92183d2902c1c4742116ff8c8a24310e0e86a2b190c8f42bfd810e'
         run: |
           python3 -B scripts/run_phase23_local_media_journey.py \
             --apk mobile_app/build/app/outputs/flutter-apk/app-uat-debug.apk \

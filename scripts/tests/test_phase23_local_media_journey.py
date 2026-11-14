@@ -150,6 +150,16 @@ class FixtureBoundaryTests(unittest.TestCase):
 
 
 class NativeInputBoundaryTests(unittest.TestCase):
+    def test_editor_opens_the_listing_menu_when_edit_is_not_the_primary_action(self):
+        value = fixture()
+        journey = c.Journey(Mock(deadline=time.monotonic()+60), value, Path('/tmp/fixture.json'), Path('/tmp/evidence'))
+        with patch.object(journey,'shell'), patch.object(journey,'tap') as tap, \
+                patch.object(journey,'wait',side_effect=[screen(node(value['title'])), screen(node('إكمال الإعلان'))]), \
+                patch.object(journey,'xml',return_value=screen(node('التالي'))):
+            journey.editor()
+        self.assertEqual([call.args[0] for call in tap.call_args_list],
+                         ['حسابي','عقاراتي','خيارات البطاقة','إكمال الإعلان'])
+
     def test_shell_uses_the_visible_footer_button_even_without_an_android_click_action(self):
         tab = node('حسابي', '[20,1680][240,1850]', clickable='false', selected='false')
         value = screen(node('حسابي'), tab)
