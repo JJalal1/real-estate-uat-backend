@@ -601,9 +601,11 @@ class Journey:
             coords = coords[2:] + coords[:2]
         self.input(); self.d.adb('shell', 'input', 'swipe', *map(str, coords), '450'); time.sleep(.4)
 
-    def text(self, label, value, seek=0):
+    def text(self, label, value, seek=0, prefix=''):
         if not re.fullmatch(r'[A-Za-z0-9 .+_-]{1,160}', value):
             raise GateError('local_media_ascii_fixture_input_required')
+        if prefix and (prefix != '+967' or label != 'رقم واتساب' or value not in PHONES.values()):
+            raise GateError('local_media_phone_prefix_invalid')
         for attempt in range(seek+1):
             xml = self.xml()
             try:
@@ -612,14 +614,25 @@ class Journey:
             except Incomplete as error:
                 if str(error) != 'local_media_control_missing' or attempt == seek: raise
                 self.scroll()
-        if select_control(self.xml(),label,{PACKAGE}|KEYBOARDS,editable=True) != box:
+        fresh = self.xml(site='text_field_revalidate')
+        if select_control(fresh,label,{PACKAGE}|KEYBOARDS,editable=True) != box:
             raise Incomplete('local_media_control_moved')
+        if prefix:
+            _, fields = ui_nodes(fresh, {PACKAGE}|KEYBOARDS)
+            if not any(n.get('class') == 'android.widget.EditText' and prefix in labels(n)
+                       and n.get('bounds') == f'[{box[0]},{box[1]}][{box[2]},{box[3]}]' for n in fields):
+                raise Incomplete('local_media_phone_prefix_unobserved')
         self.input(); self.d.adb('shell', 'input', 'tap', str((box[0]+box[2])//2), str((box[1]+box[3])//2))
-        self.d.adb('shell', 'input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_A')
-        self.d.adb('shell', 'input', 'keyevent', 'KEYCODE_DEL')
-        self.d.adb('shell', 'input', 'text', value.replace(' ', '%s'))
+        if prefix:
+            # The ordinary phone field already includes +967. Enter only the
+            # synthetic subscriber digits, keeping the app's country prefix.
+            self.d.adb('shell', 'input', 'keyevent', 'KEYCODE_MOVE_END')
+        else:
+            self.d.adb('shell', 'input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_A')
+            self.d.adb('shell', 'input', 'keyevent', 'KEYCODE_DEL')
+        self.d.adb('shell', 'input', 'text', value.removeprefix(prefix).replace(' ', '%s'))
         time.sleep(.3)
-        entered = self.xml()
+        entered = self.xml(site='text_field_verify')
         if not any(n.get('class') == 'android.widget.EditText' and value in labels(n) for n in ET.fromstring(entered).iter('node')):
             raise Incomplete('local_media_text_input_unproved')
         self.d.adb('shell', 'input', 'keyevent', 'KEYCODE_BACK'); time.sleep(.3)
@@ -661,7 +674,7 @@ class Journey:
         self.stage = 'login_' + alias
         self.shell()
         self.tap('حسابي', shell_tab=True, site='account_tab'); self.tap('تسجيل الدخول أو إنشاء حساب', seek=2, site='login_entry')
-        self.wait('رقم واتساب'); self.text('رقم واتساب', self.f['actors'][alias]['phone'])
+        self.wait('رقم واتساب'); self.text('رقم واتساب', self.f['actors'][alias]['phone'], prefix='+967')
         self.tap('إرسال رمز واتساب')
         xml = self.wait('تأكيد والدخول')
         codes = [m[1] for text in self.names(xml) if (m:=re.fullmatch(r'رمز بيئة الاختبار المحلية: ([0-9]{6})',text))]

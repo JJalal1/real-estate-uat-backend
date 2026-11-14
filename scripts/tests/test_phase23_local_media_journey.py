@@ -193,6 +193,23 @@ class NativeInputBoundaryTests(unittest.TestCase):
                 self.assertEqual(device.adb.call_args_list[3].args,('shell','input','text',value.replace(' ','%s')))
                 self.assertEqual(device.adb.call_count,5 if accepted else 4)
 
+    def test_local_fixture_login_enters_only_subscriber_digits_after_the_observed_prefix(self):
+        label = 'رقم واتساب'
+        phone = c.PHONES['advertiser']
+        before = screen(node('+967', **{'class':'android.widget.EditText', 'hint':label}))
+        after = screen(node(phone, **{'class':'android.widget.EditText', 'hint':label}))
+        device = Mock()
+        journey = c.Journey(device, fixture(), Path('/tmp/fixture.json'), Path('/tmp/evidence'))
+        with patch.object(journey, 'xml', side_effect=[before, before, after]), patch.object(c.time, 'sleep'):
+            journey.text(label, phone, prefix='+967')
+        self.assertEqual(device.adb.call_args_list[1].args, ('shell', 'input', 'keyevent', 'KEYCODE_MOVE_END'))
+        self.assertEqual(device.adb.call_args_list[2].args, ('shell', 'input', 'text', phone[4:]))
+        device.adb.reset_mock()
+        missing = before.replace('+967', '+968')
+        with patch.object(journey, 'xml', side_effect=[missing, missing]), self.assertRaisesRegex(c.Incomplete, 'phone_prefix_unobserved'):
+            journey.text(label, phone, prefix='+967')
+        device.adb.assert_not_called()
+
     def test_only_current_allowlisted_app_or_picker_surface_is_accepted(self):
         c.ui_nodes(screen(), {c.PACKAGE})
         picker = 'com.android.documentsui'
