@@ -150,6 +150,21 @@ class FixtureBoundaryTests(unittest.TestCase):
 
 
 class NativeInputBoundaryTests(unittest.TestCase):
+    def test_shell_uses_the_visible_footer_button_even_without_an_android_click_action(self):
+        tab = node('حسابي', '[20,1680][240,1850]', clickable='false', selected='false')
+        value = screen(node('حسابي'), tab)
+        self.assertEqual(c.select_control(value, 'حسابي', {c.PACKAGE}), (20, 200, 1000, 350))
+        self.assertEqual(c.select_control(value, 'حسابي', {c.PACKAGE}, shell_tab=True), (20, 1680, 240, 1850))
+        wrong = (tab.replace('android.widget.Button', 'android.view.View'),
+                 tab.replace('enabled="true"', 'enabled="false"'),
+                 tab.replace('[20,1680][240,1850]', '[20,500][240,600]'),
+                 tab.replace(c.PACKAGE, 'com.other.app'))
+        for candidate in wrong:
+            with self.subTest(candidate=candidate), self.assertRaises(c.Incomplete):
+                c.select_control(screen(candidate), 'حسابي', {c.PACKAGE}, shell_tab=True)
+        with self.assertRaisesRegex(c.Incomplete, 'local_media_control_ambiguous'):
+            c.select_control(screen(tab, tab), 'حسابي', {c.PACKAGE}, shell_tab=True)
+
     def test_bidi_formats_match_visible_labels_without_changing_evidence_or_joiners(self):
         wrapped='\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069Phone'
         value=screen(node(wrapped,**{'content-desc':'\u202aVisible value\u202c',
@@ -262,7 +277,8 @@ class NativeInputBoundaryTests(unittest.TestCase):
 
 class StartupBoundaryTests(unittest.TestCase):
     target_focus = 'mResumedActivity: ActivityRecord{123 u0 ' + c.ACTIVITY + ' t1}'
-    home = screen(node('ماذا تبحث عنه؟'), node('حسابي', '[20,500][1000,650]'))
+    home = screen(node('ماذا تبحث عنه؟'),
+                  node('حسابي', '[20,1680][240,1850]', clickable='false', selected='false'))
 
     def make_journey(self, frames, focus=None):
         device = Mock()

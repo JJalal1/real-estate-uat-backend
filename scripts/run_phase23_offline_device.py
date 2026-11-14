@@ -393,6 +393,19 @@ def verify_archive(apk):
             raise GateError('device_other_target_refused')
 
 
+def verify_installed_apk(device, apk):
+    installed = device.adb('shell', 'pm', 'path', PACKAGE)
+    match = re.fullmatch(r'package:(/data/app/(?:[A-Za-z0-9_~=+.-]+/)+base\.apk)', installed)
+    if not match or any(part in ('.', '..') for part in match[1].split('/')):
+        raise GateError('device_installed_path_invalid')
+    path = match[1]
+    # Hash the full base APK on the device instead of streaming it over adb.
+    expected = digest(apk)
+    observed = device.adb('shell', 'sha256sum', path, timeout=60)
+    if observed != f'{expected}  {path}':
+        raise GateError('device_installed_identity_mismatch')
+
+
 def synthetic_png():
     def chunk(kind, data):
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
@@ -910,11 +923,7 @@ def collect(args, env=os.environ):
     device.adb('shell', 'cmd', 'location', 'set-location-enabled', 'true', '--user', '0')
     device.geo()
     device.adb('install', '--no-streaming', str(apk), timeout=180)
-    path = device.adb('shell', 'pm', 'path', PACKAGE)
-    if not re.fullmatch(r'package:/data/app/[A-Za-z0-9_./=+~-]+/base\.apk', path):
-        raise GateError('device_installed_path_invalid')
-    if hashlib.sha256(device.adb('exec-out', 'cat', path[8:], binary=True, timeout=60)).hexdigest() != digest(apk):
-        raise GateError('device_installed_identity_mismatch')
+    verify_installed_apk(device, apk)
     with tempfile.TemporaryDirectory(prefix='phase23-device-', dir=env['RUNNER_TEMP']) as directory:
         private = Path(directory) / 'frames'
         private.mkdir(mode=0o700)

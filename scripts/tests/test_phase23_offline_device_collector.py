@@ -9,7 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -46,6 +46,38 @@ def receipt():
 def startup_receipt(diagnostic):
     return {**receipt(), 'stage': 'launch', 'failure': 'surface_unavailable',
             'case_failures': {}, 'checks': {}, 'startup_diagnostics': diagnostic}
+
+
+class InstalledApkTests(unittest.TestCase):
+    def test_exact_device_side_hash_required_for_the_single_installed_base_apk(self):
+        path = '/data/app/~~session=/com.aqer.yemen.uat-build=/base.apk'
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / 'build.apk'
+            apk.write_bytes(b'original APK bytes\x00\xff')
+            expected = hashlib.sha256(apk.read_bytes()).hexdigest()
+            for observed, accepted in ((f'{expected}  {path}', True),
+                                       (f'{expected}  {path}.other', False),
+                                       (f'{"0" * 64}  {path}', False), ('', False)):
+                device = Mock()
+                device.adb.side_effect = ['package:' + path, observed]
+                with self.subTest(observed=observed):
+                    if accepted:
+                        c.verify_installed_apk(device, apk)
+                    else:
+                        with self.assertRaisesRegex(GateError, 'device_installed_identity_mismatch'):
+                            c.verify_installed_apk(device, apk)
+                self.assertEqual(device.adb.call_args_list[0].args, ('shell', 'pm', 'path', c.PACKAGE))
+                device.adb.assert_called_with('shell', 'sha256sum', path, timeout=60)
+
+    def test_invalid_or_split_package_path_is_never_passed_to_the_shell(self):
+        for path in ('/data/app/a/base.apk', 'package:/data/app/a/../base.apk',
+                     'package:/data/app/a/base.apk\npackage:/data/app/a/split.apk',
+                     'package:/data/app/a;base.apk'):
+            device = Mock()
+            device.adb.return_value = path
+            with self.subTest(path=path), self.assertRaisesRegex(GateError, 'device_installed_path_invalid'):
+                c.verify_installed_apk(device, None)
+            device.adb.assert_called_once()
 
 
 class MetadataTests(unittest.TestCase):

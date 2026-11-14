@@ -166,8 +166,34 @@ def xml_failure_shape(xml):
     return 'foreign_surface'
 
 
-def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False):
+def select_shell_tab(nodes, label, size):
+    if label not in {'حسابي', 'الوارد'}:
+        raise GateError('local_media_shell_tab_invalid')
+    # AppNavigationBar puts physical touch on the excluded GestureDetector.
+    # Android exposes the outer tab as a Button without a semantic click action.
+    matches = []
+    for node in nodes:
+        if (node.get('package') != PACKAGE or label not in labels(node) or
+                node.get('class') != 'android.widget.Button' or node.get('enabled') != 'true' or
+                node.get('visible-to-user', 'true') != 'true' or
+                node.get('selected') not in {'true', 'false'}):
+            continue
+        try:
+            left, top, right, bottom = bounds(node.get('bounds'), size)
+        except GateError:
+            continue
+        if (top >= size[1]*.75 and bottom <= size[1]*.98 and
+                right-left <= size[0]*.35 and bottom-top <= size[1]*.16):
+            matches.append((left, top, right, bottom))
+    if len(matches) != 1:
+        raise Incomplete('local_media_control_missing' if not matches else 'local_media_control_ambiguous')
+    return matches[0]
+
+
+def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False, shell_tab=False):
     root, nodes = ui_nodes(xml, packages)
+    if shell_tab:
+        return select_shell_tab(nodes, label, size)
     parents = {child: node for node in root.iter() for child in node}
     matches = {}
     for node in nodes:
@@ -501,7 +527,7 @@ class Journey:
                 if not continued and intro <= names:
                     self.tap('المتابعة الآن',site='startup_intro'); continued = True
                 elif {'ماذا تبحث عنه؟','حسابي'} <= names and not names & intro:
-                    select_control(self.xml(site='startup_home_revalidate'),'حسابي',{PACKAGE}|KEYBOARDS)
+                    select_control(self.xml(site='startup_home_revalidate'),'حسابي',{PACKAGE}|KEYBOARDS,shell_tab=True)
                     return self.checkpoint('initial') if capture_initial else None
             except Incomplete:
                 # Every startup read participates, including action revalidation and
@@ -523,18 +549,19 @@ class Journey:
         if self.inputs > MAX_INPUTS:
             raise Incomplete('local_media_input_budget_exceeded')
 
-    def tap(self, label, ordinal=None, picker=False, seek=0, site='tap'):
+    def tap(self, label, ordinal=None, picker=False, seek=0, site='tap', shell_tab=False):
+        packages = {PACKAGE} | KEYBOARDS | ({self.picker} if picker else set())
         for attempt in range(seek + 1):
             xml = self.xml(picker,site=site+'_candidate')
             try:
-                box = select_control(xml, label, {PACKAGE} | KEYBOARDS | ({self.picker} if picker else set()), ordinal=ordinal)
+                box = select_control(xml, label, packages, ordinal=ordinal, shell_tab=shell_tab)
                 break
             except Incomplete as error:
                 if str(error) != 'local_media_control_missing' or attempt == seek:
                     raise
                 self.scroll()
         fresh = self.xml(picker,site=site+'_revalidate')
-        other = select_control(fresh, label, {PACKAGE} | KEYBOARDS | ({self.picker} if picker else set()), ordinal=ordinal)
+        other = select_control(fresh, label, packages, ordinal=ordinal, shell_tab=shell_tab)
         if other != box:
             raise Incomplete('local_media_control_moved')
         self.input()
@@ -621,7 +648,7 @@ class Journey:
     def login(self, alias):
         self.stage = 'login_' + alias
         self.shell()
-        self.tap('حسابي'); self.tap('تسجيل الدخول أو إنشاء حساب', seek=2)
+        self.tap('حسابي', shell_tab=True, site='account_tab'); self.tap('تسجيل الدخول أو إنشاء حساب', seek=2, site='login_entry')
         self.wait('رقم واتساب'); self.text('رقم واتساب', self.f['actors'][alias]['phone'])
         self.tap('إرسال رمز واتساب')
         xml = self.wait('تأكيد والدخول')
@@ -633,7 +660,7 @@ class Journey:
 
     def logout(self):
         self.shell()
-        self.tap('حسابي'); self.tap('تسجيل الخروج', seek=5)
+        self.tap('حسابي', shell_tab=True, site='account_tab'); self.tap('تسجيل الخروج', seek=5)
         xml=self.xml()
         if 'هل تريد تسجيل الخروج؟' in self.names(xml):
             self.tap('تسجيل الخروج')
@@ -645,7 +672,7 @@ class Journey:
             if 'لديك تعديلات غير محفوظة' in self.names(xml):
                 raise Incomplete('local_media_unsaved_navigation_refused')
             try:
-                select_control(xml,'حسابي',{PACKAGE}|KEYBOARDS)
+                select_control(xml,'حسابي',{PACKAGE}|KEYBOARDS,shell_tab=True)
                 return
             except Incomplete as error:
                 if str(error) not in {'local_media_control_missing','local_media_control_ambiguous'}:
@@ -655,7 +682,7 @@ class Journey:
 
     def editor(self, label='إكمال الإعلان'):
         self.shell()
-        self.tap('حسابي')
+        self.tap('حسابي', shell_tab=True, site='account_tab')
         self.tap('عقاراتي', seek=5)
         self.wait(self.f['title'])
         self.tap(label, seek=5)
@@ -748,7 +775,7 @@ class Journey:
         self.wait(self.f['updated_title'] if updated else self.f['title'],seconds=80)
 
     def review_open(self):
-        self.shell(); self.tap('الوارد')
+        self.shell(); self.tap('الوارد', shell_tab=True, site='support_inbox_tab')
         self.tap('استلام',seek=6)
         # Support claim opens the actual ListingReviewCaseScreen automatically.
         self.wait('تم الاستلام - قيد التحقيق')
