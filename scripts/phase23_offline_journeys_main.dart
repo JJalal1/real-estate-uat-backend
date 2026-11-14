@@ -245,7 +245,9 @@ class _OfflineJourneysAppState extends State<_OfflineJourneysApp> {
     // and the unmodified app router dispatch it. This target never navigates
     // to the thread itself; it only observes the resulting route and pixels.
     if (!mounted || journey.stage != 13 ||
-        journey.router.routeInformationProvider.value.uri.path != '/messages/9010') return;
+        journey.router.routeInformationProvider.value.uri.path != '/messages/9010') {
+      return;
+    }
     setState(() { journey.stage = 14; _busy = true; });
     _readyTimer?.cancel();
     _markReady();
@@ -286,7 +288,9 @@ class _OfflineJourneysAppState extends State<_OfflineJourneysApp> {
 
   Future<void> _next() async {
     if (_busy || journey.stage == 4 || journey.stage == 13 ||
-        journey.stage == 15 || _failureCount != 0) return;
+        journey.stage == 15 || _failureCount != 0) {
+      return;
+    }
     // These stages may advance only after the collector taps the real AppShell tab.
     if (journey.stage == 9 && (journey.adapter.workspaceRequests == 0 ||
         !_hasActualText('لوحة الدلال'))) { _failure('natural_workspace_tap_missing'); return; }

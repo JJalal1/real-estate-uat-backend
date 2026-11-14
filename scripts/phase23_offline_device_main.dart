@@ -356,7 +356,7 @@ class _DeviceAppState extends State<_DeviceApp> {
                   Semantics(label: 'DEVICE_META ${jsonEncode(_meta)}', excludeSemantics: true,
                     child: Text('Case ${_meta['case']} · failures ${_meta['failures']} · synthetic sensor input',
                       style: const TextStyle(fontSize: 9, color: Colors.white)))),
-              ]))))),
+              ])))))),
         Expanded(child: child!),
       ])),
     home: const Scaffold(body: Center(child: Padding(padding: EdgeInsets.all(24), child: Text(
