@@ -14,6 +14,7 @@ on:
       - scripts/tests/test_phase23_offline_visual_collector.py
       - scripts/phase23_visual_revision.py
       - scripts/prepare_phase23_visual_delivery.py
+      - scripts/phase23_owner_delivery_recipient.pem
       - scripts/tests/test_phase23_visual_revision.py
       - scripts/tests/test_phase23_visual_delivery.py
       - mobile_app/lib/core/widgets/app_components.dart
@@ -98,6 +99,8 @@ jobs:
       - name: Validate contrast and GPS control layout and build ordinary UAT
         if: ${{ contains(github.event.head_commit.message, '[build-owner-apk]') }}
         working-directory: mobile_app
+        env:
+          PHASE23_OWNER_RECIPIENT_SHA256: '4bdf43f77b92183d2902c1c4742116ff8c8a24310e0e86a2b190c8f42bfd810e'
         run: |
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get

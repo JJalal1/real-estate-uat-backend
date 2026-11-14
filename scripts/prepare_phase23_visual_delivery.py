@@ -20,6 +20,7 @@ from prepare_phase1_close import android_tools, elf, encrypt
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPIENT_SHA256 = 'b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070'
+OWNER_RECIPIENT_SHA256 = '4bdf43f77b92183d2902c1c4742116ff8c8a24310e0e86a2b190c8f42bfd810e'
 ABIS = {'arm64-v8a', 'armeabi-v7a', 'x86_64'}
 FORBIDDEN_MARKERS = (
     b'AQER_PHASE23_PRIVATE_PAGES_READ_ONLY_V1',
@@ -93,9 +94,12 @@ def verify_archive(archive, properties):
 def prepare(env, root=ROOT):
     identity = guard(env, root)
     version = build_number(env)
-    cert = root / 'scripts/phase23_recipient.pem'
-    if (env.get('PHASE23_RECIPIENT_SHA256') != RECIPIENT_SHA256 or
-            sha(cert) != RECIPIENT_SHA256 or
+    recipient = env.get('PHASE23_OWNER_RECIPIENT_SHA256')
+    cert = root / ('scripts/phase23_owner_delivery_recipient.pem' if recipient is not None
+                   else 'scripts/phase23_recipient.pem')
+    expected = OWNER_RECIPIENT_SHA256 if recipient is not None else RECIPIENT_SHA256
+    supplied = recipient if recipient is not None else env.get('PHASE23_RECIPIENT_SHA256')
+    if (supplied != expected or cert.is_symlink() or not cert.is_file() or sha(cert) != expected or
             '-----BEGIN CERTIFICATE-----' not in cert.read_text()):
         raise GateError('visual_delivery_recipient_mismatch')
     private = root / 'phase23-visual-delivery-private'
@@ -128,6 +132,7 @@ def prepare(env, root=ROOT):
                'owner_update_compatibility_verified': False, 'firebase': firebase,
                'experiments': {'conditional_prefetch': True, 'callback_harness': False,
                                'private_pages': False, 'synthetic_offline': False},
+               'delivery_recipient_sha256': expected,
                'native_acceptance_claimed': False, 'private_key_exported': False}
     (private / 'APK_VERIFICATION.json').write_text(json.dumps(receipt, indent=2) + '\n')
     out = root / 'phase23-visual-installer-sealed'
