@@ -54,7 +54,10 @@ BROKER_TABS = {'الرئيسية', 'عملي', 'العملاء', 'حسابي'}
 REGULAR_TABS = {'العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'}
 REASONS = {'history_mismatch', 'file_persistence_mismatch', 'recent_ui_mismatch',
            'shell_ui_mismatch', 'workspace_anchor_missing', 'pending_gate_missing',
-           'required_control_missing', 'message_link_ui_mismatch', 'favorites_supplement_missing'}
+           'required_control_missing', 'message_link_ui_mismatch', 'favorites_supplement_missing',
+           'ready_state_timeout'}
+WAITABLE = {'offline_journey_expected_surface_missing', 'offline_journey_ready_missing',
+            'offline_journey_next_state_invalid'}
 STAGE = 'startup'
 
 
@@ -64,6 +67,19 @@ class CoverageIncomplete(GateError):
             raise GateError('offline_journey_partial_reason_invalid')
         self.reason, self.stage = reason, stage
         super().__init__(f'offline_journey_coverage_incomplete reason={reason} stage={stage:02d}')
+
+
+class ReadyTimeout(CoverageIncomplete):
+    def __init__(self, stage, last_ready_stage, wait_reason):
+        if (type(last_ready_stage) is not int or not -1 <= last_ready_stage <= stage or
+                wait_reason not in WAITABLE):
+            raise GateError('offline_journey_timeout_diagnostic_invalid')
+        super().__init__('ready_state_timeout', stage)
+        self.last_ready_stage, self.wait_reason = last_ready_stage, wait_reason
+
+    def __str__(self):
+        return (super().__str__() + f' last_ready_stage={self.last_ready_stage}'
+                + f' wait_reason={self.wait_reason}')
 
 
 def marker(stage):
@@ -136,7 +152,7 @@ def labels(node):
             for part in node.get(field, '').splitlines() if part.strip()}
 
 
-def ui_guard(xml, stage, size):
+def ui_guard(xml, stage, size, allow_busy=False):
     if len(xml.encode()) > 2_000_000 or '<!DOCTYPE' in xml or '<!ENTITY' in xml:
         raise GateError('offline_journey_xml_invalid')
     try:
@@ -162,7 +178,9 @@ def ui_guard(xml, stage, size):
     box = bounds(next_node.get('bounds'), size)
     if box[3] > size[1] * .3 or next_node.get('visible-to-user', 'true') != 'true':
         raise GateError('offline_journey_next_bounds_invalid')
-    if next_node.get('enabled') != ('false' if stage in (4, 13, 15) else 'true'):
+    if next_node.get('enabled') not in ('false', 'true'):
+        raise GateError('offline_journey_next_state_invalid')
+    if not allow_busy and next_node.get('enabled') != ('false' if stage in (4, 13, 15) else 'true'):
         raise GateError('offline_journey_next_state_invalid')
     return nodes
 
@@ -308,9 +326,11 @@ class JourneyDevice(Device):
     def wait_ready(self, stage, size, after_work=False):
         deadline = min(self.deadline, time.monotonic() + 35)
         last = None
+        last_ready_stage, wait_reason = -1, 'offline_journey_ready_missing'
         while time.monotonic() < deadline:
             log = self.log()
-            proof_events(log)
+            events = proof_events(log)
+            last_ready_stage = events[-1]['stage'] if events else -1
             xml = self.xml()
             try:
                 nodes, proof = ready_for(xml, log, stage, size)
@@ -324,13 +344,13 @@ class JourneyDevice(Device):
             except GateError as error:
                 # setState precedes the ready log, but accessibility may still
                 # expose one busy frame with a disabled Next control.
-                if str(error) not in {'offline_journey_expected_surface_missing', 'offline_journey_ready_missing',
-                                      'offline_journey_next_state_invalid'}:
+                if str(error) not in WAITABLE:
                     raise
+                wait_reason = str(error)
             time.sleep(.25)
         if last is not None:
             return last  # Safe diagnostic screenshot; acceptance check then fails.
-        raise GateError('offline_journey_ready_timeout')
+        raise ReadyTimeout(stage, last_ready_stage, wait_reason)
 
     def restart_preserving_files(self):
         self.adb('shell', 'am', 'force-stop', PACKAGE)
@@ -367,7 +387,105 @@ def capture(device, private, frames, stage, size, restart_proof=None, after_work
     return after_xml, proof
 
 
-def export(private, output, identity, frames, restart_count, failure=None, encryptor=encrypt):
+def diagnostic_ui(xml):
+    if len(xml.encode()) > 2_000_000 or '<!DOCTYPE' in xml or '<!ENTITY' in xml:
+        raise GateError('offline_journey_xml_invalid')
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError:
+        raise GateError('offline_journey_xml_invalid') from None
+    nodes = list(root.iter('node'))
+    if root.tag != 'hierarchy' or not nodes or len(nodes) > 10000:
+        raise GateError('offline_journey_xml_invalid')
+    packages = {node.get('package') for node in nodes if node.get('package')}
+    if packages != {PACKAGE}:
+        raise GateError('offline_journey_foreign_surface')
+    names = set().union(*(labels(node) for node in nodes))
+    if any(FAILURE in name for name in names):
+        raise GateError('offline_journey_target_failure')
+    structure = [{key: node.get(key) for key in ('class', 'bounds', 'enabled', 'clickable', 'scrollable')}
+                 for node in nodes]
+    next_nodes = [node for node in nodes if NEXT in labels(node)]
+    next_enabled = (next_nodes[0].get('enabled', 'missing') if len(next_nodes) == 1
+                    else 'missing' if not next_nodes else 'ambiguous')
+    if next_enabled not in ('true', 'false', 'missing', 'ambiguous'):
+        next_enabled = 'missing'
+    return names, {'has_target': TARGET in names, 'has_banner': BANNER in names,
+                   'has_next': NEXT in names, 'node_count': len(nodes),
+                   'next_enabled': next_enabled,
+                   'observed_stages': [stage for stage in range(COUNT) if marker(stage) in names],
+                   'structure_sha256': hashlib.sha256(json.dumps(structure, sort_keys=True).encode()).hexdigest()}
+
+
+def diagnostic_activity(device):
+    resumed = re.findall(r'(?:topResumedActivity|mResumedActivity)\s*[:=]\s*ActivityRecord\{[^}\n]*?\s('
+                         + re.escape(PACKAGE) + r'/[A-Za-z0-9_.$]+)',
+                         device.adb('shell', 'dumpsys', 'activity', 'activities'))
+    if not resumed or set(resumed) != {ACTIVITY}:
+        raise GateError('offline_journey_diagnostic_activity_unverified')
+
+
+def timeout_diagnostic(device, private, failure, size, installed_apk_sha256=None):
+    """Save only enum diagnostics, and pixels only for this exact synthetic target.
+
+    This is not a passing checkpoint and never relaxes normal readiness/input
+    checks. Unknown or foreign surfaces, target failures and network faults still
+    stop without a new screenshot. Previous verified checkpoints are retained.
+    """
+    if not isinstance(failure, ReadyTimeout):
+        raise GateError('offline_journey_timeout_diagnostic_invalid')
+    diagnostic = {'stage': failure.stage, 'last_ready_stage': failure.last_ready_stage,
+                  'wait_reason': failure.wait_reason, 'target_frame_verified': False,
+                  'png_sha256': None, 'xml_sha256': None, 'display_size_px': list(size),
+                  'capture_identity': None}
+    xml, log = device.xml(), device.log()
+    events = proof_events(log)
+    names, structure = diagnostic_ui(xml)
+    diagnostic.update(structure, ready_count=len(events))
+    capture_identity = None
+    try:
+        ui_guard(xml, failure.stage, size, allow_busy=True)
+    except GateError as error:
+        if str(error) != 'offline_journey_expected_surface_missing':
+            raise
+        # Exact source + installed APK were already checked on a fresh isolated
+        # AVD before launch. Reverify that identity and resumed activity here so
+        # a missing accessibility header cannot suppress useful synthetic-only
+        # diagnostics. This permission never applies to normal input/readiness.
+        if installed_apk_sha256 is not None:
+            if not re.fullmatch('[0-9a-f]{64}', installed_apk_sha256):
+                raise GateError('offline_journey_diagnostic_apk_unverified')
+            diagnostic_activity(device)
+            installed = device.adb('shell', 'pm', 'path', PACKAGE)
+            if not re.fullmatch(r'package:/data/app/[A-Za-z0-9_./=+~-]+/base\.apk', installed):
+                raise GateError('offline_journey_installed_path_invalid')
+            if hashlib.sha256(device.adb('exec-out', 'cat', installed[8:], binary=True, timeout=60)).hexdigest() != installed_apk_sha256:
+                raise GateError('offline_journey_diagnostic_apk_unverified')
+            capture_identity = 'fresh_synthetic_apk_activity'
+    else:
+        capture_identity = 'target_markers'
+    if capture_identity is not None:
+        png = device.adb('exec-out', 'screencap', '-p', binary=True)
+        if (len(png) < 24 or png[:8] != b'\x89PNG\r\n\x1a\n' or
+                struct.unpack('>II', png[16:24]) != size):
+            raise GateError('offline_journey_screenshot_invalid')
+        after = device.xml()
+        diagnostic_ui(after)
+        if capture_identity == 'target_markers':
+            ui_guard(after, failure.stage, size, allow_busy=True)
+        else:
+            diagnostic_activity(device)
+        proof_events(device.log())
+        diagnostic.update(target_frame_verified=True, capture_identity=capture_identity,
+                          png_sha256=hashlib.sha256(png).hexdigest(),
+                          xml_sha256=hashlib.sha256(xml.encode()).hexdigest())
+        (private/'DIAGNOSTIC.png').write_bytes(png)
+        (private/'DIAGNOSTIC.xml').write_text(xml, encoding='utf-8')
+    (private/'DIAGNOSTIC.json').write_text(json.dumps(diagnostic, indent=2)+'\n')
+    return diagnostic
+
+
+def export(private, output, identity, frames, restart_count, failure=None, encryptor=encrypt, diagnostic=None):
     allowed_identity = {'source_sha', 'run_id', 'product_trees', 'package', 'version_code', 'apk_sha256'}
     if (set(identity) != allowed_identity or identity['product_trees'] != TREES or
             identity['package'] != PACKAGE or not re.fullmatch('[a-f0-9]{40}', identity['source_sha']) or
@@ -381,7 +499,7 @@ def export(private, output, identity, frames, restart_count, failure=None, encry
     names = [row['frame'] for row in frames]
     expected = [f'stage-{stage:02d}' + suffix for stage in range(COUNT)
                 for suffix in (('', '-after-work') if stage in (9, 11) else ('', '-after-scroll') if stage == 15 else ('',))]
-    if (not names or names != expected[:len(names)] or len(names) != len(set(names)) or
+    if ((not names and diagnostic is None) or names != expected[:len(names)] or len(names) != len(set(names)) or
             any(type(row.get('accepted')) is not bool or type(row.get('stage')) is not int or
                 type(row.get('after_work')) is not bool or
                 type(row.get('after_scroll')) is not bool or
@@ -391,9 +509,43 @@ def export(private, output, identity, frames, restart_count, failure=None, encry
         raise GateError('offline_journey_frame_sequence_invalid')
     if failure is None and (names != expected or not all(row['accepted'] for row in frames) or restart_count != 1):
         raise GateError('offline_journey_complete_proof_missing')
-    if failure is not None and (failure.stage != frames[-1]['stage'] or
-                               any(not row['accepted'] for row in frames[:-1])):
-        raise GateError('offline_journey_unverified_prior_frame')
+    if diagnostic is None:
+        if failure is not None and (failure.stage != frames[-1]['stage'] or
+                                   any(not row['accepted'] for row in frames[:-1])):
+            raise GateError('offline_journey_unverified_prior_frame')
+    else:
+        diagnostic_fields = {'stage', 'last_ready_stage', 'wait_reason', 'target_frame_verified',
+                             'png_sha256', 'xml_sha256', 'display_size_px', 'capture_identity',
+                             'has_target', 'has_banner', 'has_next', 'node_count',
+                             'observed_stages', 'structure_sha256', 'ready_count', 'next_enabled'}
+        next_stage = int(expected[len(names)].split('-')[1]) if len(names) < len(expected) else None
+        if (not isinstance(failure, ReadyTimeout) or set(diagnostic) != diagnostic_fields or
+                diagnostic['stage'] != failure.stage or failure.stage != next_stage or
+                diagnostic['last_ready_stage'] != failure.last_ready_stage or
+                diagnostic['wait_reason'] != failure.wait_reason or
+                type(diagnostic['target_frame_verified']) is not bool or
+                any(type(diagnostic[key]) is not bool for key in ('has_target', 'has_banner', 'has_next')) or
+                diagnostic['next_enabled'] not in ('true', 'false', 'missing', 'ambiguous') or
+                type(diagnostic['node_count']) is not int or not 1 <= diagnostic['node_count'] <= 10000 or
+                type(diagnostic['ready_count']) is not int or not 0 <= diagnostic['ready_count'] <= 1000 or
+                not re.fullmatch('[a-f0-9]{64}', str(diagnostic['structure_sha256'])) or
+                type(diagnostic['observed_stages']) is not list or
+                any(type(stage) is not int or not 0 <= stage < COUNT for stage in diagnostic['observed_stages']) or
+                diagnostic['observed_stages'] != sorted(set(diagnostic['observed_stages'])) or
+                diagnostic['capture_identity'] not in ({'target_markers', 'fresh_synthetic_apk_activity'}
+                    if diagnostic['target_frame_verified'] else {None}) or
+                diagnostic['display_size_px'] != list(COMPACT_SIZE if failure.stage == 15 else DEFAULT_SIZE) or
+                not all(row['accepted'] for row in frames)):
+            raise GateError('offline_journey_timeout_diagnostic_invalid')
+        for suffix in ('png', 'xml'):
+            value = diagnostic[suffix+'_sha256']
+            if diagnostic['target_frame_verified']:
+                if not isinstance(value, str) or not re.fullmatch('[0-9a-f]{64}', value) or digest(private/('DIAGNOSTIC.'+suffix)) != value:
+                    raise GateError('offline_journey_timeout_diagnostic_invalid')
+            elif value is not None:
+                raise GateError('offline_journey_timeout_diagnostic_invalid')
+        if json.loads((private/'DIAGNOSTIC.json').read_text()) != diagnostic:
+            raise GateError('offline_journey_timeout_diagnostic_invalid')
     completed = [row['stage'] for row in frames if row['accepted'] and not row['after_work'] and not row['after_scroll']]
     public = {'schema': 1, **identity, 'target_marker': TARGET,
               'display_sizes_px': [list(DEFAULT_SIZE)] + ([list(COMPACT_SIZE)] if any(row['stage'] == 15 for row in frames) else []),
@@ -408,8 +560,14 @@ def export(private, output, identity, frames, restart_count, failure=None, encry
               'failure_reason': failure.reason if failure else None,
               'failure_stage': failure.stage if failure else None, 'phase23_accepted': False,
               'plaintext_exported': False, 'apk_exported': False, 'scope': SCOPE}
+    if diagnostic is not None:
+        public['timeout_diagnostic'] = diagnostic
     (private/'MANIFEST.json').write_text(json.dumps({**public, 'frames': frames}, ensure_ascii=False, indent=2)+'\n')
     allowed = {'MANIFEST.json'} | {name+'.'+suffix for name in names for suffix in ('png', 'xml', 'json')}
+    if diagnostic is not None:
+        allowed.add('DIAGNOSTIC.json')
+        if diagnostic['target_frame_verified']:
+            allowed.update({'DIAGNOSTIC.png', 'DIAGNOSTIC.xml'})
     files = list(private.iterdir())
     if {path.name for path in files} != allowed or any(path.is_symlink() or not path.is_file() for path in files):
         raise GateError('offline_journey_export_scope_invalid')
@@ -520,7 +678,9 @@ def collect(args, env=os.environ):
         except CoverageIncomplete as failure:
             device.offline(); proof_events(device.log())
             STAGE = 'seal_incomplete'
-            export(private, output, identity, frames, restart_count, failure)
+            diagnostic = timeout_diagnostic(device, private, failure, size,
+                identity['apk_sha256']) if isinstance(failure, ReadyTimeout) else None
+            export(private, output, identity, frames, restart_count, failure, diagnostic=diagnostic)
             raise
         finally:
             subprocess.run(['adb', '-s', args.serial, 'shell', 'am', 'force-stop', PACKAGE],

@@ -357,7 +357,9 @@ class _DeviceAppState extends State<_DeviceApp> {
                     child: Text('Case ${_meta['case']} · failures ${_meta['failures']} · synthetic sensor input',
                       style: const TextStyle(fontSize: 9, color: Colors.white)))),
               ])))))),
-        Expanded(child: child!),
+        // Route modal barriers block preceding nodes within their semantic
+        // container. Keep their scope below the persistent synthetic controls.
+        Expanded(child: Semantics(container: true, explicitChildNodes: true, child: child!)),
       ])),
     home: const Scaffold(body: Center(child: Padding(padding: EdgeInsets.all(24), child: Text(
       'هدف منفصل لفحص أذونات Android ومسارات الجهاز الأصلية.\n'

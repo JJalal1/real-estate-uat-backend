@@ -40,7 +40,12 @@ def receipt():
                 apk_sha256='b'*64, api_level=36, network_scope=c.NETWORK_SCOPE,
                 system_packages=P, stage='voice_grant', failure='voice_not_ready',
                 case_failures={'voice': {'stage': 'voice_grant', 'failure': 'voice_not_ready'}},
-                checks={'voice_denied': True}, cleanup=True, complete=False)
+                checks={'voice_denied': True}, cleanup=True, complete=False, startup_diagnostics=None)
+
+
+def startup_receipt(diagnostic):
+    return {**receipt(), 'stage': 'launch', 'failure': 'surface_unavailable',
+            'case_failures': {}, 'checks': {}, 'startup_diagnostics': diagnostic}
 
 
 class MetadataTests(unittest.TestCase):
@@ -136,6 +141,131 @@ class SurfaceTests(unittest.TestCase):
         for output, installed in [('com.other/.Camera', {'com.other'}), (P['camera']+'/.Camera', set()), (P['camera']+'/.A\n'+P['camera']+'/.B', {P['camera']})]:
             with self.subTest(output=output), self.assertRaises(GateError):
                 c.resolved_package(output, 'camera', installed)
+
+
+class StartupDiagnosticTests(unittest.TestCase):
+    focus = '  mResumedActivity: ActivityRecord{abcd u0 ' + c.PACKAGE + '/com.example.real_estate_mobile.MainActivity t1}'
+
+    def device(self, focused=None, raw_log=None):
+        device = c.Device('emulator-5554', time.monotonic()+60)
+        png = b'\x89PNG\r\n\x1a\n' + b'0'*8 + struct.pack('>II', *c.SIZE)
+        def adb(*args, **kwargs):
+            if args[:3] == ('shell', 'dumpsys', 'activity'):
+                return self.focus if focused is None else focused
+            if args[:1] == ('logcat',):
+                return raw_log or ''
+            if args == ('exec-out', 'screencap', '-p'):
+                return png
+            self.fail('Unexpected diagnostic command')
+        return device, adb
+
+    def test_focus_is_closed_enum_and_requires_exact_target_activity(self):
+        self.assertEqual(c.focused_activity(self.focus, P), 'target')
+        self.assertEqual(c.focused_activity(self.focus.replace('mResumedActivity:', 'topResumedActivity='), P), 'target')
+        self.assertEqual(c.focused_activity(self.focus.replace(c.PACKAGE, P['camera']), P), 'known_system')
+        self.assertEqual(c.focused_activity(self.focus.replace('MainActivity', 'UnknownActivity'), P), 'unknown')
+        self.assertEqual(c.focused_activity(self.focus.replace(c.PACKAGE, 'com.other'), P), 'unknown')
+        self.assertEqual(c.focused_activity(self.focus + '\n' + self.focus.replace(c.PACKAGE, 'com.other'), P), 'unknown')
+        self.assertEqual(c.focused_activity('untrusted diagnostic text', P), 'unavailable')
+
+    def test_verified_target_without_markers_can_retain_diagnostic_only(self):
+        value = '<hierarchy>' + node('Synthetic startup') + '</hierarchy>'
+        log = ('arbitrary log never exported\nAQER_DEVICE {"token":"never export"}\nAQER_DEVICE ' +
+               json.dumps(meta()) + '\nAQER_DEVICE ' + json.dumps(meta(failures=1)))
+        device, adb = self.device(raw_log=log)
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)
+            with patch.object(device, 'adb', side_effect=adb), patch.object(device, 'xml', return_value=value):
+                result = c.startup_diagnostics(device, private, P, verified_install=True)
+            self.assertEqual(result, dict(hasTarget=0, hasBanner=0, metaCount=0,
+                validLogEventCount=1, focusedActivity='target', frameRetained=1))
+            self.assertEqual({path.name for path in private.iterdir()}, c.STARTUP_FILES)
+            record = json.loads((private/'STARTUP_DIAGNOSTIC.json').read_text())
+            self.assertTrue(record['diagnostic_only'])
+            self.assertEqual(record['xml_sha256'], hashlib.sha256(value.encode()).hexdigest())
+            self.assertNotIn('never export', ''.join(p.read_text() for p in private.iterdir() if p.suffix != '.png'))
+            with self.assertRaises(c.Incomplete):
+                c.surface(value, 'app', P)  # Ordinary acceptance is unchanged.
+            c.validate_receipt(startup_receipt(result))
+
+    def test_unverified_install_never_reads_or_captures(self):
+        device, _ = self.device()
+        with patch.object(device, 'adb') as adb, patch.object(device, 'xml') as get_xml:
+            with self.assertRaises(GateError):
+                c.startup_diagnostics(device, None, P)
+        adb.assert_not_called(); get_xml.assert_not_called()
+
+    def test_foreign_xml_before_or_after_capture_never_retained(self):
+        foreign = xml(node('foreign overlay', 'com.other'))
+        for values in ([foreign], [xml(), foreign]):
+            with self.subTest(values=values), tempfile.TemporaryDirectory() as directory:
+                device, adb = self.device()
+                with patch.object(device, 'adb', side_effect=adb), patch.object(device, 'xml', side_effect=values):
+                    result = c.startup_diagnostics(device, Path(directory), P, verified_install=True)
+                self.assertEqual(result['frameRetained'], 0)
+                self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_non_target_focus_never_requests_pixels(self):
+        for focus in (self.focus.replace(c.PACKAGE, P['camera']), self.focus.replace(c.PACKAGE, 'com.other'), ''):
+            with self.subTest(focus=focus), tempfile.TemporaryDirectory() as directory:
+                device, adb = self.device(focused=focus)
+                with patch.object(device, 'adb', side_effect=adb) as calls, patch.object(device, 'xml', return_value=xml()):
+                    result = c.startup_diagnostics(device, Path(directory), P, verified_install=True)
+                self.assertEqual(result['frameRetained'], 0)
+                self.assertFalse(any(call.args[:2] == ('exec-out', 'screencap') for call in calls.call_args_list))
+
+    def test_focus_transition_and_malformed_xml_are_not_retained(self):
+        device, adb = self.device()
+        def changed(*args, **kwargs):
+            if args[:3] == ('shell', 'dumpsys', 'activity'):
+                changed.count += 1
+                return self.focus if changed.count < 3 else self.focus.replace(c.PACKAGE, 'com.other')
+            return adb(*args, **kwargs)
+        changed.count = 0
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(device, 'adb', side_effect=changed), patch.object(device, 'xml', return_value=xml()):
+                result = c.startup_diagnostics(device, Path(directory), P, verified_install=True)
+            self.assertEqual(result['frameRetained'], 0)
+            self.assertEqual(list(Path(directory).iterdir()), [])
+        for value in ('<!DOCTYPE x>' + xml(), '<hierarchy/>', '<invalid'):
+            with self.subTest(value=value), self.assertRaises(c.Incomplete):
+                c.startup_tree(value)
+
+    def test_startup_schema_cannot_add_raw_content_or_make_acceptance_complete(self):
+        diagnostic = dict(hasTarget=1, hasBanner=1, metaCount=1,
+                          validLogEventCount=2, focusedActivity='target', frameRetained=0)
+        variants = []
+        for changes in ({'raw_log': 'forbidden'}, {'hasTarget': True}, {'metaCount': -1},
+                        {'focusedActivity': self.focus}, {'frameRetained': 2},
+                        {'focusedActivity': 'unknown', 'frameRetained': 1}):
+            variants.append(startup_receipt({**diagnostic, **changes}))
+        variants.append({**startup_receipt(diagnostic), 'complete': True})
+        variants.append({**startup_receipt(diagnostic), 'failure': None})
+        variants.append({**startup_receipt(diagnostic), 'checks': {'voice_denied': True}})
+        for value in variants:
+            with self.subTest(value=value), self.assertRaises(GateError):
+                c.validate_receipt(value)
+
+    def test_diagnostic_only_capture_is_encrypted_and_not_a_test_frame(self):
+        device, adb = self.device()
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory)/'private'; private.mkdir()
+            with patch.object(device, 'adb', side_effect=adb), patch.object(device, 'xml', return_value=xml()):
+                diagnostic = c.startup_diagnostics(device, private, P, verified_install=True)
+            value = startup_receipt(diagnostic)
+            (private/'MANIFEST.json').write_text(json.dumps(value))
+            def encryptor(archive, dest, recipient):
+                with zipfile.ZipFile(archive) as zipped:
+                    self.assertEqual(set(zipped.namelist()), {'MANIFEST.json'} | c.STARTUP_FILES)
+                dest.write_bytes(b'encrypted')
+                return {'bytes': 9, 'sha256': hashlib.sha256(b'encrypted').hexdigest()}
+            output = Path(directory)/'sealed'
+            c.seal(private, output, value, [], encryptor)
+            public = json.loads((output/'PUBLIC_RECEIPT.json').read_text())
+            self.assertEqual(public['frame_count'], 0)
+            self.assertEqual(public['result'], 'INCOMPLETE')
+            self.assertEqual(public['startup_diagnostics'], diagnostic)
+            self.assertEqual({p.name for p in output.iterdir()}, {'device.cms', 'PUBLIC_RECEIPT.json'})
 
 
 class ExportTests(unittest.TestCase):

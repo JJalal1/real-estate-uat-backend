@@ -129,6 +129,68 @@ class ProofTests(unittest.TestCase):
 
 
 class InputTests(unittest.TestCase):
+    def test_timeout_diagnostic_accepts_busy_synthetic_target_but_never_foreign_surface(self):
+        class FakeDevice:
+            value = screen(0).replace('enabled="true"', 'enabled="false"')
+            def xml(self): return self.value
+            def log(self): return ''
+            def adb(self, *_args, **_kwargs):
+                return b'\x89PNG\r\n\x1a\n'+b'\x00'*8+struct.pack('>II',*SIZE)
+        failure=collector.ReadyTimeout(0,-1,'offline_journey_ready_missing')
+        device=FakeDevice()
+        with tempfile.TemporaryDirectory() as directory:
+            private=Path(directory)
+            diagnostic=collector.timeout_diagnostic(device,private,failure,SIZE)
+            self.assertTrue(diagnostic['target_frame_verified'])
+            self.assertEqual(diagnostic['last_ready_stage'],-1)
+            self.assertEqual({p.name for p in private.iterdir()}, {'DIAGNOSTIC.json','DIAGNOSTIC.xml','DIAGNOSTIC.png'})
+        device.value=device.value.replace(collector.PACKAGE,'com.other.app')
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(GateError,'foreign_surface'):
+                collector.timeout_diagnostic(device,Path(directory),failure,SIZE)
+            self.assertEqual(list(Path(directory).iterdir()),[])
+
+    def test_timeout_without_target_marker_cannot_export_pixels(self):
+        class FakeDevice:
+            def xml(self): return screen(0).replace(collector.TARGET,'unready')
+            def log(self): return ''
+            def adb(self, *_args, **_kwargs): raise AssertionError('must not capture pixels')
+        with tempfile.TemporaryDirectory() as directory:
+            value=collector.timeout_diagnostic(FakeDevice(),Path(directory),
+                collector.ReadyTimeout(0,-1,'offline_journey_expected_surface_missing'),SIZE)
+            self.assertFalse(value['target_frame_verified'])
+            self.assertEqual({p.name for p in Path(directory).iterdir()},{'DIAGNOSTIC.json'})
+        with self.assertRaises(GateError):collector.ReadyTimeout(0,-1,'private arbitrary text')
+
+    def test_missing_header_capture_requires_exact_installed_apk_and_resumed_activity(self):
+        class FakeDevice:
+            activity = collector.ACTIVITY
+            apk = b'bound synthetic apk'
+            def xml(self): return screen(0).replace(collector.TARGET,'unready')
+            def log(self): return logs(0)
+            def adb(self, *args, **_kwargs):
+                if args[:3] == ('shell','dumpsys','activity'):
+                    return 'topResumedActivity=ActivityRecord{abc u0 '+self.activity+' t12}'
+                if args[:3] == ('shell','pm','path'): return 'package:/data/app/synthetic/base.apk'
+                if args[:2] == ('exec-out','cat'): return self.apk
+                if args[:2] == ('exec-out','screencap'):
+                    return b'\x89PNG\r\n\x1a\n'+b'\x00'*8+struct.pack('>II',*SIZE)
+                raise AssertionError(args)
+        failure=collector.ReadyTimeout(0,0,'offline_journey_expected_surface_missing')
+        device=FakeDevice();sha=hashlib.sha256(device.apk).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            value=collector.timeout_diagnostic(device,Path(directory),failure,SIZE,sha)
+            self.assertTrue(value['target_frame_verified'])
+            self.assertFalse(value['has_target'])
+            self.assertTrue(value['has_banner']); self.assertTrue(value['has_next'])
+            self.assertEqual(value['capture_identity'],'fresh_synthetic_apk_activity')
+            self.assertEqual(value['ready_count'],1)
+        for activity, expected_sha in [('other.package/Other','a'*64),(collector.ACTIVITY,'a'*64)]:
+            device.activity=activity
+            with tempfile.TemporaryDirectory() as directory,self.assertRaises(GateError):
+                collector.timeout_diagnostic(device,Path(directory),failure,SIZE,expected_sha)
+                self.assertEqual(list(Path(directory).iterdir()),[])
+
     def test_compact_supplement_forces_real_scroll_even_with_merged_helper_bounds(self):
         size=collector.COMPACT_SIZE
         gesture=collector.supplement_scroll(screen(15),logs(15),size)
@@ -245,6 +307,43 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(receipt['failure_stage'],5)
             with self.assertRaises(GateError):
                 collector.export(private,root/'other',self.identity(),rows,1,GateError('network'),self.encrypt)
+
+    def test_timeout_keeps_prior_verified_prefix_or_zero_frames_without_promoting_failure(self):
+        for count in (0,1,10):
+            with self.subTest(count=count),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory); private=root/'frames'; private.mkdir()
+                rows=self.frames(private,count) if count else []
+                stage=0 if count==0 else 1 if count==1 else 9
+                failure=collector.ReadyTimeout(stage,stage-1,'offline_journey_ready_missing')
+                diagnostic={'stage':stage,'last_ready_stage':stage-1,'wait_reason':failure.wait_reason,
+                            'target_frame_verified':False,'png_sha256':None,'xml_sha256':None,
+                            'display_size_px':list(SIZE),'capture_identity':None,
+                            'has_target':False,'has_banner':False,'has_next':False,'node_count':1,
+                            'observed_stages':[],'structure_sha256':'a'*64,'ready_count':count,'next_enabled':'missing'}
+                (private/'DIAGNOSTIC.json').write_text(json.dumps(diagnostic))
+                receipt=collector.export(private,root/'sealed',self.identity(),rows,int(stage>=5),
+                    failure,self.encrypt,diagnostic=diagnostic)
+                self.assertFalse(receipt['coverage_complete'])
+                self.assertEqual(receipt['frame_count'],count)
+                self.assertEqual(receipt['failure_stage'],stage)
+                self.assertEqual(receipt['result'],'INCOMPLETE')
+                self.assertFalse(receipt['phase23_accepted'])
+
+    def test_timeout_diagnostic_cannot_export_unknown_fields_or_skip_unverified_prefix(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);private=root/'frames';private.mkdir();rows=self.frames(private,1)
+            failure=collector.ReadyTimeout(1,0,'offline_journey_ready_missing')
+            base={'stage':1,'last_ready_stage':0,'wait_reason':failure.wait_reason,
+                  'target_frame_verified':False,'png_sha256':None,'xml_sha256':None,'display_size_px':list(SIZE),
+                  'capture_identity':None,'has_target':False,'has_banner':False,'has_next':False,
+                  'node_count':1,'observed_stages':[],'structure_sha256':'a'*64,'ready_count':1,'next_enabled':'missing'}
+            for changes in ({'raw_log':'private'}, {'stage':2}, {'png_sha256':'a'*64}, {'target_frame_verified':True}):
+                diagnostic=dict(base,**changes);(private/'DIAGNOSTIC.json').write_text(json.dumps(diagnostic))
+                with self.subTest(changes=changes),self.assertRaises((GateError,FileNotFoundError)):
+                    collector.export(private,root/'bad',self.identity(),rows,0,failure,self.encrypt,diagnostic=diagnostic)
+            rows[0]['accepted']=False;(private/'DIAGNOSTIC.json').write_text(json.dumps(base))
+            with self.assertRaises(GateError):
+                collector.export(private,root/'bad',self.identity(),rows,0,failure,self.encrypt,diagnostic=base)
 
     def test_missing_steps_unverified_frames_unknown_public_fields_and_apk_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -60,6 +60,9 @@ FAILURES = {'target_failure', 'metadata_invalid', 'unknown_surface', 'surface_un
             'voice_not_ready', 'voice_cancel_unproven', 'permission_unproven',
             'gps_unproven', 'media_unproven', 'cleanup_failed'}
 STAGE = 'context'
+STARTUP_FIELDS = {'hasTarget', 'hasBanner', 'metaCount', 'validLogEventCount',
+                  'focusedActivity', 'frameRetained'}
+STARTUP_FILES = {'STARTUP_DIAGNOSTIC.png', 'STARTUP_DIAGNOSTIC.xml', 'STARTUP_DIAGNOSTIC.json'}
 
 
 class Incomplete(GateError):
@@ -104,6 +107,91 @@ def events(log):
     for line in log.splitlines():
         if 'AQER_DEVICE ' in line:
             result.append(metadata(line.split('AQER_DEVICE ', 1)[1]))
+    return result
+
+
+def focused_activity(raw, packages):
+    """Return an enum only; never retain dumpsys text or an unknown component."""
+    components = set(re.findall(
+        r'^\s*(?:mResumedActivity|topResumedActivity)\s*[:=]\s*ActivityRecord\{[^\n]*?\s'
+        r'([A-Za-z0-9_.]+)/([A-Za-z0-9_.$]+)(?:\s|\})', raw, re.M))
+    if not components:
+        return 'unavailable'
+    if len(components) != 1:
+        return 'unknown'
+    package, activity = components.pop()
+    if (package, activity) == (PACKAGE, 'com.example.real_estate_mobile.MainActivity'):
+        return 'target'
+    return 'known_system' if package in packages.values() else 'unknown'
+
+
+def startup_tree(value):
+    """Diagnostic-only app XML, with no relaxation of surface() acceptance."""
+    if len(value.encode()) > 2_000_000 or '<!DOCTYPE' in value or '<!ENTITY' in value:
+        raise Incomplete('xml_invalid')
+    try:
+        root = ET.fromstring(value)
+    except ET.ParseError:
+        raise Incomplete('xml_invalid') from None
+    if root.tag != 'hierarchy':
+        raise Incomplete('xml_invalid')
+    nodes = list(root.iter('node'))
+    seen = {node.get('package') for node in nodes if node.get('package')}
+    if seen != {PACKAGE}:
+        raise Incomplete('unknown_surface')
+    return root
+
+
+def startup_diagnostics(device, private, packages, *, verified_install=False):
+    """One bounded launch-failure observation; never an accepted test frame."""
+    if verified_install is not True:
+        raise GateError('device_startup_identity_unverified')
+    result = {'hasTarget': 0, 'hasBanner': 0, 'metaCount': 0,
+              'validLogEventCount': 0, 'focusedActivity': 'unavailable', 'frameRetained': 0}
+    expected_errors = (Incomplete, GateError, OSError, subprocess.SubprocessError, UnicodeError)
+    def focus():
+        return focused_activity(device.adb('shell', 'dumpsys', 'activity', 'activities', timeout=5), packages)
+    try:
+        result['focusedActivity'] = focus()
+    except expected_errors:
+        pass
+    try:
+        raw_log = device.adb('logcat', '-d', '-v', 'brief', timeout=5)
+        for line in raw_log.splitlines():
+            if 'AQER_DEVICE ' not in line:
+                continue
+            try:
+                metadata(line.split('AQER_DEVICE ', 1)[1])
+            except Incomplete:
+                continue
+            result['validLogEventCount'] = min(100_000, result['validLogEventCount'] + 1)
+    except expected_errors:
+        pass
+    try:
+        value = device.xml(timeout=5)
+        root = startup_tree(value)
+        names = set().union(*(labels(node) for node in root.iter('node')))
+        result['hasTarget'] = int(TARGET in names)
+        result['hasBanner'] = int(BANNER in names)
+        result['metaCount'] = min(100_000, sum(name.startswith('DEVICE_META ') for name in names))
+        if result['focusedActivity'] != 'target' or focus() != 'target':
+            return result
+        png = device.adb('exec-out', 'screencap', '-p', binary=True, timeout=5)
+        after = device.xml(timeout=5)
+        startup_tree(after)
+        if focus() != 'target':
+            return result
+        if len(png) < 24 or png[:8] != b'\x89PNG\r\n\x1a\n' or struct.unpack('>II', png[16:24]) != SIZE:
+            return result
+        record = {'diagnostic_only': True, 'png_sha256': hashlib.sha256(png).hexdigest(),
+                  'xml_sha256': hashlib.sha256(value.encode()).hexdigest()}
+        for suffix, data in (('png', png), ('xml', value.encode()),
+                             ('json', json.dumps(record).encode())):
+            (private / ('STARTUP_DIAGNOSTIC.' + suffix)).write_bytes(data)
+        result['frameRetained'] = 1
+    except expected_errors:
+        for name in STARTUP_FILES:
+            (private / name).unlink(missing_ok=True)
     return result
 
 
@@ -207,11 +295,11 @@ def synthetic_png():
 
 
 class Device(BaseDevice):
-    def xml(self):
+    def xml(self, timeout=20):
         path = '/sdcard/aqer-device-window.xml'
-        self.adb('shell', 'rm', '-f', path)
-        self.adb('shell', 'uiautomator', 'dump', '--compressed', path)
-        return self.adb('exec-out', 'cat', path)
+        self.adb('shell', 'rm', '-f', path, timeout=timeout)
+        self.adb('shell', 'uiautomator', 'dump', '--compressed', path, timeout=timeout)
+        return self.adb('exec-out', 'cat', path, timeout=timeout)
 
     def wait(self, role, packages, predicate=lambda _: True, seconds=20):
         until = min(self.deadline, time.monotonic() + seconds)
@@ -315,10 +403,21 @@ def checks_complete(checks):
 def validate_receipt(receipt):
     expected = {'schema', 'source_sha', 'run_id', 'product_trees', 'target_marker', 'package',
                 'version_code', 'apk_sha256', 'api_level', 'network_scope', 'system_packages',
-                'stage', 'failure', 'case_failures', 'checks', 'cleanup', 'complete'}
+                'stage', 'failure', 'case_failures', 'checks', 'cleanup', 'complete', 'startup_diagnostics'}
     check_names = {'voice_denied', 'voice_permission_granted', 'voice_retry_ready', 'voice_cancel', 'location_denied', 'location_permission_granted',
                    'location_retry_gps', 'camera_cancel', 'camera_capture', 'picker_cancel', 'picker_select'}
     if not isinstance(receipt, dict) or set(receipt) != expected:
+        raise GateError('device_receipt_invalid')
+    startup = receipt['startup_diagnostics']
+    if startup is not None and (
+            not isinstance(startup, dict) or set(startup) != STARTUP_FIELDS or
+            any(type(startup[key]) is not int or not 0 <= startup[key] <= 100_000
+                for key in STARTUP_FIELDS - {'focusedActivity'}) or
+            any(startup[key] not in (0, 1) for key in ('hasTarget', 'hasBanner', 'frameRetained')) or
+            startup['focusedActivity'] not in ('target', 'known_system', 'unknown', 'unavailable') or
+            (startup['frameRetained'] and startup['focusedActivity'] != 'target') or
+            receipt['stage'] != 'launch' or receipt['failure'] is None or
+            receipt['checks'] or receipt['case_failures'] or receipt['complete']):
         raise GateError('device_receipt_invalid')
     packages, checks, failed = receipt['system_packages'], receipt['checks'], receipt['case_failures']
     if (not isinstance(packages, dict) or set(packages) != set(CANDIDATES) or
@@ -348,6 +447,8 @@ def validate_receipt(receipt):
 def seal(private, output, receipt, frames, encryptor=encrypt):
     validate_receipt(receipt)
     expected = {'MANIFEST.json'} | {f"frame-{index:02d}.{suffix}" for index in range(len(frames)) for suffix in ('png', 'xml', 'json')}
+    if receipt['startup_diagnostics'] is not None and receipt['startup_diagnostics']['frameRetained']:
+        expected |= STARTUP_FILES
     if ({path.name for path in private.iterdir()} != expected or
             any(path.is_symlink() or not path.is_file() for path in private.iterdir())):
         raise GateError('device_export_scope_invalid')
@@ -678,6 +779,7 @@ def collect(args, env=os.environ):
         device.adb('push', str(seed), SEED)
         device.adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + SEED)
         frames, checks, failure, case_failures = [], {}, None, {}
+        startup = None
         STAGE = 'launch'
         try:
             device.adb('logcat', '-c')
@@ -685,6 +787,10 @@ def collect(args, env=os.environ):
             execute(device, private, frames, packages, checks, case_failures)
         except (Incomplete, GateError, subprocess.SubprocessError, OSError, UnicodeError) as error:
             failure = str(error) if isinstance(error, Incomplete) and str(error) in FAILURES else ('deadline' if isinstance(error, subprocess.TimeoutExpired) or 'timeout' in str(error) else 'command_failed')
+            if STAGE == 'launch' and not frames and not checks and not case_failures:
+                # Reached only after fresh API36 emulator, compiled marker,
+                # signer, package and installed APK digest have all been verified.
+                startup = startup_diagnostics(device, private, packages, verified_install=True)
         finally:
             cleaned = cleanup(args.serial)
         if case_failures and failure is None:
@@ -696,7 +802,8 @@ def collect(args, env=os.environ):
                    'version_code': version, 'apk_sha256': digest(apk), 'api_level': 36,
                    'network_scope': NETWORK_SCOPE, 'system_packages': packages,
                    'stage': STAGE, 'failure': failure, 'case_failures': case_failures, 'checks': checks, 'cleanup': cleaned,
-                   'complete': failure is None and cleaned and checks_complete(checks)}
+                   'complete': failure is None and cleaned and checks_complete(checks),
+                   'startup_diagnostics': startup}
         (private / 'MANIFEST.json').write_text(json.dumps({**receipt, 'frames': frames, 'scope': SCOPE}, ensure_ascii=False, indent=2) + '\n')
         seal(private, output, receipt, frames)
         if not receipt['complete']:

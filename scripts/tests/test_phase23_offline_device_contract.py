@@ -92,6 +92,10 @@ class OfflineDeviceContract(unittest.TestCase):
         tail = block.split('finally {')[1]
         self.assertLess(tail.index("_meta['snapshotSeq']"), tail.index('_publish(force: true)'))
 
+    def test_route_semantics_cannot_hide_persistent_harness_controls(self):
+        self.assertIn('Expanded(child: Semantics(container: true, explicitChildNodes: true, child: child!))',
+                      self.source)
+
 
 if __name__ == '__main__':
     unittest.main()
