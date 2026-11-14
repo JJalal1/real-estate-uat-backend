@@ -157,12 +157,12 @@ class SurfaceTests(unittest.TestCase):
         self.assertGreater((743+1439)//2, 1076)
 
     def test_microphone_resolves_its_exact_tooltip_even_when_the_field_is_populated(self):
-        microphone = node('أكمل بحثك بالصوت', bounds='[89,1082][215,1208]')
+        microphone = node('', bounds='[89,1082][215,1208]').replace('/>', ' tooltip-text="أكمل بحثك بالصوت"/>')
         value = xml(node('DEVICE_TYPED_BASE', clazz='android.widget.EditText') + microphone +
                     node('ابحث لي', bounds='[236,1076][991,1213]'), meta(case=1))
         self.assertEqual(c.voice_control(value, P, 'microphone'), (152, 1145))
         with self.assertRaisesRegex(c.Incomplete, 'control_missing'):
-            c.voice_control(value.replace('android.widget.Button', 'android.view.View'), P, 'microphone')
+            c.voice_control(value.replace('[89,1082][215,1208]', '[0,150][1080,1400]'), P, 'microphone')
 
     def test_populated_merged_voice_card_can_keep_the_exact_unnamed_microphone(self):
         # The exact typed text may be the EditText's value rather than its hint.

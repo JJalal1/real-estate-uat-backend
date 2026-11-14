@@ -58,7 +58,8 @@ FAILURES = {'target_failure', 'metadata_invalid', 'unknown_surface', 'surface_un
             'control_missing', 'control_ambiguous', 'bounds_invalid', 'xml_invalid',
             'capture_changed', 'png_invalid', 'deadline', 'command_failed',
             'voice_not_ready', 'voice_cancel_unproven', 'permission_unproven',
-            'gps_unproven', 'media_unproven', 'cleanup_failed'}
+            'gps_unproven', 'media_unproven', 'cleanup_failed', 'voice_button_missing',
+            'location_button_missing', 'permission_button_missing'}
 STAGE = 'context'
 STARTUP_FIELDS = {'hasTarget', 'hasBanner', 'metaCount', 'validLogEventCount',
                   'focusedActivity', 'frameRetained'}
@@ -277,13 +278,13 @@ def surface(xml, role, packages):
     return root, data
 
 
-def control(xml, role, packages, *, names=(), ids=(), clazz=None, size=SIZE):
+def control(xml, role, packages, *, names=(), ids=(), clazz=None, size=SIZE, max_width=None, max_height=None):
     root, _ = surface(xml, role, packages)
     parent = {child: node for node in root.iter() for child in node}
     matches = []
     expected = PACKAGE if role in ('app', 'keyboard') else packages[role]
     for node in root.iter('node'):
-        hit = (bool(set(names) & labels(node)) or node.get('resource-id') in ids or
+        hit = (bool(set(names) & (labels(node) | {node.get('tooltip-text', '')})) or node.get('resource-id') in ids or
                (clazz is not None and not (names or ids))) and (clazz is None or node.get('class') == clazz)
         if not hit or node.get('package') != expected:
             continue
@@ -297,6 +298,9 @@ def control(xml, role, packages, *, names=(), ids=(), clazz=None, size=SIZE):
             box = bounds(action.get('bounds'), size)
         except GateError:
             raise Incomplete('bounds_invalid') from None
+        if ((max_width is not None and box[2] - box[0] > max_width) or
+                (max_height is not None and box[3] - box[1] > max_height)):
+            continue
         matches.append(box)
     matches = set(matches)
     if not matches:
@@ -313,9 +317,12 @@ def voice_control(xml, packages, action):
     root, data = surface(xml, 'app', packages)
     if data['case'] != 1 or action not in ('input', 'microphone'):
         raise Incomplete('control_missing')
-    if action == 'microphone' and any('أكمل بحثك بالصوت' in labels(node) and
-                                     node.get('package') == PACKAGE for node in root.iter('node')):
-        return control(xml, 'app', packages, names=('أكمل بحثك بالصوت',), clazz='android.widget.Button')
+    if action == 'microphone':
+        try:
+            return control(xml, 'app', packages, names=('أكمل بحثك بالصوت',), max_width=180, max_height=180)
+        except Incomplete as error:
+            if str(error) != 'control_missing':
+                raise
     fields = [n for n in root.iter('node') if n.get('package') == PACKAGE
               and n.get('class') == 'android.widget.EditText'
               and n.get('enabled') == 'true' and n.get('clickable') == 'true'
@@ -454,7 +461,7 @@ class Device(BaseDevice):
             time.sleep(.25)
         raise Incomplete('surface_unavailable')
 
-    def tap(self, role, packages, **selector):
+    def tap(self, role, packages, *, missing='control_missing', **selector):
         until = min(self.deadline, time.monotonic() + 20)
         while time.monotonic() < until:
             xml, _ = self.wait(role, packages, seconds=max(.1, until-time.monotonic()))
@@ -467,7 +474,7 @@ class Device(BaseDevice):
                 continue
             self.adb('shell', 'input', 'tap', *map(str, point))
             return
-        raise Incomplete('control_missing')
+        raise Incomplete(missing)
 
     def voice_tap(self, packages, action):
         until = min(self.deadline, time.monotonic() + 20)
@@ -482,7 +489,7 @@ class Device(BaseDevice):
                 continue
             self.adb('shell', 'input', 'tap', *map(str, point))
             return
-        raise Incomplete('control_missing')
+        raise Incomplete('voice_button_missing')
 
     def back(self, role, packages):
         surface(self.xml(), role, packages)
@@ -497,8 +504,10 @@ class Device(BaseDevice):
         return self.wait('app', packages, lambda data: data['snapshotSeq'] > before)[1]
 
     def permission(self, packages, allow):
-        self.tap('permission', packages, ids=(packages['permission'] + ':id/' +
-                 ('permission_allow_foreground_only_button' if allow else 'permission_deny_button'),))
+        ids = ('permission_allow_foreground_only_button',) if allow else ('permission_deny_button',)
+        names = ('While using the app', 'أثناء استخدام التطبيق') if allow else ("Don’t allow", "Don't allow", 'عدم السماح')
+        self.tap('permission', packages, ids=tuple(packages['permission'] + ':id/' + name for name in ids),
+                 names=names, missing='permission_button_missing')
 
     def granted(self, permission):
         value = self.adb('shell', 'dumpsys', 'package', PACKAGE)
@@ -686,7 +695,8 @@ def location_case(device, private, frames, packages, checks):
     device.wait('app', packages, lambda data: data['case'] == 2 and data['mapReady'] == 1, seconds=60)
     STAGE = 'location_deny'
     capture(device, private, frames, packages)
-    device.tap('app', packages, names=('موقعي الحالي',))
+    device.tap('app', packages, names=('موقعي الحالي',), max_width=180, max_height=180,
+               missing='location_button_missing')
     capture(device, private, frames, packages, 'permission')
     device.permission(packages, False)
     device.app(packages, gpsError=1)
@@ -695,7 +705,8 @@ def location_case(device, private, frames, packages, checks):
         raise Incomplete('permission_unproven')
     capture(device, private, frames, packages)
     STAGE = 'location_grant'
-    device.tap('app', packages, names=('موقعي الحالي',))
+    device.tap('app', packages, names=('موقعي الحالي',), max_width=180, max_height=180,
+               missing='location_button_missing')
     xml, _ = device.wait('permission', packages)
     fine = packages['permission'] + ':id/permission_location_accuracy_radio_fine'
     if any(node.get('resource-id') == fine for node in ET.fromstring(xml).iter('node')):
@@ -874,6 +885,7 @@ def execute(device, private, frames, packages, checks, case_failures, facets=FUL
             if str(error) not in FAILURES:
                 raise
             case_failures[name] = {'stage': STAGE, 'failure': str(error)}
+            print(f'AQER_DEVICE_OBSERVED_FAILURE {name} {STAGE} {error}', flush=True)
             try:
                 device.wait('app', packages, seconds=3)
                 capture(device, private, frames, packages)
