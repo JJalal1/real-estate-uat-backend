@@ -49,6 +49,21 @@
       "status": "remaining cases completed on a fresh second attempt",
       "application_code_changed": false,
       "verification": "Second attempt successful: public media measurement, actual DataSaver=true samples and restored setting, internal approval-notification destination and final native/API cleanup. Prior failure retained."
+    },
+    {
+      "id": "P23-TOOL-005",
+      "run_id": 43643054652,
+      "job_id": 132594650105,
+      "execution_source": "1a8f4784a8ea34fa807f926a64fb458629d1b0fa",
+      "observed_utc": "2026-11-14T21:42:11Z",
+      "status": "collector fix verified against retained Android UI; focused device confirmation pending",
+      "failure": "After reopening the saved listing, the editor restored the price and contact step (4/4). The collector looked for التالي (Next) at next_editor_step_candidate. The visible action for returning to photos was السابق (Previous).",
+      "fix_source": "b815388b767b43ca2a950b44c2ac49b4de7cc980",
+      "fix": "When the restored editor is at 4/4, use the verified Previous control to return to the photos step (3/4).",
+      "verification": "The focused collector regression passed. The preserved UI trees resolve Previous at 4/4 and show Add photos at 3/4. The focused image change and save on a running Android instance remains pending.",
+      "preserved_checkpoints": ["listing_editor_opened", "draft_photo_step_opened", "media_added"],
+      "preserved_success": "The ordinary Android app opened the editor and photos step, then saved three files in the synthetic draft; their hashes and initial order match the fixture.",
+      "application_code_changed": false
     }
   ]
 }
