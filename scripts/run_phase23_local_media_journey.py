@@ -822,6 +822,9 @@ class Journey:
         self.stage = 'open_photo_step'
         for _ in range(4):
             names = self.names(self.xml())
+            if '4/4' in names:
+                self.tap('السابق', site='return_to_photo_step')
+                continue
             if names & {'المواصفات','3/4','إضافة صور'}:
                 for attempt in range(8):
                     names = self.names(self.xml())

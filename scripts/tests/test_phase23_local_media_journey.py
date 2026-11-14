@@ -188,6 +188,14 @@ class NativeInputBoundaryTests(unittest.TestCase):
             journey.scroll()
         device.adb.assert_called_once_with('shell', 'input', 'swipe', '540', '1578', '540', '552', '450')
 
+    def test_photo_step_returns_from_recovered_price_step(self):
+        price = screen(node('4/4'), node('السابق'))
+        photos = screen(node('3/4'), node('إضافة صور'))
+        journey = c.Journey(Mock(), fixture(), Path('/tmp/fixture.json'), Path('/tmp/evidence'))
+        with patch.object(journey, 'xml', side_effect=[price, photos, photos]), patch.object(journey, 'tap') as tap:
+            journey.photos()
+        tap.assert_called_once_with('السابق', site='return_to_photo_step')
+
     def test_editor_opens_the_listing_menu_when_edit_is_not_the_primary_action(self):
         value = fixture()
         journey = c.Journey(Mock(deadline=time.monotonic()+60), value, Path('/tmp/fixture.json'), Path('/tmp/evidence'))
