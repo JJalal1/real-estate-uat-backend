@@ -147,8 +147,23 @@ def transient_startup_xml(xml):
     try:
         root = ET.fromstring(xml)
     except ET.ParseError:
-        return not xml.strip() or xml.lstrip().startswith(('<?xml', '<hierarchy'))
+        # A dump warning/prefix is acquisition failure, never an accepted tree.
+        # The caller additionally requires exact app focus, isolation and budgets.
+        return True
     return root.tag == 'hierarchy' and not list(root.iter('node'))
+
+
+def xml_failure_shape(xml):
+    """Fixed categories only; raw text never enters the public receipt."""
+    if len(xml.encode()) > 2_000_000: return 'oversized'
+    if '<!DOCTYPE' in xml or '<!ENTITY' in xml: return 'forbidden_declaration'
+    if not xml.strip(): return 'empty'
+    try: root = ET.fromstring(xml)
+    except ET.ParseError:
+        return 'malformed_xml' if xml.lstrip().startswith(('<?xml','<hierarchy')) else 'non_xml_output'
+    if root.tag != 'hierarchy': return 'wrong_root'
+    if not list(root.iter('node')): return 'empty_hierarchy'
+    return 'foreign_surface'
 
 
 def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False):
@@ -385,6 +400,8 @@ class Journey:
         self.d, self.f, self.fixture_path, self.private = device, fixture, fixture_path, private
         self.records, self.inputs, self.stage = [], 0, 'startup'
         self.picker = None
+        self.callsite, self.failure_context, self.failure_xml = 'startup', None, None
+        self.startup_retries, self.startup_started = 0, None
 
     def isolation(self):
         identity = local_json(self.f['identity_path'])
@@ -403,12 +420,46 @@ class Journey:
         raw = self.d.command(['php', ROOT / 'scripts/phase23_local_backend_fixture.php', 'inspect', self.fixture_path], timeout=30)
         return validate_snapshot(json.loads(raw), self.f)
 
-    def xml(self, picker=False):
+    def read_xml(self, allowed, site):
+        self.callsite = site
+        self.failure_context, self.failure_xml = None, None
         self.isolation()
         xml = self.d.xml()
-        allowed = {PACKAGE} | KEYBOARDS | ({self.picker} if picker and self.picker else set())
-        ui_nodes(xml, allowed)
+        try:
+            ui_nodes(xml, allowed)
+        except Incomplete:
+            self.failure_xml = xml
+            self.failure_context = {'stage':self.stage,'callsite':site,'shape':xml_failure_shape(xml),
+                'xml_bytes':len(xml.encode()),'xml_sha256':hashlib.sha256(xml.encode()).hexdigest(),
+                'inputs':self.inputs,'startup_retries':self.startup_retries,
+                'startup_elapsed_seconds':round(time.monotonic()-self.startup_started,3) if self.startup_started is not None else None}
+            raise
+        self.failure_context, self.failure_xml = None, None
         return xml
+
+    def xml(self, picker=False, site='ordinary_read'):
+        allowed = {PACKAGE} | KEYBOARDS | ({self.picker} if picker and self.picker else set())
+        return self.read_xml(allowed, site)
+
+    def persist_startup_failure(self):
+        """Keep the original failing read, separately from the later diagnostic frame."""
+        context = dict(self.failure_context or {'stage':self.stage,'callsite':self.callsite,
+            'inputs':self.inputs,'startup_retries':self.startup_retries})
+        if context['stage'] not in {'startup','initial'} or self.failure_xml is None:
+            return context
+        try:
+            self.isolation()
+            if focused_activity(self.d.adb('shell','dumpsys','activity','activities'),{}) != 'target':
+                context['raw_xml_retained'] = False
+                return context
+            raw = self.failure_xml.encode()
+            private_context = {**context,'raw_xml':raw[:2_000_000].decode('utf-8',errors='replace'),
+                               'raw_xml_truncated':len(raw)>2_000_000,'delivery_export_allowed':False}
+            (self.private/'STARTUP_FAILURE.json').write_text(json.dumps(private_context,ensure_ascii=False,indent=2)+'\n')
+            context['raw_xml_retained'] = True
+        except (GateError,OSError,ValueError,subprocess.SubprocessError):
+            context['raw_xml_retained'] = False
+        return context
 
     def names(self, xml):
         return set().union(*(labels(n) for n in ET.fromstring(xml).iter('node')))
@@ -422,46 +473,48 @@ class Journey:
             time.sleep(.5)
         raise Incomplete('local_media_expected_label_unobserved')
 
-    def startup(self):
-        deadline = min(self.d.deadline, time.monotonic()+120)
-        continued, denied, transient_retries = False, 0, 0
+    def startup(self, capture_initial=False):
+        continued, denied = False, 0
+        self.startup_retries, self.startup_started = 0, time.monotonic()
+        deadline = min(self.d.deadline, self.startup_started+120)
         while time.monotonic() < deadline:
-            self.isolation()
-            xml = self.d.xml()
+            self.stage = 'startup'
             try:
-                _, nodes = ui_nodes(xml, {PACKAGE} | KEYBOARDS | PERMISSIONS)
+                xml = self.read_xml({PACKAGE}|KEYBOARDS|PERMISSIONS,'startup_observe')
+                _, nodes = ui_nodes(xml,{PACKAGE}|KEYBOARDS|PERMISSIONS)
+                if any(n.get('package') in PERMISSIONS for n in nodes):
+                    candidates = [n for n in nodes if n.get('package') in PERMISSIONS and
+                                  n.get('resource-id') == n.get('package')+':id/permission_deny_button' and
+                                  n.get('enabled') == 'true' and n.get('clickable') == 'true']
+                    if len(candidates) != 1 or denied >= 2:
+                        raise Incomplete('local_media_startup_permission_unbound')
+                    box = bounds(candidates[0].get('bounds'), SIZE)
+                    fresh = self.read_xml({PACKAGE}|KEYBOARDS|PERMISSIONS,'startup_permission_revalidate')
+                    _, fresh_nodes = ui_nodes(fresh,{PACKAGE}|KEYBOARDS|PERMISSIONS)
+                    same = [n for n in fresh_nodes if n.attrib == candidates[0].attrib]
+                    if len(same) != 1:
+                        raise Incomplete('local_media_control_moved')
+                    self.input(); self.d.adb('shell','input','tap',str((box[0]+box[2])//2),str((box[1]+box[3])//2))
+                    denied += 1; continue
+                names = self.names(xml)
+                intro = {'عقارات في منطقتك','تحديد موقعي','اختيار المحافظة يدويًا','المتابعة الآن'}
+                if not continued and intro <= names:
+                    self.tap('المتابعة الآن',site='startup_intro'); continued = True
+                elif {'ماذا تبحث عنه؟','حسابي'} <= names and not names & intro:
+                    select_control(self.xml(site='startup_home_revalidate'),'حسابي',{PACKAGE}|KEYBOARDS)
+                    return self.checkpoint('initial') if capture_initial else None
             except Incomplete:
-                # Cold debug launch may precede the first accessibility hierarchy.
-                # Retry only while the exact ordinary activity is freshly resumed;
-                # do not capture pixels or deliver any input from this observation.
-                if transient_retries >= STARTUP_XML_RETRIES or not transient_startup_xml(xml): raise
+                # Every startup read participates, including action revalidation and
+                # the first checkpoint. A failed read discards its old candidate.
+                # Strict normal reads and all foreign/declaration checks are intact.
+                if (self.failure_xml is None or self.startup_retries >= STARTUP_XML_RETRIES
+                        or not transient_startup_xml(self.failure_xml)): raise
                 if focused_activity(self.d.adb('shell','dumpsys','activity','activities'), {}) != 'target':
                     raise Incomplete('local_media_startup_foreground_unproved')
                 self.isolation()
-                transient_retries += 1
+                self.startup_retries += 1
                 time.sleep(.5)
                 continue
-            if any(n.get('package') in PERMISSIONS for n in nodes):
-                candidates = [n for n in nodes if n.get('package') in PERMISSIONS and
-                              n.get('resource-id') == n.get('package')+':id/permission_deny_button' and
-                              n.get('enabled') == 'true' and n.get('clickable') == 'true']
-                if len(candidates) != 1 or denied >= 2:
-                    raise Incomplete('local_media_startup_permission_unbound')
-                box = bounds(candidates[0].get('bounds'), SIZE)
-                fresh = self.d.xml()
-                _, fresh_nodes = ui_nodes(fresh, {PACKAGE} | KEYBOARDS | PERMISSIONS)
-                same = [n for n in fresh_nodes if n.attrib == candidates[0].attrib]
-                if len(same) != 1:
-                    raise Incomplete('local_media_control_moved')
-                self.input(); self.d.adb('shell','input','tap',str((box[0]+box[2])//2),str((box[1]+box[3])//2))
-                denied += 1; continue
-            names = self.names(xml)
-            intro = {'عقارات في منطقتك','تحديد موقعي','اختيار المحافظة يدويًا','المتابعة الآن'}
-            if not continued and intro <= names:
-                self.tap('المتابعة الآن'); continued = True
-            elif {'ماذا تبحث عنه؟','حسابي'} <= names and not names & intro:
-                select_control(self.xml(),'حسابي',{PACKAGE}|KEYBOARDS)
-                return
             time.sleep(.5)
         raise Incomplete('local_media_startup_unobserved')
 
@@ -470,9 +523,9 @@ class Journey:
         if self.inputs > MAX_INPUTS:
             raise Incomplete('local_media_input_budget_exceeded')
 
-    def tap(self, label, ordinal=None, picker=False, seek=0):
+    def tap(self, label, ordinal=None, picker=False, seek=0, site='tap'):
         for attempt in range(seek + 1):
-            xml = self.xml(picker)
+            xml = self.xml(picker,site=site+'_candidate')
             try:
                 box = select_control(xml, label, {PACKAGE} | KEYBOARDS | ({self.picker} if picker else set()), ordinal=ordinal)
                 break
@@ -480,7 +533,7 @@ class Journey:
                 if str(error) != 'local_media_control_missing' or attempt == seek:
                     raise
                 self.scroll()
-        fresh = self.xml(picker)
+        fresh = self.xml(picker,site=site+'_revalidate')
         other = select_control(fresh, label, {PACKAGE} | KEYBOARDS | ({self.picker} if picker else set()), ordinal=ordinal)
         if other != box:
             raise Incomplete('local_media_control_moved')
@@ -489,7 +542,7 @@ class Journey:
         time.sleep(.6)
 
     def scroll(self, horizontal=False, reverse=False):
-        xml = self.xml()
+        xml = self.xml(site='scroll_viewport')
         _, nodes = ui_nodes(xml, {PACKAGE} | KEYBOARDS)
         boxes = []
         for node in nodes:
@@ -547,12 +600,12 @@ class Journey:
             except Incomplete:
                 if time.monotonic() >= deadline: break
                 time.sleep(.5)
-        xml = self.xml()
+        xml = self.xml(site='checkpoint_before_capture')
         png = self.d.adb('exec-out', 'screencap', '-p', binary=True)
         if png[:8] != b'\x89PNG\r\n\x1a\n' or len(png)<24 or struct.unpack('>II',png[16:24]) != SIZE:
             raise Incomplete('local_media_png_invalid')
         # Reprove isolation after capture before writing any private evidence.
-        self.isolation(); self.xml()
+        self.isolation(); self.xml(site='checkpoint_after_capture')
         stem = f'{len(self.records):02d}-{name}'
         (self.private/(stem+'.png')).write_bytes(png)
         (self.private/(stem+'.xml')).write_text(xml)
@@ -741,8 +794,7 @@ class Journey:
             raise Incomplete('local_media_public_response_unproved')
         return {'public_title':item['title'],'native_title_seen':title}
 
-    def run(self):
-        initial=self.checkpoint('initial')
+    def run(self, initial):
         if initial['listing']['images'] or initial['listing']['review_status']!='draft':
             raise GateError('local_media_empty_seed_draft_required')
         good=[x for x in self.f['files'] if x['kind']=='good']; bad=next(x for x in self.f['files'] if x['kind']=='bad')
@@ -790,11 +842,11 @@ class Journey:
         self.d.adb('shell','input','keyevent','KEYCODE_BACK'); self.logout(); self.checkpoint('finished')
 
 
-def seal(private, output, fixture, records, result, reason):
+def seal(private, output, fixture, records, result, reason, failure_context=None):
     output.mkdir(mode=0o700)
     manifest={'schema':1,'scope':SCOPE,'source_sha':fixture['source_sha'],'run_id':fixture['run_id'],
               'product_trees':TREES,'result':result,'failure_reason':reason,'checkpoints':records,
-              'local_only':True,'phase23_accepted':False}
+              'local_only':True,'phase23_accepted':False,'failure_context':failure_context}
     (private/'MANIFEST.json').write_text(json.dumps(manifest,indent=2)+'\n')
     archive=private.parent/'local-media-evidence.zip'
     try:
@@ -847,21 +899,23 @@ def main():
         raise GateError('local_media_picker_not_allowlisted')
     journey.picker=components[0]
     d.adb('shell','am','start','-n',ACTIVITY)
-    result,reason='COMPLETE',None
+    result,reason,failure_context='COMPLETE',None,None
     try:
-        journey.startup(); journey.run()
+        initial=journey.startup(capture_initial=True); journey.run(initial)
     except (Incomplete,GateError) as error:
         result='INCOMPLETE'
         reason=str(error) if re.fullmatch(r'local_media_[a-z_]{1,100}',str(error)) else 'local_media_guard_failure'
+        failure_context=journey.persist_startup_failure()
         # Preserve diagnostics only while the independent local boundary still holds.
         try: journey.checkpoint('diagnostic')
         except (Incomplete,GateError): pass
     except (subprocess.SubprocessError,OSError,ValueError):
         result,reason='INCOMPLETE','local_media_executor_failure'
+        failure_context=journey.persist_startup_failure()
     finally:
         try: d.adb('shell','am','force-stop',PACKAGE)
         except Exception: result,reason='INCOMPLETE','local_media_cleanup_unverified'
-    seal(private,ROOT/'phase23-local-media-sealed',fixture,journey.records,result,reason)
+    seal(private,ROOT/'phase23-local-media-sealed',fixture,journey.records,result,reason,failure_context)
     shutil.rmtree(private)
     print(json.dumps({'result':result,'checkpoint_count':len(journey.records),'reason':reason,'phase23_accepted':False}))
     return 0 if result=='COMPLETE' else 2

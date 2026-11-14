@@ -212,7 +212,7 @@ jobs:
           mkdir -p phase23-local-media-sealed
           cp backend-api-runtime/storage/logs/laravel.log "$RUNNER_TEMP/phase23-local-media/laravel.log" 2>/dev/null || true
           python3 -B - <<'PY'
-          import hashlib,json,os,sys,tarfile,tempfile
+          import hashlib,json,os,subprocess,sys,tarfile,tempfile
           from pathlib import Path
           sys.path.insert(0,'scripts')
           from prepare_phase1_close import encrypt
@@ -221,6 +221,23 @@ jobs:
           assert recipient_sha==os.environ['PHASE23_RECIPIENT_SHA256']
           private=Path(os.environ['RUNNER_TEMP'])/'phase23-local-media'
           sealed=Path('phase23-local-media-sealed')
+          # Raw device context stays inside authenticated runtime ciphertext.
+          # Bound Android's returned line count, execution time and saved bytes.
+          log_meta={'max_lines':3000,'max_bytes':2097152,'timeout_seconds':15}
+          log_bytes=b''
+          try:
+              capture=subprocess.run(['adb','-s','emulator-5554','logcat','-d','-t','3000'],
+                  stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=15,check=False)
+              log_bytes=capture.stdout
+              log_meta.update(returncode=capture.returncode,timed_out=False)
+          except subprocess.TimeoutExpired as error:
+              log_bytes=error.stdout or b''
+              log_meta.update(returncode=None,timed_out=True)
+          except OSError:
+              log_meta.update(returncode=None,unavailable=True)
+          log_meta['truncated']=len(log_bytes)>log_meta['max_bytes']
+          (private/'android-logcat.txt').write_bytes(log_bytes[-log_meta['max_bytes']:])
+          (private/'android-logcat-capture.json').write_text(json.dumps(log_meta)+'\n')
           with tempfile.TemporaryDirectory(prefix='local-runtime-seal-',dir=os.environ['RUNNER_TEMP']) as tmp:
               archive=Path(tmp)/'runtime.tar.gz'
               with tarfile.open(archive,'w:gz') as stream:

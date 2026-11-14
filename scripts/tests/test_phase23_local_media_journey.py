@@ -297,7 +297,7 @@ class StartupBoundaryTests(unittest.TestCase):
     def test_foreign_or_prohibited_startup_xml_never_retries(self):
         for value in (screen(node('foreign', package='com.other.app')),
                       '<!DOCTYPE hierarchy>' + self.home, '<!ENTITY x "value">' + self.home,
-                      '<hierarchy>' + ' ' * 2_000_000, '<other/>', 'unstructured error'):
+                      '<hierarchy>' + ' ' * 2_000_000, '<other/>'):
             journey = self.make_journey([value, self.home])
             with self.subTest(xml=value[:50]), patch.object(c.time, 'monotonic', return_value=0), patch.object(c.time, 'sleep') as sleep:
                 with self.assertRaises(GateError): journey.startup()
@@ -338,12 +338,197 @@ class StartupBoundaryTests(unittest.TestCase):
             self.assert_read_only(journey)
 
     def test_normal_collection_still_refuses_empty_or_malformed_xml(self):
-        for value in ('', '<hierarchy', '<hierarchy/>'):
+        for value in ('', '<hierarchy', '<hierarchy/>', 'acquisition warning\n'+self.home, 'non-XML acquisition output'):
             journey = self.make_journey([value, self.home])
             with self.subTest(xml=value), self.assertRaises(GateError): journey.xml()
             self.assertEqual(journey.d.xml.call_count, 1)
             journey.d.adb.assert_not_called()
             self.assert_read_only(journey)
+
+    def test_acquisition_warning_and_non_xml_output_retry_only_with_target_focus(self):
+        for raw in ('acquisition warning\n'+self.home,'non-XML acquisition output'):
+            for focus,accepted in ((self.target_focus,True),('unknown foreground',False)):
+                journey=self.make_journey([raw,self.home,self.home],focus)
+                observed=[]
+                def adb(*args,**kwargs):
+                    observed.append((deepcopy(journey.failure_context),journey.failure_xml))
+                    return focus
+                journey.d.adb.side_effect=adb
+                with self.subTest(raw=raw[:30],accepted=accepted),patch.object(c.time,'monotonic',return_value=0),patch.object(c.time,'sleep'):
+                    if accepted:journey.startup()
+                    else:
+                        with self.assertRaisesRegex(GateError,'startup_foreground_unproved'):journey.startup()
+                self.assertEqual(journey.d.xml.call_count,3 if accepted else 1)
+                self.assertEqual(journey.startup_retries,1 if accepted else 0)
+                self.assertEqual(len(observed),1)
+                self.assertEqual(observed[0][0]['shape'],'non_xml_output')
+                self.assertEqual(observed[0][0]['xml_sha256'],hashlib.sha256(raw.encode()).hexdigest())
+                self.assertEqual(observed[0][1],raw)
+                self.assert_read_only(journey)
+
+    def secondary_cases(self):
+        permission='com.android.permissioncontroller'
+        permission_old=screen(node('Deny','[100,200][300,300]',package=permission,
+                                   **{'resource-id':permission+':id/permission_deny_button'}))
+        permission_new=permission_old.replace('[100,200][300,300]','[600,700][800,800]')
+        intro_old=screen(*(node(label,'[100,900][300,1000]') for label in
+                           ('عقارات في منطقتك','تحديد موقعي','اختيار المحافظة يدويًا','المتابعة الآن')))
+        intro_new=intro_old.replace('[100,900][300,1000]','[600,1200][800,1300]')
+        return [
+            ('startup_permission_revalidate',[permission_old],[permission_new,permission_new,self.home,self.home],False,('700','750')),
+            ('startup_intro_candidate',[intro_old],[intro_new,intro_new,intro_new,self.home,self.home],False,('700','1250')),
+            ('startup_intro_revalidate',[intro_old,intro_old],[intro_new,intro_new,intro_new,self.home,self.home],False,('700','1250')),
+            ('startup_home_revalidate',[self.home],[self.home,self.home],False,None),
+            ('checkpoint_before_capture',[self.home,self.home],[self.home]*4,True,None),
+            ('checkpoint_after_capture',[self.home]*3,[self.home]*4,True,None),
+        ]
+
+    def test_every_secondary_startup_read_restarts_with_fresh_controls(self):
+        png=b'\x89PNG\r\n\x1a\n'+b'\0'*8+struct.pack('>II',*c.SIZE)
+        for site,prefix,recovery,capture_initial,tap in self.secondary_cases():
+            with self.subTest(site=site),tempfile.TemporaryDirectory() as directory:
+                private=Path(directory);device=Mock();device.deadline=1800
+                device.xml.side_effect=prefix+['']+recovery
+                journey=c.Journey(device,fixture(),Path('/tmp/fixture.json'),private)
+                journey.isolation=Mock();journey.inspect=Mock(return_value=snapshot())
+                failures=[];writes=[];captures=[]
+                def adb(*args,**kwargs):
+                    if args==('shell','dumpsys','activity','activities'):
+                        failures.append(deepcopy(journey.failure_context))
+                        self.assertEqual(list(private.iterdir()),[])
+                        return self.target_focus
+                    if args==('exec-out','screencap','-p'):
+                        captures.append(args);return png
+                    if args[:3]==('shell','input','tap'):
+                        writes.append(args[3:]);return ''
+                    self.fail('unexpected device operation: '+repr(args))
+                device.adb.side_effect=adb
+                with patch.object(c.time,'monotonic',return_value=0),patch.object(c.time,'sleep'):
+                    result=journey.startup(capture_initial=capture_initial)
+                self.assertEqual([x['callsite'] for x in failures],[site])
+                self.assertEqual(failures[0]['inputs'],0)
+                self.assertEqual(failures[0]['shape'],'empty')
+                self.assertEqual(journey.startup_retries,1)
+                self.assertEqual(writes,[] if tap is None else [tap])
+                self.assertEqual(journey.inputs,0 if tap is None else 1)
+                self.assertIsNone(journey.failure_context)
+                if capture_initial:
+                    self.assertEqual(result,snapshot())
+                    self.assertEqual([x['stage'] for x in journey.records],['initial'])
+                    self.assertEqual({x.name for x in private.iterdir()},{'00-initial.png','00-initial.xml','00-initial.json'})
+                    self.assertEqual(len(captures),2 if site=='checkpoint_after_capture' else 1)
+                else:
+                    self.assertIsNone(result)
+                    self.assertEqual(list(private.iterdir()),[])
+                    self.assertEqual(captures,[])
+
+    def test_secondary_startup_reads_keep_foreign_and_declaration_refusal(self):
+        png=b'\x89PNG\r\n\x1a\n'+b'\0'*8+struct.pack('>II',*c.SIZE)
+        for site,prefix,recovery,capture_initial,_ in self.secondary_cases():
+            for bad in (screen(node('foreign',package='com.other.app')),'<!DOCTYPE hierarchy>'+self.home):
+                with self.subTest(site=site,bad=bad[:30]),tempfile.TemporaryDirectory() as directory:
+                    device=Mock();device.deadline=1800;device.xml.side_effect=prefix+[bad]+recovery;device.adb.return_value=png
+                    journey=c.Journey(device,fixture(),Path('/tmp/fixture.json'),Path(directory))
+                    journey.isolation=Mock();journey.inspect=Mock(return_value=snapshot())
+                    with patch.object(c.time,'monotonic',return_value=0),patch.object(c.time,'sleep'):
+                        with self.assertRaises(GateError):journey.startup(capture_initial=capture_initial)
+                    self.assertEqual(journey.failure_context['callsite'],site)
+                    self.assertEqual(journey.startup_retries,0)
+                    self.assertEqual(journey.inputs,0)
+                    self.assertEqual(device.xml.call_count,len(prefix)+1)
+                    self.assertEqual(list(Path(directory).iterdir()),[])
+                    self.assertTrue(all(call.args==('exec-out','screencap','-p') for call in device.adb.call_args_list))
+
+    def test_later_xml_failure_does_not_replay_a_delivered_intro_action(self):
+        intro=self.secondary_cases()[1][1][0]
+        journey=self.make_journey([intro,intro,intro,self.home,'',intro,self.home,self.home])
+        journey.tap=c.Journey.tap.__get__(journey,c.Journey)
+        contexts=[]
+        def adb(*args,**kwargs):
+            if args==('shell','dumpsys','activity','activities'):
+                contexts.append(deepcopy(journey.failure_context))
+            return self.target_focus
+        journey.d.adb.side_effect=adb
+        with patch.object(c.time,'monotonic',return_value=0),patch.object(c.time,'sleep'):
+            journey.startup()
+        taps=[call.args for call in journey.d.adb.call_args_list if call.args[:3]==('shell','input','tap')]
+        self.assertEqual(taps,[('shell','input','tap','200','950')])
+        self.assertEqual(journey.inputs,1)
+        self.assertEqual(journey.startup_retries,1)
+        self.assertEqual(contexts[0]['callsite'],'startup_home_revalidate')
+        self.assertEqual(contexts[0]['inputs'],1)
+        journey.checkpoint.assert_not_called()
+
+
+class StartupDiagnosticTests(unittest.TestCase):
+    def make_failed_journey(self, private, raw):
+        device=Mock();device.deadline=1800;device.xml.return_value=raw
+        device.adb.return_value=StartupBoundaryTests.target_focus
+        journey=c.Journey(device,fixture(),Path('/tmp/fixture.json'),private)
+        journey.isolation=Mock();journey.startup_started=10
+        with patch.object(c.time,'monotonic',return_value=12):
+            with self.assertRaises(GateError):journey.read_xml({c.PACKAGE},'startup_home_revalidate')
+        return journey
+
+    def test_original_failure_is_private_and_sealed_before_later_valid_diagnostic(self):
+        raw='acquisition warning PRIVATE-ORIGINAL-FAILURE\n'+StartupBoundaryTests.home
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);private=root/'private';private.mkdir();output=root/'sealed'
+            journey=self.make_failed_journey(private,raw)
+            original=deepcopy(journey.failure_context)
+            public_context=journey.persist_startup_failure()
+            saved=json.loads((private/'STARTUP_FAILURE.json').read_text())
+            self.assertEqual(saved['raw_xml'],raw)
+            self.assertEqual(saved['callsite'],'startup_home_revalidate')
+            self.assertEqual(saved['shape'],'non_xml_output')
+            self.assertFalse(saved['delivery_export_allowed'])
+            self.assertEqual(public_context,{**original,'raw_xml_retained':True})
+            self.assertNotIn('raw_xml',public_context)
+            journey.d.xml.return_value=StartupBoundaryTests.home
+            journey.xml(site='checkpoint_after_capture')
+            self.assertIsNone(journey.failure_context)
+            self.assertEqual(json.loads((private/'STARTUP_FAILURE.json').read_text()),saved)
+            archives=[]
+            def encrypt(archive,target,recipient):
+                with zipfile.ZipFile(archive) as sealed:
+                    archives.append({name:sealed.read(name) for name in sealed.namelist()})
+                target.write_bytes(b'mocked-ciphertext')
+                return {'name':target.name,'sha256':'0'*64}
+            with patch.object(c,'encrypt',side_effect=encrypt):
+                c.seal(private,output,fixture(),[],'INCOMPLETE','local_media_xml_invalid',public_context)
+            self.assertEqual(set(archives[0]),{'STARTUP_FAILURE.json','MANIFEST.json'})
+            self.assertEqual(json.loads(archives[0]['STARTUP_FAILURE.json'])['raw_xml'],raw)
+            self.assertEqual({x.name for x in output.iterdir()},{'journey.cms','PUBLIC_RECEIPT.json'})
+            receipt=(output/'PUBLIC_RECEIPT.json').read_text()
+            self.assertNotIn('PRIVATE-ORIGINAL-FAILURE',receipt)
+            self.assertNotIn('"raw_xml":',receipt)
+            self.assertFalse(json.loads(receipt)['plaintext_exported'])
+            self.assertFalse((root/'local-media-evidence.zip').exists())
+
+    def test_raw_failure_retention_requires_isolation_and_exact_target_focus(self):
+        for failure in ('foreign_focus','isolation','ordinary_stage'):
+            with self.subTest(failure=failure),tempfile.TemporaryDirectory() as directory:
+                journey=self.make_failed_journey(Path(directory),'')
+                if failure=='foreign_focus':journey.d.adb.return_value='unavailable'
+                elif failure=='isolation':journey.isolation.side_effect=GateError('local_media_server_identity_changed')
+                else:journey.failure_context['stage']='media_added'
+                context=journey.persist_startup_failure()
+                self.assertFalse(context.get('raw_xml_retained',False))
+                self.assertEqual(list(Path(directory).iterdir()),[])
+                self.assertNotIn('raw_xml',context)
+
+    def test_raw_failure_bytes_are_bounded_without_losing_full_hash(self):
+        raw='x'*2_000_001
+        with tempfile.TemporaryDirectory() as directory:
+            journey=self.make_failed_journey(Path(directory),raw)
+            context=journey.persist_startup_failure()
+            saved=json.loads((Path(directory)/'STARTUP_FAILURE.json').read_text())
+            self.assertEqual(len(saved['raw_xml'].encode()),2_000_000)
+            self.assertTrue(saved['raw_xml_truncated'])
+            self.assertEqual(context['xml_bytes'],2_000_001)
+            self.assertEqual(context['xml_sha256'],hashlib.sha256(raw.encode()).hexdigest())
+            self.assertEqual(context['shape'],'oversized')
+            self.assertNotIn('raw_xml',context)
 
 
 class EvidenceBoundaryTests(unittest.TestCase):
