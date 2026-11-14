@@ -624,7 +624,13 @@ class Journey:
                 if not continued and intro <= names:
                     self.tap('المتابعة الآن',site='startup_intro'); continued = True
                 elif {'ماذا تبحث عنه؟','حسابي'} <= names and not names & intro:
-                    select_control(self.xml(site='startup_home_revalidate'),'حسابي',{PACKAGE}|KEYBOARDS,shell_tab=True)
+                    fresh = self.xml(site='startup_home_revalidate')
+                    refreshed = self.names(fresh)
+                    if (not {'ماذا تبحث عنه؟','حسابي'} <= refreshed or refreshed & intro):
+                        # The first frame can precede presentation of onboarding.
+                        time.sleep(.5)
+                        continue
+                    select_control(fresh,'حسابي',{PACKAGE}|KEYBOARDS,shell_tab=True)
                     return self.checkpoint('initial') if capture_initial else None
             except Incomplete:
                 # Every startup read participates, including action revalidation and

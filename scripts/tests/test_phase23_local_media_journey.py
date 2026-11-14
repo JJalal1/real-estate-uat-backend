@@ -364,6 +364,16 @@ class StartupBoundaryTests(unittest.TestCase):
         self.assertTrue(all(call.args == ('shell', 'dumpsys', 'activity', 'activities')
                             for call in journey.d.adb.call_args_list))
 
+    def test_home_candidate_is_reobserved_when_onboarding_appears(self):
+        intro = screen(*(node(label) for label in ('عقارات في منطقتك', 'تحديد موقعي',
+                                                  'اختيار المحافظة يدويًا', 'المتابعة الآن')))
+        journey = self.make_journey([self.home, intro, intro, self.home, self.home])
+        with patch.object(c.time, 'monotonic', return_value=0), patch.object(c.time, 'sleep'):
+            journey.startup(capture_initial=True)
+        journey.tap.assert_called_once_with('المتابعة الآن', site='startup_intro')
+        journey.checkpoint.assert_called_once_with('initial')
+        journey.d.adb.assert_not_called()
+
     def test_transient_startup_xml_retries_only_after_target_focus_and_isolation(self):
         for transient in ('', '<hierarchy', '<?xml version="1.0"?><hierarchy', '<hierarchy/>'):
             journey = self.make_journey([transient, self.home, self.home])
