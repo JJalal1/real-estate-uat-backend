@@ -177,6 +177,17 @@ class NativeInputBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, 'picker_item_invalid'):
             c.picker_item(xml, 'outside.png', package)
 
+    def test_owned_listings_scroll_uses_the_list_instead_of_the_card_image(self):
+        xml = screen(node('عقاراتي'),
+                     node('', '[0,210][1080,1920]', scrollable='true', **{'class': 'android.widget.ScrollView'}),
+                     node('', '[723,945][1006,1271]', scrollable='true', **{'class': 'android.view.View'}),
+                     node('', '[47,777][1033,887]', scrollable='true', **{'class': 'android.view.View'}))
+        device = Mock()
+        journey = c.Journey(device, fixture(), Path('/tmp/fixture.json'), Path('/tmp/evidence'))
+        with patch.object(journey, 'xml', return_value=xml), patch.object(c.time, 'sleep'):
+            journey.scroll()
+        device.adb.assert_called_once_with('shell', 'input', 'swipe', '540', '1578', '540', '552', '450')
+
     def test_editor_opens_the_listing_menu_when_edit_is_not_the_primary_action(self):
         value = fixture()
         journey = c.Journey(Mock(deadline=time.monotonic()+60), value, Path('/tmp/fixture.json'), Path('/tmp/evidence'))

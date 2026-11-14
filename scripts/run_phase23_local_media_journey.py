@@ -668,6 +668,7 @@ class Journey:
     def scroll(self, horizontal=False, reverse=False):
         xml = self.xml(site='scroll_viewport')
         _, nodes = ui_nodes(xml, {PACKAGE} | KEYBOARDS)
+        owned_listings = not horizontal and 'عقاراتي' in self.names(xml)
         boxes = []
         for node in nodes:
             if node.get('scrollable') == 'true' and node.get('enabled') == 'true':
@@ -675,6 +676,9 @@ class Journey:
                     box = bounds(node.get('bounds'), SIZE)
                 except GateError:
                     continue
+                if owned_listings and (node.get('package') != PACKAGE or
+                        node.get('class') != 'android.widget.ScrollView' or box[2]-box[0] < SIZE[0]*.9):
+                    continue  # Ignore nested filters and the card's swipeable image.
                 if (box[2]-box[0] > box[3]-box[1]) == horizontal:
                     boxes.append(box)
         if len(boxes) != 1:
