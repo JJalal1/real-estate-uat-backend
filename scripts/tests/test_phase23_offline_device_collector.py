@@ -156,6 +156,29 @@ class SurfaceTests(unittest.TestCase):
         # The old center was in sibling action space, not the actual input.
         self.assertGreater((743+1439)//2, 1076)
 
+    def test_microphone_resolves_its_exact_tooltip_even_when_the_field_is_populated(self):
+        microphone = node('أكمل بحثك بالصوت', bounds='[89,1082][215,1208]')
+        value = xml(node('DEVICE_TYPED_BASE', clazz='android.widget.EditText') + microphone +
+                    node('ابحث لي', bounds='[236,1076][991,1213]'), meta(case=1))
+        self.assertEqual(c.voice_control(value, P, 'microphone'), (152, 1145))
+        with self.assertRaisesRegex(c.Incomplete, 'control_missing'):
+            c.voice_control(value.replace('android.widget.Button', 'android.view.View'), P, 'microphone')
+
+    def test_populated_merged_voice_card_can_keep_the_exact_unnamed_microphone(self):
+        # The exact typed text may be the EditText's value rather than its hint.
+        value = self.voice_card().replace('hint="شقة للإيجار في صنعاء، ثلاث غرف…"', 'hint=""')
+        value = value.replace('class="android.widget.EditText" hint=""',
+                              'class="android.widget.EditText" hint="" content-desc="DEVICE_TYPED_BASE"')
+        self.assertEqual(c.voice_control(value, P, 'microphone'), (152, 1145))
+
+    def test_device_dump_is_reacquired_after_an_invalid_transport_read(self):
+        device = c.Device('emulator-5554', time.monotonic()+30)
+        expected = xml()
+        with patch.object(device, 'adb', side_effect=['', '', '<hierarchy', '', '', expected]) as adb, patch.object(c.time, 'sleep'):
+            self.assertEqual(device.xml(), expected)
+        self.assertEqual(adb.call_count, 6)
+        self.assertEqual(adb.call_args_list[-1].args, ('shell', 'cat', '/sdcard/aqer-device-window.xml'))
+
     def test_voice_selector_refuses_wrong_case_ambiguous_or_unbounded_controls(self):
         cases = [self.voice_card().replace('&quot;case&quot;: 1', '&quot;case&quot;: 2'),
                  self.voice_card(node('', bounds='[300,1082][426,1208]')),

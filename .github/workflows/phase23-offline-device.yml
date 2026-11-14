@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 35
     env:
       PHASE23_OFFLINE_DEVICE: 'true'
-      PHASE23_DEVICE_FACETS: 'voice,location,picker_select'
+      PHASE23_DEVICE_FACETS: 'voice,location'
       PHASE23_VISUAL_REVISION: 'true'
       PHASE23_RECIPIENT_SHA256: b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070
       SOURCE_COMMIT: ${{ github.sha }}

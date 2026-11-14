@@ -36,6 +36,7 @@ class SelectionContractTests(unittest.TestCase):
         self.assertEqual(c.selected_facets({}), c.FULL_FACETS)
         self.assertEqual(c.selected_facets({'PHASE23_DEVICE_FACETS': 'voice,location,camera,picker'}), c.FULL_FACETS)
         self.assertEqual(c.selected_facets({'PHASE23_DEVICE_FACETS': 'voice,location,picker_select'}), c.REMAINING_FACETS)
+        self.assertEqual(c.selected_facets({'PHASE23_DEVICE_FACETS': 'voice,location'}), c.PERMISSION_FACETS)
         for value in ('', 'voice', 'voice,location,picker', 'location,voice,picker_select',
                       'voice,location,picker_select,picker_select', 'voice,location,picker_select,camera',
                       'voice, location,picker_select', 'voice,location,picker_select\n',
@@ -59,6 +60,8 @@ class SelectionContractTests(unittest.TestCase):
         self.assertFalse(c.checks_complete(observed))
         self.assertTrue(c.checks_complete({**observed, **dict.fromkeys(PRIOR_CHECKS, True)}))
         self.assertFalse(c.checks_complete({**observed, 'camera_capture': True}, c.REMAINING_FACETS))
+        self.assertTrue(c.checks_complete({k:v for k,v in observed.items() if k != 'picker_select'}, c.PERMISSION_FACETS))
+        self.assertFalse(c.checks_complete(observed, c.PERMISSION_FACETS))
         for name in REMAINING_CHECKS:
             for replacement in (None, False, 1):
                 changed = dict(observed)
@@ -171,6 +174,17 @@ class ReceiptScopeTests(unittest.TestCase):
 
 
 class NoReplayExecutionTests(unittest.TestCase):
+    def test_permission_run_does_not_replay_camera_or_picker(self):
+        device = Mock()
+        with patch.object(c, 'voice_case') as voice, patch.object(c, 'location_case') as location, \
+                patch.object(c, 'camera_case') as camera, patch.object(c, 'picker_case') as picker, \
+                patch.object(c, 'capture'):
+            c.execute(device, None, [], P, {}, {}, c.PERMISSION_FACETS)
+        voice.assert_called_once()
+        location.assert_called_once()
+        camera.assert_not_called()
+        picker.assert_not_called()
+
     def test_remaining_run_calls_only_voice_location_and_selection(self):
         device, checks, failures, frames = Mock(), {}, {}, []
         order = []

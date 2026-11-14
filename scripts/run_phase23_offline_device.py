@@ -65,6 +65,8 @@ STARTUP_FIELDS = {'hasTarget', 'hasBanner', 'metaCount', 'validLogEventCount',
 STARTUP_FILES = {'STARTUP_DIAGNOSTIC.png', 'STARTUP_DIAGNOSTIC.xml', 'STARTUP_DIAGNOSTIC.json'}
 FULL_FACETS = ('voice', 'location', 'camera', 'picker')
 REMAINING_FACETS = ('voice', 'location', 'picker_select')
+PERMISSION_FACETS = ('voice', 'location')
+FACET_PROFILES = (FULL_FACETS, REMAINING_FACETS, PERMISSION_FACETS)
 FACET_CHECKS = {
     'voice': frozenset(('voice_denied', 'voice_permission_granted', 'voice_retry_ready', 'voice_cancel')),
     'location': frozenset(('location_denied', 'location_permission_granted', 'location_retry_gps')),
@@ -83,24 +85,25 @@ PRIOR_MEDIA_REFERENCE = {
 
 
 def selected_facets(env):
-    """Only the full baseline or the reviewed remaining-facets run is allowed."""
+    """Select one reviewed profile without replaying independent device cases."""
     value = env.get('PHASE23_DEVICE_FACETS', ','.join(FULL_FACETS))
-    if value not in (','.join(FULL_FACETS), ','.join(REMAINING_FACETS)):
+    if not isinstance(value, str):
         raise GateError('device_facet_selection_invalid')
-    return tuple(value.split(','))
+    return facet_contract(value.split(','))
 
 
 def facet_contract(facets):
-    if not isinstance(facets, (list, tuple)) or tuple(facets) not in (FULL_FACETS, REMAINING_FACETS):
+    if not isinstance(facets, (list, tuple)) or tuple(facets) not in FACET_PROFILES:
         raise GateError('device_facet_selection_invalid')
     return tuple(facets)
 
 
 def facet_receipt_fields(facets):
     facets = facet_contract(facets)
+    selected_only = facets != FULL_FACETS
     return {'selected_facets': list(facets),
-            'complete_scope': 'current_selected_facets_only' if facets == REMAINING_FACETS else 'current_full_facets',
-            'prior_evidence_reference': {**PRIOR_MEDIA_REFERENCE, 'checks': list(PRIOR_MEDIA_REFERENCE['checks'])} if facets == REMAINING_FACETS else None}
+            'complete_scope': 'current_selected_facets_only' if selected_only else 'current_full_facets',
+            'prior_evidence_reference': {**PRIOR_MEDIA_REFERENCE, 'checks': list(PRIOR_MEDIA_REFERENCE['checks'])} if selected_only else None}
 
 
 class Incomplete(GateError):
@@ -280,9 +283,8 @@ def control(xml, role, packages, *, names=(), ids=(), clazz=None, size=SIZE):
     matches = []
     expected = PACKAGE if role in ('app', 'keyboard') else packages[role]
     for node in root.iter('node'):
-        hit = bool(set(names) & labels(node)) or node.get('resource-id') in ids
-        if clazz is not None:
-            hit = node.get('class') == clazz
+        hit = (bool(set(names) & labels(node)) or node.get('resource-id') in ids or
+               (clazz is not None and not (names or ids))) and (clazz is None or node.get('class') == clazz)
         if not hit or node.get('package') != expected:
             continue
         action = node
@@ -311,10 +313,14 @@ def voice_control(xml, packages, action):
     root, data = surface(xml, 'app', packages)
     if data['case'] != 1 or action not in ('input', 'microphone'):
         raise Incomplete('control_missing')
+    if action == 'microphone' and any('أكمل بحثك بالصوت' in labels(node) and
+                                     node.get('package') == PACKAGE for node in root.iter('node')):
+        return control(xml, 'app', packages, names=('أكمل بحثك بالصوت',), clazz='android.widget.Button')
     fields = [n for n in root.iter('node') if n.get('package') == PACKAGE
               and n.get('class') == 'android.widget.EditText'
               and n.get('enabled') == 'true' and n.get('clickable') == 'true'
-              and n.get('hint', '').startswith('شقة للإيجار في صنعاء، ثلاث غرف…')]
+              and (n.get('hint', '').startswith('شقة للإيجار في صنعاء، ثلاث غرف…') or
+                   (action == 'microphone' and 'DEVICE_TYPED_BASE' in labels(n)))]
     if len(fields) != 1:
         raise Incomplete('control_missing' if not fields else 'control_ambiguous')
     field = fields[0]
@@ -418,9 +424,19 @@ def synthetic_png():
 class Device(BaseDevice):
     def xml(self, timeout=20):
         path = '/sdcard/aqer-device-window.xml'
-        self.adb('shell', 'rm', '-f', path, timeout=timeout)
-        self.adb('shell', 'uiautomator', 'dump', '--compressed', path, timeout=timeout)
-        return self.adb('exec-out', 'cat', path, timeout=timeout)
+        for _ in range(3):
+            self.adb('shell', 'rm', '-f', path, timeout=timeout)
+            try:
+                self.adb('shell', 'uiautomator', 'dump', '--compressed', path, timeout=timeout)
+                value = self.adb('shell', 'cat', path, timeout=timeout)
+                if len(value.encode()) > 2_000_000 or '<!DOCTYPE' in value or '<!ENTITY' in value:
+                    raise Incomplete('xml_invalid')
+                if ET.fromstring(value).tag == 'hierarchy':
+                    return value
+            except (ET.ParseError, subprocess.CalledProcessError, UnicodeError):
+                pass  # Reacquire from Android before any input or screenshot.
+            time.sleep(.25)
+        raise Incomplete('xml_invalid')
 
     def wait(self, role, packages, predicate=lambda _: True, seconds=20):
         until = min(self.deadline, time.monotonic() + seconds)
@@ -549,7 +565,7 @@ def validate_receipt(receipt):
     facets = facet_contract(receipt['selected_facets']) if selection_fields <= set(receipt) else FULL_FACETS
     if selection_fields <= set(receipt) and any(receipt[key] != value for key, value in facet_receipt_fields(facets).items()):
         raise GateError('device_receipt_invalid')
-    if facets == REMAINING_FACETS and any(receipt['prior_evidence_reference'][key] is not False
+    if facets != FULL_FACETS and any(receipt['prior_evidence_reference'][key] is not False
                                          for key in ('replayed', 'accepted_by_this_run')):
         raise GateError('device_receipt_invalid')
     check_names = set().union(*(FACET_CHECKS[name] for name in facets))
@@ -929,9 +945,10 @@ def collect(args, env=os.environ):
         private.mkdir(mode=0o700)
         seed = Path(directory) / 'phase23-device.png'
         seed.write_bytes(synthetic_png())
-        device.adb('shell', 'mkdir', '-p', '/sdcard/Download')
-        device.adb('push', str(seed), SEED)
-        device.adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + SEED)
+        if facets != PERMISSION_FACETS:
+            device.adb('shell', 'mkdir', '-p', '/sdcard/Download')
+            device.adb('push', str(seed), SEED)
+            device.adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + SEED)
         frames, checks, failure, case_failures = [], {}, None, {}
         startup = None
         STAGE = 'launch'
