@@ -25,7 +25,7 @@ void main() {
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
           final semantics = tester.ensureSemantics();
-          addTearDown(semantics.dispose);
+          try {
           var locations = 0, confirmations = 0, settings = 0;
           final enabled = state == 'ready' || state == 'error';
           await tester.pumpWidget(MaterialApp(
@@ -83,6 +83,9 @@ void main() {
           }
           expect(tester.takeException(), isNull);
           await tester.pumpWidget(const SizedBox.shrink());
+          } finally {
+            semantics.dispose();
+          }
         });
       }
     }

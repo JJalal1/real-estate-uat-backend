@@ -6,7 +6,7 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-TREES = {'mobile_app': '3553640d5be0cc451df30dc9773bf363c2bf6d86',
+TREES = {'mobile_app': 'eeab1677cd58da9f01da0b3b0aa0f44aa71873e2',
          'backend-api-runtime': '76dcc5b61ed2bf55d05935289d09885182fef96e'}
 EXACT = {
     'PHASE23_LOCAL_MEDIA': 'true', 'APP_ENV': 'local',
