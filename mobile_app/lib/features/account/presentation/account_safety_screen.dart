@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import 'actor_scoped_page.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/account_safety_repository.dart';
 import '../data/auth_controller.dart';
@@ -12,7 +14,8 @@ class AccountSafetyScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _AccountSafetyBody(key: ValueKey(actor), actorId: actor);
+      : ActorBoundPage(title: 'الأمان والخصوصية', builder: (_) =>
+          _AccountSafetyBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch)), actorId: actor));
   }
 }
 class _AccountSafetyBody extends ConsumerStatefulWidget {
@@ -27,9 +30,11 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
   String? _error;
   bool _loading = true, _busy = false, _more = false, _confirming = false;
   int _page = 1, _generation = 0;
-  bool get _valid => mounted && ref.read(authControllerProvider).asData?.value?.id == widget.actorId;
+  late final int _epoch;
+  bool get _valid => mounted && _epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
+    ref.read(authControllerProvider).asData?.value?.id == widget.actorId;
   @override
-  void initState() { super.initState(); Future.microtask(_load); }
+  void initState() { super.initState(); _epoch = Stage6SecureSessionStore.instance.sessionEpoch; Future.microtask(_load); }
   Future<void> _load({bool more = false}) async {
     if (!_valid) return;
     if (more && (_busy || _loading || !_more)) return;
@@ -54,7 +59,7 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
   Future<bool> _confirm({required String title, required String message, required String action}) async {
     if (_confirming) return false;
     setState(() => _confirming = true);
-    try { return await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+    try { return await showActorDialog<bool>(context: context, ref: ref, builder: (dialog) => AlertDialog(
       scrollable: true, title: Text(title), content: Text(message), actions: [
         TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إلغاء')),
         FilledButton(onPressed: () => Navigator.pop(dialog, true), child: Text(action)),
@@ -79,57 +84,21 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
     finally { if (_valid) setState(() => _busy = false); }
   }
   Future<void> _eraseAccount() async {
-    if (_busy || !_valid) return;
-    final controller = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialog) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: const Text('حذف الحساب نهائيًا'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'سيُلغى دخولك وتُزال بيانات هويتك ووثائق التحقق وتُؤرشف إعلاناتك. '
-                'تبقى فقط السجلات المالية والعقود وسجل التدقيق والرسائل المشتركة اللازمة لسلامة حقوق الأطراف، تحت هوية محذوفة.',
-              ),
-              const SizedBox(height: 16),
-              const Text('للتأكيد اكتب: حذف حسابي نهائيًا'),
-              const SizedBox(height: 8),
-              TextField(
-                key: const ValueKey('account-erasure-confirmation'),
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(hintText: 'حذف حسابي نهائيًا'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog, false),
-              child: const Text('إلغاء'),
-            ),
-            FilledButton(
-              key: const ValueKey('erase-account-forever'),
-              onPressed: () => Navigator.pop(
-                dialog,
-                controller.text.trim() == 'حذف حسابي نهائيًا',
-              ),
-              child: const Text('حذف الحساب'),
-            ),
-          ],
-        ),
-      ),
-    ) ?? false;
-    controller.dispose();
+    if (_busy || _confirming || !_valid) return;
+    setState(() => _confirming = true);
+    var confirmed = false;
+    try {
+      confirmed = await showActorDialog<bool>(context: context, ref: ref,
+        barrierDismissible: false, builder: (_) => const _ErasureConfirmationDialog()) ?? false;
+    } finally {
+      if (_valid) setState(() => _confirming = false);
+    }
     if (!confirmed || !_valid) return;
 
     setState(() => _busy = true);
     try {
       await ref.read(accountSafetyRepositoryProvider).eraseAccount();
+      if (!_valid) return;
       await ref.read(authControllerProvider.notifier).logout();
       if (!mounted) return;
       context.go('/');
@@ -137,7 +106,7 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
         const SnackBar(content: Text('تم حذف الحساب ومسح بيانات الهوية الشخصية.')),
       );
     } catch (error) {
-      if (mounted) {
+      if (mounted && _valid) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
@@ -192,4 +161,32 @@ class _AccountSafetyBodyState extends ConsumerState<_AccountSafetyBody> {
       ])),
       if (_busy) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
     ])));
+}
+
+class _ErasureConfirmationDialog extends StatefulWidget {
+  const _ErasureConfirmationDialog();
+  @override
+  State<_ErasureConfirmationDialog> createState() => _ErasureConfirmationDialogState();
+}
+class _ErasureConfirmationDialogState extends State<_ErasureConfirmationDialog> {
+  final _controller = TextEditingController();
+  @override
+  void dispose() { _controller.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => Directionality(textDirection: TextDirection.rtl,
+    child: AlertDialog(scrollable: true, title: const Text('حذف الحساب نهائيًا'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('سيُلغى دخولك وتُزال بيانات هويتك ووثائق التحقق وتُؤرشف إعلاناتك. '
+            'تبقى فقط السجلات المالية والعقود وسجل التدقيق والرسائل المشتركة اللازمة لسلامة حقوق الأطراف، تحت هوية محذوفة.'),
+          const SizedBox(height: 16), const Text('للتأكيد اكتب: حذف حسابي نهائيًا'),
+          const SizedBox(height: 8), TextField(key: const ValueKey('account-erasure-confirmation'),
+            controller: _controller, autofocus: true,
+            decoration: const InputDecoration(hintText: 'حذف حسابي نهائيًا')),
+        ]),
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+        FilledButton(key: const ValueKey('erase-account-forever'),
+          onPressed: () => Navigator.pop(context, _controller.text.trim() == 'حذف حسابي نهائيًا'),
+          child: const Text('حذف الحساب'))],
+    ));
 }

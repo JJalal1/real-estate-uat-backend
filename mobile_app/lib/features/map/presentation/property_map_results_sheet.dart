@@ -4,6 +4,7 @@ import '../../../core/widgets/app_components.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
 import '../../properties/presentation/adaptive_property_photo.dart';
+import '../../properties/presentation/property_favorite_status.dart';
 
 const mapRentColor = Color(0xff147d92);
 const mapSaleColor = Color(0xff0b8a55);
@@ -190,14 +191,16 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
 /// amount as discovery cards. Larger text grows vertically without hiding actions.
 class PropertyMapResultCard extends StatelessWidget {
   const PropertyMapResultCard({required this.property, required this.favorite,
-    required this.onFavorite, required this.onMap, required this.onDetails, this.compact = false, super.key});
+    required this.onFavorite, required this.onMap, required this.onDetails, this.favoriteStatus, this.compact = false, super.key});
   final PropertyMarker property;
   final bool favorite, compact;
+  final PropertyFavoriteStatus? favoriteStatus;
   final VoidCallback? onFavorite;
   final VoidCallback onMap, onDetails;
   @override
   Widget build(BuildContext context) {
     final p = property, rent = p.purpose == 'rent', scheme = Theme.of(context).colorScheme;
+    final status = favoriteStatus ?? PropertyFavoriteStatus.ready(favorite);
     final semantic = Theme.of(context).extension<AppSemanticColors>() ??
       (scheme.brightness == Brightness.dark ? AppSemanticColors.dark : AppSemanticColors.light);
     final purposeColor = rent ? semantic.info : semantic.success;
@@ -220,8 +223,8 @@ class PropertyMapResultCard extends StatelessWidget {
                 suffix: rent && p.monthlyRent != null ? 'شهريًا' : null)),
           ])),
           Column(mainAxisSize: MainAxisSize.min, children: [
-            IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-              onPressed: onFavorite, icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded)),
+            IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: status.tooltip,
+              onPressed: status.loading ? null : onFavorite, icon: Icon(status.icon)),
             IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'عرض على الخريطة',
               onPressed: onMap, icon: const Icon(Icons.location_on_outlined)),
           ]),
@@ -248,8 +251,8 @@ class PropertyMapResultCard extends StatelessWidget {
               suffix: rent && p.monthlyRent != null ? 'شهريًا' : null)))),
         Row(children: [Expanded(child: Text(rent ? 'للإيجار' : 'للبيع',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(color: purposeColor))),
-          IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة',
-            onPressed: onFavorite, icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded)),
+          IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: status.tooltip,
+            onPressed: status.loading ? null : onFavorite, icon: Icon(status.icon)),
           IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'عرض على الخريطة',
             onPressed: onMap, icon: const Icon(Icons.location_on_outlined)),
         ]),

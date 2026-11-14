@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/auth_controller.dart';
+import '../data/account_request_scope.dart';
 import '../domain/auth_user.dart';
 
 /// Private page state belongs to one resolved account and permission scope.
@@ -30,33 +32,50 @@ class ActorScopedPage extends ConsumerWidget {
 /// Forms initialized from private data cannot be transferred to another actor.
 /// Keep the binding even if logout and login happen before the next frame.
 class ActorBoundPage extends ConsumerStatefulWidget {
-  const ActorBoundPage({required this.title, required this.builder, this.actorId, super.key});
+  const ActorBoundPage({required this.title, required this.builder, this.actorId, this.sessionEpoch, this.requestScope, super.key});
   final String title;
   final WidgetBuilder builder;
   // Snapshot the initiating account when a route carries preloaded private data.
   final int? actorId;
+  final int? sessionEpoch;
+  final AccountRequestScope? requestScope;
   @override
   ConsumerState<ActorBoundPage> createState() => _ActorBoundPageState();
 }
 
 class _ActorBoundPageState extends ConsumerState<ActorBoundPage> {
   int? _actor;
+  int? _epoch;
   bool _changed = false;
 
   @override
-  void initState() { super.initState(); _actor = widget.actorId; }
+  void initState() {
+    super.initState();
+    _actor = widget.actorId;
+    // An unbound route may mount during auth bootstrap. Bind its epoch with
+    // the first resolved actor; preloaded routes keep their explicit origin.
+    _epoch = widget.sessionEpoch ??
+        (_actor == null ? null : Stage6SecureSessionStore.instance.sessionEpoch);
+  }
 
   @override
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (_, next) {
-      if (_actor != null && next.asData != null && next.asData?.value?.id != _actor) {
+      if (_actor != null && next.asData != null &&
+          (next.asData?.value?.id != _actor ||
+           Stage6SecureSessionStore.instance.sessionEpoch != _epoch)) {
         setState(() => _changed = true);
       }
     });
     final auth = ref.watch(authControllerProvider);
     final actor = auth.asData?.value;
-    if (_actor != null && auth.asData != null && actor?.id != _actor) _changed = true;
-    if (!_changed && _actor == null && actor != null) _actor = actor.id;
+    if (widget.requestScope?.isCurrent == false) _changed = true;
+    if (!_changed && _actor == null && actor != null) {
+      _actor = actor.id;
+      _epoch ??= Stage6SecureSessionStore.instance.sessionEpoch;
+    }
+    if (_actor != null && auth.asData != null &&
+        (actor?.id != _actor || Stage6SecureSessionStore.instance.sessionEpoch != _epoch)) { _changed = true; }
     // Keep the normal guest entry state after logout. A later login still
     // cannot reuse this page's old private form, even with the same user ID.
     if (_changed && actor != null) {
@@ -70,12 +89,13 @@ class _ActorBoundPageState extends ConsumerState<ActorBoundPage> {
   }
 }
 
-Widget _accountOverlay({required int actor, required WidgetBuilder builder,
-  required WidgetBuilder changed}) => _ActorBoundOverlay(actor: actor, builder: builder, changed: changed);
+Widget _accountOverlay({required int actor, required int epoch, required WidgetBuilder builder,
+  required WidgetBuilder changed}) => _ActorBoundOverlay(actor: actor, epoch: epoch, builder: builder, changed: changed);
 
 class _ActorBoundOverlay extends ConsumerStatefulWidget {
-  const _ActorBoundOverlay({required this.actor, required this.builder, required this.changed});
+  const _ActorBoundOverlay({required this.actor, required this.epoch, required this.builder, required this.changed});
   final int actor;
+  final int epoch;
   final WidgetBuilder builder;
   final WidgetBuilder changed;
   @override
@@ -87,36 +107,55 @@ class _ActorBoundOverlayState extends ConsumerState<_ActorBoundOverlay> {
   @override
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (_, next) {
-      if (next.asData != null && next.asData?.value?.id != widget.actor) _expired = true;
+      if (next.asData != null && (next.asData?.value?.id != widget.actor ||
+          Stage6SecureSessionStore.instance.sessionEpoch != widget.epoch)) { _expired = true; }
     });
     final current = ref.watch(authControllerProvider).asData?.value?.id;
-    if (current != widget.actor) _expired = true;
+    if (current != widget.actor ||
+        Stage6SecureSessionStore.instance.sessionEpoch != widget.epoch) { _expired = true; }
     return _expired ? widget.changed(context) : widget.builder(context);
   }
 }
 
-Future<T?> showActorDialog<T>({required BuildContext context, required WidgetRef ref,
-  required WidgetBuilder builder, bool barrierDismissible = true}) {
+// Bind at invocation, before the route's first build, and also reject a result
+// if the account changes between closing a popup and resuming its caller.
+Future<T?> _showAccountOverlay<T>(BuildContext context, WidgetRef ref,
+    Future<T?> Function(int actor, int epoch) present) async {
   final actor = ref.read(authControllerProvider).asData?.value?.id;
-  if (actor == null) return Future<T?>.value();
-  return showDialog<T>(context: context, barrierDismissible: barrierDismissible, builder: (_) => _accountOverlay(actor: actor,
-    builder: builder, changed: (dialog) => AlertDialog(title: const Text('تغيّر الحساب'),
-      content: const Text('أغلق النافذة وأعد فتح العملية من حسابك الحالي.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('إغلاق'))])));
+  if (actor == null) return null;
+  final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+  var alive = true;
+  final subscription = ref.listenManual(authControllerProvider, (_, next) {
+    if (next.asData?.value?.id != actor ||
+        Stage6SecureSessionStore.instance.sessionEpoch != epoch) { alive = false; }
+  });
+  try {
+    final result = await present(actor, epoch);
+    return context.mounted && alive && Stage6SecureSessionStore.instance.sessionEpoch == epoch &&
+        ref.read(authControllerProvider).asData?.value?.id == actor ? result : null;
+  } finally {
+    subscription.close();
+  }
 }
 
+Future<T?> showActorDialog<T>({required BuildContext context, required WidgetRef ref,
+  required WidgetBuilder builder, bool barrierDismissible = true}) =>
+    _showAccountOverlay<T>(context, ref, (actor, epoch) => showDialog<T>(context: context,
+      barrierDismissible: barrierDismissible, builder: (_) => _accountOverlay(actor: actor, epoch: epoch,
+        builder: builder, changed: (dialog) => AlertDialog(title: const Text('تغيّر الحساب'),
+          content: const Text('أغلق النافذة وأعد فتح العملية من حسابك الحالي.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('إغلاق'))]))));
+
 Future<T?> showActorModalBottomSheet<T>({required BuildContext context, required WidgetRef ref,
-  required WidgetBuilder builder, bool isScrollControlled = false, bool useSafeArea = false}) {
-  final actor = ref.read(authControllerProvider).asData?.value?.id;
-  if (actor == null) return Future<T?>.value();
-  return showModalBottomSheet<T>(context: context, isScrollControlled: isScrollControlled, useSafeArea: useSafeArea,
-    builder: (_) => _accountOverlay(actor: actor, builder: builder,
-      changed: (sheet) => SafeArea(child: Padding(padding: const EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('تغيّر الحساب'), const SizedBox(height: 12),
-          TextButton(onPressed: () => Navigator.pop(sheet), child: const Text('إغلاق')),
-        ])))));
-}
+  required WidgetBuilder builder, bool isScrollControlled = false, bool useSafeArea = false}) =>
+    _showAccountOverlay<T>(context, ref, (actor, epoch) => showModalBottomSheet<T>(context: context,
+      isScrollControlled: isScrollControlled, useSafeArea: useSafeArea,
+      builder: (_) => _accountOverlay(actor: actor, epoch: epoch, builder: builder,
+        changed: (sheet) => SafeArea(child: Padding(padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('تغيّر الحساب'), const SizedBox(height: 12),
+            TextButton(onPressed: () => Navigator.pop(sheet), child: const Text('إغلاق')),
+          ]))))));
 
 /// Root Navigator popups outlive their launching page. Withdraw them after an
 /// account/authorization change, including logout and same-ID login in one frame.

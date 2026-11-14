@@ -12,8 +12,16 @@ class NotificationController extends Controller
     public function index(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $rows=UserNotification::query()->where('user_id',$user->id)->whereNull('read_at')->latest('id')->limit(200)->get();
-        return response()->json(['data'=>$rows->map(fn(UserNotification $n)=>$this->data($n))->values()]);
+        $data=$request->validate([
+            'page'=>['sometimes','integer','min:1'],
+            'per_page'=>['sometimes','integer','between:1,200'],
+        ]);
+        $page=UserNotification::query()->where('user_id',$user->id)->whereNull('read_at')->latest('id')
+            ->paginate((int)($data['per_page']??200),['*'],'page',(int)($data['page']??1));
+        return response()->json(['data'=>$page->getCollection()->map(fn(UserNotification $n)=>$this->data($n))->values(),'meta'=>[
+            'current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),
+            'per_page'=>$page->perPage(),'total'=>$page->total(),
+        ]]);
     }
     public function unreadCount(Request $request): JsonResponse
     {

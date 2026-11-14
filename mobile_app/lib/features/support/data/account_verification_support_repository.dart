@@ -5,6 +5,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../account/domain/account_verification.dart';
 import '../../account/data/auth_repository.dart';
 
 final accountVerificationSupportRepositoryProvider =
@@ -12,46 +15,62 @@ final accountVerificationSupportRepositoryProvider =
   return AccountVerificationSupportRepository(
     ref.watch(dioProvider),
     ref.watch(authRepositoryProvider),
+    requestScope: ref.watch(accountRequestScopeProvider),
   );
 });
 
 class AccountVerificationSupportRepository {
-  AccountVerificationSupportRepository(this._dio, this._auth);
+  AccountVerificationSupportRepository(this._dio, this._auth,
+      {AccountRequestScope? requestScope}) : _requestScope = requestScope;
 
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
 
-  Future<List<AccountVerificationSupportItem>> pending() async {
+  Future<Options> _sessionOptions() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifySession(epoch);
+    return options;
+  }
+
+  void _verifySession(int epoch) {
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
+  }
+
+  Future<AccountVerificationPage<AccountVerificationSupportItem>> pending({
+    int? userId, int page = 1, int perPage = 40,
+  }) async {
+    if (page < 1 || perPage < 1 || perPage > 100 || (userId != null && userId < 1)) {
+      throw ArgumentError('Invalid account verification page.');
+    }
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/account-verifications',
-      queryParameters: const <String, dynamic>{'status': 'pending'},
-      options: await _auth.requiredAuthOptions(),
+      queryParameters: <String, dynamic>{'status': 'pending',
+        if (userId != null) 'user_id': userId, 'page': page, 'per_page': perPage},
+      options: await _sessionOptions(),
     );
-    dynamic rows = response.data?['data'];
-    if (rows is Map<String, dynamic>) {
-      rows = rows['data'] ?? rows['items'];
-    }
-    if (rows is! List) return const <AccountVerificationSupportItem>[];
-    return rows
-        .whereType<Map<dynamic, dynamic>>()
-        .map((row) => AccountVerificationSupportItem.fromJson(
-              row.map<String, dynamic>(
-                (key, value) => MapEntry(key.toString(), value),
-              ),
-            ))
-        .where((item) => item.userId > 0)
-        .toList(growable: false);
+    _verifySession(epoch);
+    return AccountVerificationPage.fromJson(response.data, page: page,
+      parse: AccountVerificationSupportItem.fromJson);
   }
 
   Future<void> approve(int userId) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     await _dio.post<Map<String, dynamic>>(
       '/admin/account-verifications/$userId/approve',
-      options: await _auth.requiredAuthOptions(),
+      options: await _sessionOptions(),
     );
+    _verifySession(epoch);
   }
 
   Future<Uint8List> documentBytes(int userId, String kind) async {
-    final authOptions = await _auth.requiredAuthOptions();
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final authOptions = await _sessionOptions();
     final response = await _dio.get<List<int>>(
       '/account-verification/users/$userId/documents/$kind',
       options: Options(
@@ -59,6 +78,7 @@ class AccountVerificationSupportRepository {
         responseType: ResponseType.bytes,
       ),
     );
+    _verifySession(epoch);
     return Uint8List.fromList(response.data ?? const <int>[]);
   }
 }

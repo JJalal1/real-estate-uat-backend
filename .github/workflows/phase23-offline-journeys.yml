@@ -1,0 +1,159 @@
+name: Phase23 isolated recent-history and role-shell journeys
+# Only the x86_64 synthetic target is built. No ordinary delivery or live login.
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-offline-journeys.yml
+      - scripts/phase23_offline_journeys_main.dart
+      - scripts/run_phase23_offline_journeys.py
+      - scripts/tests/test_phase23_offline_journeys_contract.py
+      - scripts/tests/test_phase23_offline_journeys_collector.py
+permissions:
+  contents: read
+concurrency:
+  group: phase23-offline-journeys
+  cancel-in-progress: false
+jobs:
+  fixture-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_journeys_contract.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_journeys_collector.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_visual_revision.py -v
+  native-journeys:
+    if: ${{ contains(github.event.head_commit.message, '[run-offline-journeys]') }}
+    needs: fixture-safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PHASE23_OFFLINE_JOURNEYS: 'true'
+      PHASE23_JOURNEYS_TAIL_ONLY: 'true'
+      PHASE23_VISUAL_REVISION: 'true'
+      SOURCE_COMMIT: ${{ github.sha }}
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Verify exact reviewed product and set disposable build paths
+        run: |
+          python3 -B - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'scripts')
+          from phase23_visual_revision import guard
+          guard(os.environ)
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('GRADLE_USER_HOME=' + os.environ['RUNNER_TEMP'] + '/aqer-journeys-gradle\n')
+              stream.write('PHASE23_JOURNEYS_BUILD=' + str(1900 + int(os.environ['GITHUB_RUN_NUMBER'])) + '\n')
+          print('AQER_JOURNEYS_REVIEWED_SOURCE')
+          PY
+          test -c /dev/kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Build only the separate synthetic x86_64 journey target
+        working-directory: mobile_app
+        run: |
+          test ! -e lib/phase23_offline_journeys_main.dart
+          test ! -e android/firebase-uat.properties
+          cp ../scripts/phase23_offline_journeys_main.dart lib/phase23_offline_journeys_main.dart
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          flutter analyze --fatal-infos lib/phase23_offline_journeys_main.dart
+          flutter build apk --flavor uat --release --no-pub --target-platform android-x64 \
+            --target=lib/phase23_offline_journeys_main.dart --build-number="$PHASE23_JOURNEYS_BUILD" \
+            --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_OFFLINE_JOURNEYS_QA=true \
+            --dart-define=AQER_OFFLINE_JOURNEYS_TAIL_ONLY=true \
+            --dart-define=API_BASE_URL=https://synthetic.invalid/api \
+            --dart-define=APP_SHARE_BASE_URL=https://synthetic.invalid
+          cmp lib/phase23_offline_journeys_main.dart ../scripts/phase23_offline_journeys_main.dart
+          rm lib/phase23_offline_journeys_main.dart
+          # Restore generated files, then require the full reviewed worktree.
+          git show HEAD:mobile_app/pubspec.lock > pubspec.lock
+          for file in linux/flutter/generated_plugin_registrant.cc \
+              linux/flutter/generated_plugin_registrant.h linux/flutter/generated_plugins.cmake \
+              macos/Flutter/GeneratedPluginRegistrant.swift \
+              windows/flutter/generated_plugin_registrant.cc \
+              windows/flutter/generated_plugin_registrant.h windows/flutter/generated_plugins.cmake; do
+            git show "HEAD:mobile_app/$file" > "$file"
+          done
+          git diff --exit-code HEAD -- . ../backend-api-runtime
+      - name: Boot one fresh API36 emulator
+        run: |
+          (cd mobile_app/android && ./gradlew --stop --gradle-user-home "$GRADLE_USER_HOME")
+          sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/phase23-journeys-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd --force --name aqer-offline-journeys --device pixel \
+            --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-offline-journeys.avd/config.ini" <<'PY'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          settings = {'hw.lcd.width':'1080','hw.lcd.height':'1920','hw.lcd.density':'420','showDeviceFrame':'no'}
+          lines = [s for s in path.read_text().splitlines() if s.split('=',1)[0].strip() not in settings]
+          path.write_text('\n'.join(lines + [k+'='+v for k,v in settings.items()])+'\n')
+          PY
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd aqer-offline-journeys -port 5554 \
+            -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on \
+            -memory 2048 -cores 2 > "$RUNNER_TEMP/phase23-journeys-emulator.log" 2>&1 &
+          deadline=$((SECONDS+250))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && \
+               [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
+            sleep 2
+          done
+          test "$SECONDS" -lt "$deadline"
+      - name: Run bounded native persistence and role-shell evidence
+        run: |
+          python3 -B scripts/run_phase23_offline_journeys.py \
+            --apk mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk \
+            --serial emulator-5554 --max-seconds 600
+      - name: Upload only recipient-encrypted synthetic checkpoints
+        if: ${{ always() && hashFiles('phase23-offline-journeys-sealed/PUBLIC_RECEIPT.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase23-offline-journeys-${{ github.run_id }}
+          path: |
+            phase23-offline-journeys-sealed/checkpoints.cms
+            phase23-offline-journeys-sealed/PUBLIC_RECEIPT.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Stop the disposable emulator
+        if: always()
+        run: |
+          adb -s emulator-5554 shell am force-stop com.aqer.yemen.uat || true
+          adb -s emulator-5554 emu kill || true
+          rm -f mobile_app/lib/phase23_offline_journeys_main.dart

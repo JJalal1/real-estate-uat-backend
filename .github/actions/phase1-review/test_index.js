@@ -12,6 +12,29 @@ const p=require('./index.js');
 let fixtureRoot,cipher,fakeScript;
 const SENTINEL='PRIVATE_TEST_SENTINEL_MUST_NOT_ENTER_LOGS';
 
+test('Phase23 selects its fixed owner without changing the legacy owner',()=>{
+  const env={GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:p.REPO,GITHUB_RUN_ID:'9001',GITHUB_RUN_ATTEMPT:'1',
+    GITHUB_SHA:'a'.repeat(40),AQER_BRIDGE_TOOLBUNDLE_SHA:'b'.repeat(64),RUNNER_TEMP:'/tmp',GITHUB_WORKSPACE:'/workspace',
+    GITHUB_REF:'refs/heads/work/phase23-acceptance-20261111'};
+  const current=p.configFromEnvironment(env);
+  assert.equal(current.phase23,true);
+  assert.equal(current.script,'/workspace/scripts/run_phase23_native.py');
+  const legacy=p.configFromEnvironment({...env,GITHUB_REF:'refs/heads/work/phase1-completion-20261105'});
+  assert.equal(legacy.phase23,false);
+  assert.equal(legacy.script,'/workspace/'+p.OWNER_RELATIVE);
+});
+
+test('checkpoint phase families cannot cross the legacy and Phase23 contexts',()=>{
+  const cfg={runId:'9001',attempt:1,source:'a'.repeat(40),bundle:'b'.repeat(64),phase23:true};
+  const receipt={version:1,repo:p.REPO,run_id:'9001',run_attempt:1,source_sha:cfg.source,
+    toolbundle_sha:cfg.bundle,seq:1,kind:'review_checkpoint',phase:'R1',cursor:'NATIVE',
+    checkpoint_challenge:'c'.repeat(64),prev_result_sha:'d'.repeat(64),cipher_sha:'e'.repeat(64),
+    cipher_bytes:100,created_utc:'2026-11-11T00:00:00Z',phase1_accepted:false};
+  assert.equal(p.validateReceipt(receipt,cfg,1,100,'e'.repeat(64)).phase,'R1');
+  assert.throws(()=>p.validateReceipt(receipt,{...cfg,phase23:false},1,100,'e'.repeat(64)));
+  assert.throws(()=>p.validateReceipt({...receipt,phase:'C1'},cfg,1,100,'e'.repeat(64)));
+});
+
 before(async()=>{
   fixtureRoot=await fs.mkdtemp(path.join(os.tmpdir(),'aqer-action-test-'));
   await fs.chmod(fixtureRoot,0o700);

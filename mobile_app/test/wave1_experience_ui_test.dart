@@ -217,6 +217,40 @@ void main() {
     expect(tester.takeException(), isNull); await closeUx(tester);
   });
 
+  testWidgets('a warm property link replaces the previous modal details and still closes to Home', (tester) async {
+    final requested = <int>[];
+    final scope = uxContainer(extra: [propertyDetailsProvider.overrideWith((ref, id) async {
+      requested.add(id);
+      return PropertyDetails.fromJson({
+        'id': id, 'title': 'عقار الرابط $id', 'type': 'apartment', 'purpose': 'rent',
+        'price': id == 11 ? 175000 : 180000, 'currency': 'YER',
+        'status': 'published', 'availability_status': 'available',
+      });
+    })]);
+    await scope.read(authControllerProvider.future);
+    final router = scope.read(appRouterProvider); addTearDown(router.dispose);
+    router.go('/properties/11');
+    await pumpUx(tester, scope, const SizedBox.shrink(), router: router);
+    await tester.pumpAndSettle();
+    expect(find.text('عقار الرابط 11'), findsOneWidget);
+
+    router.go('/properties/12');
+    await tester.pumpAndSettle();
+    expect(find.text('عقار الرابط 12'), findsOneWidget);
+    expect(find.text('عقار الرابط 11'), findsNothing);
+    expect(find.byKey(const ValueKey('property-details-12')), findsOneWidget);
+    expect(requested, containsAllInOrder([11, 12]));
+
+    router.go('/properties/11');
+    await tester.pumpAndSettle();
+    expect(find.text('عقار الرابط 11'), findsOneWidget);
+    expect(find.text('عقار الرابط 12'), findsNothing);
+    await tester.binding.handlePopRoute(); await tester.pumpAndSettle();
+    expect(router.routeInformationProvider.value.uri.path, '/');
+    expect(find.byKey(const ValueKey('property-details-sheet')), findsNothing);
+    expect(tester.takeException(), isNull); await closeUx(tester);
+  });
+
   testWidgets('ordinary map and full list roundtrip keeps the same canvas, typed query and result request', (tester) async {
     var requests = 0;
     const row = PropertyMarker(id: 11, title: 'شقة اختبار حدة', price: 10000000, currency: 'YER',

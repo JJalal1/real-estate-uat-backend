@@ -1,0 +1,270 @@
+name: Phase23 disposable local ordinary-app media journey
+# Real ordinary debug main + original Laravel/PostgreSQL. No live account or API.
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-local-media-journey.yml
+      - scripts/phase23_local_backend_fixture.php
+      - scripts/phase23_local_media_guard.py
+      - scripts/run_phase23_local_media_journey.py
+      - scripts/tests/test_phase23_local_media_guard.py
+      - scripts/tests/test_phase23_local_media_journey.py
+permissions:
+  contents: read
+concurrency:
+  group: phase23-local-media-journey
+  cancel-in-progress: false
+jobs:
+  local-media:
+    if: ${{ contains(github.event.head_commit.message, '[run-local-media]') && !contains(github.event.head_commit.message, '[collector-only]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: phase23_local_media_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d phase23_local_media_ci"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      SOURCE_COMMIT: ${{ github.sha }}
+      PHASE23_LOCAL_MEDIA: 'true'
+      APP_ENV: local
+      APP_ENVIRONMENT: local
+      APP_DEBUG: 'true'
+      APP_URL: http://10.0.2.2:8000
+      API_BASE_URL: http://10.0.2.2:8000/api
+      APP_SHARE_BASE_URL: http://10.0.2.2:8000
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: phase23_local_media_ci
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DATABASE_URL: ''
+      DB_SEARCH_PATH: public,extensions
+      UAT_CLOUD_STORAGE_ENABLED: 'false'
+      UAT_TEST_OTP_ENABLED: 'false'
+      UAT_WAVE3_FIXTURES_ENABLED: 'false'
+      UAT_CITY_DEMO_SEED_ENABLED: 'false'
+      PUSH_NOTIFICATIONS_ENABLED: 'false'
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      FILESYSTEM_DISK: local
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      LOG_CHANNEL: single
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+      PHASE23_RECIPIENT_SHA256: b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Guard unchanged product and disposable origins before any database action
+        run: |
+          python3 -B scripts/phase23_local_media_guard.py
+          python3 -B -m unittest discover -s scripts/tests -p test_phase23_local_media_guard.py -v
+          python3 -B -m unittest discover -s scripts/tests -p test_phase23_local_media_journey.py -v
+          test -c /dev/kvm
+          mkdir -m 700 "$RUNNER_TEMP/phase23-local-media"
+          echo "GRADLE_USER_HOME=$RUNNER_TEMP/aqer-local-media-gradle" >> "$GITHUB_ENV"
+          echo "PHASE23_LOCAL_MEDIA_BUILD=$((2100+GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Install original backend dependencies and temporary key
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+          php -l ../scripts/phase23_local_backend_fixture.php
+      - name: Guard again then migrate and seed only disposable PostgreSQL
+        run: |
+          php scripts/phase23_local_backend_fixture.php guard
+          psql -h 127.0.0.1 -U postgres -d phase23_local_media_ci -v ON_ERROR_STOP=1 \
+            -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;' \
+            -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+          (cd backend-api-runtime && php artisan migrate --force)
+          php scripts/phase23_local_backend_fixture.php seed "$RUNNER_TEMP/phase23-local-media/fixture.json"
+          php scripts/phase23_local_backend_fixture.php inspect "$RUNNER_TEMP/phase23-local-media/fixture.json" > "$RUNNER_TEMP/phase23-local-media/initial-state.json"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Build ordinary main once with explicit local endpoints and debug cleartext policy
+        working-directory: mobile_app
+        run: |
+          test ! -e android/firebase-uat.properties
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          flutter build apk --flavor uat --debug --no-pub --target=lib/main.dart \
+            --target-platform=android-x64 --build-number="$PHASE23_LOCAL_MEDIA_BUILD" \
+            --dart-define=APP_ENVIRONMENT=local \
+            --dart-define=API_BASE_URL=http://10.0.2.2:8000/api \
+            --dart-define=APP_SHARE_BASE_URL=http://10.0.2.2:8000
+          git show HEAD:mobile_app/pubspec.lock > pubspec.lock
+          for file in linux/flutter/generated_plugin_registrant.cc \
+              linux/flutter/generated_plugin_registrant.h linux/flutter/generated_plugins.cmake \
+              macos/Flutter/GeneratedPluginRegistrant.swift \
+              windows/flutter/generated_plugin_registrant.cc \
+              windows/flutter/generated_plugin_registrant.h windows/flutter/generated_plugins.cmake; do
+            git show "HEAD:mobile_app/$file" > "$file"
+          done
+      - name: Bind the local ordinary APK to the private source receipt
+        run: |
+          python3 -B - <<'PY'
+          import hashlib,json,os,sys,zipfile
+          from pathlib import Path
+          sys.path.insert(0,'scripts')
+          from phase23_local_media_guard import guard
+          receipt=guard(os.environ)
+          apk=Path('mobile_app/build/app/outputs/flutter-apk/app-uat-debug.apk')
+          with zipfile.ZipFile(apk) as archive:
+              kernel=archive.read('assets/flutter_assets/kernel_blob.bin')
+              assert b'http://10.0.2.2:8000/api' in kernel, 'compiled_local_endpoint_missing'
+          receipt.update(schema=1,marker='AQER_LOCAL_MEDIA_BUILD_V1',target='lib/main.dart',mode='debug',
+            flavor='uat',environment='local',package='com.aqer.yemen.uat',share_base='http://10.0.2.2:8000',
+            apk_sha256=hashlib.sha256(apk.read_bytes()).hexdigest(),build_number=os.environ['PHASE23_LOCAL_MEDIA_BUILD'],
+            compiled_local_endpoint=True,provider_overrides=False)
+          target=Path(os.environ['RUNNER_TEMP'])/'phase23-local-media/BUILD_RECEIPT.json'
+          target.write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+      - name: Start original local HTTP runtime and one fresh API36 emulator
+        run: |
+          (cd backend-api-runtime && nohup php artisan serve --host=127.0.0.1 --port=8000 > "$RUNNER_TEMP/phase23-local-media/server.log" 2>&1 &)
+          (cd mobile_app/android && ./gradlew --stop --gradle-user-home "$GRADLE_USER_HOME")
+          sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/phase23-local-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd --force --name aqer-local-media --device pixel --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-local-media.avd/config.ini" <<'PY'
+          from pathlib import Path
+          import sys
+          p=Path(sys.argv[1]); settings={'hw.lcd.width':'1080','hw.lcd.height':'1920','hw.lcd.density':'420','showDeviceFrame':'no'}
+          p.write_text('\n'.join([s for s in p.read_text().splitlines() if s.split('=',1)[0].strip() not in settings]+[k+'='+v for k,v in settings.items()])+'\n')
+          PY
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd aqer-local-media -port 5554 \
+            -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on \
+            -memory 2048 -cores 2 > "$RUNNER_TEMP/phase23-local-media/emulator.log" 2>&1 &
+          deadline=$((SECONDS+250))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && \
+               [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
+            sleep 2
+          done
+          test "$SECONDS" -lt "$deadline"
+      - name: Allow emulator HTTP only to the disposable host server
+        run: |
+          adb -s emulator-5554 root
+          adb -s emulator-5554 wait-for-device
+          test "$(adb -s emulator-5554 shell id -u | tr -d '\r')" = 0
+          # Flush only this fresh emulator's OUTPUT chains; set DROP first.
+          adb -s emulator-5554 shell iptables -P OUTPUT DROP
+          adb -s emulator-5554 shell iptables -F OUTPUT
+          adb -s emulator-5554 shell iptables -A OUTPUT -o lo -j ACCEPT
+          adb -s emulator-5554 shell iptables -A OUTPUT -d 10.0.2.2/32 -p tcp --dport 8000 -j ACCEPT
+          adb -s emulator-5554 shell iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+          adb -s emulator-5554 shell ip6tables -P OUTPUT DROP
+          adb -s emulator-5554 shell ip6tables -F OUTPUT
+          adb -s emulator-5554 shell iptables -S OUTPUT > "$RUNNER_TEMP/phase23-local-media/ipv4-rules.txt"
+          adb -s emulator-5554 shell ip6tables -S OUTPUT > "$RUNNER_TEMP/phase23-local-media/ipv6-rules.txt"
+      - name: Exercise real app media, review and reader refresh in the local runtime
+        run: |
+          python3 -B scripts/run_phase23_local_media_journey.py \
+            --apk mobile_app/build/app/outputs/flutter-apk/app-uat-debug.apk \
+            --serial emulator-5554 --fixture "$RUNNER_TEMP/phase23-local-media/fixture.json" --max-seconds 1800
+      - name: Encrypt local runtime diagnostics even if the journey stops early
+        if: always()
+        run: |
+          test -d "$RUNNER_TEMP/phase23-local-media" || exit 0
+          mkdir -p phase23-local-media-sealed
+          cp backend-api-runtime/storage/logs/laravel.log "$RUNNER_TEMP/phase23-local-media/laravel.log" 2>/dev/null || true
+          python3 -B - <<'PY'
+          import hashlib,json,os,subprocess,sys,tarfile,tempfile
+          from pathlib import Path
+          sys.path.insert(0,'scripts')
+          from prepare_phase1_close import encrypt
+          recipient=Path('scripts/phase23_recipient.pem')
+          recipient_sha=hashlib.sha256(recipient.read_bytes()).hexdigest()
+          assert recipient_sha==os.environ['PHASE23_RECIPIENT_SHA256']
+          private=Path(os.environ['RUNNER_TEMP'])/'phase23-local-media'
+          sealed=Path('phase23-local-media-sealed')
+          # Raw device context stays inside authenticated runtime ciphertext.
+          # Bound Android's returned line count, execution time and saved bytes.
+          log_meta={'max_lines':3000,'max_bytes':2097152,'timeout_seconds':15}
+          log_bytes=b''
+          try:
+              capture=subprocess.run(['adb','-s','emulator-5554','logcat','-d','-t','3000'],
+                  stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=15,check=False)
+              log_bytes=capture.stdout
+              log_meta.update(returncode=capture.returncode,timed_out=False)
+          except subprocess.TimeoutExpired as error:
+              log_bytes=error.stdout or b''
+              log_meta.update(returncode=None,timed_out=True)
+          except OSError:
+              log_meta.update(returncode=None,unavailable=True)
+          log_meta['truncated']=len(log_bytes)>log_meta['max_bytes']
+          (private/'android-logcat.txt').write_bytes(log_bytes[-log_meta['max_bytes']:])
+          (private/'android-logcat-capture.json').write_text(json.dumps(log_meta)+'\n')
+          with tempfile.TemporaryDirectory(prefix='local-runtime-seal-',dir=os.environ['RUNNER_TEMP']) as tmp:
+              archive=Path(tmp)/'runtime.tar.gz'
+              with tarfile.open(archive,'w:gz') as stream:
+                  stream.add(private,arcname='local-runtime',recursive=True)
+              encrypted=encrypt(archive,sealed/'runtime.cms',recipient)
+          receipt_path=sealed/'PUBLIC_RECEIPT.json'
+          receipt=json.loads(receipt_path.read_text()) if receipt_path.exists() else {
+              'schema':1,'source_sha':os.environ['GITHUB_SHA'],'run_id':os.environ['GITHUB_RUN_ID'],
+              'status':'RUNTIME_DIAGNOSTICS_ONLY_JOURNEY_NOT_COMPLETED'}
+          receipt['encrypted_runtime']=encrypted
+          receipt['recipient_sha256']=recipient_sha
+          receipt_path.write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+      - name: Preserve only encrypted journey and local diagnostics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-local-media-${{ github.run_id }}
+          path: |
+            phase23-local-media-sealed/journey.cms
+            phase23-local-media-sealed/runtime.cms
+            phase23-local-media-sealed/PUBLIC_RECEIPT.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Stop disposable runtime
+        if: always()
+        run: |
+          adb -s emulator-5554 shell am force-stop com.aqer.yemen.uat || true
+          adb -s emulator-5554 emu kill || true
+          pkill -f 'php.*127.0.0.1:8000' || true

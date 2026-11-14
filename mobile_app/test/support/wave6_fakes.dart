@@ -6,6 +6,8 @@ import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/domain/my_listings_page.dart';
+import 'package:real_estate_mobile/features/account/data/account_request_scope.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
 import 'wave3_fakes.dart';
 
@@ -74,6 +76,12 @@ PropertyDetails wave6Property(int id,{String type='apartment',String purpose='sa
 class Wave6Properties extends Wave3PropertiesFake {
   @override
   Future<List<PropertyDetails>> myListings() async=>[];
+  @override
+  Future<MyListingsPage> myListingsPage({int page = 1, int perPage = 50,
+      AccountRequestScope? requestScope}) async {
+    final items = await myListings();
+    return MyListingsPage(items: items, currentPage: page, lastPage: 1, total: items.length);
+  }
   @override
   Future<PropertyDetails> details(int id) async=>wave6Property(id);
   @override

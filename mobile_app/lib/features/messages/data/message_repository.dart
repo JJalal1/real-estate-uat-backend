@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
@@ -24,10 +25,12 @@ class MessageRepository {
   final AccountRequestScope? _requestScope;
   final int? Function()? _currentActor;
   Future<Options> _sessionOptions() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     _requestScope?.verify();
     if (_currentActor != null && (_actorId == null || _currentActor() != _actorId)) throw StateError('ACCOUNT_CHANGED');
     final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
     _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) throw StateError('ACCOUNT_CHANGED');
     if (_currentActor != null && _currentActor() != _actorId) throw StateError('ACCOUNT_CHANGED');
     return options;
   }
@@ -39,6 +42,62 @@ class MessageRepository {
     return _list(response.data)
         .map(MessageThreadSummary.fromJson)
         .toList(growable: false);
+  }
+
+  Future<MessageThreadPage> threadsPage({int page = 1, int perPage = 40,
+      bool unreadOnly = false}) async {
+    return _inboxPage('/messages/threads', MessageThreadSummary.fromJson,
+      page: page, perPage: perPage, maxPerPage: 250,
+      filters: {if (unreadOnly) 'unread_only': 1});
+  }
+
+  Future<NotificationPage> notificationsPage({int page = 1, int perPage = 40}) =>
+      _inboxPage('/notifications', AppNotificationItem.fromJson,
+        page: page, perPage: perPage, maxPerPage: 200);
+
+  Future<ConversationReportPage> adminReportsPage({int page = 1,
+      int perPage = 40, String? status}) =>
+      _inboxPage('/admin/messages/reports', ConversationReportSummary.fromJson,
+        page: page, perPage: perPage, maxPerPage: 200,
+        filters: {if (status != null && status.isNotEmpty) 'status': status});
+
+  Future<MessageInboxPage<T>> _inboxPage<T>(String path,
+      T Function(Map<String, dynamic>) decode, {required int page,
+      required int perPage, required int maxPerPage,
+      Map<String, Object> filters = const {}}) async {
+    if (page < 1 || perPage < 1 || perPage > maxPerPage) {
+      throw ArgumentError('Invalid private inbox page.');
+    }
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    void verifySession() {
+      _requestScope?.verify();
+      if ((_currentActor != null &&
+          (_actorId == null || _currentActor() != _actorId)) ||
+          epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+        throw StateError('ACCOUNT_CHANGED');
+      }
+    }
+    verifySession();
+    final options = await _sessionOptions();
+    verifySession();
+    final response = await _dio.get<Map<String, dynamic>>(path,
+      queryParameters: {'page': page, 'per_page': perPage, ...filters}, options: options);
+    verifySession();
+    final rows = response.data?['data'];
+    final meta = response.data?['meta'];
+    if (rows is! List || meta is! Map ||
+        meta['current_page'] is! int || meta['current_page'] != page ||
+        meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+        meta['total'] is! int || (meta['total'] as int) < 0 ||
+        rows.any((row) => row is! Map<String, dynamic>)) {
+      throw StateError('Invalid private inbox page response.');
+    }
+    return MessageInboxPage<T>(
+      items: rows.cast<Map<String, dynamic>>().map(decode).toList(growable: false),
+      currentPage: meta['current_page'] as int,
+      lastPage: meta['last_page'] as int,
+      total: meta['total'] as int,
+    );
   }
 
   Future<MessageThreadSummary> startForProperty(int propertyId) async {

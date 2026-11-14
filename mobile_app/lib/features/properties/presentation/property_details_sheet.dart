@@ -10,6 +10,14 @@ class PropertyDetailsSheetPage extends Page<void> {
   final int propertyId;
   final PropertySummary? summary;
 
+  // The modal route's builder belongs to the page that created it. Replacing
+  // one property link with another must create the new property's route.
+  @override
+  bool canUpdate(Page<dynamic> other) =>
+      other is PropertyDetailsSheetPage &&
+      propertyId == other.propertyId &&
+      super.canUpdate(other);
+
   @override
   Route<void> createRoute(BuildContext context) => ModalBottomSheetRoute<void>(
     settings: this,

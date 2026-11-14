@@ -1,0 +1,54 @@
+{
+  "scope": "test harness defects; not application defects",
+  "items": [
+    {
+      "id": "P23-TOOL-001",
+      "run_id": 42912528550,
+      "job_id": 130166713706,
+      "execution_source": "ad7d4fae5bc4768806c4159a120d747c8cade8eb",
+      "build": 1556,
+      "observed_utc": "2026-11-10T22:21:32Z",
+      "status": "verified fixed on API36",
+      "failure": "adb push of a synthetic image to the fresh emulator Downloads directory returned Operation not permitted",
+      "product_journeys_started": false,
+      "fixture_created": false,
+      "application_code_changed": false,
+      "fix": "Create the Downloads directory after verified app startup; keep media setup as a separately observable and retryable command instead of aborting the entire native session",
+      "verification": "Run42914819054 checkpoint0 confirms three synthetic media files seeded successfully after app startup",
+      "preserved_success": "Source/channel/public-read guards, collector safety, release build and APK identity/encryption passed"
+    },
+    {
+      "id": "P23-TOOL-002",
+      "run_id": 42914819054,
+      "execution_source": "8e0df4328b4bf6fd9fc99639b863ba9817a55218",
+      "build": 1557,
+      "observed_utc": "2026-11-10T22:44:55Z",
+      "status": "fix prepared; native confirmation pending",
+      "failure": "Android adb screenrecord inherited the supervisor acknowledgement input stream; no progress after recording-start checkpoint",
+      "fix": "Detach recorder stdin; bound checkpoint ACK wait to 90 seconds; stop recorder before session cleanup",
+      "application_code_changed": false,
+      "fixture_created": false,
+      "verification": "Five scoped collector tests and 27 supervisor tests pass; native confirmation pending",
+      "preserved_success": "API36 startup, three picker images, real broker UI login, API identity28, Add listing overlay"
+    },
+    {
+      "id": "P23-TOOL-003",
+      "run_id": 43140357522,
+      "build": 1584,
+      "failure": "Controller published a scroll direction outside the bounded collector command schema; the collector rejected it and terminated with cleanup.",
+      "status": "controller corrected and validated before subsequent command writes",
+      "application_code_changed": false,
+      "verification": "Subsequent UAT1585 paired journeys and final second-attempt cleanup passed; rejected command remains in original evidence."
+    },
+    {
+      "id": "P23-TOOL-004",
+      "run_id": 43143868479,
+      "attempt": 1,
+      "build": 1585,
+      "failure": "Disposable emulator became unavailable during app restart after native-map acceptance. API sessions closed; native logout was not observed. Cause not established.",
+      "status": "remaining cases completed on a fresh second attempt",
+      "application_code_changed": false,
+      "verification": "Second attempt successful: public media measurement, actual DataSaver=true samples and restored setting, internal approval-notification destination and final native/API cleanup. Prior failure retained."
+    }
+  ]
+}

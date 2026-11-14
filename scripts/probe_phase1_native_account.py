@@ -846,7 +846,7 @@ class NativeAccount:
         self.record_tainted = False
         self.recorder = subprocess.Popen(['adb', '-s', self.serial, 'shell', 'screenrecord',
             '--bit-rate', '2000000', '--time-limit', '180', '/sdcard/phase1-account.mp4'],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def record_stop(self, export=False):
         if self.recorder is None:

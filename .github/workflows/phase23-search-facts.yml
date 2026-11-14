@@ -1,0 +1,94 @@
+name: Phase23 explicit search followup regression
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-search-facts.yml
+      - backend-api-runtime/app/Services/SmartSearchService.php
+      - backend-api-runtime/app/Services/ExplicitSearchAmendments.php
+      - backend-api-runtime/tests/Feature/ExplicitSearchAmendmentsTest.php
+permissions:
+  contents: read
+jobs:
+  sqlite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+      - name: Install existing locked dependencies into isolated tests
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+          php -l app/Services/SmartSearchService.php
+          php -l app/Services/ExplicitSearchAmendments.php
+          php -l tests/Feature/ExplicitSearchAmendmentsTest.php
+      - name: Explicit facts, real public filtering and provider failure boundaries
+        working-directory: backend-api-runtime
+        run: php artisan test tests/Feature/ExplicitSearchAmendmentsTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Affected search patch, multi-type and context regressions
+        working-directory: backend-api-runtime
+        run: |
+          php artisan test tests/Feature/Wave3AiAssistantTest.php --filter='test_(followups_keep_context|unknown_model_fields|followup_preserves_exact|contextual_suggestions|disabled_provider|shared_budget)' --display-warnings --fail-on-warning --fail-on-risky
+          php artisan test tests/Feature/Wave01SharedFiltersTest.php --filter='test_(ai_type_amendments|invalid_ai_multi_patch)' --display-warnings --fail-on-warning --fail-on-risky
+          php artisan test tests/Feature/SpokenSearchCityTest.php --filter='test_(spoken_ibb_then_price|type_followups_complete|literal_purpose_does_not)' --display-warnings --fail-on-warning --fail-on-risky
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_audit
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: real_estate_audit
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Install existing locked dependencies
+        working-directory: backend-api-runtime
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate --force
+      - name: Prepare roles only in the disposable local database
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+      - name: Apply the unchanged migration chain locally
+        working-directory: backend-api-runtime
+        run: php artisan migrate --force
+      - name: Verify corrected public filtering and unchanged source scope on PostGIS
+        working-directory: backend-api-runtime
+        run: php artisan test tests/Feature/ExplicitSearchAmendmentsTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped

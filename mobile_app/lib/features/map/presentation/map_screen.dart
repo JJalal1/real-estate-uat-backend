@@ -21,6 +21,7 @@ import '../data/property_discovery_history_store.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
 import '../../properties/data/favorites_repository.dart';
+import '../../properties/presentation/property_favorite_status.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_marker.dart';
 import '../../properties/domain/property_details.dart';
@@ -995,6 +996,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (mounted && widget.enforceViewport) await ref.read(_searchSession.notifier).search();
   }
 
+  VoidCallback? _favoriteAction(int propertyId, AsyncValue<Set<int>>? ids) {
+    final status = PropertyFavoriteStatus.fromAsync(ids, propertyId);
+    if (_changingFavorite || status.loading) return null;
+    if (status.failed) return () => ref.invalidate(favoritePropertyIdsProvider);
+    return () => _toggleFavorite(propertyId, currentlyFavorite: status.selected);
+  }
+
   Future<void> _toggleFavorite(
     int propertyId, {
     required bool currentlyFavorite,
@@ -1415,12 +1423,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _queueMarkerSync(_selectingArea ? const [] : displayed);
     if (_selected != null && !displayed.any((row) => row.id == _selected!.id)) _selected = null;
     final user = ref.watch(authControllerProvider).asData?.value;
-    final favoriteIds = user == null
-        ? const <int>{}
-        : ref.watch(favoritePropertyIdsProvider).maybeWhen(
-              data: (value) => value,
-              orElse: () => const <int>{},
-            );
+    final favoriteState = user == null ? null : ref.watch(favoritePropertyIdsProvider);
 
     final apiError = properties.asError?.error;
     final canvas = ref.watch(sharedSearchMapBuilderProvider);
@@ -1445,8 +1448,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               onRetry: () => ref.invalidate(nearbyPropertiesProvider(query)),
               onShowList: () => setState(() => _listMode = true),
               itemBuilder: (row) => PropertyMapResultCard(property: row,
-                favorite: favoriteIds.contains(row.id), onFavorite: _changingFavorite ? null : () => _toggleFavorite(row.id,
-                  currentlyFavorite: favoriteIds.contains(row.id)), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
+                favorite: favoriteState?.asData?.value.contains(row.id) ?? false,
+                favoriteStatus: PropertyFavoriteStatus.fromAsync(favoriteState, row.id),
+                onFavorite: _favoriteAction(row.id, favoriteState), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
             if (_mapMessage != null && !_selectingArea)
               PositionedDirectional(
                 start: 14,
@@ -1458,7 +1462,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         )),
       ),
     )),
-      if (_listMode) _buildListMode(properties, query, favoriteIds),
+      if (_listMode) _buildListMode(properties, query, favoriteState),
     ]));
   }
 
@@ -1528,7 +1532,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if(_selected!=null && !rows.any((p)=>p.id==_selected!.id))_selected=null;
     _queueMarkerSync(rows);
     final user = ref.watch(authControllerProvider).asData?.value;
-    final favoriteIds = user == null ? const <int>{} : ref.watch(favoritePropertyIdsProvider).asData?.value ?? const <int>{};
+    final favoriteState = user == null ? null : ref.watch(favoritePropertyIdsProvider);
     final canvas=ref.watch(sharedSearchMapBuilderProvider);
     void select(int id){for(final p in rows){if(p.id==id){setState(()=>_selected=p);break;}}}
     final toolbar = widget.searchToolbarBuilder?.call(context, MapSearchActions(
@@ -1546,8 +1550,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         more: state.more, onMore: () => ref.read(_searchSession.notifier).search(more: true),
         onShowList: widget.onShowList,
         itemBuilder: (row) => PropertyMapResultCard(property: row, compact: widget.enforceViewport,
-          favorite: favoriteIds.contains(row.id), onFavorite: _changingFavorite ? null : () => _toggleFavorite(row.id,
-            currentlyFavorite: favoriteIds.contains(row.id)), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
+          favorite: favoriteState?.asData?.value.contains(row.id) ?? false,
+          favoriteStatus: PropertyFavoriteStatus.fromAsync(favoriteState, row.id),
+          onFavorite: _favoriteAction(row.id, favoriteState), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
       if (_selectingArea) _buildAreaSelectionOverlay(),
     ]));
   }
@@ -1757,7 +1762,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget _buildListMode(
     AsyncValue<List<PropertyMarker>> properties,
     NearbyQuery query,
-    Set<int> favoriteIds,
+    AsyncValue<Set<int>>? favoriteState,
   ) {
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -1830,7 +1835,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
               ),
             Expanded(
-              child: _buildListContent(properties, query, favoriteIds),
+              child: _buildListContent(properties, query, favoriteState),
             ),
           ],
         )),
@@ -1857,7 +1862,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget _buildListContent(
     AsyncValue<List<PropertyMarker>> properties,
     NearbyQuery query,
-    Set<int> favoriteIds,
+    AsyncValue<Set<int>>? favoriteState,
   ) {
     return properties.when(
       loading: () => ListView.separated(
@@ -1899,17 +1904,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           separatorBuilder: (_, __) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
             final property = sorted[index];
-            final favorite = favoriteIds.contains(property.id);
+            final status = PropertyFavoriteStatus.fromAsync(favoriteState, property.id);
             return _PropertyResultCard(
               property: property,
               selected: property.id == _selected?.id,
-              favorite: favorite,
-              onFavorite: _changingFavorite
-                  ? null
-                  : () => _toggleFavorite(
-                        property.id,
-                        currentlyFavorite: favorite,
-                      ),
+              favorite: status.selected,
+              favoriteStatus: status,
+              onFavorite: _favoriteAction(property.id, favoriteState),
               onMap: () => _focusProperty(property),
               onDetails: () => _openDetails(property),
             );
@@ -2211,6 +2212,7 @@ class _PropertyResultCard extends StatelessWidget {
     required this.property,
     required this.selected,
     required this.favorite,
+    this.favoriteStatus,
     required this.onFavorite,
     required this.onMap,
     required this.onDetails,
@@ -2219,6 +2221,7 @@ class _PropertyResultCard extends StatelessWidget {
   final PropertyMarker property;
   final bool selected;
   final bool favorite;
+  final PropertyFavoriteStatus? favoriteStatus;
   final VoidCallback? onFavorite;
   final VoidCallback onMap;
   final VoidCallback onDetails;
@@ -2226,6 +2229,7 @@ class _PropertyResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final favoritePresentation = favoriteStatus ?? PropertyFavoriteStatus.ready(favorite);
     return Container(decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(8),
       border: Border.all(color: selected ? scheme.primary : Theme.of(context).colorScheme.outlineVariant)),
@@ -2240,9 +2244,9 @@ class _PropertyResultCard extends StatelessWidget {
           onTap: onDetails,
           action: PropertyCompareAction(propertyId: property.id),
           trailing:
-            IconButton(tooltip: favorite ? 'إزالة من المفضلة' : 'حفظ في المفضلة', onPressed: onFavorite,
+            IconButton(tooltip: favoritePresentation.tooltip, onPressed: favoritePresentation.loading ? null : onFavorite,
               style: IconButton.styleFrom(backgroundColor: scheme.surface, minimumSize: const Size(44,44), shape: const CircleBorder()),
-              icon: Icon(favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded, size: 19, color: scheme.secondary))),
+              icon: Icon(favoritePresentation.icon, size: 19, color: scheme.secondary))),
         Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: _PropertyFacts(property: property)),
         TextButton.icon(onPressed: onMap,
           icon: EbrokerImage('location', size: 18, color: scheme.primary),

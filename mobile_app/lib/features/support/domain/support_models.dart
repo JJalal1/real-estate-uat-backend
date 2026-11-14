@@ -1,3 +1,14 @@
+class SupportCasePage {
+  const SupportCasePage({required this.items, required this.currentPage,
+    required this.lastPage, required this.total});
+
+  final List<SupportCaseSummary> items;
+  final int currentPage;
+  final int lastPage;
+  final int total;
+  bool get hasMore => currentPage < lastPage;
+}
+
 class SupportCaseSummary {
   const SupportCaseSummary({
     required this.id,

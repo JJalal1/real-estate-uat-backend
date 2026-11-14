@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../data/support_repository.dart';
 import '../domain/support_models.dart';
 
@@ -18,7 +20,7 @@ class SupportAdminScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _SupportAdminBody(key: ValueKey('$actor:$initialKind:$initialCaseId'), initialKind: initialKind, initialCaseId: initialCaseId);
+      : _SupportAdminBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch, initialKind, initialCaseId)), initialKind: initialKind, initialCaseId: initialCaseId);
   }
 }
 class _SupportAdminBody extends ConsumerStatefulWidget {
@@ -34,6 +36,14 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
   List<SupportCaseSummary> _items = const [];
   bool _loading = true;
   String? _error;
+  String? _pageError;
+  bool _loadingMore = false;
+  int _page = 0;
+  bool _hasMore = false;
+  int? _actor;
+  int _sessionEpoch = 0;
+  late final (int?, int) _boundSession;
+  int _identityVersion = 0;
   String? _kind;
   String? _status;
   bool _escalatedOnly = false;
@@ -46,50 +56,115 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
   void initState() {
     super.initState();
     _kind = widget.initialKind;
+    _actor = ref.read(authControllerProvider).asData?.value?.id;
+    _sessionEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    _boundSession = (_actor, _sessionEpoch);
+    ref.listenManual(authControllerProvider, (_, next) {
+      final actor = next.asData?.value?.id;
+      final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+      if (!mounted || (_actor == actor && _sessionEpoch == epoch)) return;
+      setState(() {
+        _request++;
+        _identityVersion++;
+        _actor = actor;
+        _sessionEpoch = epoch;
+        _items = const [];
+        _summary = null;
+        _query = null;
+        _page = 0;
+        _hasMore = false;
+        _error = null;
+        _pageError = null;
+        _loadingMore = false;
+        _loading = actor != null;
+        _initialCaseOpened = true;
+      });
+      if (actor != null && (actor, epoch) == _boundSession) {
+        Future<void>.microtask(_load);
+      }
+    });
     Future.microtask(() async {
       await _load();
       await _openInitialCaseIfNeeded();
     });
   }
 
-  Future<void> _load() async {
-    if (!mounted) {
+  Future<void> _load() => _fetchPage(1);
+
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore) return;
+    await _fetchPage(_page + 1, append: true);
+  }
+
+  Future<void> _fetchPage(int page, {bool append = false}) async {
+    if (!mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final query = '$_kind:$_status:$_escalatedOnly:$_assignedToMe';
+    if (append && (_query != query || _actor != actor || _sessionEpoch != epoch)) {
+      await _fetchPage(1);
       return;
     }
     final request = ++_request;
-    final query = '$_kind:$_status:$_escalatedOnly:$_assignedToMe';
     setState(() {
-      if (_query != query) _items = const [];
+      if (_query != query || _actor != actor || _sessionEpoch != epoch) {
+        _items = const [];
+      }
+      if (_actor != actor || _sessionEpoch != epoch) _summary = null;
       _query = query;
-      _loading = true;
-      _error = null;
+      _actor = actor;
+      _sessionEpoch = epoch;
+      _pageError = null;
+      if (append) {
+        _loadingMore = true;
+      } else {
+        _loading = true;
+        _loadingMore = false;
+        _error = null;
+        _page = 0;
+        _hasMore = false;
+      }
     });
+    bool current() => mounted && request == _request &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch && query == _query;
     try {
       final repo = ref.read(supportRepositoryProvider);
       final results = await Future.wait<dynamic>([
-        repo.adminSummary(),
-        repo.adminCases(
+        if (!append) repo.adminSummary(),
+        repo.adminCases(page: page,
             kind: _kind,
             status: _status,
             escalated: _escalatedOnly ? true : null,
             assignedToMe: _assignedToMe),
       ]);
-      if (!mounted || request != _request) {
-        return;
-      }
+      if (!current()) return;
+      final result = results.last as SupportCasePage;
       setState(() {
-        _summary = results[0] as SupportAdminSummary;
-        _items = results[1] as List<SupportCaseSummary>;
+        if (!append) _summary = results.first as SupportAdminSummary;
+        _items = <int, SupportCaseSummary>{
+          if (append) for (final item in _items) item.id: item,
+          for (final item in result.items) item.id: item,
+        }.values.toList(growable: false);
+        _page = result.currentPage;
+        _hasMore = result.hasMore;
         _loading = false;
+        _loadingMore = false;
       });
-    } catch (e) {
-      if (!mounted || request != _request) {
-        return;
-      }
+    } catch (error) {
+      if (!current()) return;
       setState(() {
-        if (!isTransientApiFailure(e)) { _items = const []; _summary = null; }
         _loading = false;
-        _error = friendlyApiError(e);
+        _loadingMore = false;
+        if (append && isTransientApiFailure(error)) {
+          _pageError = friendlyApiError(error);
+        } else {
+          if (!isTransientApiFailure(error)) { _items = const []; _summary = null; }
+          _page = 0;
+          _hasMore = false;
+          _error = friendlyApiError(error);
+        }
       });
     }
   }
@@ -129,6 +204,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                 : RefreshIndicator(
                     onRefresh: _load,
                     child: ListView(
+                      key: ValueKey((_actor, _sessionEpoch, _query)),
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(12, 10, 12, 28),
                       children: [
@@ -142,6 +218,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                               child: ListTile(
                                   title: Text('لا توجد حالات مطابقة.'))),
                         ..._items.map((item) => Card(
+                                key: ValueKey('support-case-${item.id}'),
                                 child: ListTile(
                               leading: EbrokerIcon(item.kind == 'report'
                                   ? Icons.report_outlined
@@ -162,6 +239,14 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                                   canModerate: canModerate,
                                   canReviewListings: canReviewListings),
                             ))),
+                        if (_hasMore)
+                          _loadingMore || _pageError != null
+                            ? AppRefreshStatus(loading: _loadingMore, error: _pageError,
+                                onRetry: _loadMore)
+                            : Center(child: TextButton(
+                                key: const ValueKey('support-cases-more'),
+                                onPressed: _loading ? null : _loadMore,
+                                child: const Text('المزيد من الحالات'))),
                       ],
                     ),
                   ),
@@ -275,22 +360,31 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
       required bool canEscalate,
       required bool canModerate,
       required bool canReviewListings}) async {
+    final actor = _actor;
+    final epoch = _sessionEpoch;
+    final identityVersion = _identityVersion;
+    bool current() => mounted && actor != null && identityVersion == _identityVersion &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     try {
       var details =
           await ref.read(supportRepositoryProvider).adminDetails(caseId);
-      if (!mounted) {
+      if (!mounted || !current()) {
         return;
       }
-      await showDialog<void>(
+      await showActorDialog<void>(
+          ref: ref,
           context: context,
           builder: (dialogContext) =>
               StatefulBuilder(builder: (context, setDialogState) {
                 Future<void> refresh(Future<SupportCaseDetails> action) async {
                   try {
-                    details = await action;
+                    final updated = await action;
+                    if (!current() || !dialogContext.mounted) return;
+                    details = updated;
                     setDialogState(() {});
                   } catch (e) {
-                    if (dialogContext.mounted) {
+                    if (current() && dialogContext.mounted) {
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         SnackBar(content: Text(friendlyApiError(e))),
                       );
@@ -378,12 +472,12 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                           onPressed: () async {
                             final reason = await _textDialog(
                                 dialogContext, 'سبب إخفاء التعليق');
-                            if (reason != null) {
+                            if (reason != null && current()) {
                               await ref
                                   .read(supportRepositoryProvider)
                                   .hideComment(
                                       details.summary.targetId!, reason);
-                              if (dialogContext.mounted) {
+                              if (current() && dialogContext.mounted) {
                                 ScaffoldMessenger.of(dialogContext)
                                     .showSnackBar(
                                   const SnackBar(
@@ -401,12 +495,12 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                           onPressed: () async {
                             final reason = await _textDialog(
                                 dialogContext, 'سبب إخفاء التقييم');
-                            if (reason != null) {
+                            if (reason != null && current()) {
                               await ref
                                   .read(supportRepositoryProvider)
                                   .hideRating(
                                       details.summary.targetId!, reason);
-                              if (dialogContext.mounted) {
+                              if (current() && dialogContext.mounted) {
                                 ScaffoldMessenger.of(dialogContext)
                                     .showSnackBar(
                                   const SnackBar(
@@ -433,7 +527,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                           onPressed: () async {
                             final reason = await _textDialog(
                                 dialogContext, 'سبب تصعيد الحالة لمدير الدعم');
-                            if (reason != null) {
+                            if (reason != null && current()) {
                               await refresh(
                                 ref
                                     .read(supportRepositoryProvider)
@@ -446,7 +540,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                       TextButton(
                           onPressed: () async {
                             final agent = await _chooseAgent(dialogContext);
-                            if (agent != null) {
+                            if (agent != null && current()) {
                               await refresh(
                                 ref
                                     .read(supportRepositoryProvider)
@@ -460,7 +554,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                           onPressed: () async {
                             final reason = await _textDialog(
                                 dialogContext, 'سبب إعادة الفتح');
-                            if (reason != null) {
+                            if (reason != null && current()) {
                               await refresh(
                                 ref
                                     .read(supportRepositoryProvider)
@@ -472,16 +566,16 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                     if (!details.summary.isClosed &&
                         details.summary.status == 'open')
                       TextButton(
-                          onPressed: () => refresh(ref
-                              .read(supportRepositoryProvider)
-                              .start(caseId)),
+                          onPressed: () {
+                            if (current()) refresh(ref.read(supportRepositoryProvider).start(caseId));
+                          },
                           child: const Text('بدء المعالجة')),
                     if (!details.summary.isClosed)
                       TextButton(
                           onPressed: () async {
                             final body = await _textDialog(
                                 dialogContext, 'الرد على المستخدم');
-                            if (body != null) {
+                            if (body != null && current()) {
                               await refresh(
                                 ref
                                     .read(supportRepositoryProvider)
@@ -495,7 +589,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                           onPressed: () async {
                             final body = await _textDialog(
                                 dialogContext, 'ملاحظة داخلية');
-                            if (body != null) {
+                            if (body != null && current()) {
                               await refresh(
                                 ref
                                     .read(supportRepositoryProvider)
@@ -506,9 +600,9 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                           child: const Text('ملاحظة داخلية')),
                     if (!details.summary.isClosed)
                       PopupMenuButton<String>(
-                        onSelected: (status) => refresh(ref
-                            .read(supportRepositoryProvider)
-                            .setStatus(caseId, status)),
+                        onSelected: (status) {
+                          if (current()) refresh(ref.read(supportRepositoryProvider).setStatus(caseId, status));
+                        },
                         itemBuilder: (_) => const [
                           PopupMenuItem(
                               value: 'in_progress',
@@ -532,9 +626,9 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                   ],
                 );
               }));
-      await _load();
+      if (current()) await _load();
     } catch (e) {
-      if (mounted) {
+      if (mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(e))),
         );
@@ -543,12 +637,19 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
   }
 
   Future<int?> _chooseAgent(BuildContext context) async {
+    final actor = _actor;
+    final epoch = _sessionEpoch;
+    final identityVersion = _identityVersion;
+    bool current() => mounted && context.mounted && identityVersion == _identityVersion &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     try {
       final agents = await ref.read(supportRepositoryProvider).agents();
-      if (!context.mounted) {
+      if (!context.mounted || !current()) {
         return null;
       }
-      return showDialog<int>(
+      return showActorDialog<int>(
+          ref: ref,
           context: context,
           builder: (dialogContext) => SimpleDialog(
                 title: const Text('إسناد إلى موظف دعم'),
@@ -560,7 +661,7 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
                     .toList(),
               ));
     } catch (e) {
-      if (context.mounted) {
+      if (context.mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(e))),
         );
@@ -571,7 +672,8 @@ class _SupportAdminScreenState extends ConsumerState<_SupportAdminBody> {
 
   Future<String?> _textDialog(BuildContext context, String title) async {
     final controller = TextEditingController();
-    final result = await showDialog<String>(
+    final result = await showActorDialog<String>(
+        ref: ref,
         context: context,
         builder: (dialogContext) => AlertDialog(
               title: Text(title),

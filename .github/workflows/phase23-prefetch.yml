@@ -1,0 +1,55 @@
+name: Phase23 conditional prefetch ON and OFF
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-prefetch.yml
+      - mobile_app/lib/core/network/conditional_image_prefetch.dart
+      - mobile_app/lib/core/network/adaptive_image_policy.dart
+      - mobile_app/lib/core/platform/media_network_monitor.dart
+      - mobile_app/lib/core/widgets/viewport_media.dart
+      - mobile_app/lib/features/properties/presentation/listing_draft_photo.dart
+      - mobile_app/lib/features/properties/presentation/adaptive_property_photo.dart
+      - mobile_app/lib/features/properties/data/public_photo_loader.dart
+      - mobile_app/test/conditional_prefetch_test.dart
+permissions:
+  contents: read
+jobs:
+  conditional-prefetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve the existing approved dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: ON and OFF actual HTTP comparison with bounded public fixtures
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/conditional_prefetch_test.dart
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=AQER_CONDITIONAL_PREFETCH=true
+          --dart-define=AQER_PREFETCH_EXPECT_ENABLED=true
+          --dart-define=AQER_PREFETCH_HTTP_PROBE=true
+          --reporter expanded
+      - name: A requested flag cannot activate production
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/conditional_prefetch_test.dart
+          --dart-define=APP_ENVIRONMENT=production
+          --dart-define=AQER_CONDITIONAL_PREFETCH=true
+          --plain-name 'compiled prefetch experiment stays within the selected UAT configuration'
+      - name: Existing visible-only and image-policy regressions
+        working-directory: mobile_app
+        run: flutter test --no-pub test/viewport_media_test.dart test/adaptive_image_quality_test.dart

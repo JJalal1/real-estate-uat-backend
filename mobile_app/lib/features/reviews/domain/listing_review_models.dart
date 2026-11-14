@@ -96,6 +96,31 @@ class BrokerVerificationState {
   }
 }
 
+class ReviewWorkspacePage<T> {
+  const ReviewWorkspacePage({
+    required this.items,
+    required this.currentPage,
+    required this.lastPage,
+    required this.total,
+  });
+
+  final List<T> items;
+  final int currentPage;
+  final int lastPage;
+  final int total;
+  bool get hasMore => currentPage < lastPage;
+}
+
+class ReviewListingPage extends ReviewWorkspacePage<ReviewListingItem> {
+  const ReviewListingPage({required super.items, required super.currentPage,
+    required super.lastPage, required super.total});
+}
+
+class PublicationBlockPage extends ReviewWorkspacePage<PublicationBlockItem> {
+  const PublicationBlockPage({required super.items, required super.currentPage,
+    required super.lastPage, required super.total});
+}
+
 class ReviewListingItem {
   const ReviewListingItem({
     required this.id,
@@ -364,6 +389,15 @@ class ReviewHistoryItem {
       this.actorName,
       this.createdAt});
   final String action;
+  String get actionLabel => switch (action) {
+    'submitted' => 'أُرسل للمراجعة',
+    'review_started' => 'بدأت المراجعة',
+    'returned_for_correction' => 'أُعيد للتصحيح',
+    'approved' => 'اعتُمد ونُشر',
+    'rejected_blocked' => 'رُفض وحُظر النشر',
+    'media_relevance_review' => 'مراجعة صلة الصورة بالعقار',
+    _ => 'تحديث المراجعة',
+  };
   final String? fromStatus;
   final String? toStatus;
   final String? reason;

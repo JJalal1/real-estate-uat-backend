@@ -1,0 +1,35 @@
+{
+  "kind": "public_progress_summary_no_private_infrastructure_or_fixture_identifiers",
+  "updated_utc": "2026-11-12T17:06:26.633574+00:00",
+  "phase_complete": false,
+  "available_scope_complete": false,
+  "item_counts": {
+    "passed_with_evidence": 20,
+    "partial": 8,
+    "deferred": 2,
+    "excluded": 2,
+    "total": 32
+  },
+  "owner_modifications": 18,
+  "journeys": 7,
+  "apk_candidate_version": 1588,
+  "apk_source": "540008a233a5b01d78f948ac1c17300f6e3bbcf5",
+  "regression_source": "540008a233a5b01d78f948ac1c17300f6e3bbcf5",
+  "ci_run": 43253230111,
+  "native_run": 43253230247,
+  "native_successful_attempt": 1,
+  "compiled_product_components_equal": true,
+  "native_public_paging": "PASS; private inbox paging remains open",
+  "native_public_network_trace": "Actual public requests/variants/bytes and in-flight cancellation; opt-in UAT only",
+  "native_cache_return": {
+    "before_samples": 106,
+    "after_samples": 106,
+    "additional_requests": 0,
+    "seconds": 49
+  },
+  "prefetch": "ON_UAT_ONLY_NATIVE_POSITIVE_BENEFIT_UNPROVED; actual Data Saver guard passed",
+  "fixture_restoration": "24 exact original rows;16 financial fingerprints and all other properties unchanged; ordinary auth timestamp refresh retained",
+  "known_fix_ledger": "docs/evidence/phase23-app-defects.json",
+  "detailed_compatibility_location": "owner-delivered progress files",
+  "private_metadata_published": false
+}

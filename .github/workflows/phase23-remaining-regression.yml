@@ -1,0 +1,142 @@
+name: Phase23 remaining account and inbox regression
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-remaining-regression.yml
+      - scripts/verify_phase23_account_regression.py
+      - mobile_app/lib/features/discovery/data/smart_search_session.dart
+      - mobile_app/lib/features/discovery/data/marketplace_search_session.dart
+      - mobile_app/lib/features/support/data/support_workspace_repository.dart
+      - mobile_app/lib/features/support/domain/support_workspace_models.dart
+      - mobile_app/lib/features/support/presentation/support_tasks_screen.dart
+      - 'mobile_app/lib/features/support/**'
+      - 'mobile_app/lib/features/reviews/**'
+      - 'mobile_app/lib/features/messages/**'
+      - 'mobile_app/lib/features/account/**'
+      - 'mobile_app/lib/features/broker/**'
+      - mobile_app/lib/features/properties/data/favorites_repository.dart
+      - mobile_app/lib/features/properties/presentation/favorites_screen.dart
+      - mobile_app/test/private_tail_pagination_test.dart
+      - mobile_app/test/account_erasure_session_test.dart
+      - mobile_app/lib/features/properties/data/property_repository.dart
+      - mobile_app/lib/features/properties/data/my_listings_pages.dart
+      - mobile_app/lib/features/properties/domain/my_listings_page.dart
+      - mobile_app/lib/features/properties/presentation/my_listings_screen.dart
+      - mobile_app/test/search_account_boundary_test.dart
+      - mobile_app/test/support_task_pagination_test.dart
+      - mobile_app/test/support_case_pagination_test.dart
+      - mobile_app/test/listing_review_pagination_test.dart
+      - mobile_app/test/publication_blocks_pagination_test.dart
+      - mobile_app/test/actor_overlay_session_test.dart
+      - mobile_app/test/message_inbox_pagination_test.dart
+      - mobile_app/test/my_listings_pagination_test.dart
+      - mobile_app/test/account_verification_pagination_test.dart
+permissions:
+  contents: read
+jobs:
+  remaining-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve the existing approved dependency set
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Prove the old account boundary fails the new behavioral cases
+        run: |
+          if git diff --quiet HEAD^ HEAD -- scripts/verify_phase23_account_regression.py mobile_app/lib/features/discovery/data/smart_search_session.dart mobile_app/lib/features/discovery/data/marketplace_search_session.dart mobile_app/test/search_account_boundary_test.dart; then
+            echo 'Unchanged search boundary: baseline evidence retained from run 43309852779 at afab49a.'
+          else
+            python3 -B scripts/verify_phase23_account_regression.py
+          fi
+      - name: Analyze the corrected account and inbox boundaries
+        working-directory: mobile_app
+        run: >-
+          flutter analyze --fatal-infos
+          lib/features/discovery/data/smart_search_session.dart
+          lib/features/discovery/data/marketplace_search_session.dart
+          lib/features/account/presentation/actor_scoped_page.dart
+          lib/features/account/data/account_verification_queue.dart
+          lib/features/account/data/account_verification_repository.dart
+          lib/features/account/domain/account_verification.dart
+          lib/features/account/presentation/account_verification_admin_screen.dart
+          lib/features/support/data/support_workspace_repository.dart
+          lib/features/support/domain/support_workspace_models.dart
+          lib/features/support/presentation/support_tasks_screen.dart
+          lib/features/support/data/support_repository.dart
+          lib/features/support/domain/support_models.dart
+          lib/features/support/presentation/support_admin_screen.dart
+          lib/features/support/presentation/support_center_screen.dart
+          lib/features/support/data/account_verification_support_repository.dart
+          lib/features/support/presentation/account_verification_support_screen.dart
+          lib/features/reviews/data/listing_review_repository.dart
+          lib/features/reviews/domain/listing_review_models.dart
+          lib/features/reviews/presentation/listing_review_workspace_screen.dart
+          lib/features/messages/data/message_repository.dart
+          lib/features/messages/domain/message_models.dart
+          lib/features/messages/presentation/messages_screen.dart
+          lib/features/messages/presentation/notifications_screen.dart
+          lib/features/messages/presentation/conversation_reports_screen.dart
+          lib/features/properties/data/property_repository.dart
+          lib/features/properties/data/my_listings_pages.dart
+          lib/features/properties/domain/my_listings_page.dart
+          lib/features/properties/presentation/my_listings_screen.dart
+          test/search_account_boundary_test.dart test/support_task_pagination_test.dart
+          test/support_case_pagination_test.dart test/listing_review_pagination_test.dart
+          test/publication_blocks_pagination_test.dart test/actor_overlay_session_test.dart
+          test/message_inbox_pagination_test.dart
+          test/my_listings_pagination_test.dart test/account_verification_pagination_test.dart
+          lib/features/account/data/private_collection.dart
+          lib/features/account/data/account_safety_repository.dart
+          lib/features/account/presentation/account_safety_screen.dart
+          test/account_erasure_session_test.dart
+          lib/features/broker/data/broker_repository.dart
+          lib/features/broker/presentation/broker_workspaces.dart
+          lib/features/properties/data/favorites_repository.dart
+          lib/features/properties/presentation/favorites_screen.dart
+          test/private_tail_pagination_test.dart
+          test/phase23_listing_task_navigation_test.dart
+      - name: Verify corrected behavior and existing private screen contracts
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub --timeout=60s
+          test/search_account_boundary_test.dart test/support_task_pagination_test.dart
+          test/support_case_pagination_test.dart test/listing_review_pagination_test.dart
+          test/publication_blocks_pagination_test.dart test/actor_overlay_session_test.dart
+          test/message_inbox_pagination_test.dart
+          test/my_listings_pagination_test.dart test/account_verification_pagination_test.dart
+          test/private_listing_card_photo_test.dart test/wave3_personal_listing_test.dart
+          test/wave01_acceptance_test.dart test/ui_transplant_v3_template_test.dart
+          test/owner_secondary_privacy_layout_test.dart
+          test/uat_notification_actions_test.dart test/ux_refinement_test.dart
+          test/loading_recovery_test.dart test/uat_listing_support_claim_ux_test.dart
+          test/phase23_listing_task_navigation_test.dart
+          test/owner_active_screen_states_test.dart
+          test/smart_search_pagination_recovery_test.dart
+          test/private_tail_pagination_test.dart test/phase3_favorites_screen_test.dart
+          test/broker_experience_ui_test.dart test/listing_design_wave_test.dart
+          test/new_wave_handoff_test.dart test/account_erasure_session_test.dart
+          --reporter expanded
+      - name: Verify no product files were changed by the evidence check
+        if: always()
+        run: git diff --exit-code -- mobile_app/lib mobile_app/test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-account-regression-${{ github.run_id }}
+          path: phase23-regression-evidence/
+          retention-days: 30
+          if-no-files-found: warn

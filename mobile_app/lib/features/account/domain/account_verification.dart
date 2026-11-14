@@ -1,3 +1,33 @@
+class AccountVerificationPage<T> {
+  const AccountVerificationPage({required this.items, required this.currentPage,
+    required this.lastPage, required this.total});
+
+  final List<T> items;
+  final int currentPage;
+  final int lastPage;
+  final int total;
+  bool get hasMore => currentPage < lastPage;
+
+  factory AccountVerificationPage.fromJson(Map<String, dynamic>? body,
+      {required int page, required T Function(Map<String, dynamic>) parse}) {
+    final rows = body?['data'];
+    final meta = body?['meta'];
+    if (rows is! List || meta is! Map ||
+        meta['current_page'] is! int || meta['current_page'] != page ||
+        meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+        meta['total'] is! int || (meta['total'] as int) < 0 ||
+        rows.any((row) => row is! Map)) {
+      throw StateError('Invalid account verification page response.');
+    }
+    return AccountVerificationPage<T>(
+      items: rows.whereType<Map>().map((row) => parse(
+        row.map((key, value) => MapEntry(key.toString(), value))))
+          .toList(growable: false),
+      currentPage: page, lastPage: meta['last_page'] as int,
+      total: meta['total'] as int);
+  }
+}
+
 class AccountVerificationDocumentItem {
   const AccountVerificationDocumentItem({
     required this.kind,

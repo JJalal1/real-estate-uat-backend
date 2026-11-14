@@ -1,0 +1,131 @@
+name: Phase23 isolated cross-purpose duplicate acceptance
+# Exactly one missing item6 case; no live endpoint, secret, APK or product change.
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-item6-purpose.yml
+      - scripts/qa/Phase23CrossPurposeDuplicateTest.php
+permissions:
+  contents: read
+concurrency:
+  group: phase23-item6-purpose
+  cancel-in-progress: false
+env:
+  SOURCE_COMMIT: ${{ github.sha }}
+  EXPECTED_BACKEND_TREE: '76dcc5b61ed2bf55d05935289d09885182fef96e'
+jobs:
+  purpose-change:
+    if: ${{ contains(github.event.head_commit.message, '[run-item6-purpose]') && !contains(github.event.head_commit.message, '[collector-only]') }}
+    name: One sale-to-rent cross-account HTTP-kernel journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: phase23_purpose_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d phase23_purpose_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PHASE23_ISOLATED_PURPOSE_TEST: 'true'
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: phase23_purpose_ci
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_COMMIT }}
+          persist-credentials: false
+      - name: Require the unchanged reviewed backend and disposable database
+        working-directory: .
+        run: |
+          python3 -B - <<'PY'
+          import os,subprocess
+          tree=subprocess.check_output(['git','rev-parse','HEAD:backend-api-runtime'],text=True).strip()
+          assert tree==os.environ['EXPECTED_BACKEND_TREE'], 'reviewed_backend_changed'
+          assert os.environ['APP_ENV']=='testing'
+          assert os.environ['DB_CONNECTION']=='pgsql'
+          assert os.environ['DB_HOST']=='127.0.0.1' and os.environ['DB_PORT']=='5432'
+          assert os.environ['DB_DATABASE']=='phase23_purpose_ci' and not os.environ['DB_URL']
+          print('UNCHANGED_REVIEWED_BACKEND_AND_DISPOSABLE_DATABASE')
+          PY
+      - name: Set up existing PHP 8.4 test runtime
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_pgsql
+          coverage: none
+      - name: Create disposable local environment
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+      - name: Install original backend dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Generate temporary test key
+        run: php artisan key:generate --force
+      - name: Prepare API roles in disposable database
+        run: >-
+          psql -h 127.0.0.1 -U postgres -d phase23_purpose_ci -v ON_ERROR_STOP=1
+          -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+          -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+      - name: Apply original migration chain to disposable database
+        run: php artisan migrate --force
+      - name: Run only the missing cross-purpose publication case
+        run: |
+          mkdir -p ../phase23-purpose-evidence
+          test ! -e tests/Feature/Phase23CrossPurposeDuplicateTest.php
+          trap 'rm -f tests/Feature/Phase23CrossPurposeDuplicateTest.php' EXIT
+          install -m 644 ../scripts/qa/Phase23CrossPurposeDuplicateTest.php tests/Feature/Phase23CrossPurposeDuplicateTest.php
+          php -l tests/Feature/Phase23CrossPurposeDuplicateTest.php
+          php artisan test tests/Feature/Phase23CrossPurposeDuplicateTest.php --display-warnings --fail-on-warning --fail-on-risky --fail-on-skipped --log-junit ../phase23-purpose-evidence/junit.xml
+      - name: Record the exact single-case result and unchanged product
+        working-directory: .
+        run: |
+          git diff --exit-code -- backend-api-runtime mobile_app
+          test ! -e backend-api-runtime/tests/Feature/Phase23CrossPurposeDuplicateTest.php
+          python3 -B - <<'PY'
+          import hashlib,json,os,subprocess,xml.etree.ElementTree as ET
+          from pathlib import Path
+          cases=ET.parse('phase23-purpose-evidence/junit.xml').findall('.//testcase')
+          assert len(cases)==1, 'expected_exactly_one_case'
+          case=cases[0]
+          expected='test_another_broker_cannot_publish_a_rental_for_the_same_asset_as_a_published_sale'
+          assert case.attrib['name']==expected
+          assert not any(case.find(tag) is not None for tag in ('failure','error','skipped'))
+          receipt={'schema':1,'item':6,'status':'PASS_ISOLATED_CROSS_ACCOUNT_CROSS_PURPOSE_PUBLICATION_GUARD',
+            'source_sha':os.environ['GITHUB_SHA'],'run_id':os.environ['GITHUB_RUN_ID'],
+            'backend_tree':subprocess.check_output(['git','rev-parse','HEAD:backend-api-runtime'],text=True).strip(),
+            'harness_sha256':hashlib.sha256(Path('scripts/qa/Phase23CrossPurposeDuplicateTest.php').read_bytes()).hexdigest(),
+            'case':expected,'tests':1,'assertions':case.attrib.get('assertions'),'seconds':case.attrib.get('time'),
+            'scope':'Actual Laravel HTTP kernel, original routes/services, disposable PostgreSQL17/PostGIS and synthetic storage only; not Native or live UAT.',
+            'proves':['different authenticated brokers','same naturally resolved asset','sale published200',
+              'rent submitted200 and reviewed with confirmed media','rent approval409 with exact duplicate-publication reason',
+              'one published listing and one active representation retained for the asset'],
+            'new_live_api_requests':False,'backend_product_changed':False}
+          Path('phase23-purpose-evidence/result.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          print(json.dumps(receipt,sort_keys=True))
+          PY
+      - name: Keep only synthetic acceptance evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-item6-purpose-${{ github.run_id }}
+          path: phase23-purpose-evidence/
+          if-no-files-found: warn
+          retention-days: 30

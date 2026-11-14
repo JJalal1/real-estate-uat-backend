@@ -3,6 +3,7 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
@@ -18,7 +19,7 @@ class MessagesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _MessagesBody(key: ValueKey(actor), embedded: embedded);
+      : _MessagesBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch)), embedded: embedded);
   }
 }
 
@@ -34,32 +35,129 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
   bool _unreadOnly = false;
   int? _seenRevision;
   String? _error;
+  String? _pageError;
+  bool _loadingMore = false;
+  int _page = 0;
+  int _total = 0;
+  bool _hasMore = false;
   List<MessageThreadSummary> _items = const [];
   int _request = 0;
+  int? _actor;
+  int _sessionEpoch = 0;
+  bool? _query;
 
   @override
   void initState() {
     super.initState();
+    _actor = ref.read(authControllerProvider).asData?.value?.id;
+    _sessionEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    ref.listenManual(authControllerProvider, (_, next) {
+      final actor = next.asData?.value?.id;
+      final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+      if (!mounted || (_actor == actor && _sessionEpoch == epoch)) return;
+      setState(() {
+        _request++;
+        _actor = actor;
+        _sessionEpoch = epoch;
+        _items = const [];
+        _page = 0;
+        _total = 0;
+        _hasMore = false;
+        _query = null;
+        _error = null;
+        _pageError = null;
+        _loadingMore = false;
+        _loading = actor != null;
+      });
+      if (actor != null) Future<void>.microtask(_load);
+    });
     Future.microtask(_load);
   }
 
-  Future<void> _load() async {
+  Future<void> _load() => _fetchPage(1);
+
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore || _error != null) return;
+    await _fetchPage(_page + 1, append: true);
+  }
+
+  Future<void> _fetchPage(int page, {bool append = false}) async {
     if (!mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final query = _unreadOnly;
+    if (append && (_query != query || _actor != actor || _sessionEpoch != epoch)) {
+      await _fetchPage(1);
+      return;
+    }
     final request = ++_request;
-    setState(() { _loading = true; _error = null; });
-    try {
-      final items = await ref.read(messageRepositoryProvider).threads();
+    setState(() {
+      if (_query != query || _actor != actor || _sessionEpoch != epoch) {
+        _items = const [];
+        _total = 0;
+      }
+      _actor = actor;
+      _sessionEpoch = epoch;
+      _query = query;
+      _pageError = null;
+      if (append) {
+        _loadingMore = true;
+      } else {
+        _loading = true;
+        _loadingMore = false;
+        _page = 0;
+        _hasMore = false;
+        _error = null;
+      }
+    });
+    bool current() => mounted && request == _request &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch && query == _query;
+    void discardStaleDelivery() {
       if (!mounted || request != _request) return;
       setState(() {
-        _items = items;
+        _items = const [];
+        _total = 0;
+        _page = 0;
+        _hasMore = false;
         _loading = false;
+        _loadingMore = false;
+        _pageError = null;
+        _error = 'تغيرت الجلسة. أعد تحميل المحادثات.';
+      });
+    }
+    try {
+      final result = await ref.read(messageRepositoryProvider).threadsPage(
+        page: page, unreadOnly: query);
+      if (!current()) { discardStaleDelivery(); return; }
+      setState(() {
+        _items = <int, MessageThreadSummary>{
+          if (append) for (final item in _items) item.id: item,
+          for (final item in result.items) item.id: item,
+        }.values.toList(growable: false);
+        _page = result.currentPage;
+        _total = result.total;
+        _hasMore = result.hasMore;
+        _loading = false;
+        _loadingMore = false;
       });
     } catch (error) {
-      if (!mounted || request != _request) return;
+      if (!current()) { discardStaleDelivery(); return; }
       setState(() {
-        if (!isTransientApiFailure(error)) _items = const [];
-        _error = friendlyApiError(error);
         _loading = false;
+        _loadingMore = false;
+        if (append && isTransientApiFailure(error)) {
+          _pageError = friendlyApiError(error);
+        } else {
+          if (!isTransientApiFailure(error)) {
+            _items = const [];
+            _total = 0;
+          }
+          _page = 0;
+          _hasMore = false;
+          _error = friendlyApiError(error);
+        }
       });
     }
   }
@@ -77,14 +175,6 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
       Future<void>.microtask(_load);
     }
 
-    final unreadCount = _items.fold<int>(
-      0,
-      (sum, item) => sum + item.unreadCount,
-    );
-    final visible = _unreadOnly
-        ? _items.where((item) => item.unreadCount > 0).toList(growable: false)
-        : _items;
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -92,6 +182,7 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
         body: RefreshIndicator(
           onRefresh: _load,
           child: CustomScrollView(
+            key: ValueKey((_actor, _sessionEpoch, _query)),
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
@@ -103,11 +194,13 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                     0,
                   ),
                   child: _InboxHeader(
-                    conversations: _items.length,
-                    unreadCount: unreadCount,
+                    conversations: _total,
                     unreadOnly: _unreadOnly,
-                    onUnreadChanged: (value) =>
-                        setState(() => _unreadOnly = value),
+                    onUnreadChanged: (value) {
+                      if (_unreadOnly == value) return;
+                      setState(() => _unreadOnly = value);
+                      _load();
+                    },
                   ),
                 ),
               ),
@@ -126,22 +219,13 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                   child: AppErrorState(message: _error!, onRetry: _load),
                 )
               else if (_items.isEmpty)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   hasScrollBody: true,
                   child: AppEmptyState(
-                    title: 'لا توجد محادثات بعد',
-                    message:
-                        'افتح عقارًا منشورًا واضغط «مراسلة» حتى تبدأ محادثة مرتبطة بالعقار.',
-                    icon: Icons.forum_outlined,
-                  ),
-                )
-              else if (visible.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: true,
-                  child: AppEmptyState(
-                    title: 'ما عندك رسائل غير مقروءة',
-                    message: 'كل المحادثات مقروءة الآن.',
-                    icon: Icons.mark_chat_read_outlined,
+                    title: _unreadOnly ? 'ما عندك رسائل غير مقروءة' : 'لا توجد محادثات بعد',
+                    message: _unreadOnly ? 'كل المحادثات مقروءة الآن.' :
+                      'افتح عقارًا منشورًا واضغط «مراسلة» حتى تبدأ محادثة مرتبطة بالعقار.',
+                    icon: _unreadOnly ? Icons.mark_chat_read_outlined : Icons.forum_outlined,
                   ),
                 )
               else
@@ -153,22 +237,42 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                     AppSpacing.s40,
                   ),
                   sliver: SliverList.separated(
-                    itemCount: visible.length,
+                    itemCount: _items.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: AppSpacing.s10),
-                    itemBuilder: (context, index) => _ConversationCard(
-                      item: visible[index],
+                    itemBuilder: (context, index) {
+                      final item = _items[index];
+                      return _ConversationCard(
+                      key: ValueKey('message-thread-${item.id}'),
+                      item: item,
                       onTap: () async {
                         await Navigator.of(context).push<void>(
                           MaterialPageRoute<void>(
                             builder: (_) => ConversationScreen(
-                              threadId: visible[index].id,
+                              threadId: item.id,
                             ),
                           ),
                         );
                         await _load();
                       },
-                    ),
+                    );
+                    },
+                  ),
+                ),
+              if (_items.isNotEmpty && (_hasMore || _loadingMore || _pageError != null))
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      AppLayout.compactPageGutter, 0, AppLayout.compactPageGutter, AppSpacing.s24),
+                    child: _pageError != null
+                        ? AppRefreshStatus(loading: _loadingMore, error: _pageError, onRetry: _loadMore)
+                        : Center(child: _loadingMore
+                            ? const CircularProgressIndicator()
+                            : OutlinedButton(
+                                key: const ValueKey('message-threads-more'),
+                                onPressed: _loadMore,
+                                child: const Text('تحميل المزيد'),
+                              )),
                   ),
                 ),
             ],
@@ -182,13 +286,11 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
 class _InboxHeader extends StatelessWidget {
   const _InboxHeader({
     required this.conversations,
-    required this.unreadCount,
     required this.unreadOnly,
     required this.onUnreadChanged,
   });
 
   final int conversations;
-  final int unreadCount;
   final bool unreadOnly;
   final ValueChanged<bool> onUnreadChanged;
 
@@ -205,14 +307,13 @@ class _InboxHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      unreadCount > 0
-                          ? 'عندك $unreadCount رسالة غير مقروءة'
-                          : 'كل الرسائل مقروءة',
+                      unreadOnly ? 'المحادثات غير المقروءة' : 'محادثاتك',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: AppSpacing.s4),
                     Text(
-                      '$conversations محادثة مرتبطة برحلات عقارية داخل التطبيق.',
+                      unreadOnly ? '$conversations محادثة غير مقروءة.' :
+                          '$conversations محادثة مرتبطة برحلات عقارية داخل التطبيق.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color:
                                 Theme.of(context).colorScheme.onSurfaceVariant,
@@ -229,7 +330,7 @@ class _InboxHeader extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadii.control),
                 ),
                 child: EbrokerIcon(
-                  unreadCount > 0
+                  unreadOnly
                       ? Icons.mark_chat_unread_outlined
                       : Icons.mark_chat_read_outlined,
                   color: Theme.of(context).colorScheme.primary,
@@ -241,11 +342,7 @@ class _InboxHeader extends StatelessWidget {
           EbrokerFilterChip(
             selected: unreadOnly,
             avatar: const EbrokerIcon(Icons.mark_email_unread_outlined, size: 18),
-            label: Text(
-              unreadCount > 0
-                  ? 'غير المقروء فقط ($unreadCount)'
-                  : 'غير المقروء فقط',
-            ),
+            label: const Text('غير المقروء فقط'),
             onSelected: onUnreadChanged,
           ),
         ],
@@ -255,7 +352,7 @@ class _InboxHeader extends StatelessWidget {
 }
 
 class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({required this.item, required this.onTap});
+  const _ConversationCard({required this.item, required this.onTap, super.key});
 
   final MessageThreadSummary item;
   final VoidCallback onTap;

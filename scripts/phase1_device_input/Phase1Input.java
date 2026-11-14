@@ -116,10 +116,33 @@ public final class Phase1Input extends Instrumentation {
                 result.putBoolean("focused_set_text_handler", true);
                 result.putBoolean("text_matched", true);
             } else {
-                require("double-tap".equals(op) || "pinch-in".equals(op) || "pinch-out".equals(op));
-                require(contains(root, "صورة العقار 1 من 1") && contains(root, "1/1"));
-                int x = number("x", 300, 780), y = number("y", 400, 1520);
-                if ("double-tap".equals(op)) {
+                require("double-tap".equals(op) || "pinch-in".equals(op) || "pinch-out".equals(op) || "phase23-draw-area".equals(op));
+                String phase23Surface=args.getString("phase23_surface", "");
+                if (!phase23Surface.isEmpty()) {
+                    require(phase23GestureReady(root));
+                } else {
+                    require(phase23Surface.isEmpty());
+                    require(contains(root, "صورة العقار 1 من 1") && contains(root, "1/1"));
+                }
+                if ("phase23-draw-area".equals(op)) {
+                    require("drawing".equals(phase23Surface));
+                    stage="phase23_draw_area";
+                    int[] px={220,860,860,220,220}, py={620,620,1350,1350,620};
+                    long down=SystemClock.uptimeMillis();
+                    send(down,MotionEvent.ACTION_DOWN,new float[]{px[0]},new float[]{py[0]});
+                    for(int segment=1;segment<px.length;segment++) {
+                        for(int step=1;step<=12;step++) {
+                            SystemClock.sleep(20);
+                            float f=step/12f;
+                            send(down,MotionEvent.ACTION_MOVE,
+                                new float[]{px[segment-1]+(px[segment]-px[segment-1])*f},
+                                new float[]{py[segment-1]+(py[segment]-py[segment-1])*f});
+                        }
+                    }
+                    send(down,MotionEvent.ACTION_UP,new float[]{px[0]},new float[]{py[0]});
+                } else {
+                  int x = number("x", 300, 780), y = number("y", 400, 1520);
+                  if ("double-tap".equals(op)) {
                     stage="double_tap";
                     long down = SystemClock.uptimeMillis();
                     send(down, MotionEvent.ACTION_DOWN, new float[]{x}, new float[]{y});
@@ -153,6 +176,7 @@ public final class Phase1Input extends Instrumentation {
                     send(down, MotionEvent.ACTION_POINTER_UP | (1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT),
                         new float[]{x-to,x+to}, new float[]{y,y});
                     send(down, MotionEvent.ACTION_UP, new float[]{x-to}, new float[]{y});
+                  }
                 }
                 SystemClock.sleep(600);
                 result.putInt("events", events);
@@ -187,10 +211,28 @@ public final class Phase1Input extends Instrumentation {
             finish(0, result);
         }
     }
+    private boolean phase23GestureReady(AccessibilityNodeInfo root) {
+        String surface=args.getString("phase23_surface", "");
+        if("drawing".equals(surface)) {
+            Rect bounds=new Rect();root.getBoundsInScreen(bounds);
+            return "phase23-draw-area".equals(args.getString("op", ""))
+                && bounds.equals(new Rect(0,0,1080,1920))
+                && containsVisible(root,"البحث على الخريطة") && containsVisible(root,"إلغاء")
+                && containsVisible(root,"ارسم بإصبعك حدود المنطقة المطلوبة مثل القلم. عند رفع إصبعك سيتم عرض العقارات داخل الرسم فقط.");
+        }
+        if ("gallery".equals(surface)) {
+            int index=number("gallery_index",1,12), count=number("gallery_count",1,12);
+            return index<=count && containsVisible(root,"إغلاق الصور")
+                && containsVisible(root,"صورة العقار "+index+" من "+count)
+                && containsVisible(root,index+"/"+count);
+        }
+        return "map".equals(surface) && containsVisible(root,"البحث على الخريطة")
+            && containsVisible(root,"Showing a Map created with MapLibre. Scroll by dragging two fingers. Zoom by pinching two fingers.");
+    }
     private AccessibilityNodeInfo readyRoot(String op) {
         long deadline=SystemClock.uptimeMillis()+5000;
         while(SystemClock.uptimeMillis()<deadline) {
-            if(op.startsWith("account-")) {
+            if(op.startsWith("account-") || !args.getString("phase23_surface", "").isEmpty()) {
                 stage="account_cache_clear";
                 // A preceding OS uiautomator dump may still be releasing its
                 // connection. Observe readiness before any account operation;
@@ -202,8 +244,12 @@ public final class Phase1Input extends Instrumentation {
             foreground=foregroundCategory(rootPackage);
             if(root!=null && rootPackage!=null && APP.contentEquals(rootPackage)) {
                 boolean query="fixture-query".equals(op)||"negative-query".equals(op)||"clear-query".equals(op)||"submit-query".equals(op)||"empty-query".equals(op);
-                if(op.startsWith("account-") || (query ? contains(root,"البحث عن عقار")||contains(root,"البحث على الخريطة")
-                         : contains(root,"صورة العقار 1 من 1")&&contains(root,"1/1"))) return root;
+                boolean gesture="double-tap".equals(op)||"pinch-in".equals(op)||"pinch-out".equals(op)||"phase23-draw-area".equals(op);
+                if(op.startsWith("account-")) return root;
+                if(query && (contains(root,"البحث عن عقار")||contains(root,"البحث على الخريطة"))) return root;
+                if(gesture && !args.getString("phase23_surface", "").isEmpty()) {
+                    if(phase23GestureReady(root)) return root;
+                } else if(gesture && contains(root,"صورة العقار 1 من 1")&&contains(root,"1/1")) return root;
             }
             SystemClock.sleep(100);
         }
@@ -233,7 +279,7 @@ public final class Phase1Input extends Instrumentation {
     }
     private static String safeOp(String op) {
         return "account-dismiss-ime".equals(op) || "account-snapshot".equals(op) || "account-click".equals(op) || "account-set".equals(op) || "account-scroll".equals(op) || "fixture-query".equals(op) || "negative-query".equals(op) || "clear-query".equals(op) || "submit-query".equals(op) || "empty-query".equals(op) || "double-tap".equals(op)
-            || "pinch-in".equals(op) || "pinch-out".equals(op) ? op : "invalid";
+            || "pinch-in".equals(op) || "pinch-out".equals(op) || "phase23-draw-area".equals(op) ? op : "invalid";
     }
     private static String plain(CharSequence value) { return value==null ? "" : value.toString(); }
     private static String accessibleDescription(AccessibilityNodeInfo node) {
@@ -533,6 +579,18 @@ public final class Phase1Input extends Instrumentation {
             if (value != null) for (String line : value.toString().split("\n")) if (expected.equals(line.trim())) return true;
         }
         for (int i=0; i<node.getChildCount(); i++) { AccessibilityNodeInfo child=node.getChild(i); if(child!=null && contains(child,expected)) return true; }
+        return false;
+    }
+    private static boolean containsVisible(AccessibilityNodeInfo node, String expected) {
+        if(node.isVisibleToUser() && node.getPackageName()!=null && APP.contentEquals(node.getPackageName())) {
+            for(CharSequence value:new CharSequence[]{node.getText(),accessibleDescription(node)}) {
+                if(value!=null) for(String line:value.toString().split("\n")) if(expected.equals(line.trim())) return true;
+            }
+        }
+        for(int i=0;i<node.getChildCount();i++) {
+            AccessibilityNodeInfo child=node.getChild(i);
+            if(child!=null && containsVisible(child,expected)) return true;
+        }
         return false;
     }
     private static void editable(AccessibilityNodeInfo node, List<AccessibilityNodeInfo> fields) {

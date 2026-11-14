@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import 'auth_controller.dart';
 import 'auth_repository.dart';
 import 'account_request_scope.dart';
@@ -45,11 +46,14 @@ class AccountSafetyRepository {
   final int? actorId;
   final int? Function() currentActor;
   Future<Options> _options() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     _requestScope?.verify();
     if (actorId == null || currentActor() != actorId) throw StateError('ACCOUNT_CHANGED');
     final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
     _requestScope?.verify();
-    if (currentActor() != actorId) throw StateError('ACCOUNT_CHANGED');
+    if (currentActor() != actorId || epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
     return options;
   }
   Future<BlockedAccountPage> blocked({int page = 1}) async {
@@ -86,12 +90,14 @@ class AccountSafetyRepository {
     return status;
   }
   Future<void> eraseAccount() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final response = await _dio.delete<Map<String, dynamic>>(
       '/account',
       data: {'confirm_phrase': 'حذف حسابي نهائيًا'},
       options: await _options(),
     );
     _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) throw StateError('ACCOUNT_CHANGED');
     final data = response.data?['data'];
     if (data is! Map ||
         data['account_deleted'] != true ||

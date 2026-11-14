@@ -15,7 +15,6 @@ void main() {
     expect(shell, contains("label: 'لوحة الدعم'"));
     expect(shell, contains("label: 'الوارد'"));
     expect(tasks, contains("_setType('listing_review')"));
-    expect(tasks, contains("context.push('/admin/listing-review')"));
     expect(tasks, contains('تحقيق إعلانات'));
   });
 

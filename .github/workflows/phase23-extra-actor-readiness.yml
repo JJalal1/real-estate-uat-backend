@@ -1,0 +1,55 @@
+name: Phase23 additional configured test actor readiness
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths: [.github/workflows/phase23-extra-actor-readiness.yml]
+permissions:
+  contents: read
+jobs:
+  additional-actors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify only the additional configured aliases through normal login and logout
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          python3 -B - <<'PY'
+          import os,sys,json,subprocess,pathlib,hashlib
+          sys.path.insert(0,'scripts')
+          from phase23_preflight import guard,check_actor
+          from phase1_native_account_readiness import validate_access,SECRET_NAME
+          guard(os.environ)
+          access=validate_access(os.environ.pop(SECRET_NAME,''))
+          aliases=[name for name in ('manager','advertiser') if name in access['phones']]
+          receipt={'scope':'Additional configured synthetic test actors only; no role changes, fixtures or private inbox reads.',
+            'source':os.environ['GITHUB_SHA'],'run_id':os.environ['GITHUB_RUN_ID'],
+            'configured_additional_aliases':aliases,'status':'BLOCKED_MISSING_ADDITIONAL_CONFIGURED_ACTORS','actors':[]}
+          for alias in aliases:
+              receipt['actors'].append(check_actor(alias,access['phones'][alias],access['otp']))
+          del access
+          if aliases and all(a['status']=='PASS' and a.get('session_closed') is True for a in receipt['actors']):
+              receipt['status']='AVAILABLE_NOT_NATIVE_ACCEPTED'
+          private=pathlib.Path(os.environ['RUNNER_TEMP'])/'phase23-extra-actors.json'
+          private.write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n');private.chmod(0o600)
+          out=pathlib.Path('phase23-extra-actors-sealed');out.mkdir(mode=0o700)
+          cipher=out/'EVIDENCE.cms'
+          subprocess.run(['openssl','cms','-encrypt','-aes-256-cbc','-binary','-outform','DER','-in',str(private),
+            '-out',str(cipher),'scripts/phase23_recipient.pem'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+          private.unlink()
+          (out/'PUBLIC_RECEIPT.json').write_text(json.dumps({'source':receipt['source'],'run_id':receipt['run_id'],
+            'cipher_sha256':hashlib.sha256(cipher.read_bytes()).hexdigest(),'plaintext_exported':False})+'\n')
+          print('ADDITIONAL_ACTOR_READINESS_'+receipt['status'])
+          if receipt['status'].startswith('BLOCKED'):sys.exit(3)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-extra-actors-${{ github.run_id }}
+          path: phase23-extra-actors-sealed/
+          retention-days: 30
+          if-no-files-found: error
