@@ -66,7 +66,7 @@ class VisualRevisionGateTest(unittest.TestCase):
                         allowed.replace('A\ttest/', 'M\ttest/'),
                         allowed + '\nD\tassets/icon.png']:
             self.responses[key] = changes
-            with self.subTest(changes=changes), self.assertRaisesRegex(GateError, 'two_file_scope'):
+            with self.subTest(changes=changes), self.assertRaisesRegex(GateError, 'reviewed_delta'):
                 self.evaluate()
 
     def test_dirty_product_file_rejected_after_exact_head_matches(self):

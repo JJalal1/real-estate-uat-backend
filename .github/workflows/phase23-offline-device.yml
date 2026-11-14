@@ -10,10 +10,13 @@ on:
       - scripts/run_phase23_offline_device.py
       - scripts/tests/test_phase23_offline_device_contract.py
       - scripts/tests/test_phase23_offline_device_collector.py
+      - scripts/tests/test_phase23_offline_device_facets.py
       - scripts/phase23_visual_revision.py
       - scripts/tests/test_phase23_visual_revision.py
       - mobile_app/lib/core/widgets/app_components.dart
       - mobile_app/test/phase23_centered_state_contrast_test.dart
+      - mobile_app/lib/features/properties/presentation/property_location_picker_screen.dart
+      - mobile_app/test/phase23_location_picker_controls_layout_test.dart
 permissions:
   contents: read
 concurrency:
@@ -32,6 +35,7 @@ jobs:
           python-version: '3.12'
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_device_contract.py -v
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_device_collector.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_offline_device_facets.py -v
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_visual_revision.py -v
   native-device:
     if: ${{ contains(github.event.head_commit.message, '[run-offline-device]') }}
@@ -40,6 +44,7 @@ jobs:
     timeout-minutes: 35
     env:
       PHASE23_OFFLINE_DEVICE: 'true'
+      PHASE23_DEVICE_FACETS: 'voice,location,picker_select'
       PHASE23_VISUAL_REVISION: 'true'
       PHASE23_RECIPIENT_SHA256: b53bdbc6d97e75db5a95207e198ebbd9900af017690585e26ccb79c599008070
       SOURCE_COMMIT: ${{ github.sha }}
@@ -93,7 +98,10 @@ jobs:
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
           flutter pub get --enforce-lockfile
-          flutter analyze --fatal-infos lib/phase23_offline_device_main.dart
+          flutter analyze --fatal-infos lib/phase23_offline_device_main.dart \
+            lib/features/properties/presentation/property_location_picker_screen.dart \
+            test/phase23_location_picker_controls_layout_test.dart
+          flutter test --no-pub test/phase23_location_picker_controls_layout_test.dart
           flutter build apk --flavor uat --release --no-pub \
             --target=lib/phase23_offline_device_main.dart --target-platform=android-x64 --build-number="$PHASE23_DEVICE_BUILD" \
             --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_OFFLINE_DEVICE_QA=true \

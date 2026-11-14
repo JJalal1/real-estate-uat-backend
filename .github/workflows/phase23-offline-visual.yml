@@ -1,7 +1,8 @@
 name: Phase23 isolated Android private layout acceptance
 # One offline target at nominal412dp and320dp; large cases use font scale2.4.
 # Each width starts with a fresh synthetic installation. Never export live private pixels.
-# Reviewed contrast correction includes a separate ordinary-main UAT delivery build.
+# [build-owner-apk] builds verified ordinary main; [owner-apk-only] skips captures.
+# Accepted visual captures run only when explicitly requested by [run-offline-visual].
 on:
   push:
     branches: [work/phase23-acceptance-20261111]
@@ -17,6 +18,8 @@ on:
       - scripts/tests/test_phase23_visual_delivery.py
       - mobile_app/lib/core/widgets/app_components.dart
       - mobile_app/test/phase23_centered_state_contrast_test.dart
+      - mobile_app/lib/features/properties/presentation/property_location_picker_screen.dart
+      - mobile_app/test/phase23_location_picker_controls_layout_test.dart
 permissions:
   contents: read
 concurrency:
@@ -38,7 +41,7 @@ jobs:
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_visual_revision.py -v
       - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_visual_delivery.py -v
   native-visual:
-    if: ${{ contains(github.event.head_commit.message, '[run-offline-visual]') }}
+    if: ${{ contains(github.event.head_commit.message, '[run-offline-visual]') || contains(github.event.head_commit.message, '[build-owner-apk]') }}
     needs: fixture-safety
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -60,17 +63,20 @@ jobs:
       - name: Preserve the tested product and set isolated temporary paths
         run: |
           python3 -B - <<'PY'
-          import os, sys
+          import json, os, sys
           sys.path.insert(0, 'scripts')
           from phase23_visual_revision import guard
           guard(os.environ)
+          with open(os.environ['GITHUB_EVENT_PATH']) as event_file:
+              message = json.load(event_file)['head_commit']['message']
+          if '[owner-apk-only]' in message and '[build-owner-apk]' not in message:
+              raise RuntimeError('owner_apk_only_requires_build_marker')
           with open(os.environ['GITHUB_ENV'], 'a') as stream:
               stream.write('GRADLE_USER_HOME=' + os.environ['RUNNER_TEMP'] + '/aqer-visual-gradle\n')
               stream.write('PHASE23_VISUAL_BUILD=' + str(1800 + int(os.environ['GITHUB_RUN_NUMBER'])) + '\n')
               stream.write('PHASE23_BUILD=' + str(1800 + int(os.environ['GITHUB_RUN_NUMBER'])) + '\n')
-          print('AQER_VISUAL_REVIEWED_CONTRAST_REVISION')
+          print('AQER_VISUAL_REVIEWED_PRODUCT_REVISION')
           PY
-          test -c /dev/kvm
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -89,7 +95,7 @@ jobs:
             ${{ env.GRADLE_USER_HOME }}/caches/modules-2
             ${{ env.GRADLE_USER_HOME }}/wrapper/dists
           key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
-      - name: Validate the shared state contrast correction and build ordinary UAT
+      - name: Validate contrast and GPS control layout and build ordinary UAT
         if: ${{ contains(github.event.head_commit.message, '[build-owner-apk]') }}
         working-directory: mobile_app
         run: |
@@ -97,8 +103,10 @@ jobs:
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
           flutter pub get --enforce-lockfile
-          flutter analyze --fatal-infos lib/core/widgets/app_components.dart test/phase23_centered_state_contrast_test.dart
-          flutter test --no-pub test/phase23_centered_state_contrast_test.dart test/phase3_favorites_screen_test.dart
+          flutter analyze --fatal-infos lib/core/widgets/app_components.dart test/phase23_centered_state_contrast_test.dart \
+            lib/features/properties/presentation/property_location_picker_screen.dart test/phase23_location_picker_controls_layout_test.dart
+          flutter test --no-pub test/phase23_centered_state_contrast_test.dart test/phase3_favorites_screen_test.dart \
+            test/phase23_location_picker_controls_layout_test.dart
           flutter build apk --target lib/main.dart --flavor uat --release --no-pub --build-number="$PHASE23_VISUAL_BUILD" \
             --dart-define=APP_BUILD_NUMBER="$PHASE23_VISUAL_BUILD" --dart-define=APP_ENVIRONMENT=uat \
             --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api \
@@ -123,6 +131,7 @@ jobs:
           retention-days: 30
           if-no-files-found: error
       - name: Build the separate synthetic target with existing actual screen widgets
+        if: ${{ contains(github.event.head_commit.message, '[run-offline-visual]') && !contains(github.event.head_commit.message, '[owner-apk-only]') }}
         working-directory: mobile_app
         run: |
           test ! -e lib/phase23_offline_visual_main.dart
@@ -153,7 +162,9 @@ jobs:
           done
           git diff --exit-code -- lib android assets pubspec.yaml
       - name: Boot one fresh API36 device for synthetic-only screen captures
+        if: ${{ contains(github.event.head_commit.message, '[run-offline-visual]') && !contains(github.event.head_commit.message, '[owner-apk-only]') }}
         run: |
+          test -c /dev/kvm
           (cd mobile_app/android && ./gradlew --stop --gradle-user-home "$GRADLE_USER_HOME")
           sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
           export ANDROID_USER_HOME="$RUNNER_TEMP/phase23-offline-android"
@@ -182,6 +193,7 @@ jobs:
           done
           test "$SECONDS" -lt "$deadline"
       - name: Collect the finite synthetic private-widget matrix at both required widths
+        if: ${{ contains(github.event.head_commit.message, '[run-offline-visual]') && !contains(github.event.head_commit.message, '[owner-apk-only]') }}
         run: |
           python3 -B scripts/run_phase23_offline_visual.py \
             --apk mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk \
@@ -194,7 +206,7 @@ jobs:
             --serial emulator-5554 --max-seconds 600
           mv phase23-offline-visual-sealed phase23-offline-visual-compact-sealed
       - name: Upload only encrypted synthetic frames and the public scoped receipt
-        if: always()
+        if: ${{ always() && contains(github.event.head_commit.message, '[run-offline-visual]') && !contains(github.event.head_commit.message, '[owner-apk-only]') }}
         uses: actions/upload-artifact@v4
         with:
           name: phase23-offline-visual-${{ github.run_id }}
@@ -208,7 +220,7 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
       - name: Stop the disposable device
-        if: always()
+        if: ${{ always() && contains(github.event.head_commit.message, '[run-offline-visual]') && !contains(github.event.head_commit.message, '[owner-apk-only]') }}
         run: |
           adb -s emulator-5554 shell am force-stop com.aqer.yemen.uat || true
           adb -s emulator-5554 emu kill || true

@@ -63,6 +63,44 @@ STAGE = 'context'
 STARTUP_FIELDS = {'hasTarget', 'hasBanner', 'metaCount', 'validLogEventCount',
                   'focusedActivity', 'frameRetained'}
 STARTUP_FILES = {'STARTUP_DIAGNOSTIC.png', 'STARTUP_DIAGNOSTIC.xml', 'STARTUP_DIAGNOSTIC.json'}
+FULL_FACETS = ('voice', 'location', 'camera', 'picker')
+REMAINING_FACETS = ('voice', 'location', 'picker_select')
+FACET_CHECKS = {
+    'voice': frozenset(('voice_denied', 'voice_permission_granted', 'voice_retry_ready', 'voice_cancel')),
+    'location': frozenset(('location_denied', 'location_permission_granted', 'location_retry_gps')),
+    'camera': frozenset(('camera_cancel', 'camera_capture')),
+    'picker': frozenset(('picker_cancel', 'picker_select')),
+    'picker_select': frozenset(('picker_select',)),
+}
+PRIOR_MEDIA_REFERENCE = {
+    'run_id': '43538357569',
+    'source_sha': '91b24899f2961a3ecf39699fa7356444548962e1',
+    'public_receipt_sha256': '40302f0e839859abd188105f6d9303172939e34cd8230dee61ba9a505e088a6c',
+    'checks': ['camera_cancel', 'camera_capture', 'picker_cancel'],
+    'replayed': False,
+    'accepted_by_this_run': False,
+}
+
+
+def selected_facets(env):
+    """Only the full baseline or the reviewed remaining-facets run is allowed."""
+    value = env.get('PHASE23_DEVICE_FACETS', ','.join(FULL_FACETS))
+    if value not in (','.join(FULL_FACETS), ','.join(REMAINING_FACETS)):
+        raise GateError('device_facet_selection_invalid')
+    return tuple(value.split(','))
+
+
+def facet_contract(facets):
+    if not isinstance(facets, (list, tuple)) or tuple(facets) not in (FULL_FACETS, REMAINING_FACETS):
+        raise GateError('device_facet_selection_invalid')
+    return tuple(facets)
+
+
+def facet_receipt_fields(facets):
+    facets = facet_contract(facets)
+    return {'selected_facets': list(facets),
+            'complete_scope': 'current_selected_facets_only' if facets == REMAINING_FACETS else 'current_full_facets',
+            'prior_evidence_reference': {**PRIOR_MEDIA_REFERENCE, 'checks': list(PRIOR_MEDIA_REFERENCE['checks'])} if facets == REMAINING_FACETS else None}
 
 
 class Incomplete(GateError):
@@ -81,6 +119,7 @@ def context(env):
         raise GateError('device_credentials_forbidden')
     if RECIPIENT.is_symlink() or not RECIPIENT.is_file() or digest(RECIPIENT) != RECIPIENT_SHA256:
         raise GateError('device_recipient_mismatch')
+    selected_facets(env)
 
 
 def metadata(raw):
@@ -266,6 +305,72 @@ def control(xml, role, packages, *, names=(), ids=(), clazz=None, size=SIZE):
     return ((left + right) // 2, (top + bottom) // 2)
 
 
+
+def voice_control(xml, packages, action):
+    """Use the observed search-card subtree when Android merges its semantics."""
+    root, data = surface(xml, 'app', packages)
+    if data['case'] != 1 or action not in ('input', 'microphone'):
+        raise Incomplete('control_missing')
+    fields = [n for n in root.iter('node') if n.get('package') == PACKAGE
+              and n.get('class') == 'android.widget.EditText'
+              and n.get('enabled') == 'true' and n.get('clickable') == 'true'
+              and n.get('hint', '').startswith('شقة للإيجار في صنعاء، ثلاث غرف…')]
+    if len(fields) != 1:
+        raise Incomplete('control_missing' if not fields else 'control_ambiguous')
+    field = fields[0]
+    box = bounds(field.get('bounds'), SIZE)
+    children = [n for n in field.iter('node') if n is not field
+                and n.get('package') == PACKAGE and n.get('class') == 'android.widget.Button'
+                and n.get('enabled') == 'true' and n.get('clickable') == 'true']
+    if not any('ابحث لي' in labels(n) for n in children):
+        raise Incomplete('control_missing')
+    if action == 'input':
+        # The Native EditText rectangle includes the whole card. Its free upper
+        # region precedes every child button and contains the actual input.
+        tops = [bounds(n.get('bounds'), SIZE)[1] for n in children]
+        limit = min(tops, default=box[3])
+        if limit - box[1] < 80 or limit > box[3]:
+            raise Incomplete('bounds_invalid')
+        return ((box[0] + box[2]) // 2, (box[1] + limit) // 2)
+    candidates = [n for n in children if not labels(n)]
+    if len(candidates) != 1:
+        raise Incomplete('control_ambiguous')
+    left, top, right, bottom = bounds(candidates[0].get('bounds'), SIZE)
+    if not (box[0] <= left < right <= box[2] and box[1] <= top < bottom <= box[3]
+            and 80 <= right-left <= 160 and 80 <= bottom-top <= 160):
+        raise Incomplete('bounds_invalid')
+    return ((left + right) // 2, (top + bottom) // 2)
+
+
+def seed_file_control(xml, packages):
+    """Select only the fixed synthetic image item observed in DocumentsUI."""
+    root, _ = surface(xml, 'picker', packages)
+    parent = {child: node for node in root.iter() for child in node}
+    matches = []
+    pattern = r'phase23-device\.png, [0-9]+(?:\.[0-9]+)? (?:B|kB|KB|MB), [0-9]{1,2}:[0-9]{2}\s*(?:AM|PM)'
+    for node in root.iter('node'):
+        if (node.get('package') != packages['picker'] or
+                node.get('class') != 'android.widget.LinearLayout' or
+                node.get('enabled') != 'true' or node.get('focusable') != 'true' or
+                not any(re.fullmatch(pattern, name) for name in labels(node))):
+            continue
+        ancestor = parent.get(node)
+        while ancestor is not None and ancestor.get('resource-id') != packages['picker'] + ':id/dir_list':
+            ancestor = parent.get(ancestor)
+        if ancestor is None or ancestor.get('package') != packages['picker']:
+            continue
+        left, top, right, bottom = bounds(node.get('bounds'), SIZE)
+        if not (80 <= right-left <= 600 and 80 <= bottom-top <= 400):
+            raise Incomplete('bounds_invalid')
+        # DocumentsUI handles its grid-item taps through the list, despite the
+        # item reporting clickable=false. Stay inside its observed tile and away
+        # from the separate preview action in the upper-right corner.
+        matches.append(((left+right)//2, top+(bottom-top)*3//4))
+    if len(matches) != 1:
+        raise Incomplete('control_missing' if not matches else 'control_ambiguous')
+    return matches[0]
+
+
 def resolved_package(output, role, installed):
     values = re.findall(r'^([A-Za-z0-9_.]+)/[A-Za-z0-9_.$]+$', output, re.M)
     if len(values) != 1 or values[0] not in CANDIDATES[role] or values[0] not in installed:
@@ -326,6 +431,21 @@ class Device(BaseDevice):
             xml, _ = self.wait(role, packages, seconds=max(.1, until-time.monotonic()))
             try:
                 point = control(xml, role, packages, **selector)
+            except Incomplete as error:
+                if str(error) != 'control_missing':
+                    raise
+                time.sleep(.25)
+                continue
+            self.adb('shell', 'input', 'tap', *map(str, point))
+            return
+        raise Incomplete('control_missing')
+
+    def voice_tap(self, packages, action):
+        until = min(self.deadline, time.monotonic() + 20)
+        while time.monotonic() < until:
+            xml, _ = self.app(packages, case=1)
+            try:
+                point = voice_control(xml, packages, action)
             except Incomplete as error:
                 if str(error) != 'control_missing':
                     raise
@@ -398,19 +518,28 @@ def capture(device, private, frames, packages, role='app'):
     frames.append(record)
 
 
-def checks_complete(checks):
-    return set(checks) == {'voice_denied', 'voice_permission_granted', 'voice_retry_ready', 'voice_cancel', 'location_denied', 'location_permission_granted',
-                           'location_retry_gps', 'camera_cancel', 'camera_capture', 'picker_cancel', 'picker_select'} and all(value is True for value in checks.values())
+def checks_complete(checks, facets=FULL_FACETS):
+    expected = set().union(*(FACET_CHECKS[name] for name in facet_contract(facets)))
+    return set(checks) == expected and all(value is True for value in checks.values())
 
 
 def validate_receipt(receipt):
     expected = {'schema', 'source_sha', 'run_id', 'product_trees', 'target_marker', 'package',
                 'version_code', 'apk_sha256', 'api_level', 'network_scope', 'system_packages',
                 'stage', 'failure', 'case_failures', 'checks', 'cleanup', 'complete', 'startup_diagnostics'}
-    check_names = {'voice_denied', 'voice_permission_granted', 'voice_retry_ready', 'voice_cancel', 'location_denied', 'location_permission_granted',
-                   'location_retry_gps', 'camera_cancel', 'camera_capture', 'picker_cancel', 'picker_select'}
-    if not isinstance(receipt, dict) or set(receipt) != expected:
+    selection_fields = {'selected_facets', 'complete_scope', 'prior_evidence_reference'}
+    if not isinstance(receipt, dict) or set(receipt) not in (expected, expected | selection_fields):
         raise GateError('device_receipt_invalid')
+    # Earlier immutable schema1 receipts have the full-suite scope. New writes
+    # always declare selected facets and never turn referenced checks into new
+    # successes. Keep old receipts readable without weakening the new contract.
+    facets = facet_contract(receipt['selected_facets']) if selection_fields <= set(receipt) else FULL_FACETS
+    if selection_fields <= set(receipt) and any(receipt[key] != value for key, value in facet_receipt_fields(facets).items()):
+        raise GateError('device_receipt_invalid')
+    if facets == REMAINING_FACETS and any(receipt['prior_evidence_reference'][key] is not False
+                                         for key in ('replayed', 'accepted_by_this_run')):
+        raise GateError('device_receipt_invalid')
+    check_names = set().union(*(FACET_CHECKS[name] for name in facets))
     startup = receipt['startup_diagnostics']
     if startup is not None and (
             not isinstance(startup, dict) or set(startup) != STARTUP_FIELDS or
@@ -427,7 +556,7 @@ def validate_receipt(receipt):
             any(packages[key] not in CANDIDATES[key] for key in CANDIDATES) or
             not isinstance(checks, dict) or not set(checks) <= check_names or
             any(type(value) is not bool for value in checks.values()) or
-            not isinstance(failed, dict) or not set(failed) <= {'voice', 'location', 'camera', 'picker'}):
+            not isinstance(failed, dict) or not set(failed) <= set(facets)):
         raise GateError('device_receipt_invalid')
     for item in failed.values():
         if (not isinstance(item, dict) or set(item) != {'stage', 'failure'} or
@@ -443,7 +572,7 @@ def validate_receipt(receipt):
             receipt['stage'] not in STAGES or receipt['failure'] not in FAILURES | {None} or
             receipt['network_scope'] != NETWORK_SCOPE or receipt['target_marker'] != TARGET or
             type(receipt['cleanup']) is not bool or type(receipt['complete']) is not bool or
-            receipt['complete'] != (checks_complete(checks) and not failed and receipt['failure'] is None and receipt['cleanup'])):
+            receipt['complete'] != (checks_complete(checks, facets) and not failed and receipt['failure'] is None and receipt['cleanup'])):
         raise GateError('device_receipt_invalid')
 
 
@@ -466,10 +595,12 @@ def seal(private, output, receipt, frames, encryptor=encrypt):
             encrypted = encryptor(archive, output / 'device.cms', RECIPIENT)
         finally:
             archive.unlink(missing_ok=True)
+        selected_only = receipt.get('complete_scope') == 'current_selected_facets_only'
         public = {**receipt, 'encrypted_evidence': encrypted, 'recipient_sha256': RECIPIENT_SHA256,
-                  'frame_count': len(frames), 'result': 'COMPLETE' if receipt['complete'] else 'INCOMPLETE',
+                  'frame_count': len(frames), 'result': ('SELECTED_FACETS_COMPLETE' if selected_only else 'COMPLETE') if receipt['complete'] else 'INCOMPLETE',
                   'plaintext_exported': False, 'apk_exported': False, 'live_authentication': False,
-                  'physical_device_acceptance': False, 'phase23_accepted': False, 'scope': SCOPE}
+                  'physical_device_acceptance': False, 'phase23_accepted': False,
+                  'scope': SCOPE + ('; only explicitly selected facets execute in this run; prior camera and picker-cancel evidence is referenced, not replayed or accepted here' if selected_only else '')}
         (output / 'PUBLIC_RECEIPT.json').write_text(json.dumps(public, indent=2) + '\n')
         if {p.name for p in output.iterdir()} != {'device.cms', 'PUBLIC_RECEIPT.json'}:
             raise GateError('device_export_scope_invalid')
@@ -482,7 +613,7 @@ def voice_case(device, private, frames, packages, checks):
     global STAGE
     device.tap('app', packages, names=('DEVICE_VOICE',))
     device.app(packages, case=1)
-    device.tap('app', packages, clazz='android.widget.EditText')
+    device.voice_tap(packages, 'input')
     # The only text input is this fixed synthetic literal, never a credential.
     device.adb('shell', 'input', 'text', 'DEVICE_TYPED_BASE')
     ime = device.adb('shell', 'dumpsys', 'input_method')
@@ -490,7 +621,7 @@ def voice_case(device, private, frames, packages, checks):
         device.back('keyboard', packages)
     device.app(packages, typedBaseKept=1)
     STAGE = 'voice_deny'
-    device.tap('app', packages, names=('أكمل بحثك بالصوت',))
+    device.voice_tap(packages, 'microphone')
     capture(device, private, frames, packages, 'permission')
     device.permission(packages, False)
     device.app(packages, voicePermissionDenied=1)
@@ -499,7 +630,7 @@ def voice_case(device, private, frames, packages, checks):
         raise Incomplete('permission_unproven')
     capture(device, private, frames, packages)
     STAGE = 'voice_grant'
-    device.tap('app', packages, names=('أكمل بحثك بالصوت',))
+    device.voice_tap(packages, 'microphone')
     device.permission(packages, True)
     checks['voice_permission_granted'] = device.granted('android.permission.RECORD_AUDIO')
     if not checks['voice_permission_granted']:
@@ -525,6 +656,7 @@ def location_case(device, private, frames, packages, checks):
     device.tap('app', packages, names=('DEVICE_LOCATION',))
     device.wait('app', packages, lambda data: data['case'] == 2 and data['mapReady'] == 1, seconds=60)
     STAGE = 'location_deny'
+    capture(device, private, frames, packages)
     device.tap('app', packages, names=('موقعي الحالي',))
     capture(device, private, frames, packages, 'permission')
     device.permission(packages, False)
@@ -548,6 +680,7 @@ def location_case(device, private, frames, packages, checks):
         raise Incomplete('permission_unproven')
     device.app(packages, mapReady=1, gpsError=0)
     STAGE = 'location_confirm'
+    capture(device, private, frames, packages)
     device.tap('app', packages, names=('تأكيد هذا الموقع',))
     data = device.app(packages, case=0, gpsConfirmations=1, gpsPhase=2, gpsMethod=1)[1]
     checks['location_retry_gps'] = abs(data['latE6'] - 15372900) <= 20 and abs(data['lonE6'] - 44205100) <= 20
@@ -589,9 +722,9 @@ def camera_case(device, private, frames, packages, checks):
     device.app(packages, case=0)
 
 
-def picker_case(device, private, frames, packages, checks):
+def picker_case(device, private, frames, packages, checks, *, selection_only=False):
     global STAGE
-    STAGE = 'picker_cancel'
+    STAGE = 'picker_select' if selection_only else 'picker_cancel'
     # A separate original screen instance makes DocumentsUI independent of
     # camera onboarding/provider availability. Home was verified first.
     device.app(packages, case=0)
@@ -600,28 +733,31 @@ def picker_case(device, private, frames, packages, checks):
     data = device.snapshot(packages)
     if any(data[key] for key in ('mediaSelected', 'cameraFiles', 'pickerFiles', 'mediaBytes')):
         raise Incomplete('media_unproven')
-    device.scroll_to(packages, 'صورة البطاقة الشخصية أو جواز السفر *')
-    device.tap('app', packages, names=('اختيار من الملفات',))
-    device.wait('picker', packages)
-    capture(device, private, frames, packages, 'picker')
-    device.back('picker', packages)
-    cancelled = device.snapshot(packages)
-    checks['picker_cancel'] = all(cancelled[key] == data[key] for key in ('mediaSelected', 'cameraFiles', 'pickerFiles', 'mediaBytes', 'mediaDecodable'))
-    if not checks['picker_cancel']:
-        raise Incomplete('media_unproven')
-    capture(device, private, frames, packages)
+    cancelled = data
+    if not selection_only:
+        device.scroll_to(packages, 'صورة البطاقة الشخصية أو جواز السفر *')
+        device.tap('app', packages, names=('اختيار من الملفات',))
+        device.wait('picker', packages)
+        capture(device, private, frames, packages, 'picker')
+        device.back('picker', packages)
+        cancelled = device.snapshot(packages)
+        checks['picker_cancel'] = all(cancelled[key] == data[key] for key in ('mediaSelected', 'cameraFiles', 'pickerFiles', 'mediaBytes', 'mediaDecodable'))
+        if not checks['picker_cancel']:
+            raise Incomplete('media_unproven')
+        capture(device, private, frames, packages)
     STAGE = 'picker_select'
-    device.scroll_to(packages, 'صورة البطاقة الشخصية أو جواز السفر *', upward=True)
+    device.scroll_to(packages, 'صورة البطاقة الشخصية أو جواز السفر *', upward=not selection_only)
     device.tap('app', packages, names=('اختيار من الملفات',))
     xml, _ = device.wait('picker', packages)
     try:
-        point = control(xml, 'picker', packages, names=('phase23-device.png',))
+        point = seed_file_control(xml, packages)
     except Incomplete as error:
         if str(error) != 'control_missing':
             raise
         device.tap('picker', packages, names=('Show roots', 'Show navigation drawer', 'إظهار الجذور', 'فتح قائمة التنقل'), ids=('android:id/home',))
         device.tap('picker', packages, names=('Downloads', 'التنزيلات'))
-        device.tap('picker', packages, names=('phase23-device.png',))
+        point = seed_file_control(device.wait('picker', packages)[0], packages)
+        device.adb('shell', 'input', 'tap', *map(str, point))
     else:
         device.adb('shell', 'input', 'tap', *map(str, point))
     picker_return(device, packages)
@@ -691,15 +827,20 @@ def recover_home(device, packages):
     raise Incomplete('surface_unavailable')
 
 
-def execute(device, private, frames, packages, checks, case_failures):
+def execute(device, private, frames, packages, checks, case_failures, facets=FULL_FACETS):
     global STAGE
+    facets = facet_contract(facets)
     STAGE = 'launch'
     device.app(packages, case=0)
     capture(device, private, frames, packages)
-    for name, procedure in (('voice', voice_case), ('location', location_case),
-                            ('camera', camera_case), ('picker', picker_case)):
+    procedures = {'voice': voice_case, 'location': location_case,
+                  'camera': camera_case, 'picker': picker_case, 'picker_select': picker_case}
+    for name in facets:
         try:
-            procedure(device, private, frames, packages, checks)
+            if name == 'picker_select':
+                procedures[name](device, private, frames, packages, checks, selection_only=True)
+            else:
+                procedures[name](device, private, frames, packages, checks)
         except Incomplete as error:
             if str(error) not in FAILURES:
                 raise
@@ -731,6 +872,7 @@ def cleanup(serial):
 def collect(args, env=os.environ):
     global STAGE
     context(env)
+    facets = selected_facets(env)
     device = Device(args.serial, time.monotonic() + args.max_seconds)
     apk = Path(args.apk).absolute()
     output = ROOT / 'phase23-offline-device-sealed'
@@ -787,7 +929,7 @@ def collect(args, env=os.environ):
         try:
             device.adb('logcat', '-c')
             device.adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/com.example.real_estate_mobile.MainActivity')
-            execute(device, private, frames, packages, checks, case_failures)
+            execute(device, private, frames, packages, checks, case_failures, facets)
         except (Incomplete, GateError, subprocess.SubprocessError, OSError, UnicodeError) as error:
             failure = str(error) if isinstance(error, Incomplete) and str(error) in FAILURES else ('deadline' if isinstance(error, subprocess.TimeoutExpired) or 'timeout' in str(error) else 'command_failed')
             if STAGE == 'launch' and not frames and not checks and not case_failures:
@@ -805,8 +947,8 @@ def collect(args, env=os.environ):
                    'version_code': version, 'apk_sha256': digest(apk), 'api_level': 36,
                    'network_scope': NETWORK_SCOPE, 'system_packages': packages,
                    'stage': STAGE, 'failure': failure, 'case_failures': case_failures, 'checks': checks, 'cleanup': cleaned,
-                   'complete': failure is None and cleaned and checks_complete(checks),
-                   'startup_diagnostics': startup}
+                   'complete': failure is None and cleaned and checks_complete(checks, facets),
+                   'startup_diagnostics': startup, **facet_receipt_fields(facets)}
         (private / 'MANIFEST.json').write_text(json.dumps({**receipt, 'frames': frames, 'scope': SCOPE}, ensure_ascii=False, indent=2) + '\n')
         seal(private, output, receipt, frames)
         if not receipt['complete']:

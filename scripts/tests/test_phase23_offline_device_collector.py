@@ -111,6 +111,48 @@ class SurfaceTests(unittest.TestCase):
         with self.assertRaises(c.Incomplete):
             c.surface(self.bidi_startup(banner=c.BANNER + ' extra'), 'app', P)
 
+    def voice_card(self, extra='', field_bounds='[47,743][1033,1439]'):
+        field = node(bounds=field_bounds, clazz='android.widget.EditText')[:-2]
+        field += ' hint="شقة للإيجار في صنعاء، ثلاث غرف…">'
+        field += node('ابحث لي', bounds='[236,1076][991,1213]')
+        field += node('', bounds='[89,1082][215,1208]') + extra + '</node>'
+        return xml(field, meta(case=1))
+
+    def test_observed_merged_voice_card_taps_input_above_sibling_buttons(self):
+        self.assertEqual(c.voice_control(self.voice_card(), P, 'input'), (540, 909))
+        self.assertEqual(c.voice_control(self.voice_card(), P, 'microphone'), (152, 1145))
+        # The old center was in sibling action space, not the actual input.
+        self.assertGreater((743+1439)//2, 1076)
+
+    def test_voice_selector_refuses_wrong_case_ambiguous_or_unbounded_controls(self):
+        cases = [self.voice_card().replace('&quot;case&quot;: 1', '&quot;case&quot;: 2'),
+                 self.voice_card(node('', bounds='[300,1082][426,1208]')),
+                 self.voice_card().replace('[89,1082][215,1208]', '[0,0][1080,1920]'),
+                 self.voice_card().replace('شقة للإيجار في صنعاء، ثلاث غرف…', 'unknown')]
+        for value in cases:
+            with self.subTest(value=value), self.assertRaises(c.Incomplete):
+                c.voice_control(value, P, 'microphone')
+
+    def picker_grid(self, name='phase23-device.png, 1.16 kB, 1:13\u202fAM', extra=''):
+        item = node(name, P['picker'], bounds='[64,484][366,786]',
+                    clickable=False, clazz='android.widget.LinearLayout').replace('/>', ' focusable="true"/>')
+        return '<hierarchy><node package="' + P['picker'] + '" resource-id="' + P['picker'] + ':id/dir_list">' + item + extra + '</node></hierarchy>'
+
+    def test_documents_ui_compound_seed_item_uses_observed_tile_away_from_preview(self):
+        self.assertEqual(c.seed_file_control(self.picker_grid(), P), (215, 710))
+
+    def test_documents_ui_seed_selection_rejects_other_files_packages_or_duplicate_tiles(self):
+        values = [self.picker_grid('private.png, 1.16 kB, 1:13 AM'),
+                  self.picker_grid('phase23-device.png.extra, 1.16 kB, 1:13 AM'),
+                  self.picker_grid().replace(':id/dir_list', ':id/other'),
+                  self.picker_grid().replace('[64,484][366,786]', '[0,0][1080,1920]')]
+        item = node('phase23-device.png, 1.16 kB, 1:13 AM', P['picker'],
+                    clickable=False, clazz='android.widget.LinearLayout').replace('/>', ' focusable="true"/>')
+        values.append(self.picker_grid(extra=item))
+        for value in values:
+            with self.subTest(value=value), self.assertRaises(c.Incomplete):
+                c.seed_file_control(value, P)
+
     def test_app_requires_both_markers_and_metadata(self):
         self.assertEqual(c.surface(xml(), 'app', P)[1], meta())
         for value in (xml().replace(c.TARGET, 'ordinary-app'), xml().replace(c.BANNER, 'LIVE'), '<hierarchy/>'):

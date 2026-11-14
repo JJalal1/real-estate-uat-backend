@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only source gate for the reviewed Phase23 text-contrast revision.
+"""Read-only source gate for the reviewed Phase23 contrast and location-control fixes.
 
 The previous phase23_preflight pin remains an immutable acceptance baseline.
 This gate performs no HTTP, login, database, storage or deployment operation.
@@ -14,12 +14,14 @@ from phase23_preflight import API, BRANCH, GateError
 ROOT = Path(__file__).resolve().parents[1]
 SHARE_BASE = 'https://real-estate-uat-api-frankfurt.onrender.com'
 BASE_MOBILE_TREE = '727cc7c154ae7020ce0302e21a3699379cf90c4d'
-# Exact tree of the final one-line product correction plus its behavioral test.
-TREES = {'mobile_app': '62e39d1cdb1057068e60f3f64f56cc6d9d5a7b0e',
+# Exact tree of the reviewed contrast and GPS layout fixes with behavioral tests.
+TREES = {'mobile_app': '3553640d5be0cc451df30dc9773bf363c2bf6d86',
          'backend-api-runtime': '76dcc5b61ed2bf55d05935289d09885182fef96e'}
 MOBILE_DELTA = {
     'M\tlib/core/widgets/app_components.dart',
     'A\ttest/phase23_centered_state_contrast_test.dart',
+    'M\tlib/features/properties/presentation/property_location_picker_screen.dart',
+    'A\ttest/phase23_location_picker_controls_layout_test.dart',
 }
 
 
@@ -29,7 +31,7 @@ def _git(root, *args):
 
 
 def guard(env, root=ROOT):
-    """Verify the exact checkout and the two-file delta; return safe identity."""
+    """Verify the exact checkout and the four-file reviewed delta; return safe identity."""
     def matches(pattern, key):
         value = env.get(key)
         return isinstance(value, str) and re.fullmatch(pattern, value)
@@ -52,7 +54,7 @@ def guard(env, root=ROOT):
     changed = set(_git(root, 'diff', '--name-status', '--no-renames',
                        BASE_MOBILE_TREE, TREES['mobile_app']).splitlines())
     if changed != MOBILE_DELTA:
-        raise GateError('visual_revision_two_file_scope_required')
+        raise GateError('visual_revision_reviewed_delta_required')
     # Generated build output is ignored; every tracked product file is checked.
     if _git(root, 'diff', '--name-only', 'HEAD', '--',
             'mobile_app', 'backend-api-runtime'):
