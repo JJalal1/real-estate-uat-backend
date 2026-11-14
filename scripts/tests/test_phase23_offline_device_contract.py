@@ -96,6 +96,16 @@ class OfflineDeviceContract(unittest.TestCase):
         self.assertIn('Expanded(child: Semantics(container: true, explicitChildNodes: true, child: child!))',
                       self.source)
 
+    def test_header_and_controls_have_distinct_semantic_boundaries(self):
+        # Native RTL Android wrapped the LTR header in bidi controls and merged
+        # its labels into a full-screen node. Keep each control/meta independent.
+        self.assertIn('SafeArea(bottom: false, child: Semantics(container: true, explicitChildNodes: true,',
+                      self.source)
+        self.assertIn('container: true, label: label, button: true, excludeSemantics: true, onTap: action,',
+                      self.source)
+        self.assertIn("Semantics(container: true, label: 'DEVICE_META ${jsonEncode(_meta)}'",
+                      self.source)
+
 
 if __name__ == '__main__':
     unittest.main()

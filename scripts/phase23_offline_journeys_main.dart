@@ -385,7 +385,8 @@ class _OfflineJourneysAppState extends State<_OfflineJourneysApp> {
           data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1)),
           child: Directionality(textDirection: TextDirection.rtl,
           child: Scaffold(body: SafeArea(child: Column(children: [
-            MediaQuery.withNoTextScaling(child: Directionality(textDirection: TextDirection.ltr,
+            Semantics(container: true, explicitChildNodes: true,
+              child: MediaQuery.withNoTextScaling(child: Directionality(textDirection: TextDirection.ltr,
               child: ColoredBox(color: const Color(0xff112233), child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: Row(children: [Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
@@ -397,11 +398,11 @@ class _OfflineJourneysAppState extends State<_OfflineJourneysApp> {
                       Text(count == 0 ? '${_role(journey.scope)}/${journey.scope}' : 'AQER_JOURNEY_FAILURE',
                         style: const TextStyle(fontSize: 10, color: Colors.white))),
                   ])),
-                  Semantics(label: 'AQER_JOURNEY_NEXT', button: true, enabled: canAdvance,
+                  Semantics(container: true, label: 'AQER_JOURNEY_NEXT', button: true, enabled: canAdvance,
                     excludeSemantics: true, onTap: canAdvance ? _next : null,
                     child: TextButton(onPressed: canAdvance ? _next : null,
                       child: const Text('Next', style: TextStyle(color: Colors.white)))),
-                ]))))),
+                ])))))),
             Expanded(child: Semantics(container: true, explicitChildNodes: true,
               label: journey.stage == 15 ? 'AQER_JOURNEY_SCROLL' : null,
               onScrollDown: journey.stage == 15 ? () => _scrollPage(true) : null,

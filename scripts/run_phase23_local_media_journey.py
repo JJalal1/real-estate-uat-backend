@@ -25,6 +25,7 @@ import zipfile
 from phase23_preflight import GateError
 from phase23_local_media_guard import guard, TREES
 from prepare_phase1_close import encrypt
+from run_phase23_offline_device import focused_activity
 from run_phase23_offline_visual import Device as BaseDevice, bounds, digest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +46,8 @@ PERMISSIONS = {'com.google.android.permissioncontroller', 'com.android.permissio
 SIZE = (1080, 1920)
 MAX_CHECKPOINTS = 40
 MAX_INPUTS = 350
+STARTUP_XML_RETRIES = 40
+BIDI_FORMAT = dict.fromkeys(map(ord, '\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069'))
 REASON = 'P23 logo is not a property photograph. Replace it with the house image.'
 SCOPE = ('Ordinary main.dart debug app and unchanged Laravel/PostgreSQL controllers on '
          'disposable loopback fixtures only; actual Android picker/auth/media/review UI; '
@@ -115,7 +118,9 @@ def verify_build(apk, receipt, fixture):
 
 
 def labels(node):
-    return {x.strip() for k in ('text', 'content-desc', 'hint')
+    # Android wraps explicit LTR phone/OTP/title semantics in bidi controls.
+    # Match their visible text, retaining the original XML as private evidence.
+    return {x.translate(BIDI_FORMAT).strip() for k in ('text', 'content-desc', 'hint')
             for x in node.get(k, '').splitlines() if x.strip()}
 
 
@@ -133,6 +138,17 @@ def ui_nodes(xml, allowed_packages):
     if not seen or not seen <= set(allowed_packages):
         raise Incomplete('local_media_foreign_surface')
     return root, nodes
+
+
+def transient_startup_xml(xml):
+    """Readiness-only: never accepts a tree for input or pixel collection."""
+    if len(xml.encode()) > 2_000_000 or '<!DOCTYPE' in xml or '<!ENTITY' in xml:
+        return False
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError:
+        return not xml.strip() or xml.lstrip().startswith(('<?xml', '<hierarchy'))
+    return root.tag == 'hierarchy' and not list(root.iter('node'))
 
 
 def select_control(xml, label, packages, size=SIZE, ordinal=None, editable=False):
@@ -407,12 +423,24 @@ class Journey:
         raise Incomplete('local_media_expected_label_unobserved')
 
     def startup(self):
-        deadline = min(self.d.deadline, time.monotonic()+60)
-        continued, denied = False, 0
+        deadline = min(self.d.deadline, time.monotonic()+120)
+        continued, denied, transient_retries = False, 0, 0
         while time.monotonic() < deadline:
             self.isolation()
             xml = self.d.xml()
-            _, nodes = ui_nodes(xml, {PACKAGE} | KEYBOARDS | PERMISSIONS)
+            try:
+                _, nodes = ui_nodes(xml, {PACKAGE} | KEYBOARDS | PERMISSIONS)
+            except Incomplete:
+                # Cold debug launch may precede the first accessibility hierarchy.
+                # Retry only while the exact ordinary activity is freshly resumed;
+                # do not capture pixels or deliver any input from this observation.
+                if transient_retries >= STARTUP_XML_RETRIES or not transient_startup_xml(xml): raise
+                if focused_activity(self.d.adb('shell','dumpsys','activity','activities'), {}) != 'target':
+                    raise Incomplete('local_media_startup_foreground_unproved')
+                self.isolation()
+                transient_retries += 1
+                time.sleep(.5)
+                continue
             if any(n.get('package') in PERMISSIONS for n in nodes):
                 candidates = [n for n in nodes if n.get('package') in PERMISSIONS and
                               n.get('resource-id') == n.get('package')+':id/permission_deny_button' and

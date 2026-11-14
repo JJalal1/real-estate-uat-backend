@@ -150,6 +150,34 @@ class FixtureBoundaryTests(unittest.TestCase):
 
 
 class NativeInputBoundaryTests(unittest.TestCase):
+    def test_bidi_formats_match_visible_labels_without_changing_evidence_or_joiners(self):
+        wrapped='\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069Phone'
+        value=screen(node(wrapped,**{'content-desc':'\u202aVisible value\u202c',
+                                    'hint':'keep\u200cjoiner\u200dtext'}))
+        _,nodes=c.ui_nodes(value,{c.PACKAGE})
+        self.assertEqual(c.labels(nodes[0]),{'Phone','Visible value','keep\u200cjoiner\u200dtext'})
+        self.assertEqual(nodes[0].get('text'),wrapped)
+        self.assertEqual(c.select_control(value,'Phone',{c.PACKAGE}),(20,200,1000,350))
+        duplicated=screen(node('\u202aPhone\u202c'),node('Phone','[20,500][1000,650]'))
+        with self.assertRaisesRegex(c.Incomplete,'ambiguous'):
+            c.select_control(duplicated,'Phone',{c.PACKAGE})
+        with self.assertRaises(c.Incomplete):
+            c.select_control(screen(node('Ph\u200cone')),'Phone',{c.PACKAGE})
+
+    def test_bidi_wrapped_input_labels_and_values_require_actual_visible_value(self):
+        for label,value in (('Phone','+967700230101'),('OTP','123456'),('Title','P23 Local Media Updated')):
+            before=screen(node('\u202a'+label+'\u202c',**{'class':'android.widget.EditText'}))
+            for entered_value,accepted in ((value,True),(value+'0',False),(value+'\u200d',False)):
+                after=screen(node('\u202a'+entered_value+'\u202c',**{'class':'android.widget.EditText'}))
+                device=Mock();journey=c.Journey(device,fixture(),Path('/tmp/fixture.json'),Path('/tmp/evidence'))
+                with self.subTest(label=label,accepted=accepted),patch.object(journey,'xml',side_effect=[before,before,after]),patch.object(c.time,'sleep'):
+                    if accepted:journey.text(label,value)
+                    else:
+                        with self.assertRaisesRegex(c.Incomplete,'text_input_unproved'):journey.text(label,value)
+                self.assertEqual(journey.inputs,1)
+                self.assertEqual(device.adb.call_args_list[3].args,('shell','input','text',value.replace(' ','%s')))
+                self.assertEqual(device.adb.call_count,5 if accepted else 4)
+
     def test_only_current_allowlisted_app_or_picker_surface_is_accepted(self):
         c.ui_nodes(screen(), {c.PACKAGE})
         picker = 'com.android.documentsui'
@@ -230,6 +258,92 @@ class NativeInputBoundaryTests(unittest.TestCase):
         for bad in variants:
             with self.subTest(xml=bad),self.assertRaises(c.Incomplete):c.media_drag_targets(bad,{c.PACKAGE})
 
+
+
+class StartupBoundaryTests(unittest.TestCase):
+    target_focus = 'mResumedActivity: ActivityRecord{123 u0 ' + c.ACTIVITY + ' t1}'
+    home = screen(node('ماذا تبحث عنه؟'), node('حسابي', '[20,500][1000,650]'))
+
+    def make_journey(self, frames, focus=None):
+        device = Mock()
+        device.deadline = 1800
+        device.xml.side_effect = frames
+        device.adb.return_value = self.target_focus if focus is None else focus
+        journey = c.Journey(device, fixture(), Path('/tmp/fixture.json'), Path('/tmp/evidence'))
+        journey.isolation = Mock()
+        journey.tap = Mock()
+        journey.checkpoint = Mock()
+        return journey
+
+    def assert_read_only(self, journey):
+        self.assertEqual(journey.inputs, 0)
+        self.assertEqual(journey.records, [])
+        journey.tap.assert_not_called()
+        journey.checkpoint.assert_not_called()
+        self.assertTrue(all(call.args == ('shell', 'dumpsys', 'activity', 'activities')
+                            for call in journey.d.adb.call_args_list))
+
+    def test_transient_startup_xml_retries_only_after_target_focus_and_isolation(self):
+        for transient in ('', '<hierarchy', '<?xml version="1.0"?><hierarchy', '<hierarchy/>'):
+            journey = self.make_journey([transient, self.home, self.home])
+            with self.subTest(xml=transient), patch.object(c.time, 'monotonic', return_value=0), patch.object(c.time, 'sleep') as sleep:
+                journey.startup()
+            journey.d.adb.assert_called_once_with('shell', 'dumpsys', 'activity', 'activities')
+            self.assertEqual(journey.isolation.call_count, 4)
+            self.assertEqual(journey.d.xml.call_count, 3)
+            sleep.assert_called_once_with(.5)
+            self.assert_read_only(journey)
+
+    def test_foreign_or_prohibited_startup_xml_never_retries(self):
+        for value in (screen(node('foreign', package='com.other.app')),
+                      '<!DOCTYPE hierarchy>' + self.home, '<!ENTITY x "value">' + self.home,
+                      '<hierarchy>' + ' ' * 2_000_000, '<other/>', 'unstructured error'):
+            journey = self.make_journey([value, self.home])
+            with self.subTest(xml=value[:50]), patch.object(c.time, 'monotonic', return_value=0), patch.object(c.time, 'sleep') as sleep:
+                with self.assertRaises(GateError): journey.startup()
+            self.assertEqual(journey.d.xml.call_count, 1)
+            journey.d.adb.assert_not_called()
+            sleep.assert_not_called()
+            self.assert_read_only(journey)
+
+    def test_transient_startup_xml_requires_the_exact_resumed_activity(self):
+        for focus in ('', 'mResumedActivity: ActivityRecord{123 u0 com.other/.MainActivity t1}',
+                      self.target_focus.replace('com.example.real_estate_mobile.MainActivity', 'com.example.OtherActivity'),
+                      self.target_focus + '\ntopResumedActivity: ActivityRecord{456 u0 com.other/.MainActivity t2}'):
+            journey = self.make_journey(['', self.home], focus)
+            with self.subTest(focus=focus), patch.object(c.time, 'monotonic', return_value=0), patch.object(c.time, 'sleep') as sleep:
+                with self.assertRaisesRegex(GateError, 'startup_foreground_unproved'): journey.startup()
+            self.assertEqual(journey.d.xml.call_count, 1)
+            self.assertEqual(journey.isolation.call_count, 1)
+            sleep.assert_not_called()
+            self.assert_read_only(journey)
+
+    def test_transient_startup_retry_budget_stops_without_input_or_capture(self):
+        journey = self.make_journey([''] * 41 + [self.home])
+        with patch.object(c.time, 'monotonic', return_value=0), patch.object(c.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(GateError, 'xml_invalid'): journey.startup()
+        self.assertEqual(journey.d.xml.call_count, 41)
+        self.assertEqual(journey.d.adb.call_count, 40)
+        self.assertEqual(journey.isolation.call_count, 81)
+        self.assertEqual(sleep.call_count, 40)
+        self.assert_read_only(journey)
+
+    def test_startup_keeps_both_local_and_global_deadlines(self):
+        for device_deadline, times in ((1800, [0, 119, 120]), (2, [0, 1, 2])):
+            journey = self.make_journey([screen(node('AQER', clickable='false'))])
+            journey.d.deadline = device_deadline
+            with self.subTest(deadline=device_deadline), patch.object(c.time, 'monotonic', side_effect=times), patch.object(c.time, 'sleep'):
+                with self.assertRaisesRegex(GateError, 'startup_unobserved'): journey.startup()
+            self.assertEqual(journey.d.xml.call_count, 1)
+            self.assert_read_only(journey)
+
+    def test_normal_collection_still_refuses_empty_or_malformed_xml(self):
+        for value in ('', '<hierarchy', '<hierarchy/>'):
+            journey = self.make_journey([value, self.home])
+            with self.subTest(xml=value), self.assertRaises(GateError): journey.xml()
+            self.assertEqual(journey.d.xml.call_count, 1)
+            journey.d.adb.assert_not_called()
+            self.assert_read_only(journey)
 
 
 class EvidenceBoundaryTests(unittest.TestCase):

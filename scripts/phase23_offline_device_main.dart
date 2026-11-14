@@ -319,7 +319,7 @@ class _DeviceAppState extends State<_DeviceApp> {
   }
 
   Widget _control(String label, VoidCallback action) => Semantics(
-    label: label, button: true, excludeSemantics: true, onTap: action,
+    container: true, label: label, button: true, excludeSemantics: true, onTap: action,
     child: TextButton(onPressed: action, style: TextButton.styleFrom(
       minimumSize: const Size(40, 30), padding: const EdgeInsets.symmetric(horizontal: 6),
       foregroundColor: Colors.white), child: Text(label.replaceFirst('DEVICE_', ''),
@@ -338,7 +338,8 @@ class _DeviceAppState extends State<_DeviceApp> {
       GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
     builder: (context, child) => Directionality(textDirection: TextDirection.rtl,
       child: Column(children: [
-        SafeArea(bottom: false, child: Material(color: const Color(0xff112233),
+        SafeArea(bottom: false, child: Semantics(container: true, explicitChildNodes: true,
+          child: Material(color: const Color(0xff112233),
           child: MediaQuery.withNoTextScaling(child: Directionality(textDirection: TextDirection.ltr,
             child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -353,10 +354,10 @@ class _DeviceAppState extends State<_DeviceApp> {
                   _control('DEVICE_SNAPSHOT', () => unawaited(_snapshot())),
                 ]),
                 ValueListenableBuilder<int>(valueListenable: _revision, builder: (_, __, ___) =>
-                  Semantics(label: 'DEVICE_META ${jsonEncode(_meta)}', excludeSemantics: true,
+                  Semantics(container: true, label: 'DEVICE_META ${jsonEncode(_meta)}', excludeSemantics: true,
                     child: Text('Case ${_meta['case']} · failures ${_meta['failures']} · synthetic sensor input',
                       style: const TextStyle(fontSize: 9, color: Colors.white)))),
-              ])))))),
+              ]))))))),
         // Route modal barriers block preceding nodes within their semantic
         // container. Keep their scope below the persistent synthetic controls.
         Expanded(child: Semantics(container: true, explicitChildNodes: true, child: child!)),

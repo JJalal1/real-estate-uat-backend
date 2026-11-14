@@ -129,6 +129,17 @@ class ProofTests(unittest.TestCase):
 
 
 class InputTests(unittest.TestCase):
+    def test_bidi_formatted_labels_match_but_fullscreen_merged_next_still_cannot_tap(self):
+        value=screen(0)
+        for label in (collector.TARGET,collector.BANNER,collector.marker(0),collector.NEXT):
+            value=value.replace(label,'\u202a'+label+'\u202c')
+        self.assertEqual(collector.input_point(value,logs(0),0,SIZE,collector.NEXT),(920,130))
+        merged='<hierarchy>'+node('\n'.join('\u202a'+x+'\u202c' for x in
+            (collector.TARGET,collector.BANNER,collector.marker(0),collector.NEXT)),
+            '[0,0][1080,1920]',enabled='true',clickable='true')+'</hierarchy>'
+        with self.assertRaisesRegex(GateError,'next_bounds_invalid'):
+            collector.input_point(merged,logs(0),0,SIZE,collector.NEXT)
+
     def test_timeout_diagnostic_accepts_busy_synthetic_target_but_never_foreign_surface(self):
         class FakeDevice:
             value = screen(0).replace('enabled="true"', 'enabled="false"')

@@ -148,7 +148,11 @@ def proof_events(log):
 
 
 def labels(node):
-    return {part.strip() for field in ('text', 'content-desc')
+    # Android wraps LTR semantics inside an Arabic app with directional format
+    # marks. These are presentation controls, never part of a control identity.
+    # Keep all actual text and the strict unique-node/bounds checks unchanged.
+    formatting = dict.fromkeys(map(ord, '\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069'))
+    return {part.translate(formatting).strip() for field in ('text', 'content-desc')
             for part in node.get(field, '').splitlines() if part.strip()}
 
 

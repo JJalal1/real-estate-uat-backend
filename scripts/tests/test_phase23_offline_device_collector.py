@@ -73,6 +73,44 @@ class MetadataTests(unittest.TestCase):
 
 
 class SurfaceTests(unittest.TestCase):
+    def bidi_startup(self, value=None, target=c.TARGET, banner=c.BANNER, controls=True):
+        # Shape observed in run 43536759676: LRE/PDF-wrapped multiline header
+        # on a nonclickable full-screen node, with a separate tight button.
+        lines = (target, banner, 'DEVICE_META ' + json.dumps(meta() if value is None else value))
+        label = '\n'.join('\u202a' + line + '\u202c' for line in lines)
+        parent = node(label, bounds='[0,0][1080,1920]', clickable=False,
+                      clazz='android.view.View').replace('text=', 'content-desc=', 1)
+        parent = parent.replace('\n', '&#10;')
+        if controls:
+            parent = parent[:-2] + '>' + node('DEVICE_VOICE', bounds='[16,134][142,260]') + '</node>'
+        return '<hierarchy>' + parent + '</hierarchy>'
+
+    def test_actual_bidi_multiline_startup_preserves_metadata_and_tight_control(self):
+        value = self.bidi_startup()
+        root, data = c.surface(value, 'app', P)
+        self.assertEqual(data, meta())
+        self.assertEqual(c.labels(next(root.iter('node'))),
+                         {c.TARGET, c.BANNER, 'DEVICE_META ' + json.dumps(meta())})
+        self.assertEqual(c.control(value, 'app', P, names=('DEVICE_VOICE',)), (79, 197))
+        with self.assertRaisesRegex(c.Incomplete, 'control_missing'):
+            c.control(value, 'app', P, names=(c.TARGET,))
+
+    def test_bidi_wrappers_do_not_relax_closed_metadata_schema(self):
+        for changes in ({'extra': 1}, {'failures': 1}, {'voiceReadyCount': True}, {'case': 9}):
+            with self.subTest(changes=changes), self.assertRaises(c.Incomplete):
+                c.surface(self.bidi_startup({**meta(), **changes}), 'app', P)
+        changed = meta(); changed['unknownField'] = changed.pop('voicePhase')
+        with self.assertRaises(c.Incomplete):
+            c.surface(self.bidi_startup(changed), 'app', P)
+
+    def test_bidi_normalization_does_not_match_changed_markers_or_other_invisibles(self):
+        for target in (c.TARGET + '_OTHER', 'prefix ' + c.TARGET,
+                       c.TARGET + '\u200b', c.TARGET + '\ufeff'):
+            with self.subTest(target=target), self.assertRaises(c.Incomplete):
+                c.surface(self.bidi_startup(target=target), 'app', P)
+        with self.assertRaises(c.Incomplete):
+            c.surface(self.bidi_startup(banner=c.BANNER + ' extra'), 'app', P)
+
     def test_app_requires_both_markers_and_metadata(self):
         self.assertEqual(c.surface(xml(), 'app', P)[1], meta())
         for value in (xml().replace(c.TARGET, 'ordinary-app'), xml().replace(c.BANNER, 'LIVE'), '<hierarchy/>'):

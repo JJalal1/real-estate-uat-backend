@@ -196,7 +196,10 @@ def startup_diagnostics(device, private, packages, *, verified_install=False):
 
 
 def labels(node):
-    return {s.strip() for field in ('text', 'content-desc')
+    # Flutter adds Unicode bidi wrappers around LTR semantics in the RTL app.
+    # Remove only these formatting marks; identifiers and JSON stay exact.
+    formatting = dict.fromkeys(map(ord, '\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069'))
+    return {s.translate(formatting).strip() for field in ('text', 'content-desc')
             for s in node.get(field, '').splitlines() if s.strip()}
 
 

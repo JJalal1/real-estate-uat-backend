@@ -8,6 +8,11 @@ SOURCE = ROOT / 'scripts/phase23_offline_journeys_main.dart'
 
 
 class OfflineJourneysContract(unittest.TestCase):
+    def test_harness_header_and_next_are_independent_semantics_boundaries(self):
+        source=(Path(__file__).resolve().parents[1]/'phase23_offline_journeys_main.dart').read_text()
+        self.assertIn('Semantics(container: true, explicitChildNodes: true,\n              child: MediaQuery.withNoTextScaling',source)
+        self.assertIn("Semantics(container: true, label: 'AQER_JOURNEY_NEXT'",source)
+
     @classmethod
     def setUpClass(cls):
         cls.source = SOURCE.read_text()
