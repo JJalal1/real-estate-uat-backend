@@ -322,6 +322,18 @@ class StartupBoundaryTests(unittest.TestCase):
             sleep.assert_not_called()
             self.assert_read_only(journey)
 
+    def test_android_launch_overlay_is_discarded_while_the_exact_app_is_resumed(self):
+        overlay = screen(node('Opening', package='com.android.systemui'), node('ماذا تبحث عنه؟'))
+        journey = self.make_journey([overlay, self.home, self.home])
+        with patch.object(c.time, 'monotonic', return_value=0), patch.object(c.time, 'sleep'):
+            journey.startup()
+        self.assertEqual(journey.startup_retries, 1)
+        self.assert_read_only(journey)
+        with self.assertRaisesRegex(c.Incomplete, 'local_media_foreign_surface'):
+            c.ui_nodes(overlay, {c.PACKAGE} | c.KEYBOARDS | c.PERMISSIONS)
+        self.assertFalse(c.transient_startup_xml(
+            screen(node('Opening', package='com.android.systemui'), node('Foreign', package='com.other.app'))))
+
     def test_transient_startup_xml_requires_the_exact_resumed_activity(self):
         for focus in ('', 'mResumedActivity: ActivityRecord{123 u0 com.other/.MainActivity t1}',
                       self.target_focus.replace('com.example.real_estate_mobile.MainActivity', 'com.example.OtherActivity'),

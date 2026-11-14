@@ -43,6 +43,8 @@ PHONES = dict(zip(ACTORS, ('+967700230101', '+967700230102', '+967700230103')))
 PICKERS = {'com.google.android.documentsui', 'com.android.documentsui'}
 KEYBOARDS = {'com.google.android.inputmethod.latin', 'com.android.inputmethod.latin'}
 PERMISSIONS = {'com.google.android.permissioncontroller', 'com.android.permissioncontroller'}
+STARTUP_SYSTEM_PACKAGES = {'android', 'com.android.systemui', 'com.android.launcher3',
+                           'com.google.android.apps.nexuslauncher'}
 SIZE = (1080, 1920)
 MAX_CHECKPOINTS = 40
 MAX_INPUTS = 350
@@ -150,7 +152,17 @@ def transient_startup_xml(xml):
         # A dump warning/prefix is acquisition failure, never an accepted tree.
         # The caller additionally requires exact app focus, isolation and budgets.
         return True
-    return root.tag == 'hierarchy' and not list(root.iter('node'))
+    if root.tag != 'hierarchy':
+        return False
+    nodes = list(root.iter('node'))
+    if not nodes:
+        return True
+    packages = {node.get('package') for node in nodes if node.get('package')}
+    # Some fresh AVDs report an Android launch overlay in the first dump
+    # even after MainActivity resumes. Discard it and observe again. Only
+    # the normal target/permission allowlist can authorize a tap or frame.
+    return bool(packages & STARTUP_SYSTEM_PACKAGES) and packages <= (
+        STARTUP_SYSTEM_PACKAGES | {PACKAGE} | KEYBOARDS | PERMISSIONS)
 
 
 def xml_failure_shape(xml):
@@ -532,7 +544,7 @@ class Journey:
             except Incomplete:
                 # Every startup read participates, including action revalidation and
                 # the first checkpoint. A failed read discards its old candidate.
-                # Strict normal reads and all foreign/declaration checks are intact.
+                # Keep the strict normal input and screenshot checks.
                 if (self.failure_xml is None or self.startup_retries >= STARTUP_XML_RETRIES
                         or not transient_startup_xml(self.failure_xml)): raise
                 if focused_activity(self.d.adb('shell','dumpsys','activity','activities'), {}) != 'target':
@@ -925,7 +937,7 @@ def main():
     if len(components)!=1 or components[0] not in PICKERS:
         raise GateError('local_media_picker_not_allowlisted')
     journey.picker=components[0]
-    d.adb('shell','am','start','-n',ACTIVITY)
+    d.adb('shell','am','start','-W','-n',ACTIVITY,timeout=60)
     result,reason,failure_context='COMPLETE',None,None
     try:
         initial=journey.startup(capture_initial=True); journey.run(initial)
