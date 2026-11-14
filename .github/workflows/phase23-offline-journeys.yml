@@ -35,6 +35,7 @@ jobs:
     timeout-minutes: 35
     env:
       PHASE23_OFFLINE_JOURNEYS: 'true'
+      PHASE23_JOURNEYS_TAIL_ONLY: 'true'
       PHASE23_VISUAL_REVISION: 'true'
       SOURCE_COMMIT: ${{ github.sha }}
       AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
@@ -91,6 +92,7 @@ jobs:
           flutter build apk --flavor uat --release --no-pub --target-platform android-x64 \
             --target=lib/phase23_offline_journeys_main.dart --build-number="$PHASE23_JOURNEYS_BUILD" \
             --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_OFFLINE_JOURNEYS_QA=true \
+            --dart-define=AQER_OFFLINE_JOURNEYS_TAIL_ONLY=true \
             --dart-define=API_BASE_URL=https://synthetic.invalid/api \
             --dart-define=APP_SHARE_BASE_URL=https://synthetic.invalid
           cmp lib/phase23_offline_journeys_main.dart ../scripts/phase23_offline_journeys_main.dart

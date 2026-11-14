@@ -29,6 +29,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = 'com.aqer.yemen.uat'
 ACTIVITY = PACKAGE + '/com.example.real_estate_mobile.MainActivity'
 TARGET = 'AQER_OFFLINE_JOURNEYS_TARGET_V1'
+FULL_TARGET = TARGET
+TAIL_TARGET = 'AQER_OFFLINE_JOURNEYS_TAIL9_V1'
+START_STAGE = 0
 BANNER = 'SYNTHETIC OFFLINE'
 NEXT = 'AQER_JOURNEY_NEXT'
 FAILURE = 'AQER_JOURNEY_FAILURE'
@@ -89,9 +92,14 @@ def marker(stage):
 
 
 def context(env):
+    global START_STAGE, TARGET
     guard(env)
     if env.get('PHASE23_OFFLINE_JOURNEYS') != 'true':
         raise GateError('explicit_offline_journey_context_required')
+    if env.get('PHASE23_JOURNEYS_TAIL_ONLY', 'false') not in ('true', 'false'):
+        raise GateError('offline_journey_execution_mode_invalid')
+    START_STAGE = 9 if env.get('PHASE23_JOURNEYS_TAIL_ONLY') == 'true' else 0
+    TARGET = TAIL_TARGET if START_STAGE == 9 else FULL_TARGET
     forbidden = ('AQER_PHASE1_TEST_ACCESS_JSON', 'AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION',
                  'AQER_UAT_GOOGLE_SERVICES_JSON_BASE64', 'AQER_UAT_KEYSTORE_BASE64',
                  'AQER_RELEASE_STORE_PASSWORD', 'AQER_RELEASE_KEY_PASSWORD',
@@ -194,7 +202,7 @@ def ready_for(xml, log, stage, size):
     events = proof_events(log)
     if not events or events[-1]['stage'] != stage:
         raise GateError('offline_journey_ready_missing')
-    if list(dict.fromkeys(event['stage'] for event in events)) != list(range(stage + 1)):
+    if list(dict.fromkeys(event['stage'] for event in events)) != list(range(START_STAGE, stage + 1)):
         raise GateError('offline_journey_sequence_incomplete')
     return nodes, events[-1]
 
@@ -228,10 +236,14 @@ def footer_state(nodes, size):
 
 
 def assert_evidence(nodes, proof, stage, size, restart_proof=None, after_work=False, message_before=None, after_scroll=False):
-    if ((proof['role'], proof['scope']) != ROLES[stage] or proof['recent_ids'] != RECENTS[stage] or
-            proof['restart_count'] != (0 if stage <= 4 else 1) or
-            proof['file_exists'] != bool(RECENTS[stage]) or
-            (bool(proof['file_bytes']) != bool(RECENTS[stage]))):
+    # Tail mode starts with a fresh AVD and never fabricates the already-proven
+    # property visits. Every actor scope observed in this tail must be empty.
+    expected_recents = [] if START_STAGE == 9 else RECENTS[stage]
+    expected_restarts = 0 if START_STAGE == 9 or stage <= 4 else 1
+    if ((proof['role'], proof['scope']) != ROLES[stage] or proof['recent_ids'] != expected_recents or
+            proof['restart_count'] != expected_restarts or
+            proof['file_exists'] != bool(expected_recents) or
+            (bool(proof['file_bytes']) != bool(expected_recents))):
         raise CoverageIncomplete('history_mismatch', stage)
     if stage == 5 and (not restart_proof or proof['file_bytes'] != restart_proof['file_bytes'] or
                        proof['recent_ids'] != restart_proof['recent_ids']):
@@ -290,7 +302,22 @@ def input_point(xml, log, stage, size, label):
     if len(candidates) != 1:
         raise CoverageIncomplete('required_control_missing', stage)
     node, (left, top, right, bottom) = candidates[0]
-    if node.get('enabled') != 'true' or node.get('clickable') != 'true':
+    if node.get('enabled') != 'true':
+        raise CoverageIncomplete('required_control_missing', stage)
+    if label == 'عملي':
+        # The original reviewed AppNavigationBar exposes a semantic Button but
+        # its excluded child GestureDetector owns the physical touch callback.
+        # API36 consequently reports clickable=false. Permit only this exact
+        # observed tight footer button and prove the resulting real page later;
+        # this is not an accessibility-action or TalkBack acceptance claim.
+        names, selected = footer_state(nodes, size)
+        if (names != BROKER_TABS or selected != {'الرئيسية'} or
+                node.get('class') != 'android.widget.Button' or
+                node.get('selected') != 'false' or
+                right-left > size[0]*.35 or bottom-top > size[1]*.16 or
+                bottom > size[1]*.98):
+            raise CoverageIncomplete('required_control_missing', stage)
+    elif node.get('clickable') != 'true':
         raise CoverageIncomplete('required_control_missing', stage)
     return ((left + right)//2, (top + bottom)//2)
 
@@ -501,7 +528,7 @@ def export(private, output, identity, frames, restart_count, failure=None, encry
     if failure is not None and not isinstance(failure, CoverageIncomplete):
         raise GateError('offline_journey_partial_failure_refused')
     names = [row['frame'] for row in frames]
-    expected = [f'stage-{stage:02d}' + suffix for stage in range(COUNT)
+    expected = [f'stage-{stage:02d}' + suffix for stage in range(START_STAGE, COUNT)
                 for suffix in (('', '-after-work') if stage in (9, 11) else ('', '-after-scroll') if stage == 15 else ('',))]
     if ((not names and diagnostic is None) or names != expected[:len(names)] or len(names) != len(set(names)) or
             any(type(row.get('accepted')) is not bool or type(row.get('stage')) is not int or
@@ -511,7 +538,8 @@ def export(private, output, identity, frames, restart_count, failure=None, encry
                 row['frame'] != f"stage-{row['stage']:02d}" + ('-after-work' if row['after_work'] else '-after-scroll' if row['after_scroll'] else '')
                 for row in frames)):
         raise GateError('offline_journey_frame_sequence_invalid')
-    if failure is None and (names != expected or not all(row['accepted'] for row in frames) or restart_count != 1):
+    if failure is None and (names != expected or not all(row['accepted'] for row in frames) or
+                            restart_count != (0 if START_STAGE == 9 else 1)):
         raise GateError('offline_journey_complete_proof_missing')
     if diagnostic is None:
         if failure is not None and (failure.stage != frames[-1]['stage'] or
@@ -554,7 +582,8 @@ def export(private, output, identity, frames, restart_count, failure=None, encry
     public = {'schema': 1, **identity, 'target_marker': TARGET,
               'display_sizes_px': [list(DEFAULT_SIZE)] + ([list(COMPACT_SIZE)] if any(row['stage'] == 15 for row in frames) else []),
               'api_level': 36, 'network_disabled': True, 'live_authentication': False,
-              'expected_stage_count': COUNT, 'completed_stages': completed,
+              'start_stage': START_STAGE, 'execution_mode': 'tail9' if START_STAGE == 9 else 'full',
+              'expected_stage_count': COUNT-START_STAGE, 'completed_stages': completed,
               'frame_count': len(frames), 'native_restart_count': restart_count,
               'message_custom_scheme_proven': 14 in completed,
               'https_app_links_proven': False,
@@ -563,7 +592,18 @@ def export(private, output, identity, frames, restart_count, failure=None, encry
               'result': 'INCOMPLETE' if failure else 'COMPLETE', 'coverage_complete': failure is None,
               'failure_reason': failure.reason if failure else None,
               'failure_stage': failure.stage if failure else None, 'phase23_accepted': False,
-              'plaintext_exported': False, 'apk_exported': False, 'scope': SCOPE}
+              'plaintext_exported': False, 'apk_exported': False,
+              'physical_footer_touch_only': True, 'talkback_action_tested': False,
+              'scope': ('Fresh synthetic role/link/helper tail9–15 only; accepted history stages0–8 '
+                        'are referenced from a prior run and are neither replayed nor accepted by this run. '
+                        'Actual AppShell physical touch, custom-scheme Android VIEW and compact helper pixels; '
+                        'no live authentication, HTTPS App Links, TalkBack or full phase acceptance.'
+                        if START_STAGE == 9 else SCOPE)}
+    if START_STAGE == 9:
+        public['prior_history_reference'] = {
+            'run_id': '43538357580', 'source_sha': '91b24899f2961a3ecf39699fa7356444548962e1',
+            'artifact_zip_sha256': '967911d4f6fd9a3ecb3088c1964f1fbfe069678d1f09ab3b2e51845c33b5fec6',
+            'stages': list(range(9)), 'replayed': False, 'accepted_by_this_run': False}
     if diagnostic is not None:
         public['timeout_diagnostic'] = diagnostic
     (private/'MANIFEST.json').write_text(json.dumps({**public, 'frames': frames}, ensure_ascii=False, indent=2)+'\n')
@@ -635,7 +675,7 @@ def collect(args, env=os.environ):
                 raise GateError('offline_journey_initial_clear_failed')
             device.adb('logcat', '-c')
             device.adb('shell', 'am', 'start', '-W', '-n', ACTIVITY)
-            for stage in range(COUNT):
+            for stage in range(START_STAGE, COUNT):
                 _xml, proof = capture(device, private, frames, stage, size, restart_proof,
                                       message_before=message_before)
                 if stage == 4:
@@ -689,7 +729,7 @@ def collect(args, env=os.environ):
         finally:
             subprocess.run(['adb', '-s', args.serial, 'shell', 'am', 'force-stop', PACKAGE],
                            capture_output=True, timeout=5, check=False)
-    print('AQER_OFFLINE_JOURNEYS_16_STAGES_SEALED')
+    print(f'AQER_OFFLINE_JOURNEYS_{COUNT-START_STAGE}_STAGES_SEALED mode={"tail9" if START_STAGE == 9 else "full"}')
 
 
 def failure_message(error):

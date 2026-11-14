@@ -8,6 +8,16 @@ SOURCE = ROOT / 'scripts/phase23_offline_journeys_main.dart'
 
 
 class OfflineJourneysContract(unittest.TestCase):
+    def test_tail_mode_starts_nine_without_seeding_or_replaying_history(self):
+        source=(Path(__file__).resolve().parents[1]/'phase23_offline_journeys_main.dart').read_text()
+        self.assertIn("bool.fromEnvironment('AQER_OFFLINE_JOURNEYS_TAIL_ONLY')",source)
+        self.assertIn('var stage = _tailOnly ? 9 : 0',source)
+        self.assertIn('TAIL_JOURNEY_REQUIRES_FRESH_SYNTHETIC_STATE',source)
+        self.assertIn('AQER_OFFLINE_JOURNEYS_TAIL9_V1',source)
+        workflow=(Path(__file__).resolve().parents[2]/'.github/workflows/phase23-offline-journeys.yml').read_text()
+        self.assertIn("PHASE23_JOURNEYS_TAIL_ONLY: 'true'",workflow)
+        self.assertIn('--dart-define=AQER_OFFLINE_JOURNEYS_TAIL_ONLY=true',workflow)
+
     def test_harness_header_and_next_are_independent_semantics_boundaries(self):
         source=(Path(__file__).resolve().parents[1]/'phase23_offline_journeys_main.dart').read_text()
         self.assertIn('Semantics(container: true, explicitChildNodes: true,\n              child: MediaQuery.withNoTextScaling',source)

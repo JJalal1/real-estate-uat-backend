@@ -53,7 +53,8 @@ def screen(stage, after_work=False, reverse_recent=False, banner=collector.BANNE
         selected = 'العقارات' if stage==13 else ('عملي' if after_work or stage in (10,12) else 'الرئيسية')
         for index,label in enumerate(sorted(tabs)):
             parts.append(node(label, f'[{index*250},1700][{index*250+240},1850]',
-                              enabled='true', clickable='true', selected='true' if label==selected else 'false'))
+                              enabled='true', clickable='true', selected='true' if label==selected else 'false',
+                              **{'class':'android.widget.Button'}))
         if stage==10 or (stage==9 and after_work):
             parts += [node('لوحة الدلال'), node('يحتاج إجراء منك', '[40,600][1000,700]')]
         if stage==12 or (stage==11 and after_work):
@@ -68,6 +69,20 @@ def screen(stage, after_work=False, reverse_recent=False, banner=collector.BANNE
 
 
 class ProofTests(unittest.TestCase):
+    def test_tail_mode_proves_only_nine_to_fifteen_with_fresh_empty_scopes(self):
+        def tail_proof(stage):
+            return proof(stage,recent_ids=[],file_exists=False,file_bytes=0,restart_count=0)
+        with patch.object(collector,'START_STAGE',9),patch.object(collector,'TARGET',collector.TAIL_TARGET):
+            for stage in range(9,16):
+                log='\n'.join('AQER_JOURNEY '+json.dumps(tail_proof(index)) for index in range(9,stage+1))
+                size=collector.COMPACT_SIZE if stage==15 else SIZE
+                nodes,value=collector.ready_for(screen(stage),log,stage,size)
+                collector.assert_evidence(nodes,value,stage,size,message_before=tail_proof(13))
+            with self.assertRaisesRegex(GateError,'sequence_incomplete'):
+                collector.ready_for(screen(9),logs(9),9,SIZE)
+            with self.assertRaisesRegex(collector.CoverageIncomplete,'history_mismatch'):
+                collector.assert_evidence(collector.ui_guard(screen(13),13,SIZE),proof(13),13,SIZE)
+
     def test_all_sixteen_stages_require_actual_expected_history_scope_and_ui(self):
         for stage in range(16):
             with self.subTest(stage=stage):
@@ -129,6 +144,17 @@ class ProofTests(unittest.TestCase):
 
 
 class InputTests(unittest.TestCase):
+    def test_reviewed_touch_footer_is_bounded_even_when_semantic_clickable_is_false(self):
+        value=screen(9).replace('clickable="true"','clickable="false"')
+        point=collector.input_point(value,logs(9),9,SIZE,'عملي')
+        self.assertGreater(point[1],SIZE[1]*.75)
+        for changed in (value.replace('android.widget.Button','android.view.View'),
+                        value.replace('enabled="true"','enabled="false"'),
+                        value.replace('[750,1700][990,1850]','[0,1500][1080,1850]')):
+            with self.assertRaises(GateError):collector.input_point(changed,logs(9),9,SIZE,'عملي')
+        with self.assertRaises(GateError):
+            collector.input_point(screen(0).replace('clickable="true"','clickable="false"'),logs(0),0,SIZE,collector.NEXT)
+
     def test_bidi_formatted_labels_match_but_fullscreen_merged_next_still_cannot_tap(self):
         value=screen(0)
         for label in (collector.TARGET,collector.BANNER,collector.marker(0),collector.NEXT):
@@ -270,9 +296,9 @@ class InputTests(unittest.TestCase):
 class ExportTests(unittest.TestCase):
     def identity(self):return {'source_sha':'a'*40,'run_id':'123','product_trees':collector.TREES,
                               'package':collector.PACKAGE,'version_code':1901,'apk_sha256':'b'*64}
-    def frames(self,private,count=19):
+    def frames(self,private,count=19,start=0):
         rows=[]
-        for stage in range(16):
+        for stage in range(start,16):
             for suffix in (('', '-after-work') if stage in (9,11) else ('','-after-scroll') if stage==15 else ('',)):
                 name=f'stage-{stage:02d}'+suffix
                 row={'frame':name,'stage':stage,'after_work':suffix=='-after-work','after_scroll':suffix=='-after-scroll',
@@ -304,6 +330,21 @@ class ExportTests(unittest.TestCase):
             self.assertEqual({p.name for p in out.iterdir()},{'checkpoints.cms','PUBLIC_RECEIPT.json'})
             self.assertNotIn('SYNTHETIC_PRIVATE',(out/'PUBLIC_RECEIPT.json').read_text())
             self.assertFalse((root/'frames.zip').exists())
+
+    def test_tail_receipt_cannot_claim_previous_history_or_native_restart(self):
+        with tempfile.TemporaryDirectory() as directory,patch.object(collector,'START_STAGE',9),patch.object(collector,'TARGET',collector.TAIL_TARGET):
+            root=Path(directory);private=root/'frames';private.mkdir();rows=self.frames(private,start=9)
+            self.assertEqual(len(rows),10)
+            receipt=collector.export(private,root/'sealed',self.identity(),rows,0,encryptor=self.encrypt)
+            self.assertEqual(receipt['completed_stages'],list(range(9,16)))
+            self.assertEqual(receipt['expected_stage_count'],7)
+            self.assertEqual(receipt['frame_count'],10)
+            self.assertEqual(receipt['native_restart_count'],0)
+            self.assertEqual(receipt['execution_mode'],'tail9')
+            self.assertFalse(receipt['prior_history_reference']['replayed'])
+            self.assertFalse(receipt['prior_history_reference']['accepted_by_this_run'])
+            with self.assertRaisesRegex(GateError,'complete_proof_missing'):
+                collector.export(private,root/'bad',self.identity(),rows,1,encryptor=self.encrypt)
 
     def test_controlled_partial_export_is_nonaccepting_and_bound_to_real_prefix(self):
         with tempfile.TemporaryDirectory() as directory:

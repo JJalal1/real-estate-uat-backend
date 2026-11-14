@@ -21,7 +21,9 @@ import 'package:real_estate_mobile/features/discovery/data/marketplace_repositor
 import 'package:real_estate_mobile/features/properties/data/recent_properties_store.dart';
 import 'package:real_estate_mobile/router/app_router.dart';
 
-const targetMarker = 'AQER_OFFLINE_JOURNEYS_TARGET_V1';
+const _tailOnly = bool.fromEnvironment('AQER_OFFLINE_JOURNEYS_TAIL_ONLY');
+const targetMarker = _tailOnly
+  ? 'AQER_OFFLINE_JOURNEYS_TAIL9_V1' : 'AQER_OFFLINE_JOURNEYS_TARGET_V1';
 const _enabled = bool.fromEnvironment('AQER_OFFLINE_JOURNEYS_QA');
 final _failures = ValueNotifier<int>(0);
 int _failureCount = 0;
@@ -175,8 +177,16 @@ class _Journey {
 
   Future<void> prepare() async {
     await container.read(authControllerProvider.future);
+    if (_tailOnly) {
+      (container.read(authControllerProvider.notifier) as _SyntheticAuth)
+        .selectSyntheticScope(scope);
+    }
     router = container.read(appRouterProvider);
-    router.go('/recent');
+    if (_tailOnly) {
+      router.go('/');
+    } else {
+      router.go('/recent');
+    }
   }
 
   Future<Map<String, Object?>> proof() async {
@@ -204,8 +214,11 @@ Future<void> main() async {
   PlatformDispatcher.instance.onError = (_, __) { _failure('unhandled_error'); return true; };
   final directory = await getApplicationSupportDirectory();
   final control = File('${directory.path}/aqer_synthetic_journey_control.json');
-  var stage = 0, restarts = 0;
+  var stage = _tailOnly ? 9 : 0, restarts = 0;
   if (await control.exists()) {
+    if (_tailOnly) {
+      throw StateError('TAIL_JOURNEY_REQUIRES_FRESH_SYNTHETIC_STATE');
+    }
     final raw = jsonDecode(await control.readAsString());
     if (raw is! Map || raw['stage'] != 4 || raw['restart_count'] != 0) {
       _failure('unexpected_restart_state');
