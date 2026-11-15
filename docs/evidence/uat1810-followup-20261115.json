@@ -1,0 +1,203 @@
+{
+  "date": "2026-11-15",
+  "timezone": "Asia/Aden",
+  "branch": "work/phase23-acceptance-20261111",
+  "pull_request": 186,
+  "device": "emulator-5554",
+  "app": {
+    "version_code": 1810,
+    "package": "com.aqer.yemen.uat.retest",
+    "installed_apk_sha256": "b2a6c0a2e3dd33a679bc1f6a426452e21fe07f44dba5cdf594d5e72ae4493831",
+    "pr_source_commit": "c598c5745d5629590665cc18829a71e611f52db1"
+  },
+  "adopted_prior_evidence": [
+    "item_5_sharing",
+    "draft_photo_persistence",
+    "gps_readback"
+  ],
+  "item_27": {
+    "status": "partial_listening_confirmed_complete_text_failed",
+    "expected": "أبحث عن شقة للإيجار في صنعاء",
+    "generated_pause_seconds": 5,
+    "grpc_realtime": "entire_stream_delivered_and_listening_observed; recognized one word then no match",
+    "speaker_to_host_microphone": "device_responsive; no clear speech matched",
+    "human_during_pause": "finish control visible in recording",
+    "human_final_field": "ابحث لي عن شقه في صنعاء",
+    "missing_required_word": "للإيجار",
+    "subsequent_search_server_error": true
+  },
+  "items_1_and_14": {
+    "status": "passed_return_correct_resubmit_publish_and_seeker_readback",
+    "property_id": 93,
+    "fixture": "2026-10-26-owner-v2",
+    "starting_state_observed": "submitted",
+    "photo_ids": [
+      158,
+      159
+    ],
+    "reviewer_role": "support_agent with listing review access",
+    "reviewer_id": 6,
+    "unrelated_photo_id": 159,
+    "retained_office_photo_id": 158,
+    "support_return_submitted": true,
+    "owner_returned_readback": true,
+    "photos_after_owner_correction": [
+      158
+    ],
+    "reconfirmed_fixture_fields": {
+      "has_parking": false,
+      "building_facade": "north"
+    },
+    "owner_resubmission_readback": "submitted",
+    "support_verified_photo_ids": [
+      158
+    ],
+    "synthetic_duplicate_candidates_reviewed": 4,
+    "support_publish_confirmed": true,
+    "authenticated_seeker_readback": {
+      "property_id": 93,
+      "title": "اختبار المالك — مراجعة الصور",
+      "gallery_count": 1,
+      "remaining_photo_identified_as_office": true
+    }
+  },
+  "bundle": {
+    "file": "AQER-UAT1810-Followup-Evidence.zip",
+    "bytes": 4809142,
+    "sha256": "764886463297039a0beacfc8bbcb38e363546ca221442b8833c3ea6853b53fff"
+  },
+  "evidence_hashes": {
+    "README-AR.md": {
+      "bytes": 5051,
+      "sha256": "fd6685aee370d1b0c54d5eb2eb3190d61a026aa007d7e8e0c32a697a0a472af7"
+    },
+    "results.json": {
+      "bytes": 2092,
+      "sha256": "3eee8d7dcae25efd5d2d84f28b8732d4cfd512753d8058bc9673e9505d0aee2e"
+    },
+    "arabic-pause-5s.wav": {
+      "bytes": 402436,
+      "sha256": "79bbe34da9ac1068f339ebe75a2e9f5a57591f60966a777d8e700e6092492b7f"
+    },
+    "01-voice-ready.png": {
+      "bytes": 125089,
+      "sha256": "78bdd91a3bed095d195e5b553998aa805d12bd05e612d894c129ad798e1ce85b"
+    },
+    "grpc-02-pause.png": {
+      "bytes": 144595,
+      "sha256": "2ecf78e5d3692b133eb76565f3110500e9503835aa4a559a9e58207dc765258f"
+    },
+    "grpc-03-second-segment.png": {
+      "bytes": 144712,
+      "sha256": "2a636a895e51054a82c594207aa0871b92e5a0e8c2c755cebc7812fa28695f64"
+    },
+    "grpc-05-result.png": {
+      "bytes": 128298,
+      "sha256": "26879a98448fd320658aa5cf1fdc38ab1e9a55aee9991e4bae3ef44eaa59e3f2"
+    },
+    "grpc-dictation.mp4": {
+      "bytes": 1121886,
+      "sha256": "b63d5c424c56c9e5cf5970bdd1e708ede82595c45fa8dc86f9c702dbcb05fd34"
+    },
+    "grpc-voice-run.txt": {
+      "bytes": 379,
+      "sha256": "5228ab9af7f033033be1bd920155a0eecfb8b880d76972a7a7421f4285c04bd4"
+    },
+    "grpc-recognizer.txt": {
+      "bytes": 2704,
+      "sha256": "2df288d88314f7746c98709b5518225b2de99e0e00c5ea7c7aca48a0205c8d82"
+    },
+    "host-02-pause.png": {
+      "bytes": 139864,
+      "sha256": "dadf05f412df719033f9bc8a07f4b90c417796c2a172dda337637c73b0333485"
+    },
+    "host-03-second-segment.png": {
+      "bytes": 140072,
+      "sha256": "aaaf8c42f9fd6b65ea2707d043677a60eb0245d436aefe79085d56ce8d4b7104"
+    },
+    "host-05-result.png": {
+      "bytes": 140070,
+      "sha256": "a930e07fb8da23882843cb333c771466ade8997404a549d73dd533e2ba685597"
+    },
+    "host-dictation.mp4": {
+      "bytes": 506105,
+      "sha256": "792c703825b33a4c0387493eb296729639522ed1cb69cb0fecb0e92a9abd7bac"
+    },
+    "host-voice-run.txt": {
+      "bytes": 267,
+      "sha256": "72c974ef5ae2832f0bf0be742464328564f3e2273ac0e327d9ea51f1271ddf6f"
+    },
+    "listing-evidence/01-queue-and-claim.txt": {
+      "bytes": 200,
+      "sha256": "be295ab493bbb84b1a5984314fd53aab185dbdd1981eb308513951807f97dcbd"
+    },
+    "listing-evidence/02-photo-159-review.png": {
+      "bytes": 122092,
+      "sha256": "0b1105202ee1aa232b24f1568832b5e65506492c0986b83b3907dd2ad830f131"
+    },
+    "listing-evidence/03-support-return.txt": {
+      "bytes": 255,
+      "sha256": "3ef7efc86d4e260ed24c6e8555746ed6dc5a54115fa1f6aa8a3a488e552116f4"
+    },
+    "listing-evidence/04-owner-returned-readback.txt": {
+      "bytes": 121,
+      "sha256": "cde08594cdf3086ec1557adc9a8b617175cb00722155af59f105886f2109c034"
+    },
+    "listing-evidence/05-owner-before-correction.png": {
+      "bytes": 357841,
+      "sha256": "508c38a32d64a902497b66557e28da1184ce53bc5b1dfcc8842a5805f60d6206"
+    },
+    "listing-evidence/06-owner-after-correction.png": {
+      "bytes": 324790,
+      "sha256": "e22bad3ebc48c2de3e16ed0456bbf22dacff54b861d7b3e624cff7ea392dac1b"
+    },
+    "listing-evidence/07-owner-resubmitted.txt": {
+      "bytes": 305,
+      "sha256": "40264a1e70de9389ba74645ed702d0ee3bad1f8dcf2193ee0a6ff66714142184"
+    },
+    "listing-evidence/08-support-single-office-photo.png": {
+      "bytes": 207865,
+      "sha256": "0ca792e25498a65193bda4d2342cb7a0bd5b914bcc3fd1b2dbe00dc344501c46"
+    },
+    "listing-evidence/09-review-decisions-and-candidates.txt": {
+      "bytes": 823,
+      "sha256": "d9ccc57b348bf20142ab44fb9ca4926acbf865b3cd55436d923ac3f88b0843b1"
+    },
+    "listing-evidence/10-support-publish-confirmation.png": {
+      "bytes": 148919,
+      "sha256": "1c7d8db5a06397129b7c63a8e7db91a941ef1d47cbf8998b31b8309cb293ce69"
+    },
+    "listing-evidence/11-support-publication.txt": {
+      "bytes": 249,
+      "sha256": "60b43f2c5018d39b3089ff7d789b0637d19b16be7720209b849f16fe9b75e10d"
+    },
+    "listing-evidence/12-seeker-published-listing-93.png": {
+      "bytes": 674592,
+      "sha256": "6c6eded1c6aa81047795b87943c43e70a63ba0a9f29ea40052d10070b617d581"
+    },
+    "listing-evidence/13-seeker-readback.txt": {
+      "bytes": 203,
+      "sha256": "6949e1de0a85c13e600ba2675da64435fa6a099f94f33ec7ab0673249e935bd0"
+    },
+    "human-02-listening.png": {
+      "bytes": 91823,
+      "sha256": "849b35d8a4b5f6430875f6c0f66aeaa8b6d3cda71d02f1603e49a689e351b60c"
+    },
+    "human-03-listening.png": {
+      "bytes": 93150,
+      "sha256": "c870f476d04eeca54dc10a4ade574cdcfde5c434aadd0dcc178e96f91b6c0c2a"
+    },
+    "human-05-result.png": {
+      "bytes": 144164,
+      "sha256": "4e25da12d4a2e67e349f193b7a4a98ade6a641b8b4e383195c20936b8560bda4"
+    },
+    "human-dictation.mp4": {
+      "bytes": 802500,
+      "sha256": "82b5d69997ae21380c8c55e2cc82ab09ed059330315cd3dbce38ffc2dc969c13"
+    },
+    "human-screen-events.txt": {
+      "bytes": 97,
+      "sha256": "af02f2343209d23d92353219742a83a839da4a4ff2c22cc73a28c1f32282bee2"
+    }
+  }
+}
