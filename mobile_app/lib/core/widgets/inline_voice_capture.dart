@@ -60,8 +60,9 @@ class _InlineVoiceCaptureState extends State<InlineVoiceCapture> with SingleTick
         ])),
       ]))),
       const SizedBox(height: 8),
-      Text(capture.liveDictation ? 'يظهر الكلام أثناء الحديث. ننهي الإملاء بعد صمت قصير؛ يمكنك إنهاؤه الآن.'
-        : 'هذا وضع تسجيل مقطع كامل؛ يظهر النص بعد التفريغ. يمكنك الكتابة بدلًا منه.', style: theme.textTheme.bodySmall),
+      if (listening) Text(capture.liveDictation
+        ? 'يظهر النص أثناء الحديث. اضغط «إنهاء الإملاء» عند الانتهاء.'
+        : 'اضغط «إنهاء التسجيل» عند الانتهاء. يظهر النص بعد التفريغ.', style: theme.textTheme.bodySmall),
       if (capture.liveDictation && capture.preview.isNotEmpty)
         Text('النص الظاهر معاينة حتى اكتمال الإملاء.', style: theme.textTheme.bodySmall),
       const SizedBox(height: 8),

@@ -105,7 +105,7 @@ void main() {
     expect(rentalConditionSummary({'kind':'guarantor'}),'ضمانة تجارية: مطلوبة');
   });
 
-  testWidgets('D03 whole clip VAD stops after natural silence and retries the same retained file once', (tester) async {
+  testWidgets('D03 whole clip waits for explicit stop and retries the same retained file once', (tester) async {
     const channel=MethodChannel('real_estate/speech');
     final commands=<MethodCall>[], paths=<String>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel,(call) async {commands.add(call);return null;});
@@ -126,9 +126,9 @@ void main() {
     final start=commands.firstWhere((c)=>c.method=='start'),id=(start.arguments as Map)['id'] as int;
     expect((start.arguments as Map)['mode'],'clip');
     await event(id,'ready');await event(id,'speech_start');await event(id,'speech_end');
-    await tester.pump(const Duration(milliseconds:1500));expect(capture.active,isTrue);expect(paths,isEmpty);
+    await tester.pump(const Duration(seconds:5));expect(capture.active,isTrue);expect(paths,isEmpty);
     expect(commands.where((c)=>c.method=='stop'),isEmpty);
-    await tester.pump(const Duration(milliseconds:1000));capture.stop();await tester.pump();
+    capture.stop();await tester.pump();
     expect(commands.where((c)=>c.method=='stop'),hasLength(1));
     await event(id,'recorded',path:'/private/full-recording.m4a');
     expect(await first,isNull);expect(capture.canRetry,isTrue);
