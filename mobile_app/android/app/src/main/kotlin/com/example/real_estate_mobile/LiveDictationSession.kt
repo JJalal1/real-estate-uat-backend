@@ -17,11 +17,13 @@ class LiveDictationSession(
 ) {
     private companion object {
         val ARABIC_LOCALES = listOf("ar-YE", "ar-SA", "ar-EG")
+        const val EMPTY_ATTEMPTS_BEFORE_LOCALE_FALLBACK = 2
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
     private var localeIndex = 0
+    private var emptyAttempts = 0
     private val completed = mutableListOf<String>()
     private var partial = ""
     private var spoke = false
@@ -40,6 +42,28 @@ class LiveDictationSession(
     private fun preview(value: String) {
         if (value.length > 5000) { fail("SPEECH_TOO_LONG"); return }
         event("partial", arrayOf("text" to value))
+    }
+
+    private fun tryNextLocale(): Boolean {
+        if (localeIndex >= ARABIC_LOCALES.lastIndex) return false
+        ++localeIndex
+        emptyAttempts = 0
+        // Queued callbacks from the previous recognizer belong to its old request.
+        releaseRecognizer()
+        handler.postDelayed(restart, 150L)
+        return true
+    }
+
+    private fun retryEmptyRecognition(delayMillis: Long) {
+        if (stopping) {
+            finish()
+            return
+        }
+        // A service can accept a locale yet repeatedly return no speech.
+        // Keep the locale once a segment is confirmed, including during pauses.
+        if (completed.isEmpty() && ++emptyAttempts >= EMPTY_ATTEMPTS_BEFORE_LOCALE_FALLBACK &&
+            tryNextLocale()) return
+        handler.postDelayed(restart, delayMillis)
     }
 
     private fun listen() {
@@ -77,13 +101,20 @@ class LiveDictationSession(
                 val value = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty().trim()
                 // Never promote a partial hypothesis when a spoken segment is lost.
                 if (value.isEmpty() && (spoke || partial.isNotEmpty())) { fail("SPEECH_NO_MATCH"); return }
-                if (value.isNotEmpty()) completed.add(value)
+                if (value.isNotEmpty()) {
+                    completed.add(value)
+                    emptyAttempts = 0
+                }
                 partial = ""
                 if (text().length > 5000) { fail("SPEECH_TOO_LONG"); return }
                 if (stopping) finish() else {
                     event("segment", arrayOf("text" to text()))
-                    if (value.isNotEmpty()) event("speech_end", emptyArray())
-                    handler.postDelayed(restart, 150L)
+                    if (value.isEmpty()) {
+                        retryEmptyRecognition(150L)
+                    } else {
+                        event("speech_end", emptyArray())
+                        handler.postDelayed(restart, 150L)
+                    }
                 }
             }
             override fun onError(error: Int) {
@@ -92,18 +123,10 @@ class LiveDictationSession(
                 awaiting = false; ++cycle
                 val languageRejected = error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED ||
                     error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE
-                if (languageRejected && !stopping && !spoke && partial.isEmpty() &&
-                    localeIndex < ARABIC_LOCALES.lastIndex) {
-                    ++localeIndex
-                    // A fresh recognizer prevents callbacks queued by the rejected
-                    // recognizer from reaching the next locale's listener.
-                    releaseRecognizer()
-                    handler.postDelayed(restart, 150L)
-                    return
-                }
+                if (languageRejected && !stopping && !spoke && partial.isEmpty() && tryNextLocale()) return
                 val silence = (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH) && !spoke && partial.isEmpty()
                 if (silence) {
-                    if (stopping) finish() else handler.postDelayed(restart, 250L)
+                    retryEmptyRecognition(250L)
                 } else fail(when (error) {
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "SPEECH_PERMISSION"
                     SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "SPEECH_NETWORK"
