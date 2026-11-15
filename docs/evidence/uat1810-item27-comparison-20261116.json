@@ -1,0 +1,131 @@
+{
+  "branch": "work/phase23-acceptance-20261111",
+  "pull_request": 186,
+  "emulator": "emulator-5554",
+  "version": 1810,
+  "source_commit": "c598c5745d5629590665cc18829a71e611f52db1",
+  "apk_sha256": "b2a6c0a2e3dd33a679bc1f6a426452e21fe07f44dba5cdf594d5e72ae4493831",
+  "voice": "أبحث عن شقة للإيجار في صنعاء",
+  "audio": {
+    "sampling_rate_hz": 16000,
+    "pause_seconds": 5,
+    "same_voiced_pcm": true,
+    "paused_pcm_sha256": "e0931a94fbdd857f8d51edda855a7fb8c12d804d3875ded4f8ae006870cc3c5c",
+    "continuous_pcm_sha256": "a03bab38fcc97554930514c92c1058740db933f98b266e3228c746839ae6b098"
+  },
+  "trials": {
+    "result-paused": {
+      "case": "paused",
+      "manual_finish_tapped": true,
+      "final_android_segments": [
+        ""
+      ],
+      "field_accessibility_values": [
+        "للايجار في صنعاء"
+      ],
+      "ui_messages": [],
+      "audio_transport": "android_extra_audio_source",
+      "audio_transport_exit": null
+    },
+    "result-continuous": {
+      "case": "continuous",
+      "manual_finish_tapped": true,
+      "final_android_segments": [
+        ""
+      ],
+      "field_accessibility_values": [
+        "ابحث عن شقه للايجار في صنعاء"
+      ],
+      "ui_messages": [],
+      "audio_transport": "android_extra_audio_source",
+      "audio_transport_exit": null
+    },
+    "eof-paused": {
+      "case": "paused",
+      "manual_finish_tapped": false,
+      "final_android_segments": [
+        ""
+      ],
+      "android_partial_results": [
+        "",
+        "ابحث",
+        "ابحث عن",
+        "ابحث عن شقه",
+        "",
+        " للايجار",
+        " للايجار في",
+        " للايجار في صنعاء"
+      ],
+      "android_segmented_results": [],
+      "manual_finish_after_pcm_eof": true,
+      "field_accessibility_values": [
+        "للايجار في صنعاء"
+      ],
+      "ui_messages": [],
+      "audio_transport": "android_extra_audio_source",
+      "audio_transport_exit": null
+    },
+    "eof-continuous": {
+      "case": "continuous",
+      "manual_finish_tapped": false,
+      "final_android_segments": [
+        ""
+      ],
+      "android_partial_results": [
+        "",
+        "ابحث",
+        "ابحث عن",
+        "ابحث عن شقه",
+        "ابحث عن شقه للايجار",
+        "ابحث عن شقه للايجار في",
+        "ابحث عن شقه للايجار في صنعاء"
+      ],
+      "android_segmented_results": [],
+      "manual_finish_after_pcm_eof": true,
+      "field_accessibility_values": [
+        "ابحث عن شقه للايجار في صنعاء"
+      ],
+      "ui_messages": [],
+      "audio_transport": "android_extra_audio_source",
+      "audio_transport_exit": null
+    }
+  },
+  "verdict": "open_no_complete_final_android_transcript",
+  "application_transport_fix_required_by_evidence": false,
+  "bundle": {
+    "file": "AQER-UAT1810-Item27-Comparison.zip",
+    "sha256": "d5f245d3f92728552a908d9e34ac44028730f9ac811563671140fa41ecab52d4"
+  },
+  "evidence_hashes": {
+    "README-AR.md": "f2099bbc17cc13ae06b88a1343195b07e0baaa946f57072cab2903cb36a5379f",
+    "device-verification.txt": "e65472794ea098845928ae56df6fd2b5202a05ebc97736a2d0eb46a859003c78",
+    "paused.wav": "79bbe34da9ac1068f339ebe75a2e9f5a57591f60966a777d8e700e6092492b7f",
+    "continuous.wav": "92f5c45ccb0b4cccc63d2f1d1069222d9b966b0d3efee4412aee0b4c499aa9ba",
+    "direct-paused/audio-transport.txt": "4c2aefa342368b07a6e77c604f2c9e2529b42d66464120bd4f8dc4a559ecd530",
+    "SpeechProbe.java": "c2a850dabe9a9961933b588b34fcc58fd5c699b5d87c3a8aa4a67969cf370168",
+    "AndroidManifest.xml": "794c385c369d5db17d2632159fa07dca972dcb4b543463b69bba96403b192a3d",
+    "result-paused/01-ready.png": "bb003ff11559a0f7f5d053da17b3fc1714995763c1bd396fa201cc9033548514",
+    "result-paused/03-before-finish.png": "5e122a0b5bf8734a7cd9239cb30a763956d7de8074bcb7dfda7854c44cdcc38c",
+    "result-paused/04-after-finish.png": "c1c5c6445ff13bbb73e38e887ce69e6dea29af683f9b07c70d794f541a9c82d9",
+    "result-paused/result.json": "c27cb02c9510fb92f6d725fbb8838b838dbb79fdb91a3e49ed8b6b3586a05e78",
+    "result-paused/native-events.txt": "9d0d150210c09798b2dcb68f7c2f1fa0aa49f20421da7eb32e1ff081c13728c4",
+    "result-paused/02-pause.png": "7db1b825d2e8514b25791ba4220954f8c48e0b82ee30dd323035c1dd5062554c",
+    "result-continuous/01-ready.png": "12f32d36bed039874982bf6c8aa00057745481871b90350e935f23c45612ce5c",
+    "result-continuous/03-before-finish.png": "f533c917395a1c280a2fb60a02feb5d077c116c0b81160c1b0c515f9ad6b64a7",
+    "result-continuous/04-after-finish.png": "b7a3b2b9fc3dfe36cfc522de970ffe25b4876efc89c176e728511e29cd5e25d1",
+    "result-continuous/result.json": "5677251246b47e06deb3e23c1c77dbab39cfc28fba7a5095094e82ad38b85ee0",
+    "result-continuous/native-events.txt": "aed2dadbe3dbf359aafe97d14044a76581e121ac1b8f2ce4facdc88f42801759",
+    "eof-paused/01-ready.png": "026037e1f8561e59f9cd16ec0a05d403f53197f485cf901a4051aca41ec502eb",
+    "eof-paused/03-before-finish.png": "80fb9bb752e1ba7afa126f571459c9e69608c61221f45d087f07ee158b8c9168",
+    "eof-paused/04-after-finish.png": "80fb9bb752e1ba7afa126f571459c9e69608c61221f45d087f07ee158b8c9168",
+    "eof-paused/result.json": "8b817df223d6a0f4d987350de03b51526d4f0d94e8ac4c3e3d2cc14430a329d5",
+    "eof-paused/native-events.txt": "d515e7770dff0429bee62876c2baf8348eb1385ce0ddd601c3e43cd2c2c5015f",
+    "eof-paused/02-pause.png": "e612e9729a392825030cdf6ae408d98f18847cb235e5ebc65da5de513f842eb4",
+    "eof-continuous/01-ready.png": "3c3a864c7c1d0df400691f197ad11e183f44a932041b413cf108a8e933369e53",
+    "eof-continuous/03-before-finish.png": "20b13e44e24f28ffb3af3e9741fbb0412729672ffa55b7c67f349fadee998dca",
+    "eof-continuous/04-after-finish.png": "9cb1ac91cc30bf4bb40ba04c33c1049843b14a2c4b953d58d9ad2676dd235dc4",
+    "eof-continuous/result.json": "13ba12eaa13c04f346c0bffcb11707d6f12a2791217b97c909a1c785b74abbdb",
+    "eof-continuous/native-events.txt": "fc77cd3c06f7d5b19bdcf8aa41219be488bf6751bfed7461b6f342a5debb278a",
+    "comparison.json": "79fa1758b0f2e725a7abc54ad6beb456a077d181c66fb1a73f04c772b61cdce5"
+  }
+}
