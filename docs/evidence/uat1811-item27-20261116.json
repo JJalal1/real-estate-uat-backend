@@ -1,0 +1,137 @@
+{
+  "date": "2026-11-16",
+  "timezone": "Asia/Aden",
+  "pr": 186,
+  "branch": "work/phase23-acceptance-20261111",
+  "item": 27,
+  "device": "emulator-5554",
+  "device_avd": "AQER-Yemen-UAT1808-API36",
+  "app": {
+    "source_commit": "1f92da8036cf2904deb668601cba6f0b0a2aeee7",
+    "version_code": 1811,
+    "upgraded_from_version_code": 1810,
+    "package": "com.aqer.yemen.uat.retest",
+    "certificate_sha256": "a128925d5e62c498458c1c2a5300f53a8e02676459b3025bedeaadd8eb565a85",
+    "installed_apk": {
+      "name": "AQER-UAT-1811-local-x86_64.apk",
+      "bytes": 65637395,
+      "sha256": "340d2a23d7ccf3dbfb7c82f52f849edf013b9a5d65ec5280ad731538d2dee308"
+    },
+    "installation": "adb install -r",
+    "app_id_preserved": true,
+    "first_install_time_preserved": true,
+    "original_uat_apk_sha256_unchanged": "03d3b089947381cd98822fe1dfbffffa9cf69ec4db806d44711a1904f907b1d7",
+    "local_packaging_reuses_uat1810_overrides": true
+  },
+  "microphone_check": {
+    "android_audio_source": "VOICE_RECOGNITION",
+    "duration_seconds": 8,
+    "user_reported_voiced_sample_inaudible": true,
+    "windows_input_peak_ratio_during_post_restart_sample": 0.042938,
+    "android_post_restart_sample_peak_int16": 2,
+    "android_post_restart_sample_rms_int16": 0.09117291264405235,
+    "voice_clarity_verified": false,
+    "host_pass_through_disabled_after_test": true
+  },
+  "dictation": {
+    "user_confirmed_finished": true,
+    "expected_final_field": "أبحث عن شقة للإيجار في صنعاء",
+    "observed_final_field": "",
+    "observed_warning_in_screenshot": "لم نلتقط كلامًا واضحًا. حاول مرة أخرى أو اكتب طلبك.",
+    "exact_match": false,
+    "finish_button_seen_at_app_elapsed_seconds": [
+      5,
+      8
+    ],
+    "finalizing_seen": true,
+    "pause_independently_timed": false,
+    "screen_recording_includes_audio": false,
+    "android_locales_seen": [
+      "ar-YE",
+      "ar-SA"
+    ],
+    "android_errors_seen": [
+      "LANGUAGE_PACK_ERROR",
+      "NO_SPEECH_DETECTED"
+    ],
+    "android_final_transcript_observed": false
+  },
+  "acceptance": "open",
+  "evidence_archive": {
+    "name": "AQER-UAT1811-Item27-Evidence.zip",
+    "bytes": 1249586,
+    "sha256": "1cf178cf84ba3af2e07e63852177d64462f864187bfc7a944b35e9749b23fd96"
+  },
+  "evidence_files": [
+    {
+      "name": "01-smart-search-ready.png",
+      "bytes": 122536,
+      "sha256": "2a2299433121cd9e13584de0ab8162eb24f7fc7ed9d0e727d41b3bbcf64f4d1d"
+    },
+    {
+      "name": "02-listening-00m05s.png",
+      "bytes": 93262,
+      "sha256": "ac0db44fed87cb536da772d6353e506778cf7a7c4ba2fa3b927520c02b68d62a"
+    },
+    {
+      "name": "02-listening-00m08s.png",
+      "bytes": 91524,
+      "sha256": "22d84f247098aa8327410c4d9ae028d5d621e5e987b4b8c588df723640041176"
+    },
+    {
+      "name": "02-finalizing.png",
+      "bytes": 72771,
+      "sha256": "41923aed8dc3134e6d89797099ea7a9411c83336d9d636e20cbf900543350a02"
+    },
+    {
+      "name": "03-after-finish.png",
+      "bytes": 139307,
+      "sha256": "b8d53cb8f54b7f535935e4595b1600e254b582045a7d19c516ae9fbb3fc2c438"
+    },
+    {
+      "name": "dictation-screen.mp4",
+      "bytes": 923945,
+      "sha256": "21a871dd0de2fca93910fb016b651211536540c43b8708297d174aeadc63ba91"
+    },
+    {
+      "name": "android-mic-check.wav",
+      "bytes": 256044,
+      "sha256": "822a65538042dd76f46e555ee7265a68ce7f950439abf5f7e0586f8f9d62af54"
+    },
+    {
+      "name": "android-mic-check-after-restart.wav",
+      "bytes": 256044,
+      "sha256": "9ad0a2bb657270b608c40a4ae7225fdcb6a6150d648d9067e91bbe3f0d59428f"
+    },
+    {
+      "name": "android-recognition-events.txt",
+      "bytes": 1376,
+      "sha256": "7158d55290d98fe5c018fe63be3f2e401d10e30b11e225a188f83259711bfa15"
+    },
+    {
+      "name": "field-readback.json",
+      "bytes": 236,
+      "sha256": "e43aed964125e9dc0a31557156fe723761351977ed237f6d2f977107e4a458e5"
+    },
+    {
+      "name": "upgrade-receipt.txt",
+      "bytes": 594,
+      "sha256": "e39c3eb3d909ce027db7a55b3e1d374641224210b52be261ff1603ab733c3472"
+    },
+    {
+      "name": "packaging-overrides.txt",
+      "bytes": 142,
+      "sha256": "b0a9f8c350e9549a645a908fbdc86aa32b22a682f79de45636e007555a5873d1"
+    },
+    {
+      "name": "README-item27.md",
+      "bytes": 2912,
+      "sha256": "b4e75cfc498f8d0df40afc6dd937ab4070f7e2f5505e56512148112dd8dd0f3e"
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 1161,
+      "sha256": "358c6a50b82fdcfafe67c143341790c3ca7b4376a38d5902fb53126b3b9c12de"
+    }
+  ]
+}
