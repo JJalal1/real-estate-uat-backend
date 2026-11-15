@@ -41,7 +41,7 @@ class EbrokerPropertyHeading extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       SizedBox(height: 12.rh(context)),
       Row(children: [
-        const EbrokerImage('properties_icon', color: EbrokerDesign.text),
+        EbrokerImage('properties_icon', color: Theme.of(context).colorScheme.onSurface),
         SizedBox(width: 10.rw(context)),
         Expanded(child: EbrokerText(category, weight: FontWeight.w500)),
         Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -70,8 +70,8 @@ class EbrokerSectionPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(color: EbrokerDesign.surface,
-      border: Border.all(color: EbrokerDesign.border), borderRadius: BorderRadius.circular(4)),
+    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant), borderRadius: BorderRadius.circular(4)),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       EbrokerText(title, size: 16, weight: FontWeight.w600),
       SizedBox(height: 8.rh(context)),
@@ -106,7 +106,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
     final primary = Theme.of(context).colorScheme.primary;
     if (compact) {
       return Semantics(button: true, label: 'الملف العام للمعلن $name', child: Material(
-      color: EbrokerDesign.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: EbrokerDesign.border)),
+      color: Theme.of(context).colorScheme.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Padding(padding: const EdgeInsets.all(14),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           ClipRRect(borderRadius: BorderRadius.circular(12), child: photoUrl == null
@@ -136,9 +136,9 @@ class EbrokerAdvertiserCard extends StatelessWidget {
     return Semantics(button: true, label: 'المعلن $name',
       child: GestureDetector(onTap: onTap,
         child: Container(width: width, padding: EdgeInsets.all(12.rw(context)),
-          decoration: BoxDecoration(color: EbrokerDesign.surface,
+          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16.rw(context)),
-            border: Border.all(color: EbrokerDesign.border)),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             SizedBox(height: 198.rh(context) + (MediaQuery.textScalerOf(context).scale(11.5) - 11.5) * 4, child: Stack(clipBehavior: Clip.none, children: [
               Positioned(top: 0, left: 0, right: 0, height: 152.rh(context),
@@ -152,9 +152,9 @@ class EbrokerAdvertiserCard extends StatelessWidget {
               Positioned(left: 6.rw(context), bottom: 0,
                 child: Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
                   Container(width: 70.rw(context), height: 70.rw(context),
-                    decoration: BoxDecoration(color: EbrokerDesign.surface,
+                    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(14.rw(context)),
-                      border: Border.all(color: EbrokerDesign.surface, width: 3.rw(context))),
+                      border: Border.all(color: Theme.of(context).colorScheme.surface, width: 3.rw(context))),
                     child: ClipRRect(borderRadius: BorderRadius.circular(11.rw(context)),
                       child: photoUrl == null ? Center(child: EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary))
                         : ViewportMedia(builder: (_) => Image.network(photoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary))))),
@@ -170,15 +170,15 @@ class EbrokerAdvertiserCard extends StatelessWidget {
             if(action!=null)action!,
             EbrokerText(name, size: 16, weight: FontWeight.w600, maxLines: 1),
             SizedBox(height: 2.rh(context)),
-            EbrokerText(identity, size: 12, color: EbrokerDesign.textLight, maxLines: 1),
+            EbrokerText(identity, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, maxLines: 1),
             SizedBox(height: 10.rh(context)),
             Container(padding: EdgeInsets.symmetric(vertical: 8.rh(context), horizontal: 6.rw(context)),
-              decoration: BoxDecoration(color: EbrokerDesign.textLight.withValues(alpha: .08),
+              decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(8.rw(context))),
               child: Row(children: [
                 Expanded(child: EbrokerText(ratingCount == 0 ? 'لا توجد تقييمات بعد' : 'التقييم: ${rating.toStringAsFixed(1)}',
                   size: 12, weight: FontWeight.w500, align: TextAlign.center)),
-                Container(width: 1.2.rw(context), height: 16.rh(context), color: EbrokerDesign.text.withValues(alpha: .25)),
+                Container(width: 1.2.rw(context), height: 16.rh(context), color: Theme.of(context).colorScheme.onSurface.withValues(alpha: .25)),
                 Expanded(child: EbrokerText('التقييمات: $ratingCount', size: 12,
                   weight: FontWeight.w500, align: TextAlign.center)),
               ])),

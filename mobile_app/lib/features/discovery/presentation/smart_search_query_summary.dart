@@ -57,7 +57,9 @@ class SmartSearchQuerySummary extends StatelessWidget {
     return '$range $currency${filters.values['purpose'] == 'rent' ? ' شهريًا' : ''}';
   }
 
-  IconData _icon(String key) => switch (key) {
+  bool _isTypeKey(String key) => key == 'type' || key.startsWith('type:');
+
+  IconData _icon(String key) => key.startsWith('type:') ? Icons.home_outlined : switch (key) {
     'type' => Icons.home_outlined,
     'purpose' => Icons.sell_outlined,
     'search' || 'governorate' => Icons.location_on_outlined,
@@ -79,7 +81,9 @@ class SmartSearchQuerySummary extends StatelessWidget {
     final theme = Theme.of(context), scheme = theme.colorScheme;
     final chips = {for (final chip in filters.chips) chip.$1: chip.$2};
     final hasBudget = chips.containsKey('budget');
-    final keys = _order.where((key) => chips.containsKey(key) && (key != 'currency' || !hasBudget)).toList();
+    final orderedKeys = _order.expand((key) => key == 'type'
+        ? chips.keys.where(_isTypeKey) : [key]);
+    final keys = orderedKeys.where((key) => chips.containsKey(key) && (key != 'currency' || !hasBudget)).toList();
     final compact = theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
     Widget word(String text) => Text(text, style: compact);
 
@@ -94,7 +98,7 @@ class SmartSearchQuerySummary extends StatelessWidget {
           Flexible(child: InkWell(
             key: ValueKey('smart-chip-edit-$key'),
             borderRadius: BorderRadius.circular(18),
-            onTap: interpreting ? null : () => onEdit(key),
+            onTap: interpreting ? null : () => onEdit(_isTypeKey(key) ? 'type' : key),
             child: Semantics(button: true, label: 'تعديل $label', excludeSemantics: true, child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 44),
               child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(9, 6, 3, 6),
@@ -134,12 +138,12 @@ class SmartSearchQuerySummary extends StatelessWidget {
           LayoutBuilder(builder: (context, constraints) => Wrap(
             spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              if (!chips.containsKey('type')) word('ابحث عن عقارات'),
+              if (!keys.any(_isTypeKey)) word('ابحث عن عقارات'),
               for (final key in keys)
                 ConstrainedBox(constraints: BoxConstraints(maxWidth: constraints.maxWidth),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    if (key == 'type' || key == 'search' || key == 'governorate' || key == 'budget') ...[
-                      word(key == 'type' ? 'ابحث عن' : key == 'budget' ? 'بسعر' : 'في'),
+                    if (_isTypeKey(key) || key == 'search' || key == 'governorate' || key == 'budget') ...[
+                      word(_isTypeKey(key) ? key == keys.first ? 'ابحث عن' : 'أو' : key == 'budget' ? 'بسعر' : 'في'),
                       const SizedBox(width: 6),
                     ],
                     Flexible(child: criterion(key, _label(key, chips[key]!), constraints.maxWidth)),

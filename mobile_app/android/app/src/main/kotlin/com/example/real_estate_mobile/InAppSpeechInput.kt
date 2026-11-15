@@ -98,8 +98,9 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
         val id = activeId ?: return
         if (!foreground || permissionPending || recorder != null || dictation != null || processing) return
         try {
-            if (!audioFocus.acquire()) { fail("SPEECH_AUDIO_FOCUS"); return }
             if (liveRequested && SpeechRecognizer.isRecognitionAvailable(activity)) {
+                // The recognition service can take audio focus for its own cues.
+                // Holding a competing focus request would cancel this session.
                 emit(id, "mode", "code" to "dictation")
                 val session = LiveDictationSession(activity,
                     event = { type, values -> emit(id, type, *values) },
@@ -108,6 +109,7 @@ class InAppSpeechInput(private val activity: Activity, messenger: BinaryMessenge
                 session.start()
                 return
             }
+            if (!audioFocus.acquire()) { fail("SPEECH_AUDIO_FOCUS"); return }
             emit(id, "mode", "code" to "clip")
             val file = File.createTempFile("re_voice_", ".m4a", activity.cacheDir)
             clip = file

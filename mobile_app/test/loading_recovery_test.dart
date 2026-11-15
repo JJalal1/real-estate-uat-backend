@@ -37,6 +37,8 @@ import 'package:real_estate_mobile/features/messages/presentation/messages_scree
 import 'package:real_estate_mobile/features/messages/presentation/conversation_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/domain/my_listings_page.dart';
+import 'package:real_estate_mobile/features/account/data/account_request_scope.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/smart_search_assistant.dart';
 
@@ -90,6 +92,11 @@ class _Messages implements MessageRepository {
   @override
   Future<List<MessageThreadSummary>> threads() { calls++; return onThreads!(); }
   @override
+  Future<MessageThreadPage> threadsPage({int page = 1, int perPage = 40, bool unreadOnly = false}) async {
+    final rows = await threads();
+    return MessageThreadPage(items: rows, currentPage: page, lastPage: page, total: rows.length);
+  }
+  @override
   Future<MessageThreadDetails> details(int id, {int? beforeId}) => onDetails!();
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
@@ -131,7 +138,10 @@ class _Support implements SupportRepository {
   @override
   Future<SupportAdminSummary> adminSummary() async => SupportAdminSummary.fromJson({'new_tickets': 7});
   @override
-  Future<List<SupportCaseSummary>> adminCases({String? kind, String? status, bool? escalated, bool assignedToMe = false, int? assignedToUserId}) => onCases!();
+  Future<SupportCasePage> adminCases({int page = 1, int perPage = 40, String? kind, String? status, bool? escalated, bool assignedToMe = false, int? assignedToUserId}) async {
+    final rows = await onCases!();
+    return SupportCasePage(items: rows, currentPage: page, lastPage: 1, total: rows.length);
+  }
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
 }
@@ -148,6 +158,10 @@ class _Details extends Wave3PropertiesFake {
   Future<PropertyDetails> details(int id) => onDetails!(id);
   @override
   Future<List<PropertyDetails>> myListings() async => [_property(77)];
+  @override
+  Future<MyListingsPage> myListingsPage({int page = 1, int perPage = 50,
+      AccountRequestScope? requestScope}) async =>
+    MyListingsPage(items: [_property(77)], currentPage: page, lastPage: 1, total: 1);
 }
 PropertyDetails _property(int id, {String title = 'تفاصيل اصطناعية'}) => PropertyDetails.fromJson({
   'id': id, 'title': title, 'type': 'house', 'purpose': 'sale', 'status': 'draft',

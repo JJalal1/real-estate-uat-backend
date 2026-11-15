@@ -5,8 +5,22 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../../core/widgets/app_components.dart';
+import '../../account/data/account_verification_queue.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/data/account_request_scope.dart';
 import '../data/account_verification_support_repository.dart';
+
+final verificationSupportQueueProvider = StateNotifierProvider.autoDispose.family<
+    VerificationQueue<AccountVerificationSupportItem>,
+    VerificationQueueState<AccountVerificationSupportItem>, int?>((ref, focus) =>
+  createVerificationQueue<AccountVerificationSupportItem>(ref,
+    load: (page) => ref.read(accountVerificationSupportRepositoryProvider).pending(
+      userId: focus, page: page, perPage: focus == null ? 40 : 1),
+    idOf: (item) => item.userId,
+    invalidate: ref.invalidateSelf));
 
 class AccountVerificationSupportScreen extends ConsumerWidget {
   const AccountVerificationSupportScreen({super.key, this.focusUserId});
@@ -16,8 +30,9 @@ class AccountVerificationSupportScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    final scope = ref.watch(accountRequestScopeProvider);
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _VerificationSupportBody(key: ValueKey('$actor:$focusUserId'), focusUserId: focusUserId);
+      : _VerificationSupportBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch, scope, focusUserId)), focusUserId: focusUserId);
   }
 }
 class _VerificationSupportBody extends ConsumerStatefulWidget {
@@ -29,28 +44,34 @@ class _VerificationSupportBody extends ConsumerStatefulWidget {
 
 class _AccountVerificationSupportScreenState
     extends ConsumerState<_VerificationSupportBody> {
-  late Future<List<AccountVerificationSupportItem>> _future;
   int? _approvingUserId;
+  int _sessionVersion = 0;
+  bool _expired = false;
+  late int? _actor;
+  late int _epoch;
 
   @override
   void initState() {
     super.initState();
-    _future = _load(); _future.ignore();
+    _actor = ref.read(authControllerProvider).asData?.value?.id;
+    _epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    ref.listenManual(authControllerProvider, (_, next) {
+      final actor = next.asData?.value?.id;
+      final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+      if (actor == _actor && epoch == _epoch) return;
+      _expired = true;
+      _sessionVersion++;
+      _actor = actor;
+      _epoch = epoch;
+    });
   }
 
-  Future<List<AccountVerificationSupportItem>> _load() async {
-    final rows = await ref
-        .read(accountVerificationSupportRepositoryProvider)
-        .pending();
-    final focus = widget.focusUserId;
-    if (focus == null) return rows;
-    return rows.where((item) => item.userId == focus).toList(growable: false);
-  }
+  bool _current(int version, int epoch) => mounted && !_expired && _actor != null &&
+      version == _sessionVersion && epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
+      _actor == ref.read(authControllerProvider).asData?.value?.id;
 
-  Future<void> _refresh() async {
-    setState(() { _future = _load(); _future.ignore(); });
-    try { await _future; } catch (_) { /* The view displays failure and retry. */ }
-  }
+  Future<void> _refresh() => ref.read(
+    verificationSupportQueueProvider(widget.focusUserId).notifier).refresh();
 
   @override
   Widget build(BuildContext context) {
@@ -69,120 +90,83 @@ class _AccountVerificationSupportScreenState
             ),
           ],
         ),
-        body: FutureBuilder<List<AccountVerificationSupportItem>>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const EbrokerIcon(Icons.error_outline, size: 48),
-                      const SizedBox(height: 12),
-                      Text(
-                        friendlyApiError(snapshot.error!),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 16),
-                      EbrokerFilledButton.icon(
-                        onPressed: _refresh,
-                        icon: const EbrokerIcon(Icons.refresh),
-                        label: const Text('إعادة المحاولة'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-            final rows = snapshot.data ?? const <AccountVerificationSupportItem>[];
-            if (rows.isEmpty) {
-              return RefreshIndicator(
-                onRefresh: _refresh,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    const SizedBox(height: 140),
-                    const EbrokerIcon(Icons.fact_check_outlined, size: 56),
-                    const SizedBox(height: 14),
-                    Center(
-                      child: Text(widget.focusUserId == null
-                          ? 'لا توجد طلبات تحقق معلقة حاليًا.'
-                          : 'طلب التحقق غير موجود في قائمة المراجعة الحالية.'),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
-                itemCount: rows.length + 1,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Text(
-                          widget.focusUserId == null
-                              ? 'الوارد المشترك يعرض الطلبات غير المسندة. استلم المهمة من مركز الدعم قبل تنفيذ قرار عليها.'
-                              : 'هذه المهمة مفتوحة من مساحة العمل. راجع البيانات والمستندات ثم نفذ الإجراء المسموح لك.',
-                        ),
-                      ),
-                    );
-                  }
-                  final item = rows[index - 1];
-                  final title = item.name.isEmpty
-                      ? 'مستخدم #${item.userId}'
-                      : item.name;
-                  final location = <String>[
-                    item.detailText('governorate'),
-                    item.detailText('district'),
-                  ].where((value) => value.isNotEmpty).join(' - ');
-                  return Card(
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        child: EbrokerIcon(Icons.verified_user_outlined),
-                      ),
-                      title: Text(
-                        title,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      subtitle: Text([
-                        item.typeLabel,
-                        if (item.phone.isNotEmpty) item.phone,
-                        if (location.isNotEmpty) location,
-                      ].join('\n')),
-                      isThreeLine: item.phone.isNotEmpty || location.isNotEmpty,
-                      trailing: _approvingUserId == item.userId
-                          ? const SizedBox.square(
-                              dimension: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const EbrokerIcon(Icons.chevron_left),
-                      onTap: _approvingUserId == null
-                          ? () => _showDetails(item)
-                          : null,
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        ),
+        body: _queueBody(),
       ),
     );
   }
 
+  Widget _queueBody() {
+    final state = ref.watch(verificationSupportQueueProvider(widget.focusUserId));
+    final controller = ref.read(verificationSupportQueueProvider(widget.focusUserId).notifier);
+    if (state.items.isEmpty && state.loading) return const AppLoadingState();
+    if (state.items.isEmpty && state.error != null) {
+      return AppErrorState(message: friendlyApiError(state.error!), onRetry: _refresh);
+    }
+    if (state.items.isEmpty) {
+      return RefreshIndicator(onRefresh: _refresh,
+        child: ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
+          const SizedBox(height: 140),
+          const EbrokerIcon(Icons.fact_check_outlined, size: 56),
+          const SizedBox(height: 14),
+          Center(child: Text(widget.focusUserId == null
+            ? 'لا توجد طلبات تحقق معلقة حاليًا.'
+            : 'طلب التحقق غير موجود في قائمة المراجعة الحالية.')),
+        ]));
+    }
+    final hasStatus = state.loading || state.error != null;
+    final hasFooter = state.page!.hasMore;
+    return RefreshIndicator(onRefresh: _refresh,
+      child: ListView.separated(key: ObjectKey(controller),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
+        itemCount: state.items.length + 1 + (hasStatus ? 1 : 0) + (hasFooter ? 1 : 0),
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Card(child: Padding(padding: const EdgeInsets.all(14),
+              child: Text(widget.focusUserId == null
+                ? 'الوارد المشترك يعرض الطلبات غير المسندة. استلم المهمة من مركز الدعم قبل تنفيذ قرار عليها.'
+                : 'هذه المهمة مفتوحة من مساحة العمل. راجع البيانات والمستندات ثم نفذ الإجراء المسموح لك.')));
+          }
+          if (hasStatus && index == 1) {
+            return AppRefreshStatus(loading: state.loading,
+              error: state.error == null ? null : friendlyApiError(state.error!), onRetry: _refresh);
+          }
+          final itemIndex = index - 1 - (hasStatus ? 1 : 0);
+          if (itemIndex == state.items.length) {
+            if (state.loadingMore || state.pageError != null) {
+              return AppRefreshStatus(key: const ValueKey('verification-page-status'),
+                loading: state.loadingMore,
+                error: state.pageError == null ? null : friendlyApiError(state.pageError!),
+                onRetry: controller.loadMore);
+            }
+            return TextButton(key: const ValueKey('verification-more'),
+              onPressed: state.loading || state.error != null ? null : controller.loadMore,
+              child: const Text('المزيد من طلبات التحقق'));
+          }
+          final item = state.items[itemIndex];
+          final location = <String>[item.detailText('governorate'), item.detailText('district')]
+              .where((value) => value.isNotEmpty).join(' - ');
+          return Card(key: ValueKey('verification-${item.userId}'), child: ListTile(
+            leading: const CircleAvatar(child: EbrokerIcon(Icons.verified_user_outlined)),
+            title: Text(item.name.isEmpty ? 'مستخدم #${item.userId}' : item.name,
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text([item.typeLabel, if (item.phone.isNotEmpty) item.phone,
+              if (location.isNotEmpty) location].join('\n')),
+            isThreeLine: item.phone.isNotEmpty || location.isNotEmpty,
+            trailing: _approvingUserId == item.userId
+              ? const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2))
+              : const EbrokerIcon(Icons.chevron_left),
+            onTap: _approvingUserId == null ? () => _showDetails(item) : null));
+        }));
+  }
+
   Future<void> _showDetails(AccountVerificationSupportItem item) async {
+    final version = _sessionVersion, epoch = _epoch;
+    if (!_current(version, epoch)) return;
     final documents = _documentsFor(item.type);
-    await showDialog<void>(
+    await showActorDialog<void>(
+      ref: ref,
       context: context,
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
@@ -242,7 +226,7 @@ class _AccountVerificationSupportScreenState
             EbrokerFilledButton.icon(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
-                _confirmApprove(item);
+                if (_current(version, epoch)) _confirmApprove(item);
               },
               icon: const EbrokerIcon(Icons.verified_outlined),
               label: const Text('اعتماد التحقق'),
@@ -267,23 +251,26 @@ class _AccountVerificationSupportScreenState
     AccountVerificationSupportItem item,
     _VerificationDocument document,
   ) async {
+    final version = _sessionVersion, epoch = _epoch;
+    if (!_current(version, epoch)) return;
     try {
       final bytes = await ref
           .read(accountVerificationSupportRepositoryProvider)
           .documentBytes(item.userId, document.kind);
-      if (!mounted) return;
+      if (!_current(version, epoch)) return;
       if (bytes.isEmpty) {
         _message('المستند غير موجود أو فارغ.');
         return;
       }
       await _showImage(document.label, bytes);
     } catch (error) {
-      _message('تعذر فتح ${document.label}: ${friendlyApiError(error)}');
+      if (_current(version, epoch)) _message('تعذر فتح ${document.label}: ${friendlyApiError(error)}');
     }
   }
 
   Future<void> _showImage(String title, Uint8List bytes) async {
-    await showDialog<void>(
+    await showActorDialog<void>(
+      ref: ref,
       context: context,
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
@@ -325,7 +312,10 @@ class _AccountVerificationSupportScreenState
   }
 
   Future<void> _confirmApprove(AccountVerificationSupportItem item) async {
-    final accepted = await showDialog<bool>(
+    final version = _sessionVersion, epoch = _epoch;
+    if (!_current(version, epoch)) return;
+    final accepted = await showActorDialog<bool>(
+      ref: ref,
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('اعتماد طلب التحقق؟'),
@@ -344,19 +334,19 @@ class _AccountVerificationSupportScreenState
         ],
       ),
     );
-    if (accepted != true || !mounted) return;
+    if (accepted != true || !_current(version, epoch)) return;
     setState(() => _approvingUserId = item.userId);
     try {
       await ref
           .read(accountVerificationSupportRepositoryProvider)
           .approve(item.userId);
-      if (!mounted) return;
+      if (!_current(version, epoch)) return;
       _message('تم اعتماد طلب التحقق بنجاح.');
       await _refresh();
     } catch (error) {
-      _message(friendlyApiError(error));
+      if (_current(version, epoch)) _message(friendlyApiError(error));
     } finally {
-      if (mounted) setState(() => _approvingUserId = null);
+      if (_current(version, epoch)) setState(() => _approvingUserId = null);
     }
   }
 

@@ -22,6 +22,7 @@ import 'package:real_estate_mobile/features/properties/presentation/favorites_sc
 import 'package:real_estate_mobile/features/properties/presentation/property_compare_actions.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
 import 'broker_experience_ui_test.dart' show BrokerTestAuth, BrokerTestRepository;
+import 'support/private_collection_fixtures.dart';
 
 class _Anonymous extends AuthController {
   @override
@@ -68,7 +69,7 @@ Future<void> _pump(WidgetTester tester, Widget child, {double scale = 1, GlobalK
   await tester.pumpWidget(ProviderScope(overrides: [
     authControllerProvider.overrideWith(() => broker ? BrokerTestAuth(1) : _Anonymous()),
     brokerRepositoryProvider.overrideWithValue(BrokerTestRepository()),
-    if (favorites != null) favoritePropertiesProvider.overrideWith((ref) async => favorites),
+    if (favorites != null) favoritePagesProvider.overrideWith((ref) => fixedFavoritePages(favorites)),
   ], child: MaterialApp(theme: AppTheme.light, builder: (context, child) => MediaQuery(
     data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
     child: RepaintBoundary(key: boundary, child: child!)), home: Directionality(textDirection: TextDirection.rtl, child: child))));

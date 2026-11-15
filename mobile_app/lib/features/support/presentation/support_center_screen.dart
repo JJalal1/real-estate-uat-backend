@@ -3,6 +3,10 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../../core/widgets/app_components.dart';
+import '../../account/data/auth_controller.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../data/support_repository.dart';
 import '../domain/support_models.dart';
 
@@ -19,6 +23,14 @@ class SupportCenterScreen extends ConsumerStatefulWidget {
 class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
   bool _loading = true;
   String? _error;
+  String? _pageError;
+  bool _loadingMore = false;
+  int _page = 0;
+  bool _hasMore = false;
+  int _request = 0;
+  int? _actor;
+  int _sessionEpoch = 0;
+  int _identityVersion = 0;
   List<SupportCaseSummary> _cases = const [];
   int? _pendingInitialCaseId;
 
@@ -26,43 +38,109 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
   void initState() {
     super.initState();
     _pendingInitialCaseId = widget.initialCaseId;
+    _actor = ref.read(authControllerProvider).asData?.value?.id;
+    _sessionEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    ref.listenManual(authControllerProvider, (_, next) {
+      final actor = next.asData?.value?.id;
+      final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+      if (!mounted || (_actor == actor && _sessionEpoch == epoch)) return;
+      setState(() {
+        _request++;
+        _identityVersion++;
+        _actor = actor;
+        _sessionEpoch = epoch;
+        _cases = const [];
+        _page = 0;
+        _hasMore = false;
+        _error = null;
+        _pageError = null;
+        _loadingMore = false;
+        _loading = actor != null;
+        _pendingInitialCaseId = null;
+      });
+      if (actor != null) Future<void>.microtask(_load);
+    });
     Future<void>.microtask(_load);
   }
 
-  Future<void> _load() async {
-    if (mounted) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
+  Future<void> _load() => _fetchPage(1);
+
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore) return;
+    await _fetchPage(_page + 1, append: true);
+  }
+
+  Future<void> _fetchPage(int page, {bool append = false}) async {
+    if (!mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    if (append && (_actor != actor || _sessionEpoch != epoch)) {
+      await _fetchPage(1);
+      return;
     }
-    try {
-      final rows = await ref.read(supportRepositoryProvider).mine();
-      if (!mounted) {
-        return;
+    final request = ++_request;
+    setState(() {
+      if (_actor != actor || _sessionEpoch != epoch) _cases = const [];
+      _actor = actor;
+      _sessionEpoch = epoch;
+      _pageError = null;
+      if (append) {
+        _loadingMore = true;
+      } else {
+        _loading = true;
+        _loadingMore = false;
+        _error = null;
+        _page = 0;
+        _hasMore = false;
       }
+    });
+    bool current() => mounted && request == _request &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
+    try {
+      final result = await ref.read(supportRepositoryProvider).mine(page: page);
+      if (!current()) return;
       setState(() {
-        _cases = rows;
+        _cases = <int, SupportCaseSummary>{
+          if (append) for (final item in _cases) item.id: item,
+          for (final item in result.items) item.id: item,
+        }.values.toList(growable: false);
+        _page = result.currentPage;
+        _hasMore = result.hasMore;
         _loading = false;
+        _loadingMore = false;
       });
       final initialCaseId = _pendingInitialCaseId;
       _pendingInitialCaseId = null;
-      if (initialCaseId != null && initialCaseId > 0 && mounted) {
+      if (initialCaseId != null && initialCaseId > 0 && current()) {
         await _showDetails(initialCaseId);
       }
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!current()) return;
       setState(() {
-        _error = friendlyApiError(error);
         _loading = false;
+        _loadingMore = false;
+        if (append && isTransientApiFailure(error)) {
+          _pageError = friendlyApiError(error);
+        } else {
+          if (!isTransientApiFailure(error)) _cases = const [];
+          _page = 0;
+          _hasMore = false;
+          _error = friendlyApiError(error);
+        }
       });
     }
   }
 
   @override
+  void dispose() { _request++; super.dispose(); }
+
+  @override
   Widget build(BuildContext context) {
+    if (ref.watch(authControllerProvider).asData?.value == null) {
+      return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
+    }
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -75,6 +153,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
         body: RefreshIndicator(
           onRefresh: _load,
           child: ListView(
+            key: ValueKey((_actor, _sessionEpoch)),
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
             children: [
@@ -99,12 +178,14 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              if (_loading)
+              if (_cases.isNotEmpty && (_loading || _error != null))
+                AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
+              if (_loading && _cases.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(32),
                   child: Center(child: CircularProgressIndicator()),
                 )
-              else if (_error != null)
+              else if (_error != null && _cases.isEmpty)
                 _ErrorCard(message: _error!, onRetry: _load)
               else if (_cases.isEmpty)
                 const Card(
@@ -116,6 +197,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
               else
                 ..._cases.map(
                   (item) => Card(
+                    key: ValueKey('support-case-${item.id}'),
                     child: ListTile(
                       leading: EbrokerIcon(
                         item.kind == 'report'
@@ -137,6 +219,14 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                     ),
                   ),
                 ),
+              if (_hasMore)
+                _loadingMore || _pageError != null
+                  ? AppRefreshStatus(loading: _loadingMore, error: _pageError,
+                      onRetry: _loadMore)
+                  : Center(child: TextButton(
+                      key: const ValueKey('support-cases-more'),
+                      onPressed: _loading ? null : _loadMore,
+                      child: const Text('المزيد من الحالات'))),
             ],
           ),
         ),
@@ -145,6 +235,12 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
   }
 
   Future<void> _openTicket() async {
+    final actor = _actor;
+    final epoch = _sessionEpoch;
+    final identityVersion = _identityVersion;
+    bool current() => mounted && actor != null && identityVersion == _identityVersion &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     const categories = <String, String>{
       'account': 'الحساب',
       'listing': 'الإعلانات',
@@ -155,7 +251,8 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
     var category = 'other';
     final subject = TextEditingController();
     final description = TextEditingController();
-    final accepted = await showDialog<bool>(
+    final accepted = await showActorDialog<bool>(
+      ref: ref,
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
@@ -214,7 +311,7 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
     final descriptionValue = description.text.trim();
     subject.dispose();
     description.dispose();
-    if (accepted != true ||
+    if (!current() || accepted != true ||
         subjectValue.length < 3 ||
         descriptionValue.length < 5) {
       return;
@@ -225,31 +322,41 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
             description: descriptionValue,
             category: category,
           );
-      if (!mounted) {
+      if (!mounted || !current()) {
         return;
       }
       await _load();
-      if (!mounted) {
+      if (!mounted || !current()) {
         return;
       }
       await _showDetails(details.summary.id);
     } catch (error) {
-      _showError(error);
+      if (current()) _showError(error);
     }
   }
 
   Future<void> _openDetails(int caseId) async {
+    final identityVersion = _identityVersion;
+    final epoch = _sessionEpoch;
     await _showDetails(caseId);
-    await _load();
+    if (mounted && identityVersion == _identityVersion &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch) { await _load(); }
   }
 
   Future<void> _showDetails(int caseId) async {
+    final actor = _actor;
+    final epoch = _sessionEpoch;
+    final identityVersion = _identityVersion;
+    bool current() => mounted && actor != null && identityVersion == _identityVersion &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     try {
       var details = await ref.read(supportRepositoryProvider).details(caseId);
-      if (!mounted) {
+      if (!mounted || !current()) {
         return;
       }
-      await showDialog<void>(
+      await showActorDialog<void>(
+        ref: ref,
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
@@ -312,16 +419,17 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
                 TextButton.icon(
                   onPressed: () async {
                     final body = await _replyDialog(dialogContext);
-                    if (body == null) {
+                    if (body == null || !current()) {
                       return;
                     }
                     try {
                       final next = await ref
                           .read(supportRepositoryProvider)
                           .reply(caseId, body);
+                      if (!current() || !dialogContext.mounted) return;
                       setDialogState(() => details = next);
                     } catch (error) {
-                      if (dialogContext.mounted) {
+                      if (current() && dialogContext.mounted) {
                         ScaffoldMessenger.of(dialogContext).showSnackBar(
                           SnackBar(content: Text(friendlyApiError(error))),
                         );
@@ -340,13 +448,14 @@ class _SupportCenterScreenState extends ConsumerState<SupportCenterScreen> {
         ),
       );
     } catch (error) {
-      _showError(error);
+      if (current()) _showError(error);
     }
   }
 
   Future<String?> _replyDialog(BuildContext parentContext) async {
     final controller = TextEditingController();
-    final accepted = await showDialog<bool>(
+    final accepted = await showActorDialog<bool>(
+      ref: ref,
       context: parentContext,
       builder: (context) => AlertDialog(
         title: const Text('رد على الدعم'),

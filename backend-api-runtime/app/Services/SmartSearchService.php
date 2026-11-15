@@ -93,6 +93,11 @@ class SmartSearchService
             if (isset($patch['set']['type'], $patch['set']['types'])) {
                 throw ValidationException::withMessages(['types' => ['Conflicting type selections.']]);
             }
+            // Reject malformed model values before reconciling explicit facts.
+            // A successful but sparse/wrong patch must not reverse a clear
+            // price ceiling or narrow an unmentioned multi-type selection.
+            $this->validate($patch['set']);
+            $patch = app(ExplicitSearchAmendments::class)->reconcile($message, $patch);
             foreach ($patch['remove'] as $key) {
                 if (in_array($key, ['type', 'types'], true)) unset($next['type'], $next['types']);
                 else unset($next[$key]);

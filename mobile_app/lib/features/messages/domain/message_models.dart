@@ -1,3 +1,18 @@
+class MessageInboxPage<T> {
+  const MessageInboxPage({required this.items, required this.currentPage,
+    required this.lastPage, required this.total});
+
+  final List<T> items;
+  final int currentPage;
+  final int lastPage;
+  final int total;
+  bool get hasMore => currentPage < lastPage;
+}
+
+typedef MessageThreadPage = MessageInboxPage<MessageThreadSummary>;
+typedef NotificationPage = MessageInboxPage<AppNotificationItem>;
+typedef ConversationReportPage = MessageInboxPage<ConversationReportSummary>;
+
 class MessageThreadSummary {
   const MessageThreadSummary({
     required this.id,

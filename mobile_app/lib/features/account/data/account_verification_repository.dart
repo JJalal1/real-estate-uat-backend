@@ -6,6 +6,7 @@ import 'account_request_scope.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../domain/account_verification.dart';
 import 'auth_repository.dart';
 
@@ -23,7 +24,19 @@ class AccountVerificationRepository {
   final Dio _dio;
   final AuthRepository _auth;
   final AccountRequestScope? _requestScope;
-  Future<Options> _sessionOptions() => _requestScope?.options() ?? _auth.requiredAuthOptions();
+  Future<Options> _sessionOptions() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifySession(epoch);
+    return options;
+  }
+
+  void _verifySession(int epoch) {
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
+  }
 
   Future<AccountVerificationApplication> status() async {
     final response = await _dio.get<Map<String, dynamic>>(
@@ -84,28 +97,34 @@ class AccountVerificationRepository {
     return _application(response.data?['data']);
   }
 
-  Future<List<AccountVerificationApplication>> adminQueue({
+  Future<AccountVerificationPage<AccountVerificationApplication>> adminQueue({
     String status = 'pending',
     String? type,
+    int? userId,
+    int page = 1,
+    int perPage = 40,
   }) async {
+    if (page < 1 || perPage < 1 || perPage > 100 || (userId != null && userId < 1)) {
+      throw ArgumentError('Invalid account verification page.');
+    }
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/account-verifications',
       queryParameters: <String, dynamic>{
         'status': status,
         if (type != null) 'type': type,
+        if (userId != null) 'user_id': userId,
+        'page': page, 'per_page': perPage,
       },
       options: await _sessionOptions(),
     );
-    _requestScope?.verify();
-    final rows = response.data?['data'];
-    if (rows is! List) return const <AccountVerificationApplication>[];
-    return rows
-        .whereType<Map<String, dynamic>>()
-        .map(AccountVerificationApplication.fromJson)
-        .toList(growable: false);
+    _verifySession(epoch);
+    return AccountVerificationPage.fromJson(response.data, page: page,
+      parse: AccountVerificationApplication.fromJson);
   }
 
   Future<Uint8List> documentBytes(int userId, String kind) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final options = (await _sessionOptions()).copyWith(
       responseType: ResponseType.bytes,
       receiveTimeout: const Duration(minutes: 2),
@@ -114,11 +133,12 @@ class AccountVerificationRepository {
       '/account-verification/users/$userId/documents/$kind',
       options: options,
     );
-    _requestScope?.verify();
+    _verifySession(epoch);
     return Uint8List.fromList(response.data ?? const <int>[]);
   }
 
   Future<void> approve(int userId, {String? note}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     await _dio.post<void>(
       '/admin/account-verifications/$userId/approve',
       data: <String, dynamic>{
@@ -126,22 +146,27 @@ class AccountVerificationRepository {
       },
       options: await _sessionOptions(),
     );
+    _verifySession(epoch);
   }
 
   Future<void> requestMoreInfo(int userId, String reason) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     await _dio.post<void>(
       '/admin/account-verifications/$userId/more-info',
       data: <String, dynamic>{'reason': reason.trim()},
       options: await _sessionOptions(),
     );
+    _verifySession(epoch);
   }
 
   Future<void> reject(int userId, String reason) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     await _dio.post<void>(
       '/admin/account-verifications/$userId/reject',
       data: <String, dynamic>{'reason': reason.trim()},
       options: await _sessionOptions(),
     );
+    _verifySession(epoch);
   }
 
   AccountVerificationApplication _application(dynamic value) {

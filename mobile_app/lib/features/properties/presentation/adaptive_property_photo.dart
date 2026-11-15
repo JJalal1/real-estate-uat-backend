@@ -51,6 +51,7 @@ class _AdaptivePropertyPhotoState extends ConsumerState<AdaptivePropertyPhoto> w
       final variant = monitor.policy.choose(use: widget.use, logicalEdge: edge,
         pixelRatio: dpr, network: snapshot.data!);
       return ListingDraftPhoto(key:ValueKey(_retryGeneration),url: AdaptiveImagePolicy.variantUrl(widget.url, variant),
+        allowPrefetch: !widget.authenticated && widget.use == PropertyImageUse.card,
         authenticated: widget.authenticated, fit: widget.fit,
         cacheWidth: variant == 'zoom' ? 3072 : (edge * dpr).round().clamp(128, 1920).toInt(),
         network: snapshot.data, onRetry:() => setState(() {

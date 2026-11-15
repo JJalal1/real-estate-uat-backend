@@ -231,16 +231,30 @@ class AccountVerificationController extends Controller
                 AccountVerificationProfile::TYPE_BROKER,
                 AccountVerificationProfile::TYPE_OFFICE,
             ])],
+            'user_id' => ['nullable', 'integer', 'min:1'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
         $status = $v['status'] ?? AccountVerificationProfile::STATUS_PENDING;
         $q = AccountVerificationProfile::query()
             ->with(['user', 'documents'])
             ->where('status', $status);
         if (! empty($v['type'])) $q->where('type', $v['type']);
-        $rows = $q->orderByDesc('submitted_at')->orderByDesc('id')->limit(100)->get()
+        if (isset($v['user_id'])) $q->where('user_id', (int) $v['user_id']);
+        $page = $q->orderByDesc('submitted_at')->orderByDesc('id')
+            ->paginate((int) ($v['per_page'] ?? 100), ['*'], 'page', (int) ($v['page'] ?? 1));
+        $rows = $page->getCollection()
             ->map(fn (AccountVerificationProfile $profile) => $this->profileData($profile->user, $profile))
             ->values();
-        return response()->json(['data' => $rows]);
+        return response()->json([
+            'data' => $rows,
+            'meta' => [
+                'current_page' => $page->currentPage(),
+                'last_page' => $page->lastPage(),
+                'per_page' => $page->perPage(),
+                'total' => $page->total(),
+            ],
+        ]);
     }
 
     public function approve(Request $request, User $user): JsonResponse

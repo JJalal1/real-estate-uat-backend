@@ -413,71 +413,17 @@ class _PropertyLocationPickerScreenState
                   ),
                 ],
                 PositionedDirectional(
-                  end: 14,
-                  bottom: 150,
-                  child: FloatingActionButton.small(
-                    heroTag: 'property-picker-current-location',
-                    tooltip: 'موقعي الحالي',
-                    onPressed: _styleLoaded && !_locating ? _moveToCurrentLocation : null,
-                    child: const EbrokerIcon(Icons.my_location_rounded),
-                  ),
-                ),
-                PositionedDirectional(
                   start: 14,
                   end: 14,
                   bottom: 18,
-                  child: SafeArea(
-                    top: false,
-                    child: Card(
-                      elevation: 5,
-                      margin: EdgeInsets.zero,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (_needsSettings) TextButton(onPressed: () => ref.read(appPermissionSettingsProvider)(), child: const Text('فتح إعدادات الإذن')),
-                            if (_locationDisabled) TextButton(onPressed: () => ref.read(locationServiceSettingsProvider)(), child: const Text('تفعيل خدمة الموقع')),
-                            if (_message != null) ...[
-                              Text(
-                                _message!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                            ] else
-                              const Text(
-                                'أكد النقطة ثم راجع اقتراح المحافظة والمدينة والمديرية والحي والشارع. تبقى الحقول قابلة للتعديل.',
-                                textAlign: TextAlign.center,
-                              ),
-                            EbrokerFilledButton.icon(
-                              onPressed:
-                                  _styleLoaded && !_resolving && !_locating ? _confirm : null,
-                              icon: _resolving
-                                  ? const SizedBox.square(
-                                      dimension: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const EbrokerIcon(Icons.check_circle_outline),
-                              label: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                                child: Text(
-                                  _resolving
-                                      ? 'جارٍ قراءة العنوان…'
-                                      : 'تأكيد هذا الموقع',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  child: PropertyLocationPickerControls(
+                    maxHeight: (constraints.maxHeight - 36).clamp(0.0, double.infinity).toDouble(),
+                    onLocate: _styleLoaded && !_locating ? _moveToCurrentLocation : null,
+                    onConfirm: _styleLoaded && !_resolving && !_locating ? _confirm : null,
+                    onOpenSettings: _needsSettings ? () => ref.read(appPermissionSettingsProvider)() : null,
+                    onEnableLocation: _locationDisabled ? () => ref.read(locationServiceSettingsProvider)() : null,
+                    message: _message,
+                    resolving: _resolving,
                   ),
                 ),
               ],
@@ -487,4 +433,84 @@ class _PropertyLocationPickerScreenState
       ),
     );
   }
+}
+
+
+/// Keeps the location action above its intrinsic confirmation card. Large text
+/// can scroll the bounded panel instead of covering either action.
+class PropertyLocationPickerControls extends StatelessWidget {
+  const PropertyLocationPickerControls({
+    required this.maxHeight,
+    this.onLocate,
+    this.onConfirm,
+    this.onOpenSettings,
+    this.onEnableLocation,
+    this.message,
+    this.resolving = false,
+    super.key,
+  });
+
+  final double maxHeight;
+  final VoidCallback? onLocate;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onOpenSettings;
+  final VoidCallback? onEnableLocation;
+  final String? message;
+  final bool resolving;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(maxHeight: maxHeight),
+    child: SingleChildScrollView(
+      key: const ValueKey('property-picker-controls-scroll'),
+      reverse: true,
+      child: SafeArea(top: false, child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(alignment: AlignmentDirectional.centerEnd, child: Semantics(
+            container: true, label: 'موقعي الحالي', button: true,
+            enabled: onLocate != null, onTap: onLocate, excludeSemantics: true,
+            child: FloatingActionButton.small(
+              key: const ValueKey('property-picker-current-location'),
+              heroTag: 'property-picker-current-location',
+              tooltip: 'موقعي الحالي', onPressed: onLocate,
+              child: const EbrokerIcon(Icons.my_location_rounded),
+            ),
+          )),
+          const SizedBox(height: 12),
+          Card(
+            key: const ValueKey('property-picker-confirmation-card'),
+            elevation: 5, margin: EdgeInsets.zero,
+            child: Padding(padding: const EdgeInsets.all(12), child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (onOpenSettings != null)
+                  TextButton(onPressed: onOpenSettings, child: const Text('فتح إعدادات الإذن')),
+                if (onEnableLocation != null)
+                  TextButton(onPressed: onEnableLocation, child: const Text('تفعيل خدمة الموقع')),
+                if (message != null) ...[
+                  Text(message!, textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                ] else
+                  const Text('أكد النقطة ثم راجع اقتراح المحافظة والمدينة والمديرية والحي والشارع. تبقى الحقول قابلة للتعديل.',
+                    textAlign: TextAlign.center),
+                EbrokerFilledButton.icon(
+                  onPressed: onConfirm,
+                  icon: resolving
+                    ? const SizedBox.square(dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const EbrokerIcon(Icons.check_circle_outline),
+                  label: Padding(padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(resolving ? 'جارٍ قراءة العنوان…' : 'تأكيد هذا الموقع')),
+                ),
+              ],
+            )),
+          ),
+        ],
+      )),
+    ),
+  );
 }

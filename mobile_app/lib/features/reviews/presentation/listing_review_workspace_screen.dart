@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
@@ -13,17 +16,132 @@ import '../domain/listing_duplicate_candidate.dart';
 import '../domain/listing_review_models.dart';
 import 'review_protected_photo.dart';
 
-final reviewQueueProvider =
-    FutureProvider.autoDispose<List<ReviewListingItem>>((ref) {
-  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
-  return ref.watch(listingReviewRepositoryProvider).queue();
-});
+final reviewQueueProvider = StateNotifierProvider.autoDispose<
+    ReviewPageController<ReviewListingItem>, ReviewPageState<ReviewListingItem>>((ref) =>
+  _reviewPages<ReviewListingItem>(ref, load: (repository, page) => repository.queue(page: page),
+    idOf: (item) => item.id, onSessionChange: ref.invalidateSelf));
 
-final publicationBlocksProvider =
-    FutureProvider.autoDispose<List<PublicationBlockItem>>((ref) {
-  ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
-  return ref.watch(listingReviewRepositoryProvider).blocks();
-});
+final publicationBlocksProvider = StateNotifierProvider.autoDispose<
+    ReviewPageController<PublicationBlockItem>, ReviewPageState<PublicationBlockItem>>((ref) =>
+  _reviewPages<PublicationBlockItem>(ref, load: (repository, page) => repository.blocks(page: page),
+    idOf: (item) => item.id, onSessionChange: ref.invalidateSelf));
+
+ReviewPageController<T> _reviewPages<T>(Ref ref, {
+  required Future<ReviewWorkspacePage<T>> Function(ListingReviewRepository, int) load,
+  required int Function(T) idOf,
+  required VoidCallback onSessionChange,
+}) {
+  final session = ref.watch(authControllerProvider.select((state) => (
+    state.asData?.value?.id,
+    Stage6SecureSessionStore.instance.sessionEpoch,
+  )));
+  var alive = true;
+  ref.onDispose(() => alive = false);
+  ref.listen(authControllerProvider, (_, next) {
+    if (session == (next.asData?.value?.id,
+        Stage6SecureSessionStore.instance.sessionEpoch)) { return; }
+    // Observe every boundary, even logout then the same account before a frame.
+    alive = false;
+    onSessionChange();
+  });
+  final repository = ref.watch(listingReviewRepositoryProvider);
+  return ReviewPageController<T>(
+    load: (page) => load(repository, page), idOf: idOf,
+    signedIn: session.$1 != null,
+    isCurrent: () => alive && session == (
+      ref.read(authControllerProvider).asData?.value?.id,
+      Stage6SecureSessionStore.instance.sessionEpoch,
+    ),
+    onSessionChange: onSessionChange,
+  );
+}
+
+class ReviewPageState<T> {
+  const ReviewPageState({this.page, this.loading = false,
+    this.loadingMore = false, this.error, this.pageError});
+
+  final ReviewWorkspacePage<T>? page;
+  final bool loading;
+  final bool loadingMore;
+  final Object? error;
+  final Object? pageError;
+  List<T> get items => page?.items ?? const [];
+}
+
+class ReviewPageController<T> extends StateNotifier<ReviewPageState<T>> {
+  ReviewPageController({required Future<ReviewWorkspacePage<T>> Function(int) load,
+    required int Function(T) idOf, required bool signedIn,
+    required bool Function() isCurrent, required VoidCallback onSessionChange})
+      : _load = load, _idOf = idOf,
+        _isCurrent = isCurrent, _onSessionChange = onSessionChange,
+        super(signedIn ? ReviewPageState<T>(loading: true)
+          : ReviewPageState<T>(error: StateError('AUTH_REQUIRED'))) {
+    if (signedIn) unawaited(refresh());
+  }
+
+  final Future<ReviewWorkspacePage<T>> Function(int) _load;
+  final int Function(T) _idOf;
+  final bool Function() _isCurrent;
+  final VoidCallback _onSessionChange;
+  int _request = 0;
+
+  Future<void> refresh() => _fetchPage(1);
+
+  Future<void> loadMore() async {
+    if (!mounted) return;
+    if (!_isCurrent()) {
+      _resetSession();
+      return;
+    }
+    if (state.loading || state.loadingMore || state.error != null ||
+        !(state.page?.hasMore ?? false)) { return; }
+    await _fetchPage(state.page!.currentPage + 1, append: true);
+  }
+
+  void _resetSession() {
+    // An epoch can change before auth emits (for example during logout).
+    // Remove private rows now and rebuild from page one, never append page two
+    // to a replacement session or leave a discarded request's spinner active.
+    state = ReviewPageState<T>(loading: true);
+    _onSessionChange();
+  }
+
+  Future<void> _fetchPage(int page, {bool append = false}) async {
+    if (!mounted) return;
+    if (!_isCurrent()) {
+      _resetSession();
+      return;
+    }
+    final request = ++_request;
+    final previous = state.page;
+    state = ReviewPageState<T>(page: previous, loading: !append, loadingMore: append);
+    bool current() {
+      if (!mounted || request != _request) return false;
+      if (_isCurrent()) return true;
+      _resetSession();
+      return false;
+    }
+    try {
+      final result = await _load(page);
+      if (!current()) return;
+      // Queue membership can move while pages load. Update repeated IDs in
+      // place; a refresh still replaces the complete accumulated snapshot.
+      final items = <int, T>{
+        if (append && previous != null)
+          for (final item in previous.items) _idOf(item): item,
+        for (final item in result.items) _idOf(item): item,
+      }.values.toList(growable: false);
+      state = ReviewPageState<T>(page: ReviewWorkspacePage<T>(items: items,
+        currentPage: result.currentPage, lastPage: result.lastPage, total: result.total));
+    } catch (error) {
+      if (!current()) return;
+      final retained = isTransientApiFailure(error) ? previous : null;
+      state = ReviewPageState<T>(page: retained,
+        error: append && retained != null ? null : error,
+        pageError: append && retained != null ? error : null);
+    }
+  }
+}
 
 class ListingReviewWorkspaceScreen extends ConsumerWidget {
   const ListingReviewWorkspaceScreen({super.key});
@@ -67,41 +185,61 @@ class _ReviewQueue extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(reviewQueueProvider);
-    return state.when(
-      loading: () => const AppLoadingState(label: 'جارٍ تحميل طلبات التحقيق...'),
-      error: (error, _) => AppErrorState(
-        message: friendlyApiError(error),
-        onRetry: () => ref.invalidate(reviewQueueProvider),
+    final controller = ref.read(reviewQueueProvider.notifier);
+    if (state.items.isEmpty && state.loading) {
+      return const AppLoadingState(label: 'جارٍ تحميل طلبات التحقيق...');
+    }
+    if (state.items.isEmpty && state.error != null) {
+      return AppErrorState(message: friendlyApiError(state.error!),
+        onRetry: () => ref.invalidate(reviewQueueProvider));
+    }
+    if (state.items.isEmpty) {
+      return AppEmptyState(
+        title: 'لا توجد طلبات معلقة',
+        message: 'طلبات الإعلانات الجديدة ستظهر هنا حتى يستلمها موظف دعم مؤهل.',
+        icon: Icons.fact_check_outlined,
+        actionLabel: 'تحديث',
+        onAction: controller.refresh,
+      );
+    }
+    final hasHeader = state.loading || state.error != null;
+    final hasFooter = state.page!.hasMore;
+    return RefreshIndicator(
+      onRefresh: controller.refresh,
+      child: ListView.separated(
+        key: ObjectKey(controller),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
+        itemCount: state.items.length + (hasHeader ? 1 : 0) + (hasFooter ? 1 : 0),
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
+        itemBuilder: (context, index) {
+          if (hasHeader && index == 0) {
+            return AppRefreshStatus(loading: state.loading,
+              error: state.error == null ? null : friendlyApiError(state.error!),
+              onRetry: controller.refresh);
+          }
+          final itemIndex = index - (hasHeader ? 1 : 0);
+          if (itemIndex < state.items.length) {
+            final item = state.items[itemIndex];
+            return _ReviewQueueCard(key: ValueKey(item.id), item: item);
+          }
+          if (state.loadingMore || state.pageError != null) {
+            return AppRefreshStatus(key: const ValueKey('review-queue-page-status'),
+              loading: state.loadingMore,
+              error: state.pageError == null ? null : friendlyApiError(state.pageError!),
+              onRetry: controller.loadMore);
+          }
+          return TextButton.icon(key: const ValueKey('review-queue-more'),
+            onPressed: state.loading || state.error != null ? null : controller.loadMore,
+            icon: const Icon(Icons.expand_more), label: const Text('المزيد من الطلبات'));
+        },
       ),
-      data: (items) {
-        if (items.isEmpty) {
-          return const AppEmptyState(
-            title: 'لا توجد طلبات معلقة',
-            message: 'طلبات الإعلانات الجديدة ستظهر هنا حتى يستلمها موظف دعم مؤهل.',
-            icon: Icons.fact_check_outlined,
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(reviewQueueProvider);
-            try { await ref.read(reviewQueueProvider.future); } catch (_) { /* The state renders failure and retry. */ }
-          },
-          child: ListView.separated(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
-            itemBuilder: (context, index) => _ReviewQueueCard(item: items[index]),
-          ),
-        );
-      },
     );
   }
 }
 
 class _ReviewQueueCard extends ConsumerStatefulWidget {
-  const _ReviewQueueCard({required this.item});
+  const _ReviewQueueCard({super.key, required this.item});
 
   final ReviewListingItem item;
 
@@ -309,7 +447,7 @@ class _ListingReviewCaseScreenState
               _InfoRow(label: 'نوع الحساب', value: _verificationType(item.ownerVerificationType)),
               _InfoRow(label: 'حالة التحقق', value: _verificationStatus(item.ownerVerificationStatus)),
               _InfoRow(label: 'الغرض', value: item.purpose == 'sale' ? 'بيع' : 'إيجار'),
-              _InfoRow(label: 'النوع', value: item.type),
+              _InfoRow(label: 'النوع', value: propertyTypeLabels[item.type] ?? 'غير محدد'),
               _InfoRow(label: 'السعر', value: item.price.toStringAsFixed(0)),
               _InfoRow(label: 'العنوان', value: item.address),
               _InfoRow(
@@ -419,7 +557,7 @@ class _ListingReviewCaseScreenState
                   children: [
                     for (var i = 0; i < item.reviewHistory.length; i++) ...[
                       AppListRow(
-                        title: item.reviewHistory[i].action == 'media_relevance_review' ? 'مراجعة صلة الصورة بالعقار' : item.reviewHistory[i].action,
+                        title: item.reviewHistory[i].actionLabel,
                         subtitle: [
                           if (item.reviewHistory[i].actorName != null)
                             item.reviewHistory[i].actorName!,
@@ -779,47 +917,67 @@ class _PublicationBlocks extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(publicationBlocksProvider);
-    return state.when(
-      loading: () => const AppLoadingState(),
-      error: (error, _) => AppErrorState(
-        message: friendlyApiError(error),
-        onRetry: () => ref.invalidate(publicationBlocksProvider),
-      ),
-      data: (items) {
-        if (items.isEmpty) {
-          return const AppEmptyState(
-            title: 'لا توجد عمليات حظر نشطة',
-            message: 'الحظر النهائي يظهر هنا ويمكن رفعه فقط بالصلاحية المناسبة.',
-            icon: Icons.verified_outlined,
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
-          itemCount: items.length,
-          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s8),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return AppSurface(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('هوية العقار #${item.propertyAssetId}', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: AppSpacing.s4),
-                  Text(item.reason),
-                  if (canLift) ...[
-                    const SizedBox(height: AppSpacing.s8),
-                    AppButton(
-                      label: 'رفع الحظر',
-                      style: AppButtonStyle.outlined,
-                      onPressed: () => _lift(context, ref, item),
-                    ),
-                  ],
+    final controller = ref.read(publicationBlocksProvider.notifier);
+    if (state.items.isEmpty && state.loading) return const AppLoadingState();
+    if (state.items.isEmpty && state.error != null) {
+      return AppErrorState(message: friendlyApiError(state.error!),
+        onRetry: () => ref.invalidate(publicationBlocksProvider));
+    }
+    if (state.items.isEmpty) {
+      return AppEmptyState(
+        title: 'لا توجد عمليات حظر نشطة',
+        message: 'الحظر النهائي يظهر هنا ويمكن رفعه فقط بالصلاحية المناسبة.',
+        icon: Icons.verified_outlined,
+        actionLabel: 'تحديث', onAction: controller.refresh,
+      );
+    }
+    final hasHeader = state.loading || state.error != null;
+    final hasFooter = state.page!.hasMore;
+    return RefreshIndicator(
+      onRefresh: controller.refresh,
+      child: ListView.separated(
+        key: ObjectKey(controller),
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
+        itemCount: state.items.length + (hasHeader ? 1 : 0) + (hasFooter ? 1 : 0),
+        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s8),
+        itemBuilder: (context, index) {
+          if (hasHeader && index == 0) {
+            return AppRefreshStatus(loading: state.loading,
+              error: state.error == null ? null : friendlyApiError(state.error!),
+              onRetry: controller.refresh);
+          }
+          final itemIndex = index - (hasHeader ? 1 : 0);
+          if (itemIndex >= state.items.length) {
+            if (state.loadingMore || state.pageError != null) {
+              return AppRefreshStatus(key: const ValueKey('publication-blocks-page-status'),
+                loading: state.loadingMore,
+                error: state.pageError == null ? null : friendlyApiError(state.pageError!),
+                onRetry: controller.loadMore);
+            }
+            return TextButton.icon(key: const ValueKey('publication-blocks-more'),
+              onPressed: state.loading || state.error != null ? null : controller.loadMore,
+              icon: const Icon(Icons.expand_more), label: const Text('المزيد من عمليات الحظر'));
+          }
+          final item = state.items[itemIndex];
+          return AppSurface(
+            key: ValueKey(item.id),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('هوية العقار #${item.propertyAssetId}', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.s4),
+                Text(item.reason),
+                if (canLift) ...[
+                  const SizedBox(height: AppSpacing.s8),
+                  AppButton(label: 'رفع الحظر', style: AppButtonStyle.outlined,
+                    onPressed: () => _lift(context, ref, item)),
                 ],
-              ),
-            );
-          },
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -828,43 +986,71 @@ class _PublicationBlocks extends ConsumerWidget {
     WidgetRef ref,
     PublicationBlockItem item,
   ) async {
-    final controller = TextEditingController();
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('رفع حظر النشر'),
-        content: TextField(
-          controller: controller,
-          minLines: 3,
-          maxLines: 6,
-          decoration: const InputDecoration(labelText: 'سبب رفع الحظر'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
-          EbrokerFilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.length >= 10) Navigator.pop(dialogContext, value);
-            },
-            child: const Text('رفع الحظر'),
-          ),
-        ],
-      ),
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final repository = ref.read(listingReviewRepositoryProvider);
+    final reason = await showActorDialog<String>(
+      context: context, ref: ref,
+      builder: (_) => const _LiftBlockReasonDialog(),
     );
-    controller.dispose();
-    if (reason == null || !context.mounted) return;
+    if (reason == null || !context.mounted ||
+        actor != ref.read(authControllerProvider).asData?.value?.id ||
+        epoch != Stage6SecureSessionStore.instance.sessionEpoch) { return; }
 
     try {
-      await ref.read(listingReviewRepositoryProvider).liftBlock(item.id, reason);
+      await repository.liftBlock(item.id, reason);
+      if (!context.mounted ||
+          actor != ref.read(authControllerProvider).asData?.value?.id ||
+          epoch != Stage6SecureSessionStore.instance.sessionEpoch) { return; }
       ref.invalidate(publicationBlocksProvider);
     } catch (error) {
-      if (context.mounted) {
+      if (context.mounted &&
+          actor == ref.read(authControllerProvider).asData?.value?.id &&
+          epoch == Stage6SecureSessionStore.instance.sessionEpoch) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(error))),
         );
       }
     }
   }
+}
+
+class _LiftBlockReasonDialog extends StatefulWidget {
+  const _LiftBlockReasonDialog();
+
+  @override
+  State<_LiftBlockReasonDialog> createState() => _LiftBlockReasonDialogState();
+}
+
+class _LiftBlockReasonDialogState extends State<_LiftBlockReasonDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('رفع حظر النشر'),
+    content: TextField(
+      controller: _controller,
+      minLines: 3,
+      maxLines: 6,
+      decoration: const InputDecoration(labelText: 'سبب رفع الحظر'),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+      EbrokerFilledButton(
+        onPressed: () {
+          final value = _controller.text.trim();
+          if (value.length >= 10) Navigator.pop(context, value);
+        },
+        child: const Text('رفع الحظر'),
+      ),
+    ],
+  );
 }
 
 class _ReviewBundle {

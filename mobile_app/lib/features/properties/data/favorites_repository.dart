@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../account/data/private_collection.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
@@ -31,6 +33,14 @@ final favoritePropertiesProvider =
   return ref.watch(favoritesRepositoryProvider).favorites();
 });
 
+final favoritePagesProvider = StateNotifierProvider.autoDispose<
+    PrivateCollectionController<PropertyMarker>, PrivateCollectionState<PropertyMarker>>((ref) {
+  ref.watch(favoriteDataRevisionProvider);
+  final repository = ref.watch(favoritesRepositoryProvider);
+  return accountCollection(ref, load: (page) => repository.favoritesPage(page: page),
+    idOf: (PropertyMarker item) => item.id);
+});
+
 final favoritePropertyIdsProvider =
     FutureProvider.autoDispose<Set<int>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
@@ -46,6 +56,26 @@ class FavoritesRepository {
   final AuthRepository _auth;
   final AccountRequestScope? _requestScope;
   Future<Options> _options() => _requestScope?.options() ?? _auth.requiredAuthOptions();
+
+  Future<PrivateCollectionPage<PropertyMarker>> favoritesPage({int page = 1}) async {
+    if (page < 1) throw ArgumentError.value(page, 'page');
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await _options();
+    void verify() {
+      _requestScope?.verify();
+      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) { throw StateError('ACCOUNT_CHANGED'); }
+    }
+    verify();
+    final response = await _dio.get<Map<String, dynamic>>('/favorites',
+      queryParameters: {'page': page, 'per_page': 50}, options: options);
+    verify();
+    return PrivateCollectionPage.parse(response.data ?? const {}, requestedPage: page,
+      parse: (row) {
+        final property = row['property'];
+        if (property is! Map<String, dynamic>) throw StateError('INVALID_FAVORITE');
+        return PropertyMarker.fromJson(property);
+      });
+  }
 
   Future<List<PropertyMarker>> favorites() async {
     final options = await _options();

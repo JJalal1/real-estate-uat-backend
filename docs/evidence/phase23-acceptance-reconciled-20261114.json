@@ -1,0 +1,2035 @@
+{
+  "draft": false,
+  "as_of_date": "2026-11-14",
+  "scope": "Phase23 merged 32 items + 18 amendments + R0–R6",
+  "baseline_source": "53a11953b3370200caefcae7210867fe90a0a989",
+  "latest_observed_pr_head": "71949d2ba88d14ef6a6a489bac520c52c98b5b6d",
+  "baseline_counts": {
+    "items": {
+      "passed": 20,
+      "partial": 9,
+      "technical_hold": 1,
+      "owner_excluded": 2
+    },
+    "amendments": {
+      "passed": 14,
+      "partial": 2,
+      "held": 2
+    }
+  },
+  "counts_are_published_aggregate_not_reconstructed_from_rows": true,
+  "row_classification_recovered": false,
+  "native1609": {
+    "run_id": "43493825181",
+    "source": "43dd4645d1868b5cba65d44c57d53baba87ba59c",
+    "workflow": "success",
+    "scoped_acceptance": [
+      "customer_page2_30_plus_1_error_retry_end",
+      "real_loading_slow_network"
+    ],
+    "observations": 19,
+    "terminal_sequence": 18,
+    "flutter_errors": 0,
+    "business_writes": 0,
+    "native_logout": true,
+    "fixture": {
+      "created_threads": 19,
+      "created_participants": 38,
+      "customers_before": 12,
+      "customers_after": 31,
+      "cleanup": "verified_completed_after_user_confirmation",
+      "baseline_restored": true,
+      "deleted_threads": 19,
+      "deleted_participants": 38,
+      "customers_after_cleanup": 12,
+      "verified_at_utc": "2026-11-13T20:37:05Z",
+      "verification": {
+        "customer_count": 12,
+        "marker_rows_remaining": 0,
+        "active_synthetic_actors": 2,
+        "unchanged_synthetic_properties": 19,
+        "exact_fixture_threads_remaining": 0,
+        "exact_fixture_participants_remaining": 0
+      },
+      "prior_cleanup_blocker": "two service confirmation expirations; resolved after explicit user confirmation and guarded transaction"
+    }
+  },
+  "current_ci": {
+    "run_id": "43492845389",
+    "source": "2ec3a81c1b047aa011a035d5f1eaecf06e3bf0a0",
+    "four_gates": "success_verified_from_workflow_jobs"
+  },
+  "items": [
+    {
+      "id": 1,
+      "requirement": "ملاءمة صور العقار ومراجعتها",
+      "journeys": [
+        "R1",
+        "R2"
+      ],
+      "criterion": "إرسال صور عامة للمراجعة؛ رفض صورة غير مناسبة؛ استبدالها وإعادة المراجعة؛ التأكد أن صور المسودة غير عامة.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1: تحقيق الإعلان الصحيح ومراجعة العودة.",
+      "remaining_or_limit": "دورة الإعلان 106 والمراجعة محفوظة؛ تُستكمل إحالة رفض الصورة واستبدالها فقط.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "دورة الإعلان 106 والمراجعة محفوظة؛ تُستكمل إحالة رفض الصورة واستبدالها فقط.",
+      "recovered_evidence_refs": [
+        "D1",
+        "PRESERVE",
+        "DUP_NEG",
+        "UNIT_POS"
+      ],
+      "recovered_accepted_facets": [
+        "Publication/reviewcycle106 preserved",
+        "Exact-task investigation/Arabic history/refresh fixed and Nativeconfirmed",
+        "Synthetic107 correction/resubmit/approval verified over normalAPI"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Recover exact rejected-image/replacement evidence from originalcycle before any repeat."
+      ]
+    },
+    {
+      "id": 2,
+      "requirement": "تحسين الصور والضغط والمشتقات",
+      "journeys": [
+        "R1",
+        "R3",
+        "R5"
+      ],
+      "criterion": "صورة عادية ومدوّرة وكبيرة ضمن المسموح؛ صحة اتجاه المشتقات وعدم توقف الشاشة؛ الخطأ 503 ليس نجاحًا.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E1: مشتقات عامة فعلية، card ثم thumb للصورة نفسها.",
+      "remaining_or_limit": "قبول الصور الكبيرة وستة مشتقات محفوظ؛ ربط دليل اتجاه الصورة المدوّرة.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "قبول الصور الكبيرة وستة مشتقات محفوظ؛ ربط دليل اتجاه الصورة المدوّرة.",
+      "recovered_evidence_refs": [
+        "PRESERVE",
+        "LARGE",
+        "N1588"
+      ],
+      "recovered_accepted_facets": [
+        "Six large-image derivatives,compression,zeroEXIF andprivateaccess actualPASS",
+        "Adaptivepubliccard/thumb transfers actualNativePASS"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Rotatedimage/nativeorientation proof must be linked from priorreceipts; absence of rowreport is not productfailure."
+      ]
+    },
+    {
+      "id": 3,
+      "requirement": "رفع ومعالجة الفيديو",
+      "journeys": [
+        "R6"
+      ],
+      "criterion": "مؤجل: رفع فيديو ومعالجته ومراجعة مشتقاته لا تُفعل بلا عامل/تخزين وبوابة الأمان.",
+      "published_row_status": "owner_excluded",
+      "accepted_or_preserved_evidence": "استثناء المالك محفوظ.",
+      "remaining_or_limit": "مستثنى بقرار المالك؛ لا تفعيل للفيديو.",
+      "current_scope_status": "excluded",
+      "current_scope_summary_ar": "مستثنى بقرار المالك؛ لا تفعيل للفيديو.",
+      "recovered_evidence_refs": [
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [
+        "Videoexcludedbyowner"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 4,
+      "requirement": "العلامة المائية",
+      "journeys": [
+        "R3"
+      ],
+      "criterion": "صورة عامة مكبرة بعلامة مائية صحيحة دون حجب المحتوى؛ الأصل الخاص غير مكشوف.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "المتطلب الأصلي محفوظ.",
+      "remaining_or_limit": "يلزم ربط لقطة العلامة المائية السابقة؛ لا عيب منتج مثبت.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "يلزم ربط لقطة العلامة المائية السابقة؛ لا عيب منتج مثبت.",
+      "recovered_evidence_refs": [
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Recover watermarkoriginalvisualreceipt; ifunrecoverable, boundedpublicimageinspection only."
+      ]
+    },
+    {
+      "id": 5,
+      "requirement": "مشاركة العقارات",
+      "journeys": [
+        "R3"
+      ],
+      "criterion": "مشاركة عقار منشور، ومطابقة العنوان/المعرف بالرابط؛ رفض مشاركة مسودة؛ فتح الرابط الخارجي.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "دليل الروابط الدافئة محفوظ في D1.",
+      "remaining_or_limit": "فتح الروابط محفوظ؛ استكمال إحالة المشاركة وعنوانها ومنع مشاركة المسودة.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "فتح الروابط محفوظ؛ استكمال إحالة المشاركة وعنوانها ومنع مشاركة المسودة.",
+      "recovered_evidence_refs": [
+        "D1"
+      ],
+      "recovered_accepted_facets": [
+        "APP010 warm-propertylink route target fixed/Native1585 confirmed"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Retrieve actualshareintent/title/id/private-draftrestriction evidence; customlink proof alone doesnotproveallsharing."
+      ]
+    },
+    {
+      "id": 6,
+      "requirement": "منع الإعلانات المكررة",
+      "journeys": [
+        "R1",
+        "R2",
+        "R4"
+      ],
+      "criterion": "منع نشر نفس الأصل العقاري مرتين حتى مع تغيير الحساب/الغرض؛ السماح لوحدتين مختلفتين بمبنى واحد؛ تشابه غير مؤكد يراجع بشريًا.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "معيار نفس الأصل والوحدات المختلفة محفوظ؛ أدلة المراجعة السابقة محفوظة.",
+      "remaining_or_limit": "رفض الأصل المكرر وتصحيح الوحدة 107 ونشرها مقبولة؛ تبقى إحالة دليل تغيير الحساب أو الغرض قبل تعميم القبول.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "رفض الأصل المكرر وتصحيح الوحدة 107 ونشرها مقبولة؛ تبقى إحالة دليل تغيير الحساب أو الغرض قبل تعميم القبول.",
+      "recovered_evidence_refs": [
+        "DUP_NEG",
+        "UNIT_POS",
+        "N1585"
+      ],
+      "recovered_accepted_facets": [
+        "Sameassetpublication409 andreturn PASS",
+        "Differentunitin samebuilding via same107 corrected/approved/public PASS",
+        "Nov12 pairedjourney acceptance explicitly completes duplicate anddistinct-unit Native/API cases."
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Cross-account and cross-purpose duplicate criterion requires prior evidence link; same-account107 proof is preserved."
+      ]
+    },
+    {
+      "id": 7,
+      "requirement": "البلاغات والإشراف",
+      "journeys": [
+        "R2",
+        "R3"
+      ],
+      "criterion": "بلاغ عن عقار أو محادثة اصطناعية؛ استلام مهمة الدعم؛ قرار وتدقيق؛ منع وصول غير المخوّل إلى محتوى خاص.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1: APP008 ، قرار الحالة 9 وتدقيق 43 وقراءة النتيجة للطالب.",
+      "remaining_or_limit": "البلاغ ومهمة الدعم وسجلها وإصلاحاتها الأصلية محفوظة.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "البلاغ ومهمة الدعم وسجلها وإصلاحاتها الأصلية محفوظة.",
+      "recovered_evidence_refs": [
+        "D1",
+        "PRESERVE"
+      ],
+      "recovered_accepted_facets": [
+        "APP008 report9 menu/decision/audit43 requesterstatus Native1581PASS",
+        "Task106 routing/refresh Native1559PASS"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 8,
+      "requirement": "الإشعارات",
+      "journeys": [
+        "R2",
+        "R3"
+      ],
+      "criterion": "اختبار الإشعار الداخلي وربطه بالإعلان وحساب المستلم؛ فصل إثبات Push الحقيقي المؤجل عن نجاحه.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E3: إشعارات داخلية 40+1 مع خطأ ومحاولة ونهاية وقراءة.",
+      "remaining_or_limit": "الإشعارات الداخلية ووجهتها وعزل الحساب مقبولة؛ FCM الخارجي مفصول.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "الإشعارات الداخلية ووجهتها وعزل الحساب مقبولة؛ FCM الخارجي مفصول.",
+      "recovered_evidence_refs": [
+        "N1607",
+        "SIGN",
+        "PLAN",
+        "N1585"
+      ],
+      "recovered_accepted_facets": [
+        "Internalnotifications40+1,error/retry/end/read accepted",
+        "Nov12 pairedjourney acceptance explicitly completes internalnotificationtarget."
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 9,
+      "requirement": "البحث العربي",
+      "journeys": [
+        "R3"
+      ],
+      "criterion": "بحث عربي بنتائج حقيقية من إعلان التجربة؛ تطبيع إب/اب؛ نوع/غرض/سعر/غرف/حمامات؛ نتيجة تطابق القيم المحفوظة.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1: APP007 ، سقف 200000 وحمامان وأنواع OR محفوظة ونتائج فعلية.",
+      "remaining_or_limit": "التطبيع العربي وقيود البحث ونتيجة AI الأصلية محفوظة.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "التطبيع العربي وقيود البحث ونتيجة AI الأصلية محفوظة.",
+      "recovered_evidence_refs": [
+        "D1",
+        "N1588",
+        "N1585"
+      ],
+      "recovered_accepted_facets": [
+        "RealAI ceiling200000,2bathrooms,ORtypes/rent/actualmatch Native1581",
+        "Realzerostate/explicitrelaxation",
+        "Nov12 pairedjourney acceptance explicitly completes Arabicnormalization."
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 10,
+      "requirement": "الحظر",
+      "journeys": [
+        "R3",
+        "R4"
+      ],
+      "criterion": "حظر طرف من محادثة تجريبية؛ منع تواصل جديد من الطرفين بحسب القواعد؛ عدم تجاوز المنع بمعرف مختلف.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "دليل الحظر السابق محفوظ في E1.",
+      "remaining_or_limit": "الحظر ومنع تجاوزه بإعلان آخر للمعلن نفسه محفوظان.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "الحظر ومنع تجاوزه بإعلان آخر للمعلن نفسه محفوظان.",
+      "recovered_evidence_refs": [
+        "N1588",
+        "N1585"
+      ],
+      "recovered_accepted_facets": [
+        "Closureexecutionreport explicitlypreservesblockingacceptance",
+        "Nov12 pairedjourney acceptance explicitly completesblockingthroughanotherlistingofsameseller."
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 11,
+      "requirement": "استئناف رفع الوسائط",
+      "journeys": [
+        "R6"
+      ],
+      "criterion": "مؤجل فنيًا: TUS/استكمال البايتات من PR منفصل؛ يتطلب بوابة ترحيل/استعادة؛ لا يختلط باستعادة المسودة.",
+      "published_row_status": "technical_hold",
+      "accepted_or_preserved_evidence": "تعليق تقني مستقل لـ TUS.",
+      "remaining_or_limit": "تعليق تقني مستقل: نسخة DB وStorage قابلة للاستعادة قبل التفعيل.",
+      "current_scope_status": "held",
+      "current_scope_summary_ar": "تعليق تقني مستقل: نسخة DB وStorage قابلة للاستعادة قبل التفعيل.",
+      "recovered_evidence_refs": [
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [
+        "SeparateTUSmigration/restoregate acknowledged"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 12,
+      "requirement": "الصور المتكيفة",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "criterion": "صور بحجم مناسب في البطاقة/التفاصيل/التكبير؛ تغيير جودة الشبكة وتوفير البيانات؛ عدم تحميل الأصل كله بغير حاجة.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E1: card 51649 بايت ثم thumb 11337 بايت مع توفير البيانات.",
+      "remaining_or_limit": "نقل card/thumb الفعلي وتوفير البيانات موثقان؛ لا إعادة.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "نقل card/thumb الفعلي وتوفير البيانات موثقان؛ لا إعادة.",
+      "recovered_evidence_refs": [
+        "LARGE",
+        "N1588",
+        "N1610"
+      ],
+      "recovered_accepted_facets": [
+        "Sameimage card51649 vs thumb11337 withDataSaver",
+        "Sixderivativesbounded; ordinarygallery/zoom realtransfers"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 13,
+      "requirement": "التحميل الكسول",
+      "journeys": [
+        "R3"
+      ],
+      "criterion": "قائمة طويلة وتمرير سريع/بطيء؛ تحميل الصور المرئية تدريجيًا بلا فراغ دائم؛ العودة تستفيد من الكاش.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E1: قائمة 27 نتيجة وصفحتان 20/7 وتحميل صور حقيقي.",
+      "remaining_or_limit": "القائمة الطويلة والتحميل التدريجي محفوظان ضمن قبول UAT.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "القائمة الطويلة والتحميل التدريجي محفوظان ضمن قبول UAT.",
+      "recovered_evidence_refs": [
+        "N1588"
+      ],
+      "recovered_accepted_facets": [
+        "Longpubliclist27 rows20/7 and actualimage transfers; warmreturnnoextra starts"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 14,
+      "requirement": "التخزين المؤقت",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "criterion": "تحديث إعلان من حسابه ثم قراءته بحساب باحث؛ منع البيانات القديمة؛ الخروج/تبديل الحساب يعزل الكاش.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E1: رجوع 49 ثانية، 106 عينات قبل وبعد، وصفر طلب بدأ؛ E4 عزل حسابات.",
+      "remaining_or_limit": "العودة الدافئة وعزل الحساب مثبتان؛ ربط إحالة تحديث الإعلان وإبطال الكاش.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "العودة الدافئة وعزل الحساب مثبتان؛ ربط إحالة تحديث الإعلان وإبطال الكاش.",
+      "recovered_evidence_refs": [
+        "N1588",
+        "N1608",
+        "N1606"
+      ],
+      "recovered_accepted_facets": [
+        "Warmreturn49s samples106→106",
+        "Accountisolation andlatecallbackfencing"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Link editthenresearcherread/cacheinvalidation evidence; not proven bywarmreturnalone."
+      ]
+    },
+    {
+      "id": 15,
+      "requirement": "التعافي من أخطاء الشبكة",
+      "journeys": [
+        "R1",
+        "R3",
+        "R5"
+      ],
+      "criterion": "قطع الشبكة في شاشة نتائج ومسودة ثم إعادتها؛ رسالة واضحة وإعادة محاولة؛ لا حفظ ناجح كاذب.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1/APP009 للمسودة؛ E1/E4/N1 لخطأ الصفحات ومحاولتها.",
+      "remaining_or_limit": "الانقطاع والخطأ وإعادة المحاولة واستعادة المسودة مقبولة.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "الانقطاع والخطأ وإعادة المحاولة واستعادة المسودة مقبولة.",
+      "recovered_evidence_refs": [
+        "D1",
+        "N1588",
+        "N1608",
+        "N1609"
+      ],
+      "recovered_accepted_facets": [
+        "APP009 failedbeforewrite retry saved same revisionadvance withoutfalseconflict",
+        "APP011/footerexactpage retry",
+        "Private/public/customerpage failure/recovery"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 16,
+      "requirement": "حالات التحميل والفراغ والخطأ وإعادة المحاولة",
+      "journeys": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5"
+      ],
+      "criterion": "حالات loading/empty/error/retry في الشاشات المعروضة لكل دور؛ لا كشف سابق أو تحميل أبدي.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "N1: ظهر «جارٍ تحميل المحتوى» في 14 ؛ ثم فراغ حقيقي في 15–16.",
+      "remaining_or_limit": "الحالات الوظيفية مثبتة؛ تبقى المراجعة البصرية الكاملة للشاشات الخاصة.",
+      "current_scope_status": "partial",
+      "current_scope_summary_ar": "الحالات الوظيفية مثبتة؛ تبقى المراجعة البصرية الكاملة للشاشات الخاصة.",
+      "recovered_evidence_refs": [
+        "N1608",
+        "N1609"
+      ],
+      "recovered_accepted_facets": [
+        "Genuineloading observed Native1609",
+        "Privateerror/retry/empty/accountisolationactualAPI"
+      ],
+      "runtime_retest_required": "Onlyspecifiedunprovedfacetswhen prerequisitesavailable; neverreplay acceptedfacets.",
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 17,
+      "requirement": "تجميع علامات الخريطة",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "criterion": "تجمعات علامات Native تتغير مع التكبير وتُظهر الصحيح، مع سحب/تصغير وقائمة متطابقة دون تجمد.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "معيار MapLibre/OpenFreeMap الحقيقي محفوظ.",
+      "remaining_or_limit": "قبول تجميع علامات الخريطة الأصلي مسترجع من سجل 12 نوفمبر.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "قبول تجميع علامات الخريطة الأصلي مسترجع من سجل 12 نوفمبر.",
+      "recovered_evidence_refs": [
+        "PLAN",
+        "PRESERVE",
+        "N1585"
+      ],
+      "recovered_accepted_facets": [
+        "Drawnpolygonreturnaccepted, but distinctfromcluster behavior",
+        "Nov12 pairedjourney acceptance explicitly completesnativeclusters."
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 18,
+      "requirement": "الصفحات والتحميل التدريجي",
+      "journeys": [
+        "R2",
+        "R3",
+        "R4"
+      ],
+      "criterion": "تحميل الصفحة الثانية للنتائج والإعلانات والوارد؛ فشل الصفحة التالية ثم إعادة محاولة؛ دون تكرار أو اختلاط.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E1/E4 للصفحات السابقة؛ N1 أغلق العملاء 30+1 وخطأ 2 ومحاولتها ونهايتها بلا تكرار.",
+      "remaining_or_limit": "النتائج والوارد والعملاء 30+1 وخطأ الصفحة التالية ومحاولتها محفوظة.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "النتائج والوارد والعملاء 30+1 وخطأ الصفحة التالية ومحاولتها محفوظة.",
+      "recovered_evidence_refs": [
+        "N1588",
+        "N1607",
+        "N1608",
+        "N1609"
+      ],
+      "recovered_accepted_facets": [
+        "Public27rows20/7;notifications40+1;private lists documented;customers30+1",
+        "Exactpage retry,noduplicate,endandaccountisolationobserved",
+        "All customerfixturescleaned"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 19,
+      "requirement": "Debounce وإلغاء الطلبات",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "criterion": "كتابة بحث وتبديل فلاتر بسرعة مع شبكة بطيئة؛ آخر طلب وحده يظهر؛ إلغاء الرد المتأخر.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E1: سبعة إلغاءات حقيقية؛ E2: حراسة إكمالات قديمة بعد التبديل.",
+      "remaining_or_limit": "الإلغاء الحقيقي وعزل الردود المتأخرة وتبديل الحساب مثبتة.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "الإلغاء الحقيقي وعزل الردود المتأخرة وتبديل الحساب مثبتة.",
+      "recovered_evidence_refs": [
+        "N1588",
+        "N1606"
+      ],
+      "recovered_accepted_facets": [
+        "Sevenactual in-flight networkcancellations",
+        "Lastfilterwins after recovery; delayedold completioncannotwrite newaccount"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 20,
+      "requirement": "Prefetch المشروط",
+      "journeys": [
+        "R0",
+        "R5"
+      ],
+      "criterion": "وفق القرار الأحدث: Prefetch ON في UAT فقط؛ إثبات أهلية حقيقية وطلب استباقي محدود وreadyHit ومنفعة فعلية، مع حفظ قيود الشبكة والميزانية وعدم خفض العتبات.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E5 يثبت إذن ON؛ HTTP محفوظ؛ N3 و N4 مروران فعليان انتهيا بعدادات صفر.",
+      "remaining_or_limit": "الحماية مثبتة؛ منفعة Prefetch الموجبة لم تثبت. لا تكرار لنفس الظروف.",
+      "current_scope_status": "partial",
+      "current_scope_summary_ar": "الحماية مثبتة؛ منفعة Prefetch الموجبة لم تثبت. لا تكرار لنفس الظروف.",
+      "recovered_evidence_refs": [
+        "PREFETCH_DECISION",
+        "N1588",
+        "N1610",
+        "N1611"
+      ],
+      "recovered_accepted_facets": [
+        "ONUATpolicy/guard andactualnegativeconditions observed",
+        "HTTPON/OFF earlier evidencepreserved"
+      ],
+      "runtime_retest_required": "Onlyspecifiedunprovedfacetswhen prerequisitesavailable; neverreplay acceptedfacets.",
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 21,
+      "requirement": "تشغيل الفيديو على Android",
+      "journeys": [
+        "R6"
+      ],
+      "criterion": "مؤجل مع #3: تشغيل فيديو Android وربط مشتق معتمد ومراجعة وseek/إيقاف آمن.",
+      "published_row_status": "owner_excluded",
+      "accepted_or_preserved_evidence": "استثناء المالك محفوظ مع 3.",
+      "remaining_or_limit": "مستثنى مع بند الفيديو 3.",
+      "current_scope_status": "excluded",
+      "current_scope_summary_ar": "مستثنى مع بند الفيديو 3.",
+      "recovered_evidence_refs": [
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [
+        "VideoAndroidexcludedwith3"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 22,
+      "requirement": "Deep Links وApp Links",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "criterion": "روابط التطبيق الداخلية المتاحة إلى العقار والرسائل؛ HTTPS App Links جزء خارجي يحتاج تطابق الحزمة والشهادة والربط، ويمكن اختباره على مضيف UAT الحالي دون شراء نطاق.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1/APP010: تصحيح وجهة الرابط الدافئ، Native1585.",
+      "remaining_or_limit": "رابط العقار الدافئ مقبول؛ تبقى إحالة رابط الرسائل. HTTPS خارجي مؤجل ويمكنه استخدام مضيف UAT الحالي.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "رابط العقار الدافئ مقبول؛ تبقى إحالة رابط الرسائل. HTTPS خارجي مؤجل ويمكنه استخدام مضيف UAT الحالي.",
+      "recovered_evidence_refs": [
+        "D1",
+        "SIGN",
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [
+        "APP010 warmtargetswitch Native1585PASS"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Message destination link requires a prior receipt link; warm property link is already accepted."
+      ]
+    },
+    {
+      "id": 23,
+      "requirement": "العقارات المشاهدة مؤخرًا",
+      "journeys": [
+        "R3",
+        "R4"
+      ],
+      "criterion": "فتح عقارات ثم شوهد مؤخرًا؛ ترتيب بلا تكرار؛ استمرار بعد فتح التطبيق وعزل الحسابات.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "معيار الترتيب وعدم التكرار وعزل الحساب محفوظ.",
+      "remaining_or_limit": "يلزم ربط دليل المشاهدة مؤخرًا وترتيبها وعدم تكرارها؛ لا حكم فشل.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "يلزم ربط دليل المشاهدة مؤخرًا وترتيبها وعدم تكرارها؛ لا حكم فشل.",
+      "recovered_evidence_refs": [
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Recoverordering/dedup/reopen/accountboundary receipts; otherwiseboundedexistingpubliclistreading only."
+      ]
+    },
+    {
+      "id": 24,
+      "requirement": "حفظ حالة الاستكشاف والعودة إليها",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "criterion": "تصفية/تكبير خريطة ثم تفاصيل ثم رجوع؛ حالة البحث والمنطقة باقية، بما فيها المساحة المرسومة.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E1 رجوع دافئ؛ أدلة الفلاتر والروابط السابقة محفوظة.",
+      "remaining_or_limit": "العودة للرسم والمنطقة وحالة البحث محفوظة من القبول السابق.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "العودة للرسم والمنطقة وحالة البحث محفوظة من القبول السابق.",
+      "recovered_evidence_refs": [
+        "PRESERVE",
+        "N1588",
+        "D1"
+      ],
+      "recovered_accepted_facets": [
+        "Realpolygonreturn explicitlypreserved",
+        "FiltersummaryORtypes editable withoutdropping rent/map scope",
+        "Warmreturncache measured"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 25,
+      "requirement": "تجربة عدم وجود نتائج",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "criterion": "بحث لا نتيجة ثم مسح/تعديل الفلاتر؛ التمييز بوضوح بين صفر نتائج وانقطاع الإنترنت.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1: صفر نتائج وتخفيف صريح؛ E4 فلاتر خاصة فارغة فعلًا.",
+      "remaining_or_limit": "الفراغ الحقيقي والتخفيف الصريح للشروط محفوظان.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "الفراغ الحقيقي والتخفيف الصريح للشروط محفوظان.",
+      "recovered_evidence_refs": [
+        "D1",
+        "N1608",
+        "N1609"
+      ],
+      "recovered_accepted_facets": [
+        "Native1581 truezero andexplicitrelaxation",
+        "Privateactualempty separatefrom1/2rows",
+        "Networkerror distinctfromempty"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 26,
+      "requirement": "التحقق من تحديث التطبيق",
+      "journeys": [
+        "R5"
+      ],
+      "criterion": "فحص آمن للآلية المحلية عبر زوج UAT متوافق التوقيع إن توفر؛ التحديث عبر Play مؤجل؛ حماية المسودات.",
+      "published_row_status": "partial",
+      "accepted_or_preserved_evidence": "E6 صورة المسودة عبر 1603→1604 ؛ E7 النص والخيارات عبر 1589→1590.",
+      "remaining_or_limit": "تحديث UAT المتوافق وحفظ النص والخيارات والصورة مثبت؛ توقيع المالك وPlay منفصلان.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "تحديث UAT المتوافق وحفظ النص والخيارات والصورة مثبت؛ توقيع المالك وPlay منفصلان.",
+      "recovered_evidence_refs": [
+        "UPGRADE",
+        "SIGN",
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [
+        "Compatible1589→1590 text/options",
+        "Compatible1603→1604 localdraftphoto",
+        "29signingtooltests nowgreen"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 27,
+      "requirement": "الصلاحيات عند الحاجة",
+      "journeys": [
+        "R1",
+        "R3",
+        "R5"
+      ],
+      "criterion": "أذونات الكاميرا/الصور/الميكروفون/الموقع عند الحاجة فقط؛ رفضها واستردادها؛ إدخال موقع يدوي.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "حدود المصدر والمحاكي محفوظة.",
+      "remaining_or_limit": "تبقى حالات الأذونات والمزود الحقيقي للصوت والموقع والكاميرا على جهاز مناسب.",
+      "current_scope_status": "partial",
+      "current_scope_summary_ar": "تبقى حالات الأذونات والمزود الحقيقي للصوت والموقع والكاميرا على جهاز مناسب.",
+      "recovered_evidence_refs": [
+        "N1606",
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [
+        "SyntheticGPS latecompletionisolation proven; notrealGPS"
+      ],
+      "runtime_retest_required": "Onlyspecifiedunprovedfacetswhen prerequisitesavailable; neverreplay acceptedfacets.",
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 28,
+      "requirement": "خصوصية EXIF",
+      "journeys": [
+        "R1",
+        "R3"
+      ],
+      "criterion": "رفع صورة اصطناعية EXIF GPS ثم عرض المشتق العام والتأكد من إزالة بيانات الموقع/الكاميرا وعدم كشف الأصل.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "معيار EXIF وإخفاء الأصل محفوظ.",
+      "remaining_or_limit": "EXIF صفر والحدود الخاصة محفوظة؛ ربط دليل الصورة الأصلية الموسومة بـGPS.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "EXIF صفر والحدود الخاصة محفوظة؛ ربط دليل الصورة الأصلية الموسومة بـGPS.",
+      "recovered_evidence_refs": [
+        "LARGE",
+        "PRESERVE"
+      ],
+      "recovered_accepted_facets": [
+        "SixactualJPEGderivatives EXIF0",
+        "Guest401 andotheractor404; no-store"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "RecoveroriginalGPS-tagged rotatedinput publicderivative proof; LARGEnewinputhadnospecificGPSclaim so doesnotaloneproveEXIFremovalfromGPSsource."
+      ]
+    },
+    {
+      "id": 29,
+      "requirement": "إدارة صور الإعلانات",
+      "journeys": [
+        "R1",
+        "R2"
+      ],
+      "criterion": "ترتيب صور مسودة وتغيير الرئيسية وحذف/استبدال؛ إعادة فتحها وثبات النسخة وإعادة مراجعة المستبدل.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1: عدد الصور وحفظ الصورة؛ E6 الصورة عبر التحديث.",
+      "remaining_or_limit": "المراجعة والإدارة محفوظتان؛ استكمال إحالات الترتيب والرئيسية والحذف والاستبدال.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "المراجعة والإدارة محفوظتان؛ استكمال إحالات الترتيب والرئيسية والحذف والاستبدال.",
+      "recovered_evidence_refs": [
+        "D1",
+        "UPGRADE",
+        "PRESERVE"
+      ],
+      "recovered_accepted_facets": [
+        "APP005 canonicalphotocount3 Native1573",
+        "Draftphoto persistence acrossupgrade1603→1604",
+        "Publication/reviewimagecyclepreserved"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Link actualreorder/main/delete/replace+reviewinvalidation receipts."
+      ]
+    },
+    {
+      "id": 30,
+      "requirement": "المسودات واستعادتها",
+      "journeys": [
+        "R1",
+        "R5"
+      ],
+      "criterion": "مسودة صريحة/استعادة تلقائية بعد 50% فقط؛ نافذة متابعة/بدء جديد؛ إغلاق قسري وتبديل حساب دون تسريب أو فقد.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E6/E7 حفظ المسودة عبر التحديث؛ APP009 الشبكة؛ E2 عزل التخزين.",
+      "remaining_or_limit": "المسودة والانقطاع والتحديث محفوظة؛ ربط معيار 50% وحماية المسودة الصريحة.",
+      "current_scope_status": "evidence_not_recovered",
+      "current_scope_summary_ar": "المسودة والانقطاع والتحديث محفوظة؛ ربط معيار 50% وحماية المسودة الصريحة.",
+      "recovered_evidence_refs": [
+        "D1",
+        "UPGRADE",
+        "N1606",
+        "PRESERVE"
+      ],
+      "recovered_accepted_facets": [
+        "Draftrestore45–52 preserved",
+        "Failednetworkwrite recovery APP009",
+        "Text/options/localphoto acrosscompatibleupdate",
+        "Accountboundstoragefence"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": [
+        "Link50percent autosave/continue-startover explicitdraft protection; avoidrerunningacceptedupgrade."
+      ]
+    },
+    {
+      "id": 31,
+      "requirement": "حذف الحساب",
+      "journeys": [
+        "R4",
+        "R5"
+      ],
+      "criterion": "حذف حساب UAT مخصص غير حقيقي فقط؛ جلسة قديمة مرفوضة؛ جزء السياسة/OTP الإنتاجي معلّق.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E3: حذف الحساب الاصطناعي 66 ، old token401 وتنظيف.",
+      "remaining_or_limit": "حذف الحساب الاصطناعي وإبطال جلسته مكتمل؛ متطلبات Production مفصولة.",
+      "current_scope_status": "pass",
+      "current_scope_summary_ar": "حذف الحساب الاصطناعي وإبطال جلسته مكتمل؛ متطلبات Production مفصولة.",
+      "recovered_evidence_refs": [
+        "N1607",
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [
+        "Dedicatedsynthetic66deleted;oldtoken401;cleanup"
+      ],
+      "runtime_retest_required": false,
+      "evidence_linking_remaining": []
+    },
+    {
+      "id": 32,
+      "requirement": "الثيم والتناسق والاتجاه",
+      "journeys": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5"
+      ],
+      "criterion": "الثيم الفاتح/الداكن، RTL، شاشات 320/412، تكبير خط 2.4، نوافذ ونماذج وخريطة وشريط النظام.",
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1 للداكن و RTL320/2.4 ؛ E4 للأسطح المحددة.",
+      "remaining_or_limit": "الثيم العام محفوظ؛ تبقى المراجعة البصرية الخاصة وملاءمة الهاتف.",
+      "current_scope_status": "partial",
+      "current_scope_summary_ar": "الثيم العام محفوظ؛ تبقى المراجعة البصرية الخاصة وملاءمة الهاتف.",
+      "recovered_evidence_refs": [
+        "D1",
+        "N1608",
+        "PLAN"
+      ],
+      "recovered_accepted_facets": [
+        "Darkabout/specpanelsdefault+font2.4 Native1568",
+        "ORtypechips RTL320font2.4 Native1573",
+        "Privateflowmetrics at320/dark2.4"
+      ],
+      "runtime_retest_required": "Onlyspecifiedunprovedfacetswhen prerequisitesavailable; neverreplay acceptedfacets.",
+      "evidence_linking_remaining": []
+    }
+  ],
+  "amendments": [
+    {
+      "id": "W1-01",
+      "requirement": "المايك الحي داخل الحقل",
+      "criterion": "النص الجزئي للمعاينة فقط؛ النتيجة النهائية تبحث مرة واحدة في البحث؛ لا نافذة تسجيل منفصلة؛ معالجة توقف المايك المبكر",
+      "journeys": [
+        "R1",
+        "R3"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "الصوت الفعلي ضمن حدود الجهاز السابقة؛ لا دليل جديد أو تصنيف كامل مسترجع.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "original_plan"
+      ],
+      "recovered_accepted_facets": [
+        "Partial transcripts preview only; final single-action semantics are requirements, not inferred from code"
+      ],
+      "remaining_mapping_or_test": [
+        "ActualASR/nativeprovider evidence remains unproven; capture once on suitabledevice ifavailable, otherwise specificexternalhold"
+      ],
+      "preserve_accepted_facets_without_replay": false
+    },
+    {
+      "id": "W1-02",
+      "requirement": "البحث الصوتي التلقائي",
+      "criterion": "يبحث بعد Final صحيح دون تكرار ولا تنفيذ بحث عند جزئية أو إلغاء؛ فشل ASR لا يمحو النص المكتوب",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "معيار Final دون تكرار محفوظ؛ لا يستبدل الاختبار الاصطناعي المزود الفعلي.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "original_plan"
+      ],
+      "recovered_accepted_facets": [
+        "Preserve required Final-only search; no false success from syntheticcallbacktest"
+      ],
+      "remaining_mapping_or_test": [
+        "ActualASR final/cancel/failure behavior requires directevidence"
+      ],
+      "preserve_accepted_facets_without_replay": false
+    },
+    {
+      "id": "W1-03",
+      "requirement": "الفلاتر الديناميكية",
+      "criterion": "البيع/الإيجار والنوع اختيار/إلغاء بلا «الكل»؛ تعدد الأنواع؛ غرف/حمامات بحسب النوع؛ السعر/العملة والإيجار الشهري",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "D1: APP006/007 للأنواع والسقف والحمامات؛ حكم الصف الكامل غير مسترجع.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "defects",
+        "paired1585",
+        "native1588"
+      ],
+      "recovered_accepted_facets": [
+        "APP006Native1573 both editable ORtypechips; APP007Native1581 ceiling/rent/types/2bathrooms; publicactualfilters"
+      ],
+      "remaining_mapping_or_test": [
+        "Match priorbaseline evidence for all dynamicfield/clear criteria before inventinganynewtest"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "W1-04",
+      "requirement": "الفلاتر والخريطة لوحة واحدة",
+      "criterion": "لوحة قابلة للسحب والتصغير لا تعطل الخريطة؛ رسم Polygon صالح API؛ الشروط نفسها للقائمة والخريطة والذكاء",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "معيار وحدة شروط القائمة والخريطة والرسم محفوظ؛ إحالة القبول التفصيلي غير مسترجعة.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "retained106",
+        "paired1585"
+      ],
+      "recovered_accepted_facets": [
+        "Actualdrawnpolygonreturn accepted; nativeclustering and map/listpairedflow accepted"
+      ],
+      "remaining_mapping_or_test": [
+        "Fullrowverdict missing; retrieve corresponding acceptedreceipt references, notrerun drawing"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "W1-05",
+      "requirement": "استعادة المسودة",
+      "criterion": "قرار «متابعة الإعلان/بدء من جديد» ثابت عند وجود عمل قابل للاستعادة؛ لا تحذف مسودة صريحة؛ تلقائي بعد بلوغ 50% فقط",
+      "journeys": [
+        "R1",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E6/E7 و APP009 للمسودة؛ شرط المسودة الصريحة وحد 50% محفوظ.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "retained106",
+        "defects",
+        "upgrade"
+      ],
+      "recovered_accepted_facets": [
+        "Draftrestore45–52 accepted; APP009offline/reconnect revision34; compatibleupgradetext/options/photo accepted"
+      ],
+      "remaining_mapping_or_test": [
+        "Map automatic50percent and explicitdraftprotection criterion to priorproof; missingrowlabel alone isnot aproductfailure"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "W1-06",
+      "requirement": "AI في الإعلان",
+      "criterion": "اختيار AI يفتح المساعدة مباشرة؛ يراجع المعلن الناتج ويطبقه صراحة؛ لا اختلاق معلومة أو إرسال تلقائي",
+      "journeys": [
+        "R1",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E2 يحمي المحرر من الرد القديم؛ لا يثبت مزودًا حيًا أو دورة إعلان كاملة.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "retained106",
+        "native1606"
+      ],
+      "recovered_accepted_facets": [
+        "ExplicitAI edited draftapplication accepted; oldAIcannotmodifyreplacementeditor"
+      ],
+      "remaining_mapping_or_test": [
+        "Complete rowlabel from retained AIentry/review evidence; realprovider acceptance mustnotbe inferredfrom1606"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "W1-07",
+      "requirement": "AI في البحث",
+      "criterion": "النتائج والفلترة الفعلية عبر API، مساعد AI يحافظ على قيود جلسة المستخدم والخريطة؛ fallback لا يعد نجاح مزود",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "APP007 دليل فعلي للإصلاح؛ E2 يحرس الردود؛ fallback ليس نجاح مزود.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "defects",
+        "native1606",
+        "native1588"
+      ],
+      "recovered_accepted_facets": [
+        "APP007 realAI repairedNative1581 after exactbackenddeployment: types/rent/ceiling/bathrooms; zeroresults thenexplicitrelaxation; accountboundcallbacks"
+      ],
+      "remaining_mapping_or_test": [
+        "No new regression unless affectedcode changes; preserve realprovider result independentofcallbackharness"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-01",
+      "requirement": "تكبير الصور باللمس",
+      "criterion": "pinch/double tap/pan، وعودة 1×، وصورة جديدة تعيد الضبط، مع صور قبل/بعد فعلية على Android",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "معيار اللمس والتكبير محفوظ؛ إحالة فيديو Android قبل/بعد غير مسترجعة.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "retained106"
+      ],
+      "recovered_accepted_facets": [
+        "Phase1closed; Nativeimagezoom/reset explicitlypreserved; no replay because oldreportkey unavailable"
+      ],
+      "remaining_mapping_or_test": [
+        "Recover exact before/after evidencelink in finalmatrix; lackof recoveredlink isnot fail"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-02",
+      "requirement": "الموقع الدقيق",
+      "criterion": "النقطة المرسومة تمثل إحداثيات الإعلان، ولا يتحرك pin عند تعديل عنوانه؛ GPS مباشر/يدوي؛ لا نقطة وهمية (0,0)",
+      "journeys": [
+        "R1",
+        "R3",
+        "R4"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E2 يحرس محرر الحساب من GPS قديم؛ لا يثبت GPS أو الأذونات على هاتف.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "retained106",
+        "distinct107",
+        "native1606"
+      ],
+      "recovered_accepted_facets": [
+        "Draftmanualpoint persisted; unitcorrection keptsamecoordinates; oldGPSresponse cannotchange neweditor"
+      ],
+      "remaining_mapping_or_test": [
+        "LiveGPS and permissionprovider behavior stillindependent fromsyntheticcallbackproof"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-03",
+      "requirement": "شريط الدلال",
+      "criterion": "اعتمد شريط حساب الدلال الصحيح وفق الدور والتوثيق؛ عدم تسريب أدوات الدلال للمستخدم العادي",
+      "journeys": [
+        "R1",
+        "R4"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E4 يثبت عزل الحسابات؛ الأرقام لا تقبل مظهر شريط كل دور.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "native1608"
+      ],
+      "recovered_accepted_facets": [
+        "Realrole login andaccount isolation/realprivatecontrollers proven"
+      ],
+      "remaining_mapping_or_test": [
+        "Complete visualbar/rolevisibility review ifpriorvisualreceipt cannotberecovered; no need repeatpaging"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-04",
+      "requirement": "العقارات المكررة والوحدات",
+      "criterion": "نفس الأصل العقاري ممنوع؛ شقق متعددة في مبنى واحد مقبولة عند تمايز الوحدة؛ تشابه الموقع/العنوان إشارة للمراجعة لا رفض آليًا",
+      "journeys": [
+        "R2",
+        "R4"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "قاعدة نفس الأصل والوحدات الشرعية وأدلة المراجعة محفوظة؛ الحكم التفصيلي غير مسترجع.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "duplicate107",
+        "distinct107",
+        "paired1585"
+      ],
+      "recovered_accepted_facets": [
+        "Sameassetpublication denied; same107returned, corrected todifferentunit withoutcoordinatechange, resubmitted andpublished; manualreviewreason"
+      ],
+      "remaining_mapping_or_test": [
+        "Preserve API acceptance; do not equate sameaccountfixture with untested crossaccountcases for broaderitem6"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-05",
+      "requirement": "المقارنة والمفضلة",
+      "criterion": "المقارنة بالحد المقبول الأحدث (عقاران) مع حقائق عامة صحيحة؛ المفضلة مرتبطة بالحساب",
+      "journeys": [
+        "R3",
+        "R4"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "المقارنة المحفوظة و APP003 و E4 للمفضلة؛ الحد عقاران.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "paired1585",
+        "defects",
+        "native1608"
+      ],
+      "recovered_accepted_facets": [
+        "Comparisonaccepted; APP003 actualfavorite failedlookup restored withoutmutation; accountboundfavoritepages/errorretry"
+      ],
+      "remaining_mapping_or_test": [
+        "Retainedfullrowlabel unavailable, but stated acceptedcomparison/favorite facets do notreplay"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-06",
+      "requirement": "المعلن والدعم",
+      "criterion": "تعبئة يدوية أو AI، حفظ/معاينة قبل إرسال صريح؛ السبب يعود للمعلن، تعديل نفس القائمة ثم إعادة إرسال",
+      "journeys": [
+        "R1",
+        "R2"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "APP001–002 و E6 و E2 محفوظة؛ سلسلة الإعلان الكاملة في التقرير السابق غير مسترجعة.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "retained106",
+        "duplicate107",
+        "distinct107",
+        "defects"
+      ],
+      "recovered_accepted_facets": [
+        "Published106 reviewcycle141–150 accepted; same107 return/correct/resubmit/approve concreteAPI evidence; APP001/002 taskdestination/history/returnrefreshNative"
+      ],
+      "remaining_mapping_or_test": [
+        "No blanketR1/R2 replay; preserve facetlineage Native vsAPI when writing journeyverdict"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-07",
+      "requirement": "المحتوى والخصوصية",
+      "criterion": "عدم كشف مستندات التوثيق أو إثبات علاقة العقار، والاتصال الهاتفي لا يتم تلقائيًا",
+      "journeys": [
+        "R1",
+        "R2",
+        "R3",
+        "R4"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E4 يمنع تصدير الخاص؛ حارس الجامع لا يستبدل دليل صلاحيات المنتج الأصلي.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "retained106",
+        "native1608",
+        "defects"
+      ],
+      "recovered_accepted_facets": [
+        "Large-media/privacy accepted; reportcasepermissions scoped; privatecollector exportguard"
+      ],
+      "remaining_mapping_or_test": [
+        "Collector redaction alone doesnot proveproductauthorization or noautomaticphonecall; map prior productchecks"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-08",
+      "requirement": "الأداء في أجهزة ضعيفة",
+      "criterion": "خريطة حقيقية وفتح بطاقات وصور ونص RTL/داكن وشبكة بطيئة، مع توثيق القياسات دون أرقام SLO مختلقة",
+      "journeys": [
+        "R3",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E1 قياسات محاكي محفوظة؛ هاتف ضعيف فعلي غير مثبت. مشروع 2GB و p50/p95 لاحق.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "paired1585",
+        "native1588",
+        "native1608",
+        "native1609"
+      ],
+      "recovered_accepted_facets": [
+        "Native maps/images/RTL320/font2.4/darkselected/networkerror and actual loading measurements"
+      ],
+      "remaining_mapping_or_test": [
+        "Fullprivatevisual coverage/weakphysicalhandset arelimited; ownerhandsetcheck brief; no new2GB/p50p95benchmarkproject"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-09",
+      "requirement": "مراجعة حالة الإعلان",
+      "criterion": "المسودة/المرسل/المرتجع/المرفوض غير عام؛ المعتمد فقط يظهر في البحث والخريطة",
+      "journeys": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "عدم نشر المسودة والمرتجع والمرفوض محفوظ؛ السلسلة الأصلية غير مسترجعة.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "retained106",
+        "duplicate107",
+        "distinct107"
+      ],
+      "recovered_accepted_facets": [
+        "Published106cycle;107 duplicateblocked while unpublished, returned, corrected thenexplicitreviewpublication"
+      ],
+      "remaining_mapping_or_test": [
+        "Retain nonpublicstate checks from originalcycle; do notinfer all negativevisibilityconditions frompublicread alone"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-10",
+      "requirement": "انتهاء الجلسة/التبديل",
+      "criterion": "ردود AI/GPS/نتائج البحث المتأخرة لا تكتب في جلسة مستخدم آخر؛ حماية الاستعادة والتخزين",
+      "journeys": [
+        "R1",
+        "R3",
+        "R4",
+        "R5"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E2: الإكمالات القديمة بعد تبديل أصلي لم تغير البحث أو المحرر أو التخزين؛ لا يعاد.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "native1606",
+        "native1608"
+      ],
+      "recovered_accepted_facets": [
+        "Orderedrealoldcapture/accountswitch/newstate/latecompletion proved; search/editor/localstorageunchanged; privateaccountboundaryalsoverified"
+      ],
+      "remaining_mapping_or_test": [
+        "Do notrepeat delayedcallbacktest; liveprovider behavior separate doesnot invalidate accountboundaryacceptance"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    },
+    {
+      "id": "UX-11",
+      "requirement": "المحادثات والمعاينات",
+      "criterion": "تواصل من إعلان منشور؛ لا إرسال رسالة تلقائيًا؛ صلاحيات المحادثة ومعاينة مرتبطة بالعقار حسب الوظائف الحالية",
+      "journeys": [
+        "R3",
+        "R4"
+      ],
+      "published_row_status": null,
+      "accepted_or_preserved_evidence": "E4: وارد 1+1+1 وخطأ ومحاولة ونهاية وعزل؛ لا يغطي وحده كل المعاينات والصلاحيات.",
+      "remaining_or_limit": "التصنيف الحديث الكامل للصف غير مسترجع؛ لا يستنتج من العدادات.",
+      "recovered_evidence_refs": [
+        "paired1585",
+        "native1608",
+        "native1609"
+      ],
+      "recovered_accepted_facets": [
+        "Realconversation/alternate-listingblockaccepted; inboxpaging/errorretry/end/accountisolation; customer30+1"
+      ],
+      "remaining_mapping_or_test": [
+        "Map original noautomaticmessage and preview/publiccontext proof; no new messages/fixtures simply torecover verdict"
+      ],
+      "preserve_accepted_facets_without_replay": true
+    }
+  ],
+  "evidence": [
+    {
+      "id": "P0",
+      "label": "الخطة الأصلية للمرحلة، 8 نوفمبر",
+      "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-b6c264bd61788191a5cc1ba71ca30b37_04368778132081918bbd36d6e9c25976&account_id=personal",
+      "scope": "تعريف البنود والتعديلات والرحلات. قرار Prefetch القديم OFF مستبدل بالقرار الأحدث."
+    },
+    {
+      "id": "PR",
+      "label": "PR186",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/186",
+      "scope": "العدادات المنشورة وحدود القبول المحفوظ."
+    },
+    {
+      "id": "D1",
+      "label": "سجل العيوب APP001–011",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/53a11953b3370200caefcae7210867fe90a0a989/docs/evidence/phase23-app-defects.json",
+      "scope": "كلها مغلقة بتأكيدات Native محددة؛ لا تعاد دون أثر تغيير."
+    },
+    {
+      "id": "E1",
+      "label": "قبول الصور والصفحات والإلغاء والكاش 1588",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43253230247",
+      "scope": "27 نتيجة عامة، صور متكيفة، سبعة إلغاءات، رجوع دافئ دون بدء طلب."
+    },
+    {
+      "id": "E2",
+      "label": "Native1606",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43395970989",
+      "scope": "حماية البحث والمحرر والتخزين من إكمالات قديمة بعد تبديل الحساب؛ ليس مزودًا حيًا."
+    },
+    {
+      "id": "E3",
+      "label": "Native1607 العادي",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43401245346",
+      "scope": "إشعارات داخلية 40+1 وحذف اصطناعي 66 وإبطال الجلسة وتنظيف."
+    },
+    {
+      "id": "E4",
+      "label": "قبول الصفحات الخاصة 1608",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/53a11953b3370200caefcae7210867fe90a0a989/docs/PHASE23_PRIVATE_PAGES_20261113_AR.md",
+      "scope": "خطأ ومحاولة وصفحات ونهاية وفراغ وعزل؛ أرقام فقط ولا تصدير صور خاصة."
+    },
+    {
+      "id": "E5",
+      "label": "قرار اختبار Prefetch ON في UAT",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/53a11953b3370200caefcae7210867fe90a0a989/docs/PHASE23_ITEM20_CONDITIONAL_PREFETCH_AR.md",
+      "scope": "إذن أحدث من OFF؛ يبقى إثبات المنفعة الموجبة مطلوبًا دون خفض الحدود."
+    },
+    {
+      "id": "E6",
+      "label": "قبول 1603→1604 المحفوظ",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/pull/186",
+      "scope": "صورة المسودة عبر تحديث متوافق وطابور المدير؛ الجلسة كلها ليست تشغيلًا ناجحًا."
+    },
+    {
+      "id": "E7",
+      "label": "قبول 1589→1590",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/53a11953b3370200caefcae7210867fe90a0a989/docs/PHASE23_REMAINING_ACCEPTANCE_2026-11-12_AR.md",
+      "scope": "النص والخيارات عبر تحديث متوافق؛ البند 26 جزئي."
+    },
+    {
+      "id": "N0",
+      "label": "بوابات المصدر الحالية",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43492845389",
+      "scope": "الأربع ناجحة على 2ec3a81؛ نجاح المصدر مستقل عن قبول الرحلات."
+    },
+    {
+      "id": "N1",
+      "label": "Native1609",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43493825181",
+      "scope": "عملاء 30+1 وloading حقيقي؛ خروج وإنهاء ناجحان. اكتمل تنظيف 19 محادثة و 38 مشاركة وعاد العملاء إلى 12."
+    },
+    {
+      "id": "N2",
+      "label": "نتائج الاستكمال المنشورة",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/241af6479db5ba893c572120c5cc461c24bbc5ad/docs/PHASE23_CONTINUATION_20261113_SESSION_AR.md",
+      "scope": "المصدر التفصيلي لنتائج هذه الجلسة وبيان APK ونتيجة التنظيف المتحققة."
+    },
+    {
+      "id": "N3",
+      "label": "Native1610 العادي",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43494440838",
+      "scope": "التشغيل والمثبت ناجحان؛ منفعة Prefetch الموجبة غير مثبتة."
+    },
+    {
+      "id": "N4",
+      "label": "Native1611: انتظار وعودة فعلية",
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43507896943",
+      "scope": "13 مشاهدة من0إلى12؛ guest وكتابات أعمال صفر وإنهاء ناجح؛ Prefetch موجب غير مثبت؛ مكونات المنتج دون تغيير"
+    }
+  ],
+  "report_type": "Reconciled acceptance evidence and remaining execution; phase not declared closed",
+  "latest_execution_source": "611ffcef065102d1fc8f849221834f0d7312d63e",
+  "native1610": {
+    "run_id": "43494440838",
+    "source": "78cfa7767c8ea27b198192c94d26f0e76437573e",
+    "target": "lib/main.dart",
+    "workflow": "success",
+    "terminal_sequence": 31,
+    "actor": null,
+    "data_saver_restored": true,
+    "prefetch": {
+      "requests": 0,
+      "bytes": 0,
+      "readyHits": 0,
+      "eligible_true_observed": false,
+      "positive_benefit": "not_proven"
+    }
+  },
+  "apk": {
+    "version_code": 1610,
+    "package": "com.aqer.yemen.uat",
+    "size_bytes": 119714964,
+    "sha256": "9914598f84cb99591bbabfedea7809f76d9e9da51c1cc6cf60477cbb59647e23",
+    "certificate_sha256": "14c3dfbe39c2b1f27fae5cfe7c4e35a95c45caf0ef421b18a9d4877e2a31e490",
+    "signing": "temporary_uat",
+    "owner_upgrade_compatibility": "not_accepted",
+    "firebase_configured": false
+  },
+  "personal_context_retrieval": "Searched 2026-11-14; no original full row classification recovered; repository history and current sources used.",
+  "current_results_document": "https://github.com/JJalal1/real-estate-uat-backend/blob/work/phase23-acceptance-20261111/docs/PHASE23_RECONCILED_EXECUTION_20261114_AR.md",
+  "fixture_cleanup_receipt": "FIXTURE_CLEANUP_RESULT.json",
+  "native1611": {
+    "schema": 1,
+    "run_id": 43507896943,
+    "source_sha": "611ffcef065102d1fc8f849221834f0d7312d63e",
+    "build": 1611,
+    "ordinary_main": true,
+    "android_api": 36,
+    "case": "sale-filtered public natural photo89; real idle beyond60s; one explicit zoom; return to unfilteredHome",
+    "checkpoints": 13,
+    "terminal_seq": 12,
+    "guest_throughout": true,
+    "business_writes": 0,
+    "product_code_changed": false,
+    "positive_prefetch_proven": false,
+    "prefetch": {
+      "enabled": true,
+      "requests": 0,
+      "bytes": 0,
+      "readyHits": 0,
+      "scope": 1
+    },
+    "eligible_true_observed": false,
+    "completed_media": [
+      {
+        "phase": 2,
+        "resource": 2,
+        "bytes": 51649,
+        "variant": "card",
+        "media": 89,
+        "seq": 1,
+        "elapsedMs": 1304,
+        "status": 200
+      },
+      {
+        "phase": 2,
+        "resource": 2,
+        "bytes": 191512,
+        "variant": "gallery",
+        "media": 89,
+        "seq": 4,
+        "elapsedMs": 1048,
+        "status": 200
+      },
+      {
+        "phase": 2,
+        "resource": 2,
+        "bytes": 215604,
+        "variant": "zoom",
+        "media": 89,
+        "seq": 5,
+        "elapsedMs": 1284,
+        "status": 200
+      },
+      {
+        "phase": 2,
+        "resource": 2,
+        "bytes": 83899,
+        "variant": "preview",
+        "media": 89,
+        "seq": 6,
+        "elapsedMs": 1928,
+        "status": 200
+      },
+      {
+        "phase": 2,
+        "resource": 2,
+        "bytes": 11337,
+        "variant": "thumb",
+        "media": 89,
+        "seq": 8,
+        "elapsedMs": 1636,
+        "status": 200
+      },
+      {
+        "phase": 2,
+        "resource": 2,
+        "bytes": 5699,
+        "variant": "thumb",
+        "media": 176,
+        "seq": 9,
+        "elapsedMs": 718,
+        "status": 200
+      }
+    ],
+    "diagnosis": "fastzoom followed by normal uncachedpreview lowers50/50estimate below128KiB/s; no product defect established",
+    "idle_proof": {
+      "gallery_checkpoint_utc": "2026-11-13T21:20:07Z",
+      "pre_zoom_metrics_checkpoint_utc": "2026-11-13T21:21:24Z"
+    },
+    "automation_misses": [
+      {
+        "checkpoint": 3,
+        "reason": "tap afterscroll initial_path_resolve; no tap delivered; recovered via observedpublicimage touch"
+      },
+      {
+        "checkpoint": 8,
+        "reason": "scrollable_native_container_missing immediatelyafterrouteclose; recovered fromfreshobservations"
+      }
+    ],
+    "cleanup": {
+      "data_saver_restored": true
+    },
+    "apk": {
+      "source_commit": "611ffcef065102d1fc8f849221834f0d7312d63e",
+      "product_source_commit": "611ffcef065102d1fc8f849221834f0d7312d63e",
+      "product_trees": {
+        "mobile_app": "727cc7c154ae7020ce0302e21a3699379cf90c4d",
+        "backend-api-runtime": "76dcc5b61ed2bf55d05935289d09885182fef96e"
+      },
+      "ci_run_id": "43507896943",
+      "package": "com.aqer.yemen.uat",
+      "version_code": 1611,
+      "sha256": "f11522d74679e6114a700a963717b62b6c9bc69a0e7318c2c664ac771d394685",
+      "bytes": 119714976,
+      "certificate_sha256": "61dd6d40eb5f4ff382dfb0aeccbd54280724e4d028bfa5e29eca1d22a5325161",
+      "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+      "target_sdk": 36,
+      "min_sdk": 23,
+      "signing": "disposable UAT release signing",
+      "input_driver": {
+        "sha256": "8e533928d9ac9475e3addeb0baa975ae58d7587ad2857047a3ebe04fd681993d"
+      },
+      "firebase": {
+        "client_configured": false,
+        "client_push_enabled": false,
+        "compiled_configuration_verified": false,
+        "configuration_present": false,
+        "real_fcm_delivery_tested": false,
+        "config_fingerprint": null
+      },
+      "experiments": {
+        "conditional_prefetch": true
+      }
+    },
+    "previous_failed_run": {
+      "run_id": 43506726489,
+      "attempt1": "publicAPI25sreadtimeout beforebuild",
+      "attempt2": "build+prepareverificationpassed; staleextra1610assertion stoppedworkflowbeforedevice; corrected to1611"
+    },
+    "source_gates_reused": 43492845389,
+    "preserved_accepted_runs": [
+      1603,
+      1604,
+      1606,
+      1607,
+      1608,
+      1609,
+      1610
+    ],
+    "workflow_conclusion": "success",
+    "device_stop": "success",
+    "documentation_commit": "241af6479db5ba893c572120c5cc461c24bbc5ad"
+  },
+  "owner_apk_unchanged": "UAT1610 remains owner deliverable;1611 test receipt only, identical product trees",
+  "reconciliation": {
+    "date": "2026-11-14 Asia/Aden",
+    "historical_aggregate_counts_preserved_not_reclassified": true,
+    "original_full_row_labels_recovered": false,
+    "all_32_items_18_amendments_7_journeys_accounted_for": true,
+    "new_product_defect_proven": false,
+    "closed_product_defects": [
+      "P23-APP-001",
+      "P23-APP-002",
+      "P23-APP-003",
+      "P23-APP-004",
+      "P23-APP-005",
+      "P23-APP-006",
+      "P23-APP-007",
+      "P23-APP-008",
+      "P23-APP-009",
+      "P23-APP-010",
+      "P23-APP-011"
+    ],
+    "evidence_linking_items_not_automatic_retests": [
+      1,
+      2,
+      4,
+      5,
+      6,
+      14,
+      22,
+      23,
+      28,
+      29,
+      30
+    ],
+    "accepted_available_scope_items": [
+      7,
+      8,
+      9,
+      10,
+      12,
+      13,
+      15,
+      17,
+      18,
+      19,
+      24,
+      25,
+      26,
+      31
+    ],
+    "external_portions_deferred_by_original_plan": [
+      8,
+      22,
+      26,
+      31
+    ],
+    "independent_technical_hold": [
+      11
+    ],
+    "owner_excluded": [
+      3,
+      21
+    ],
+    "no_runtime_tests_replayed_in_this_reconciliation": true,
+    "acceptance_scope_note_ar": "هذه أحكام الدليل والجزء المتاح؛ لا تحول الأجزاء الخارجية المؤجلة إلى نجاح كامل، ولا تحول نقص رابط قديم إلى فشل المنتج.",
+    "original_plan": "https://chatgpt.com/library?file_id=libfile_fde3_f-b6c264bd61788191a5cc1ba71ca30b37_04368778132081918bbd36d6e9c25976&account_id=personal",
+    "confirmed_remaining_test_items": [
+      16,
+      20,
+      27,
+      32
+    ],
+    "independent_review_corrections": [
+      "Do not infer cross-account duplicate proof from same-account107.",
+      "Do not infer message-link proof from warm property-link evidence."
+    ]
+  },
+  "journeys_reconciled": [
+    {
+      "id": "R0",
+      "name": "بوابة التوحيد",
+      "criterion": "APK→API→DB→Storage consistent identity; no phase1 rerun",
+      "accepted": [
+        "CurrentCI/source/APK1610identity and matchingbackend recorded; no schema orstoragechange in signing work"
+      ],
+      "evidence_refs": [
+        "current",
+        "signing"
+      ],
+      "remaining": [
+        "R0-final consolidated manifest, currentfacts only whenchange requiresread, owneracceptance"
+      ],
+      "replay": false
+    },
+    {
+      "id": "R1",
+      "name": "رحلة المعلن",
+      "criterion": "Sameanchor ad, explicitmanual/AI/voice,image/location,draft/review/submit with noautopublish",
+      "accepted": [
+        "Anchor106 originalcreation/review; AIexplicit editedapplication; draftrestore; offlinefix; compatibleupgradephoto; accountboundeditor"
+      ],
+      "evidence_refs": [
+        "retained106",
+        "defects",
+        "upgrade",
+        "native1606"
+      ],
+      "remaining": [
+        "RealASR/GPS/provider portions ifavailable; combine once with relevantpermissionchecks; no originalcreationreplay"
+      ],
+      "replay": false
+    },
+    {
+      "id": "R2",
+      "name": "رحلة الدعم والتصحيح",
+      "criterion": "claim→review→returnreason→sameadcorrect→resubmit→approve/publish",
+      "accepted": [
+        "106 review141–150 preserved;107 sameentity negativeandpositive chain recovered; APP001/002/008Nativefixes"
+      ],
+      "evidence_refs": [
+        "retained106",
+        "duplicate107",
+        "distinct107",
+        "defects"
+      ],
+      "remaining": [
+        "Exact finaljourneyledger must cite eachtransition separately and avoid convertingAPIproof intoNativeUIproof; privatevisualreviewonlywhereuncovered"
+      ],
+      "replay": false
+    },
+    {
+      "id": "R3",
+      "name": "رحلة الباحث",
+      "criterion": "Search/filter/map/drawing→publishedanchor→images/favorite/share/contact, correctpublicfacts",
+      "accepted": [
+        "Nativezoom/drawing/favorites/dark; pairedcomparison/block/Arabicnormalization/clusters/internalnotifdestination;1588images/pages/cancel/cache;1608favorites/inbox"
+      ],
+      "evidence_refs": [
+        "retained106",
+        "paired1585",
+        "defects",
+        "native1588",
+        "native1608"
+      ],
+      "remaining": [
+        "PositivePrefetch Nativebenefit reopenedbylaterownerorder; no moreunchangednetworkrepeat; visual/provider gaps only; HTTPSFCMexternalholdallowed"
+      ],
+      "replay": false
+    },
+    {
+      "id": "R4",
+      "name": "رحلة الدلال والحسابات",
+      "criterion": "Roletools/isolation/verification;duplicatevsdistinctunit;block/report",
+      "accepted": [
+        "107duplicate/distinctunit; report9Nativeclaim/status/audit;1607delete;1608privateisolation;1609customers30+1"
+      ],
+      "evidence_refs": [
+        "duplicate107",
+        "distinct107",
+        "paired1585",
+        "defects",
+        "native1607",
+        "native1608",
+        "native1609"
+      ],
+      "remaining": [
+        "Rolevisualsurfacecoverage, not repeatedpaging; finalverdict separate fromprovider/deploymentconditions"
+      ],
+      "replay": false
+    },
+    {
+      "id": "R5",
+      "name": "الحالات الاستثنائية",
+      "criterion": "networkloss/return/sessionexpiry/accountswitch/rapidinput/latecancel/permissions/cache/back/restore",
+      "accepted": [
+        "1588realcancel/cache;1606oldcallbacks;1608errorretryend/empty;1609loading;upgradedraftproof"
+      ],
+      "evidence_refs": [
+        "native1588",
+        "native1606",
+        "native1608",
+        "native1609",
+        "upgrade"
+      ],
+      "remaining": [
+        "Onlyunprovedpermission/providerconditions; integratewithin remainingvisual/nativepass instead ofnewwholejourney"
+      ],
+      "replay": false
+    },
+    {
+      "id": "R6",
+      "name": "سد فجوات البنود",
+      "criterion": "All32+18 rows classified with evidence andexplicitdeferrals; independentjourneyverdicts",
+      "accepted": [
+        "All11recordedproductdefectsclosed; existingreports/APK1610delivered; recoveredpublichistoricalproofnowavailable"
+      ],
+      "evidence_refs": [
+        "defects",
+        "current",
+        "original_plan"
+      ],
+      "remaining": [
+        "Completecriterion-levelmapping; separateunknownhistoricalrowlabel fromuntestedfeature; publishtwofinalreports+manifest+ownerdecision"
+      ],
+      "replay": false
+    }
+  ],
+  "recovered_item_evidence_catalog": {
+    "PLAN": {
+      "path": "https://chatgpt.com/library?file_id=libfile_fde3_f-b6c264bd61788191a5cc1ba71ca30b37_04368778132081918bbd36d6e9c25976&account_id=personal",
+      "scope": "Original Nov8 phase plan: available UAT scope; parts8/22/26/31 deferred externally; video3/21 owner-excluded; TUS11 technical hold. Item20 OFF superseded later."
+    },
+    "D1": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/evidence/phase23-app-defects.json",
+      "scope": "APP001–APP011 CLOSED with source/CI/native confirmations; no blanket whole-item promotion."
+    },
+    "PRESERVE": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/evidence/phase23-continuation-20261111.json",
+      "scope": "Explicit do_not_repeat anchors: publication106 review141–150, large-media6variants/privacy, favorite recovery,dark surfaces,zoom/reset,drawnpolygon return,editedAI application,draftrestore45–52."
+    },
+    "DUP_NEG": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43139015646",
+      "source": "c8569944a616c80cf919ae4444f7f5b8317faf64",
+      "job_id": 130921173462,
+      "read_log_result": "PASS_DUPLICATE_BLOCK_AND_RETURN; support cleanup=true",
+      "scope": "Normal API; guarded script verifies409 duplicate approval and return of same synthetic107; no Native claim."
+    },
+    "UNIT_POS": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43140357428",
+      "source": "c2b6e8202db401a46321103588f724cd010af639",
+      "job_id": 130925579145,
+      "read_log_result": "PASS_DISTINCT_UNIT_PUBLISHED; broker/support cleanup=true",
+      "scope": "Normal API; same107 corrected to distinctunit, coordinates retained,newasset,approved,published,publicGET; no Native claim."
+    },
+    "LARGE": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/42992552510",
+      "source": "ad88cf1bc1b8795f480bfe254a3afa20226483f0",
+      "job_id": 130428682154,
+      "read_log_result": "PASS; variants=6; broker/regular cleanup=true",
+      "scope": "Large synthetic private image2,952,430B sixJPEG derivatives; bounded sides; EXIF0; guest401/other404; no-store. Executed script checked source and all assertions."
+    },
+    "N1588": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43253230247",
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_CLOSURE_EXECUTION_2026-11-12_AR.md",
+      "scope": "Actual27publicrows20/7,card51649→thumb11337 DataSaver,7cancellations,warmreturn49s zero requeststarts; all four gates43253230111 green; preservescomparison/blocking/review."
+    },
+    "N1606": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43395970989",
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_CONTINUATION_20261113_SESSION_AR.md",
+      "scope": "Delayed AI/search/GPS completions released after normal account replacement; real controllers/storage protected. Synthetic provider output; not realASR/GPS acceptance."
+    },
+    "N1607": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43401245346",
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_PRIVATE_PAGES_20261113_AR.md",
+      "scope": "Ordinary app internal notifications40+1,error/retry/end/read; dedicatedsynthetic66 deletion,oldtoken401,cleanup. No repeat of deletion."
+    },
+    "N1608": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43430097013",
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_PRIVATE_PAGES_20261113_AR.md",
+      "scope": "Privatepages real API/auth with disclosedsmallper_page; mylistings27,availability18,favorites2,inbox3,verification11,support8,realempty/accountisolation; metrics only; no privatevisual acceptance."
+    },
+    "N1609": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43493825181",
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_CONTINUATION_20261113_SESSION_AR.md",
+      "scope": "Fixed30 customercontract30+1,error/retry/end,no duplicates; actualloadingthenempty; synthetic19threads38participantscleaned; no repeatfixtures."
+    },
+    "N1610": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43494440838",
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_CONTINUATION_20261113_SESSION_AR.md",
+      "scope": "OrdinaryAPK1610 ownerartifact; publicimages guestpass. Prefetchrequests0/bytes0/readyHits0; positivebenefitnotproven."
+    },
+    "N1611": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43507896943",
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_CONTINUATION_20261113_SESSION_AR.md",
+      "scope": "OrdinaryAPK samecomponents; real77sidle; fastzoomthen slowpreview; noeligibletrue/no positiveprefetch;DataSaverrestored; not new productdefect."
+    },
+    "UPGRADE": {
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_REMAINING_ACCEPTANCE_2026-11-12_AR.md",
+      "latest_report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_CONTINUATION_20261113_SESSION_AR.md",
+      "scope": "1589→1590 text/options and1603→1604 draftlocalphoto accepted within compatibletemporarysigner. DoesnotproveownerinstalledkeyorPlay."
+    },
+    "SIGN": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43514336866",
+      "report": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_SIGNING_READINESS_20261114_AR.md",
+      "scope": "29signingtooltests; actualstablebuildskipped. 5signinginputs+Firebaseclientunavailable toworkflow. Not reason to repeat accepted localupgrade."
+    },
+    "PREFETCH_DECISION": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/71949d2ba88d14ef6a6a489bac520c52c98b5b6d/docs/PHASE23_ITEM20_CONDITIONAL_PREFETCH_AR.md",
+      "scope": "Ownerreopened20 forONUAT conditional policy; supersedesNov8OFF. Need positiveNativebenefit; no loweredthresholds."
+    },
+    "N1585": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43143868479",
+      "historical_report": "https://github.com/JJalal1/real-estate-uat-backend/blob/bbe394279a14d3bc12f189c554d2887c87a0c86f/docs/PHASE23_CLOSURE_EXECUTION_2026-11-12_AR.md",
+      "source": "fcfdbbd42d06cb9b2d800da30a3082d137b2550c",
+      "scope": "Historicalacceptancereport explicitly completes duplicate/distinctunit,comparison,blockingthroughanotherlistingofsameseller,Arabicnormalization,nativeclusters,internalnotificationdestination. FinalAndroidattempt2successful; initialdevicefailure disclosed; acceptedfacetsnotrerun."
+    }
+  },
+  "recovered_journey_sources": {
+    "original_plan": {
+      "file": "https://chatgpt.com/library?file_id=libfile_fde3_f-b6c264bd61788191a5cc1ba71ca30b37_04368778132081918bbd36d6e9c25976&account_id=personal",
+      "scope": "Original R0–R6, all18criteria, explicit external deferrals and closure requirements; PrefetchOFF superseded"
+    },
+    "retained106": {
+      "file": "docs/evidence/phase23-continuation-20261111.json",
+      "scope": "Explicit do_not_repeat list: published106 review141–150; six media variants/privacy; favorite recovery; dark surfaces; image zoom/reset; real polygon return; explicit AI draft application; draft restore45–52"
+    },
+    "closure_scope": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/8e1db95/docs/PHASE23_CLOSURE_EXECUTION_2026-11-12_AR.md",
+      "scope": "Finish available cases; defer realPush/HTTPS/Play/Productiondelete/realvoice with reasons; no unnecessaryDBread or acceptedreplays"
+    },
+    "paired1585": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/blob/bbe394279a14d3bc12f189c554d2887c87a0c86f/docs/PHASE23_CLOSURE_EXECUTION_2026-11-12_AR.md",
+      "scope": "Completed duplicate/distinctunit/comparison/alternate-listing block/Arabicnormalization/nativeclusters/internalnotificationdestination; native43143868479attempt2success"
+    },
+    "duplicate107": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43139015646",
+      "job_id": 130921173462,
+      "observed_log": "PASS_DUPLICATE_BLOCK_AND_RETURN; support cleanup=true",
+      "source": "c8569944a616c80cf919ae4444f7f5b8317faf64",
+      "scope": "Real normalAPI denial409 and return same107; notNativeUI"
+    },
+    "distinct107": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43140357428",
+      "job_id": 130925579145,
+      "observed_log": "PASS_DISTINCT_UNIT_PUBLISHED; broker=true/support=true cleanup",
+      "source": "c2b6e8202db401a46321103588f724cd010af639",
+      "scope": "Real normalAPI correction ofsame107 keepingcoordinates/image, resubmit, claim,review,publish,publicread; notNativeUI"
+    },
+    "defects": "docs/evidence/phase23-app-defects.json",
+    "native1588": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43253230247",
+      "scope": "27publicrows20+7; realcancel7; DataSaveradaptivevariant; warmreturn0additionalrequests; completecleanup"
+    },
+    "native1606": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43395970989",
+      "scope": "Real account boundary/controllers; delayed syntheticAI/GPS and results cannotchange search/editor/storage; notliveprovider"
+    },
+    "native1607": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43401245346",
+      "scope": "Ordinary main; internalnotifications40+1; dedicatedsyntheticdelete andsessionrevocation; accepted"
+    },
+    "native1608": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43430097013",
+      "doc": "docs/PHASE23_PRIVATE_PAGES_20261113_AR.md",
+      "scope": "Real privatepages/errorretry/end/empty/accountisolation, numericmetadataonly; notfullprivatevisual"
+    },
+    "native1609": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43493825181",
+      "scope": "Original customers30+1,loading visible, errorretryend;cleaned exact19threads38participants; no replay"
+    },
+    "native1611": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43507896943",
+      "scope": "Positiveprefetch remainsunproven, noeligible; conservativepolicy explanation; norepeatunchangedsetup"
+    },
+    "upgrade": {
+      "doc": "docs/PHASE23_REMAINING_ACCEPTANCE_2026-11-12_AR.md",
+      "scope": "1589→1590 text/options; retained1603→1604 photo; temporarycompatiblepair only, noownerstablecert/Play"
+    },
+    "signing": {
+      "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43514336866",
+      "scope": "29tooltests; noactualstableAPK; allsigninginputs/Firebaseclient unavailable"
+    },
+    "current": "docs/PHASE23_CONTINUATION_20261113_SESSION_AR.md"
+  },
+  "r0_reconciliation": {
+    "as_of": "2026-11-14 Asia/Aden",
+    "project": "ipxsgxsqzthpgthwvdno",
+    "project_status": "ACTIVE_HEALTHY",
+    "database": {
+      "migration_count": 59,
+      "latest_batch": 22,
+      "migration_names": [
+        "0001_01_01_000000_create_users_table",
+        "0001_01_01_000001_create_cache_table",
+        "0001_01_01_000002_create_jobs_table",
+        "2026_07_31_000001_enable_postgis",
+        "2026_07_31_000002_create_properties_table",
+        "2026_07_31_000003_create_property_images_table",
+        "2026_08_18_020000_add_stage5_listing_fields_to_properties",
+        "2026_08_18_030000_harden_stage5_property_location",
+        "2026_08_19_020000_add_stage6_identity_fields_to_users",
+        "2026_08_19_020100_create_stage6_api_tokens_table",
+        "2026_08_19_020200_create_stage6_verification_challenges_table",
+        "2026_08_19_030000_add_stage7_platform_owner_to_users",
+        "2026_08_19_030100_create_stage7_access_control_tables",
+        "2026_08_19_030200_create_stage7_audit_logs_table",
+        "2026_08_19_040000_create_stage8_regions_and_broker_cells",
+        "2026_08_19_043000_create_stage9_property_listing_review_workflow",
+        "2026_08_19_043100_add_stage9_review_permissions",
+        "2026_08_19_043200_fix_stage9_review_actor_history",
+        "2026_08_20_010000_create_stage10_community_support_tables",
+        "2026_08_20_230000_create_stage11_messaging_notifications_tables",
+        "2026_08_20_231500_create_stage12_developments_projects_tables",
+        "2026_08_20_234500_create_stage13_viewings_bookings_tables",
+        "2026_08_21_000500_create_stage14_services_payments_tables",
+        "2026_08_22_001000_add_uat_phase2_property_details",
+        "2026_08_22_012500_add_uat_phase3_broker_listing_verification_workflow",
+        "2026_08_25_023500_add_account_types_and_broker_kyc",
+        "2026_08_25_035500_create_admin_support_workspace",
+        "2026_08_27_235900_align_admin_support_role_labels",
+        "2026_08_29_010000_create_unified_account_verification_profiles",
+        "2026_09_01_010000_add_tenure_type_to_properties",
+        "2026_09_01_010100_link_viewing_bookings_to_message_threads",
+        "2026_09_04_220000_add_listing_review_assignment_to_properties",
+        "2026_09_05_001000_create_support_workspace_tasks",
+        "2026_09_06_000000_harden_supabase_public_schema",
+        "2026_09_08_010000_create_property_favorites_table",
+        "2026_09_08_010000_harden_phase4_messaging_viewings",
+        "2026_09_09_000000_create_phase5_agreements_contracts",
+        "2026_09_09_000000_create_property_sai_terms",
+        "2026_09_09_000100_create_property_sai_settlements",
+        "2026_09_09_030000_create_saved_property_searches",
+        "2026_09_09_031000_create_user_notification_preferences",
+        "2026_09_11_010000_seed_yemen_governorates",
+        "2026_09_12_010000_create_support_teams_and_routing",
+        "2026_09_12_020000_create_property_financial_v1",
+        "2026_09_13_014500_add_financial_v1_payment_method_capabilities",
+        "2026_09_13_020000_add_financial_v1_fk_indexes",
+        "2026_09_13_030000_add_property_identity_v2",
+        "2026_10_12_000000_add_broker_experience",
+        "2026_10_12_010000_add_broker_customer_followups",
+        "2026_10_13_000000_refine_listing_identity_types",
+        "2026_10_13_010000_add_unit_floor_scope",
+        "2026_10_14_000000_add_marketplace_presentation_fields",
+        "2026_10_14_000010_create_ai_daily_usage",
+        "2026_10_15_010000_add_wave4_listing_conditions",
+        "2026_10_16_010000_add_fixed_amount_listing_sai",
+        "2026_10_17_010000_create_listing_editor_drafts",
+        "2026_10_21_010000_add_listing_structure_fields",
+        "2026_10_21_010000_create_user_messaging_blocks",
+        "2026_10_22_010000_create_user_push_devices"
+      ],
+      "postgis_version": "3.3.7",
+      "expected_private_bucket_count": 1,
+      "tus_upload_intents_exists": false
+    },
+    "public_api_health": {
+      "http": 200,
+      "status": "ok",
+      "database": true,
+      "postgis": true
+    },
+    "render": {
+      "current_workspace_selected": false,
+      "offered_workspace_name": "My Workspace",
+      "deployment_identity_freshly_verified": false,
+      "reason": "Connector requires user workspace selection before service reads"
+    },
+    "mutations": false
+  },
+  "signing_preparation": {
+    "run_id": 43514336866,
+    "tests_passed": 29,
+    "stable_apk_built": false,
+    "firebase_client_available_to_workflow": false,
+    "approved_signing_inputs_available_to_workflow": false
+  }
+}

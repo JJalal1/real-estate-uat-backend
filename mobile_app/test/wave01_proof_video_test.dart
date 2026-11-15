@@ -70,9 +70,15 @@ void main() {
       expect(ai.requests, isEmpty);
       voice.latest.emit(const VoiceEvent('segment', text: 'شقة للإيجار في صنعاء'));
       voice.latest.emit(const VoiceEvent('speech_end'));
-      chapters['natural_silence_waits_for_final'] = frame;
+      chapters['pause_keeps_dictation_open'] = frame;
       await capture(27);
-      expect(voice.latest.stops, 1); expect(ai.requests, isEmpty);
+      expect(voice.latest.stops, 0);
+      expect(ai.requests, isEmpty);
+      await tap('voice-finish');
+      expect(voice.latest.stops, 1);
+      expect(ai.requests, isEmpty);
+      chapters['manual_finish_waits_for_final'] = frame;
+      await capture();
       voice.latest.emit(const VoiceEvent('final', text: 'شقة للإيجار في صنعاء'));
       await tester.pumpAndSettle();
       expect(ai.requests.single.message, 'أريد شقة للإيجار في صنعاء');

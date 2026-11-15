@@ -1,0 +1,239 @@
+name: Phase23 private notifications and dedicated erasure API36
+# Held synthetic completions, ordinary authentication and real product controllers.
+# Owner explicitly authorized41 internal-only notifications for dedicated66 and its final native erasure.
+# Preparation only: publish after successful callback acceptance; no paid or Production changes.
+# This cycle uses verified product gates and existing scoped synthetic actors only.
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-private-finish.yml
+      - mobile_app/lib/phase23_native_callback_main.dart
+      - mobile_app/test/phase23_native_callback_target_test.dart
+      - scripts/run_phase23_native.py
+      - scripts/prepare_phase23_native.py
+      - scripts/prepare_phase23_upgrade.py
+      - scripts/phase23_firebase.py
+      - scripts/phase23_build_readiness.py
+      - scripts/import_ci_uat_firebase.py
+      - scripts/prepare_uat_firebase.py
+      - scripts/phase23_preflight.py
+      - scripts/phase23_callback_metadata.py
+      - scripts/tests/test_phase23_callback_metadata.py
+      - scripts/phase23_checkpoint_state.py
+      - scripts/phase1_device_input/Phase1Input.java
+      - scripts/phase23_recipient.pem
+      - scripts/tests/test_phase23_native.py
+      - scripts/tests/test_phase23_upgrade.py
+      - scripts/tests/test_phase23_firebase.py
+      - scripts/tests/test_phase23_build_readiness.py
+      - scripts/tests/test_uat_firebase_configuration.py
+      - .github/actions/phase1-review/index.js
+permissions:
+  contents: read
+concurrency:
+  group: phase23-private-finish
+  cancel-in-progress: ${{ contains(github.event.head_commit.message, '[replace-stalled-native]') }}
+env:
+  UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+  PHASE23_PREFETCH_ON: 'true'
+jobs:
+  collector-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install --disable-pip-version-check Pillow==12.3.0
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_native.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_upgrade.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_firebase.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_build_readiness.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_actor_readiness.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_uat_firebase_configuration.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_callback_metadata.py -v
+      - run: node --test .github/actions/phase1-review/test_index.js
+      - name: Report declared configuration presence without reading signing values
+        env:
+          PHASE23_HAS_AQER_UAT_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.AQER_UAT_GOOGLE_SERVICES_JSON_BASE64 != '' }}
+          PHASE23_HAS_AQER_RELEASE_STORE_FILE: ${{ secrets.AQER_RELEASE_STORE_FILE != '' }}
+          PHASE23_HAS_AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD != '' }}
+          PHASE23_HAS_AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS != '' }}
+          PHASE23_HAS_AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD != '' }}
+        run: python3 -B scripts/phase23_build_readiness.py
+  native:
+    if: ${{ contains(github.event.head_commit.message, '[run-private-finish]') && !contains(github.event.head_commit.message, '[collector-only]') }}
+    needs: collector-safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 125
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Verify reviewed product components and secure channel
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          python3 -B - <<'PY'
+          import os,sys
+          sys.path.insert(0,'scripts')
+          from phase23_preflight import guard,http
+          from phase1_native_account_readiness import SECRET_NAME,validate_access
+          guard(os.environ)
+          access=validate_access(os.environ.pop(SECRET_NAME,''))
+          assert {'broker','support','regular'} <= set(access['phones'])
+          del access
+          code,body=http('GET','/properties?per_page=2')
+          assert code == 200, 'public_discovery_readiness_required'
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+              env.write('PHASE23_BUILD='+str(1607)+'\n')
+              env.write('GRADLE_USER_HOME='+os.environ['RUNNER_TEMP']+'/aqer-native-account-gradle\n')
+          print('AQER_PHASE23_CHANNEL_AND_SOURCE_READY')
+          PY
+          test -c /dev/kvm
+          curl --fail --silent --show-error --max-time 45 --output /dev/null "$UAT_API_BASE_URL/health"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install only the existing pinned evidence dependencies
+        run: |
+          python3 -m pip install --disable-pip-version-check Pillow==12.3.0 cryptography==50.0.2
+          npm ci --ignore-scripts --omit=dev --prefix .github/actions/phase1-review
+      - name: Reuse only reviewed public Gradle dependencies
+        id: gradle-deps
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Reuse the validated optional UAT Firebase client importer
+        env:
+          AQER_UAT_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.AQER_UAT_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: python3 -B scripts/import_ci_uat_firebase.py
+      - name: Build the reviewed application including the focused fixes
+        working-directory: mobile_app
+        env:
+          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+          flutter analyze --fatal-infos lib/main.dart lib/phase23_native_callback_main.dart test/phase23_native_callback_target_test.dart
+          flutter test --no-pub test/phase23_native_callback_target_test.dart test/search_account_boundary_test.dart test/branch2_location_test.dart
+          flutter build apk --flavor uat --release --no-pub --build-number="$PHASE23_BUILD" \
+            --dart-define=APP_BUILD_NUMBER="$PHASE23_BUILD" --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL="$UAT_API_BASE_URL" \
+            --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
+            --dart-define=AQER_CONDITIONAL_PREFETCH="$PHASE23_PREFETCH_ON" \
+            --dart-define=AQER_NATIVE_NETWORK_TRACE=true
+          git diff --exit-code -- lib android assets pubspec.yaml
+      - name: Verify and encrypt the exact installer
+        run: python3 -B scripts/prepare_phase23_native.py
+      - name: Preserve only public dependencies before the native session
+        if: steps.gradle-deps.outputs.cache-hit != 'true' && steps.gradle-deps.outputs.cache-primary-key != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: ${{ steps.gradle-deps.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase23-installer-${{ github.run_id }}
+          path: phase23-installer-sealed/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Prepare one disposable API36 KVM device
+        run: |
+          (cd mobile_app/android && ./gradlew --stop --gradle-user-home "$GRADLE_USER_HOME")
+          sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/phase23-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd --force --name aqer-phase23 --device pixel \
+            --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-phase23.avd/config.ini" <<'PY'
+          from pathlib import Path
+          import sys
+          path=Path(sys.argv[1]); settings={'hw.lcd.width':'1080','hw.lcd.height':'1920','hw.lcd.density':'420','showDeviceFrame':'no'}
+          lines=[s for s in path.read_text().splitlines() if s.split('=',1)[0].strip() not in settings]
+          path.write_text('\n'.join(lines+[k+'='+v for k,v in settings.items()])+'\n')
+          PY
+          sudo chmod 666 /dev/kvm
+          printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' \
+            "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          "$ANDROID_HOME/emulator/emulator" -avd aqer-phase23 -port 5554 -no-window -no-audio \
+            -no-snapshot -no-boot-anim -gpu swiftshader -accel on -memory 2048 -cores 2 \
+            > "$RUNNER_TEMP/phase23-emulator.log" 2>&1 &
+          deadline=$((SECONDS+250))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && \
+               [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
+            sleep 2
+          done
+          test "$SECONDS" -lt "$deadline"
+      - name: Prepare synthetic media before the reviewed native session
+        run: |
+          python3 -B - <<'PY'
+          from pathlib import Path
+          from PIL import Image,ImageDraw
+          from PIL.TiffImagePlugin import IFDRational as R
+          import subprocess
+          folder=Path('phase23-native-private')
+          image=Image.new('RGB',(1280,960),'#dbeaf1'); draw=ImageDraw.Draw(image)
+          draw.rectangle((0,720,1280,960),fill='#baa980')
+          draw.rectangle((260,210,1020,780),fill='#e7d5b9',outline='#6c5137',width=8)
+          for y in (290,440,590):
+            for x in (330,560,790): draw.rectangle((x,y,x+120,y+90),fill='#536d81',outline='white',width=6)
+          draw.rectangle((570,650,710,780),fill='#72573f')
+          draw.text((25,25),'AQER UAT SYNTHETIC PROPERTY - NOT A REAL LISTING',fill='black')
+          image.save(folder/'phase23-property.jpg',quality=90)
+          exif=Image.Exif(); exif[274]=6; exif[271]='AQER_SYNTHETIC_TEST'
+          exif[34853]={1:'N',2:(R(15),R(20),R(0)),3:'E',4:(R(44),R(10),R(0))}
+          image.save(folder/'phase23-rotated-exif.jpg',quality=90,exif=exif)
+          wrong=Image.new('RGB',(800,600),'#9e1b65'); pen=ImageDraw.Draw(wrong)
+          for x in range(0,800,40): pen.line((x,0,800-x,600),fill='#ffff00',width=8)
+          pen.text((30,30),'SYNTHETIC UNSUITABLE MEDIA TEST',fill='white')
+          wrong.save(folder/'phase23-unsuitable.jpg',quality=85)
+          large=Image.effect_noise((2048,1536),80).convert('RGB')
+          large.save(folder/'phase23-large.jpg',quality=94)
+          PY
+      - name: Review and execute bounded UAT native commands
+        uses: ./.github/actions/phase1-review
+        with:
+          owner-timeout-seconds: '7000'
+          cleanup-grace-seconds: '180'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+          AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION: ${{ secrets.AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION }}
+      - name: Stop the disposable device
+        if: always()
+        run: adb -s emulator-5554 emu kill || true

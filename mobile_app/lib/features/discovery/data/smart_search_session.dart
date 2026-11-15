@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/network/api_error_message.dart';
+import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import '../domain/smart_search_filters.dart';
@@ -41,6 +43,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   int _inference = 0, _results = 0;
   CancelToken? _resultTransfer;
   bool _failedMore = false;
+  bool get isLoadingMore => _failedMore;
 
   int _journey = 0;
   int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters}) {
@@ -73,8 +76,10 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   }
 
   Future<void> interpret(String message) async {
+    if (!mounted) return;
     final text = message.trim();
     if (text.isEmpty || text.length > 5000) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final request = ++_inference, revision = state.revision;
     final filters = state.filters;
     state = state.copyWith(interpreting: true, clearAiError: true, lastRequest: text);
@@ -84,7 +89,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       final input = Map<String, dynamic>.from(filters.values);
       if (_usingDefaultLocation) { for (final key in _defaultContext.keys) { input.remove(key); } }
       final result = await _ai.refine(text, input, revision);
-      if (!mounted || request != _inference || revision != state.revision) return;
+      if (!_acceptInferenceDelivery(request, revision, epoch)) return;
       if (result['revision'] != revision || result['filters'] is! Map) throw StateError('Invalid search session response.');
       final values = Map<String, dynamic>.from(result['filters'] as Map);
       final explicitLocation = values.containsKey('governorate') ||
@@ -96,8 +101,17 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
         draftText: state.draftText.trim() == text ? '' : null);
       await search();
     } catch (error) {
-      if (mounted && request == _inference && revision == state.revision) state = state.copyWith(interpreting: false, aiError: friendlyApiError(error));
+      if (_acceptInferenceDelivery(request, revision, epoch)) state = state.copyWith(interpreting: false, aiError: friendlyApiError(error));
     }
+  }
+
+  bool _acceptInferenceDelivery(int request, int revision, int epoch) {
+    if (!mounted || request != _inference || revision != state.revision) return false;
+    if (epoch == Stage6SecureSessionStore.instance.sessionEpoch) return true;
+    // A failed/cancelled login can advance the secure epoch without changing
+    // the visible actor. Discard the old payload, but leave that UI retryable.
+    state = state.copyWith(interpreting: false);
+    return false;
   }
 
   void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.', String? draftText,
@@ -127,6 +141,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   Future<void> search({bool more = false}) async {
     if (!mounted) return;
     if (more && (state.loading || !state.more)) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final request = ++_results, revision = state.revision;
     final page = more ? state.page + 1 : 1;
     final filters = state.filters;
@@ -136,16 +151,25 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     state = state.copyWith(loading: true, started: true, clearResultsError: true);
     try {
       final result = await _properties.searchListings(filters.apiFilters, page: page, cancelToken: transfer, refresh: !more && state.page > 0);
-      if (!mounted || request != _results || revision != state.revision) return;
+      if (!_acceptResultsDelivery(request, revision, epoch)) return;
       final rows = more ? List<PropertySummary>.of(state.rows) : <PropertySummary>[];
       final ids = rows.map((row) => row.id).toSet();
       rows.addAll(result.$1.where((row) => ids.add(row.id)));
       state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
     } catch (error) {
-      if (mounted && request == _results && revision == state.revision) {
+      if (_acceptResultsDelivery(request, revision, epoch)) {
         state = state.copyWith(loading: false, rows: isTransientApiFailure(error) ? null : const [], resultsError: friendlyApiError(error));
       }
     }
+  }
+
+  bool _acceptResultsDelivery(int request, int revision, int epoch) {
+    if (!mounted || request != _results || revision != state.revision) return false;
+    if (epoch == Stage6SecureSessionStore.instance.sessionEpoch) return true;
+    // Only this obsolete operation may finish its busy state. A newer request
+    // has a different request/revision and must keep its loading indicator.
+    state = state.copyWith(loading: false);
+    return false;
   }
 
   Future<void> retryResults() => state.loading ? Future.value() : search(more: _failedMore);
@@ -155,6 +179,11 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
 }
 
 // One owner route controls a journey. List/map share it; full exit invalidates it.
-final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>((ref) =>
-  SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
-    defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext)));
+final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>((ref) {
+  // A renewed login is a different session even when it belongs to the same
+  // actor. A metadata refresh within that session keeps the current search.
+  ref.watch(authControllerProvider.select((value) =>
+    (value.asData?.value?.id, Stage6SecureSessionStore.instance.sessionEpoch)));
+  return SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
+    defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext));
+});

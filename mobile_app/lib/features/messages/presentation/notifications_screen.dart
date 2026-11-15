@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
@@ -19,7 +20,7 @@ class NotificationsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _NotificationsBody(key: ValueKey(actor));
+      : _NotificationsBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch)));
   }
 }
 class _NotificationsBody extends ConsumerStatefulWidget {
@@ -31,63 +32,191 @@ class _NotificationsBody extends ConsumerStatefulWidget {
 class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
   bool _loading = true;
   String? _error;
+  String? _pageError;
+  bool _loadingMore = false;
+  int _page = 0;
+  int _total = 0;
+  bool _hasMore = false;
   List<AppNotificationItem> _items = const [];
   bool _actionPending = false;
+  int _actionGeneration = 0;
   int _request = 0;
+  int? _actor;
+  int _sessionEpoch = 0;
+  bool? _query;
 
   @override
   void initState() {
     super.initState();
+    _actor = ref.read(authControllerProvider).asData?.value?.id;
+    _sessionEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    ref.listenManual(authControllerProvider, (_, next) {
+      final actor = next.asData?.value?.id;
+      final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+      if (!mounted || (_actor == actor && _sessionEpoch == epoch)) return;
+      setState(() {
+        _request++;
+        _actionGeneration++;
+        _actionPending = false;
+        _actor = actor;
+        _sessionEpoch = epoch;
+        _items = const [];
+        _page = 0;
+        _total = 0;
+        _hasMore = false;
+        _query = null;
+        _error = null;
+        _pageError = null;
+        _loadingMore = false;
+        _loading = actor != null;
+      });
+      if (actor != null) Future<void>.microtask(_load);
+    });
     Future.microtask(_load);
+  }
+
+  Future<void> _load() => _fetchPage(1);
+
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore || _error != null) return;
+    await _fetchPage(_page + 1, append: true);
+  }
+
+  Future<void> _fetchPage(int page, {bool append = false}) async {
+    if (!mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    const query = false;
+    if (append && (_query != query || _actor != actor || _sessionEpoch != epoch)) {
+      await _fetchPage(1);
+      return;
+    }
+    final request = ++_request;
+    setState(() {
+      if (_query != query || _actor != actor || _sessionEpoch != epoch) {
+        _items = const [];
+        _total = 0;
+      }
+      _actor = actor;
+      _sessionEpoch = epoch;
+      _query = query;
+      _pageError = null;
+      if (append) {
+        _loadingMore = true;
+      } else {
+        _loading = true;
+        _loadingMore = false;
+        _page = 0;
+        _hasMore = false;
+        _error = null;
+      }
+    });
+    bool current() => mounted && request == _request &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch && query == _query;
+    void discardStaleDelivery() {
+      if (!mounted || request != _request) return;
+      setState(() {
+        _items = const [];
+        _total = 0;
+        _page = 0;
+        _hasMore = false;
+        _loading = false;
+        _loadingMore = false;
+        _pageError = null;
+        _error = 'تغيرت الجلسة. أعد تحميل الإشعارات.';
+      });
+    }
+    try {
+      final result = await ref.read(messageRepositoryProvider).notificationsPage(page: page);
+      if (!current()) { discardStaleDelivery(); return; }
+      setState(() {
+        _items = <int, AppNotificationItem>{
+          if (append) for (final item in _items) item.id: item,
+          for (final item in result.items) item.id: item,
+        }.values.toList(growable: false);
+        _page = result.currentPage;
+        _total = result.total;
+        _hasMore = result.hasMore;
+        _loading = false;
+        _loadingMore = false;
+      });
+    } catch (error) {
+      if (!current()) { discardStaleDelivery(); return; }
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        if (append && isTransientApiFailure(error)) {
+          _pageError = friendlyApiError(error);
+        } else {
+          if (!isTransientApiFailure(error)) {
+            _items = const [];
+            _total = 0;
+          }
+          _page = 0;
+          _hasMore = false;
+          _error = friendlyApiError(error);
+        }
+      });
+    }
   }
 
   @override
   void dispose() { _request++; super.dispose(); }
 
-  Future<void> _load() async {
-    if (!mounted) return;
-    final request = ++_request;
-    setState(() { _loading = true; _error = null; });
-    try {
-      final items = await ref.read(messageRepositoryProvider).notifications();
-      if (!mounted || request != _request) return;
-      setState(() {
-        _items = items;
+  bool _sameSession(int? actor, int epoch) => mounted &&
+      actor == ref.read(authControllerProvider).asData?.value?.id &&
+      epoch == Stage6SecureSessionStore.instance.sessionEpoch;
+
+  void _finishAction(int generation, int? actor, int epoch) {
+    if (!mounted || generation != _actionGeneration) return;
+    final stale = !_sameSession(actor, epoch) &&
+        _sessionEpoch != Stage6SecureSessionStore.instance.sessionEpoch;
+    setState(() {
+      _actionPending = false;
+      if (stale) {
+        _request++;
+        _items = const [];
+        _total = 0;
+        _page = 0;
+        _hasMore = false;
         _loading = false;
-        _error = null;
-      });
-    } catch (error) {
-      if (!mounted || request != _request) return;
-      setState(() {
-        if (!isTransientApiFailure(error)) _items = const [];
-        _loading = false;
-        _error = friendlyApiError(error);
-      });
-    }
+        _loadingMore = false;
+        _pageError = null;
+        _error = 'تغيرت الجلسة. أعد تحميل الإشعارات.';
+      }
+    });
   }
 
   Future<void> _readAll() async {
     if (_actionPending) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final generation = ++_actionGeneration;
     setState(() => _actionPending = true);
     try {
       await ref.read(messageRepositoryProvider).readAllNotifications();
-      if (mounted) await _load();
+      if (_sameSession(actor, epoch)) await _load();
     } catch (error) {
-      _showActionError(error);
+      if (_sameSession(actor, epoch)) _showActionError(error);
     } finally {
-      if (mounted) setState(() => _actionPending = false);
+      _finishAction(generation, actor, epoch);
     }
   }
 
   Future<void> _open(AppNotificationItem item) async {
     if (_actionPending) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final generation = ++_actionGeneration;
     setState(() => _actionPending = true);
     try {
-      await _openDestination(item);
+      await _openDestination(item, actor, epoch);
     } catch (error) {
-      _showActionError(error);
+      if (_sameSession(actor, epoch)) _showActionError(error);
     } finally {
-      if (mounted) setState(() => _actionPending = false);
+      _finishAction(generation, actor, epoch);
     }
   }
 
@@ -98,29 +227,41 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     );
   }
 
-  Future<void> _openDestination(AppNotificationItem item) async {
+  Future<void> _openDestination(AppNotificationItem item, int? actor, int epoch) async {
     if (!item.isRead) {
       await ref.read(messageRepositoryProvider).readNotification(item.id);
     }
-    if (!mounted) return;
-    setState(() => _items = _items.where((entry) => entry.id != item.id).toList(growable: false));
+    if (!mounted || !_sameSession(actor, epoch)) return;
+    // Reading removes a row from the unread-only dataset. Invalidate any old
+    // page before navigation, then reload page one when this screen is visible.
+    setState(() {
+      _request++;
+      _items = _items.where((entry) => entry.id != item.id).toList(growable: false);
+      if (_total > 0) _total--;
+      _page = 0;
+      _hasMore = false;
+      _loading = false;
+      _loadingMore = false;
+      _pageError = null;
+      _error = null;
+    });
 
     final destination = notificationDestination(item);
     if (destination != null) {
       await context.push<void>(destination);
-    } else if (mounted) {
+    } else if (_sameSession(actor, epoch)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('تمت قراءة الإشعار ولا توجد صفحة مرتبطة به.'),
         ),
       );
     }
-    if (mounted) await _load();
+    if (_sameSession(actor, epoch)) await _load();
   }
 
   @override
   Widget build(BuildContext context) {
-    final unread = _items.where((item) => !item.isRead).length;
+    final unread = _total;
     final visible = _items.where((item) => !item.isRead).toList(growable: false);
 
     return Directionality(
@@ -149,6 +290,7 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
         body: RefreshIndicator(
           onRefresh: _load,
           child: CustomScrollView(
+            key: ValueKey((_actor, _sessionEpoch)),
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
@@ -208,11 +350,28 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                     itemBuilder: (context, index) {
                       final item = visible[index];
                       return _NotificationCard(
+                        key: ValueKey('notification-${item.id}'),
                         item: item,
                         pending: _actionPending,
                         onTap: () => _open(item),
                       );
                     },
+                  ),
+                ),
+              if (_items.isNotEmpty && (_hasMore || _loadingMore || _pageError != null))
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      AppLayout.compactPageGutter, 0, AppLayout.compactPageGutter, AppSpacing.s24),
+                    child: _pageError != null
+                        ? AppRefreshStatus(loading: _loadingMore, error: _pageError, onRetry: _loadMore)
+                        : Center(child: _loadingMore
+                            ? const CircularProgressIndicator()
+                            : OutlinedButton(
+                                key: const ValueKey('notifications-more'),
+                                onPressed: _loadMore,
+                                child: const Text('تحميل المزيد'),
+                              )),
                   ),
                 ),
             ],
@@ -228,6 +387,7 @@ class _NotificationCard extends StatelessWidget {
     required this.item,
     required this.pending,
     required this.onTap,
+    super.key,
   });
 
   final AppNotificationItem item;

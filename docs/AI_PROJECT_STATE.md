@@ -1,3 +1,7 @@
+# Phase23 continuation authorized — November13
+
+The owner authorized execution of the saved completion plan after UAT1590. Read `docs/PHASE23_EXECUTION_2026-11-13_AR.md` and the latest dated remaining-acceptance report first. Source fixes and tests are in progress; the 20/8/2/2 acceptance counts are unchanged. Paid portions remain parked; video3/21 remain excluded and TUS11 remains behind its separate backup/restore gate. No Production/store or paid-resource activation.
+
 # October30 owner-adopted1430 map-filter update
 
 Owner baseline1430 is linked to application source ae43f6e334093b51a86246f7230f684eea6a6a5a and successful Broker CI430 (1000+430). Main remains historical; work/1430-development-20261030 preserves this accepted source. The current map/filter task adds persistent dynamic controls, a maximum-budget field, optional sale/rent selection, drawing and contextual smart search. Verification is tracked in its PR and exact-source Actions runs; no handset, Production, store, merge or live-service readiness is inferred. See MAP_DYNAMIC_FILTERS_1430_2026-10-30_AR.md. Older roadmap/status sections below remain historical when superseded.

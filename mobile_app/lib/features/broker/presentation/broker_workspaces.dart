@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/ebroker_card_actions.dart';
@@ -16,6 +18,7 @@ import '../domain/broker_models.dart';
 void refreshBrokerData(WidgetRef ref) {
   ref.invalidate(brokerWorkspaceProvider);
   ref.invalidate(brokerAvailabilityProvider);
+  ref.invalidate(brokerAvailabilityPagesProvider);
   ref.invalidate(brokerFinanceProvider);
   ref.invalidate(brokerThreadDealProvider);
   ref.invalidate(brokerDirectoryProvider);
@@ -144,8 +147,10 @@ class BrokerCustomersScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    final scope = ref.watch(accountRequestScopeProvider);
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _BrokerCustomersBody(key: ValueKey('$actor:$propertyId:$initialFilter:$selectForDeal'), propertyId: propertyId, selectForDeal: selectForDeal,
+      : _BrokerCustomersBody(key: ValueKey((scope, epoch, actor, propertyId, initialFilter, selectForDeal)), propertyId: propertyId, selectForDeal: selectForDeal,
         initialFilter: initialFilter, embedded: embedded);
   }
 }
@@ -188,20 +193,27 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
   Future<void> _load({bool more = false}) async {
     if (!mounted || (more && (_loading || _moreBusy || _page >= _lastPage))) return;
     final request = ++_request;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final scope = ref.read(accountRequestScopeProvider);
+    bool current() => mounted && request == _request && scope.isCurrent &&
+      epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     final query = '${widget.propertyId}:$_stage:$_filter';
     _failedMore = more;
     setState(() {
       if (_query != query) { _items.clear(); _page = 1; _lastPage = 1; }
-      _query = query; _error = null;
+      _query = query; _error = null; _moreBusy = false;
       if (more) { _moreBusy = true; } else { _loading = true; }
     });
     try {
       final result = await ref.read(brokerRepositoryProvider).customers(stage: _stage, propertyId: widget.propertyId, filter: _filter, page: more ? _page + 1 : 1);
-      if (!mounted || request != _request) return;
+      if (!current()) return;
       if (result.items.any((item) => item.stage != 'new' || item.privateNote.isNotEmpty || item.remindAt != null)) { _helpUsed = true; unawaited(_rememberHelp()); }
       if (!mounted) return;
-      setState(() { if (!more) _items.clear(); final ids = _items.map((item) => item.threadId).toSet(); _items.addAll(result.items.where((item) => ids.add(item.threadId))); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
-    } catch (error) { if (mounted && request == _request) setState(() { if (!isTransientApiFailure(error)) _items.clear(); _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
+      setState(() { final merged = <int, BrokerCustomer>{
+        if (more) for (final item in _items) item.threadId: item,
+        for (final item in result.items) item.threadId: item,
+      }; _items..clear()..addAll(merged.values); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
+    } catch (error) { if (current()) setState(() { if (!isTransientApiFailure(error)) { _items.clear(); _page = 1; _lastPage = 1; _failedMore = false; } _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
   }
   Future<void> _chooseStage(BrokerCustomer item) async {
     final stage = await AppBottomSheet.show<String>(context, builder: (sheet) => Padding(padding: const EdgeInsets.fromLTRB(20,0,20,20),
@@ -223,7 +235,8 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
     appBar: widget.embedded ? null : AppAppBar(title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'إدارة العملاء'),
     body: _loading && _items.isEmpty ? const AppLoadingState() : _error != null && _items.isEmpty ? AppErrorState(message: _error!, onRetry: () => _load(more: _failedMore)) : RefreshIndicator(onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
-        if (_loading || _moreBusy || _error != null) AppRefreshStatus(loading: _loading || _moreBusy, error: _error, onRetry: () => _load(more: _failedMore)),
+        if (_loading || (_error != null && !_failedMore)) AppRefreshStatus(
+          loading: _loading, error: _failedMore ? null : _error, onRetry: _load),
         if (!widget.selectForDeal) ...[
           if (widget.embedded) Text('إدارة العملاء', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 6),
@@ -265,63 +278,116 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
             ]),
           ],
         ]))),
-        if (_page < _lastPage && _error == null) AppButton(label: _moreBusy ? 'جار التحميل' : 'تحميل المزيد', onPressed: _moreBusy ? null : () => _load(more: true)),
+        if (_moreBusy || (_error != null && _failedMore)) AppRefreshStatus(
+          key: const ValueKey('broker-customers-page-status'), loading: _moreBusy,
+          error: _failedMore ? _error : null, onRetry: () => _load(more: true))
+        else if (_page < _lastPage) AppButton(key: const ValueKey('broker-customers-more'),
+          label: 'تحميل المزيد', onPressed: _loading || _error != null ? null : () => _load(more: true)),
       ])),
   );
 }
 
-class BrokerAvailabilityScreen extends ConsumerStatefulWidget {
+class BrokerAvailabilityScreen extends ConsumerWidget {
   const BrokerAvailabilityScreen({this.initiallyDue = false, super.key});
   final bool initiallyDue;
   @override
-  ConsumerState<BrokerAvailabilityScreen> createState() => _BrokerAvailabilityState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    final scope = ref.watch(accountRequestScopeProvider);
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    if (actor == null) return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
+    return _BrokerAvailabilityBody(key: ValueKey((scope, epoch, actor)), initiallyDue: initiallyDue);
+  }
 }
-class _BrokerAvailabilityState extends ConsumerState<BrokerAvailabilityScreen> {
+
+class _BrokerAvailabilityBody extends ConsumerStatefulWidget {
+  const _BrokerAvailabilityBody({required this.initiallyDue, super.key});
+  final bool initiallyDue;
+  @override
+  ConsumerState<_BrokerAvailabilityBody> createState() => _BrokerAvailabilityState();
+}
+class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
   final _selected = <int>{};
   bool _busy = false, _initialized = false;
+  Object? _snapshot;
   late bool _onlyDue;
   @override
   void initState() { super.initState(); _onlyDue = widget.initiallyDue; }
+
   Future<void> _confirm(List<int> ids) async {
     if (ids.isEmpty || _busy) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final scope = ref.read(accountRequestScopeProvider);
+    bool current() => mounted && scope.isCurrent && epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     setState(() => _busy = true);
-    try { await ref.read(brokerRepositoryProvider).updateAvailability(ids, 'available'); refreshBrokerData(ref); _selected.removeAll(ids); }
-    catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
-    finally { if (mounted) setState(() => _busy = false); }
+    try {
+      await ref.read(brokerRepositoryProvider).updateAvailability(ids, 'available');
+      if (!current()) return;
+      _selected.removeAll(ids);
+      _initialized = false;
+      refreshBrokerData(ref);
+    } catch (error) {
+      if (mounted && current()) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    } finally { if (current()) setState(() => _busy = false); }
   }
+
+  void _filter(bool due) {
+    if (_onlyDue == due) return;
+    setState(() { _onlyDue = due; _selected.clear(); _initialized = false; _snapshot = null; });
+  }
+
   @override
-  Widget build(BuildContext context) => BrokerScaffold(
-    appBar: const AppAppBar(title: 'تحديث توفر الإعلانات'),
-    body: ref.watch(brokerAvailabilityProvider).when(loading: () => const AppLoadingState(),
-      error: (error, _) => AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(brokerAvailabilityProvider)),
-      data: (allItems) {
-        final items = _onlyDue ? allItems.where((i) => i.needsConfirmation || i.status == 'confirmation_paused').toList() : allItems;
-        if (!_initialized) { _selected.addAll(items.where((i) => i.needsConfirmation || i.status == 'confirmation_paused').map((i) => i.id)); _initialized = true; }
-        return RefreshIndicator(onRefresh: () async { ref.invalidate(brokerAvailabilityProvider); try { await ref.read(brokerAvailabilityProvider.future); } catch (_) { /* The page renders failure and retry. */ } },
-          child: ListView(padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
+  Widget build(BuildContext context) {
+    final state = ref.watch(brokerAvailabilityPagesProvider(_onlyDue));
+    final controller = ref.read(brokerAvailabilityPagesProvider(_onlyDue).notifier);
+    final items = state.items;
+    if (!identical(_snapshot, controller)) {
+      _snapshot = controller; _selected.clear(); _initialized = false;
+    }
+    if (!_initialized && state.page != null && !state.loading) {
+      _selected.addAll(items.where((item) => item.needsConfirmation || item.status == 'confirmation_paused').map((item) => item.id));
+      _initialized = true;
+    }
+    return BrokerScaffold(appBar: const AppAppBar(title: 'تحديث توفر الإعلانات'),
+      body: state.loading && items.isEmpty ? const AppLoadingState()
+        : state.error != null && items.isEmpty ? AppErrorState(message: friendlyApiError(state.error!), onRetry: controller.refresh)
+        : RefreshIndicator(onRefresh: () async { _selected.clear(); _initialized = false; await controller.refresh(); },
+          child: ListView(key: ObjectKey(controller), padding: const EdgeInsets.all(16),
+            physics: const AlwaysScrollableScrollPhysics(), children: [
+            if (state.loading || state.error != null) AppRefreshStatus(loading: state.loading,
+              error: state.error == null ? null : friendlyApiError(state.error!), onRetry: controller.refresh),
             const Text('أكد إعلانات البيع كل 14 يومًا والإيجار كل 7 أيام. الإعلانات المتوقفة بسبب التأكيد تعود عند تحديث التوفر ما دامت معتمدة.'),
             const SizedBox(height: 12),
             Wrap(spacing: 8, children: [
-              EbrokerChoiceChip(label: const Text('تحتاج تأكيد التوفر'), selected: _onlyDue,
-                onSelected: (_) => setState(() { _onlyDue = true; _selected.clear(); _initialized = false; })),
-              EbrokerChoiceChip(label: const Text('كل إعلاناتي'), selected: !_onlyDue,
-                onSelected: (_) => setState(() { _onlyDue = false; _selected.clear(); _initialized = false; })),
+              EbrokerChoiceChip(label: const Text('تحتاج تأكيد التوفر'), selected: _onlyDue, onSelected: (_) => _filter(true)),
+              EbrokerChoiceChip(label: const Text('كل إعلاناتي'), selected: !_onlyDue, onSelected: (_) => _filter(false)),
             ]),
             const SizedBox(height: 12),
-            if (items.isEmpty) const BrokerPanel(child: Text('لا توجد إعلانات تحتاج تحديث التوفر حاليًا.'))
+            if (items.isEmpty) const BrokerPanel(child: Text('لا توجد إعلانات في هذه القائمة حاليًا.'))
             else ...[
-              CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('اختيار الكل'), value: items.every((i) => _selected.contains(i.id)),
-                onChanged: _busy ? null : (value) => setState(() { _selected.clear(); if (value == true) _selected.addAll(items.map((i) => i.id)); })),
-              for (final item in items) Padding(padding: const EdgeInsets.only(bottom: 8), child: BrokerPanel(child: CheckboxListTile(
-                contentPadding: EdgeInsets.zero, value: _selected.contains(item.id), onChanged: _busy ? null : (value) => setState(() { value == true ? _selected.add(item.id) : _selected.remove(item.id); }),
-                title: Text(item.title), subtitle: Text(item.label), controlAffinity: ListTileControlAffinity.leading))),
+              CheckboxListTile(contentPadding: EdgeInsets.zero,
+                title: Text(state.page!.hasMore ? 'اختيار الإعلانات المحمّلة' : 'اختيار الكل'),
+                value: items.every((item) => _selected.contains(item.id)),
+                onChanged: _busy ? null : (value) => setState(() {
+                  _selected.clear(); if (value == true) _selected.addAll(items.map((item) => item.id));
+                })),
+              for (final item in items) Padding(padding: const EdgeInsets.only(bottom: 8),
+                child: BrokerPanel(key: ValueKey('broker-availability-${item.id}'), child: CheckboxListTile(
+                  contentPadding: EdgeInsets.zero, value: _selected.contains(item.id),
+                  onChanged: _busy ? null : (value) => setState(() { value == true ? _selected.add(item.id) : _selected.remove(item.id); }),
+                  title: Text(item.title), subtitle: Text(item.label), controlAffinity: ListTileControlAffinity.leading))),
               const SizedBox(height: 12),
               AppButton(label: _busy ? 'جار التأكيد' : 'ما زالت متوفرة (${_selected.length})', icon: Icons.check_circle_outline,
-                onPressed: _busy || _selected.isEmpty ? null : () => _confirm(_selected.take(100).toList()), expand: true),
+                onPressed: _busy || _selected.isEmpty || state.loading || state.error != null ? null : () => _confirm(_selected.take(100).toList()), expand: true),
               if (_selected.length > 100) const Padding(padding: EdgeInsets.only(top: 8), child: Text('تحدث أول 100 إعلان في هذه الدفعة، ثم أكمل البقية.')),
               const SizedBox(height: 8), TextButton(onPressed: () => context.push('/my-listings'), child: const Text('تحديد الإعلانات المباعة أو المؤجرة من عقاراتي')),
             ],
-          ]));
-      }),
-  );
+            if (state.loadingMore || state.pageError != null) AppRefreshStatus(
+              key: const ValueKey('broker-availability-page-status'), loading: state.loadingMore,
+              error: state.pageError == null ? null : friendlyApiError(state.pageError!), onRetry: controller.loadMore)
+            else if (state.page?.hasMore ?? false) TextButton.icon(key: const ValueKey('broker-availability-more'),
+              onPressed: state.loading || state.error != null ? null : controller.loadMore,
+              icon: const Icon(Icons.expand_more), label: const Text('المزيد من الإعلانات')),
+          ])));
+  }
 }

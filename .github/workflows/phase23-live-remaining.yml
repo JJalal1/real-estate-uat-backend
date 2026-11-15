@@ -1,0 +1,61 @@
+name: Phase23 newly available original live HTTP cases
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths: [.github/workflows/phase23-live-remaining.yml]
+permissions:
+  contents: read
+jobs:
+  remaining-live-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the exact reviewed product components
+        run: |
+          python3 -B - <<'PY'
+          import os,sys
+          sys.path.insert(0,'scripts')
+          from phase23_preflight import guard
+          guard(os.environ)
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve the existing approved dependency set
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Previously unavailable original live media case
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/viewport_network_measurement_test.dart
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=AQER_VIEWPORT_HTTP_PROBE=true
+          --plain-name 'count real UAT image HTTP transfers for hidden images and return'
+          --reporter expanded
+      - name: Previously unavailable original live discovery case
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub test/discovery_http_acceptance_test.dart
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=AQER_DISCOVERY_HTTP_PROBE=true
+          --plain-name 'live UAT Arabic search, disjoint pages, empty results and access/error contracts'
+          --reporter expanded
+      - name: Keep product files unchanged
+        run: git diff --exit-code -- mobile_app/lib mobile_app/android mobile_app/assets mobile_app/pubspec.yaml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-newly-available-live-${{ github.run_id }}
+          path: mobile_app/viewport-*.json
+          if-no-files-found: warn
+          retention-days: 30

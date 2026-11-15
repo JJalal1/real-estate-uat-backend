@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
 import '../domain/smart_search_filters.dart';
@@ -11,7 +12,8 @@ import 'smart_search_session.dart';
 // Reuse the existing public results engine, cancellation, paging and retry.
 // Home and the visible map have separate spatial snapshots, with one editor.
 SmartSearchSession _results(Ref ref) {
-  ref.watch(authControllerProvider.select((value) => value.asData?.value?.id));
+  ref.watch(authControllerProvider.select((value) =>
+    (value.asData?.value?.id, Stage6SecureSessionStore.instance.sessionEpoch)));
   return SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider));
 }
 final homeSearchResultsProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>(_results);

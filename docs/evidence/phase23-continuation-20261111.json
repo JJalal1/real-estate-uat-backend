@@ -1,0 +1,51 @@
+{
+  "updated_utc": "2026-11-11T19:09:22.011346+00:00",
+  "phase_complete": false,
+  "native_run": 42986038827,
+  "last_action": 54,
+  "terminal": 55,
+  "source_apk": "63a3342a44ad394ea9dab1138f0a2845b9aa1e21",
+  "required_backend_deploy": "5315a9ef96b6564337ff6f959fb53b63cc91b633",
+  "live_deploy": "dep-dbn6rvt6e07s73dqc9hg",
+  "draft_key": "ad008330-99d5-4a51-b844-ae62886d8803",
+  "final_unit": "غربية 2 مرحلة23",
+  "draft_revision": 21,
+  "draft_submitted": false,
+  "anchor_property": 106,
+  "report_id": 9,
+  "thread_id": 37,
+  "duplicate_attempt_performed": false,
+  "cleanup": {
+    "api_regular": false,
+    "api_broker": true,
+    "native_logout": false
+  },
+  "required_next": [
+    "Record incomplete cleanup before fresh test login; do not assume tokens are valid or invalid",
+    "Explicit permission for limited Supabase verification and phone-format diagnostic with metadata-only output",
+    "Use a metadata-only path for known case9; do not export the support inbox or private case content",
+    "Render login then exact-commit UAT deploy5315a9e; no branch repoint or wrong-branch redeploy",
+    "Recheck only live AI case affected by APP007, then continue uncovered cases from coverage-current.json"
+  ],
+  "do_not_repeat": [
+    "published106 review cycle141–150",
+    "accepted native fixes001–006",
+    "large-media six variants and privacy",
+    "favorites recovery",
+    "dark surfaces",
+    "image zoom/reset",
+    "actual drawn polygon return",
+    "AI draft explicit edited application",
+    "draft restore45–52"
+  ],
+  "not_executed": [
+    "Supabase SELECT",
+    "phone-format diagnostic",
+    "support inbox export",
+    "full case9 export",
+    "metadata-only case9 workflow"
+  ],
+  "temporary_builder_files_lost_during_interruption": true,
+  "spreadsheet_edit_marker_ran_successfully": true,
+  "pdf_marker_ran": false
+}

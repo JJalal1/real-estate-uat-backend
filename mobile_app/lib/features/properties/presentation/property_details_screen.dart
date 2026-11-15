@@ -37,6 +37,7 @@ import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
 import 'property_market_context_card.dart';
 import 'property_sai_public_line.dart';
+import 'property_favorite_status.dart';
 
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
@@ -93,12 +94,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (details.asData != null) _loadedScope = scope;
     final retain = _loadedScope == scope && details.hasValue && details.hasError && isTransientApiFailure(details.error!);
     final pendingFavorite = ref.watch(pendingFavoriteAfterAuthProvider);
-    final favoriteIds = user == null
-        ? const <int>{}
-        : ref.watch(favoritePropertyIdsProvider).maybeWhen(
-              data: (value) => value,
-              orElse: () => const <int>{},
-            );
+    final favoriteState = user == null ? null : ref.watch(favoritePropertyIdsProvider);
+    final favoriteStatus = PropertyFavoriteStatus.fromAsync(favoriteState, widget.propertyId);
+    final favoriteIds = favoriteState?.asData?.value ?? const <int>{};
     final loaded = details.asData?.value;
     if (!_viewRecorded && loaded != null && !loaded.isOwner && loaded.status == 'published') {
       _viewRecorded = true;
@@ -140,17 +138,14 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           actions: [
             if (loaded != null && loaded.status == 'published' && !loaded.isOwner)
               AppIconButton(
-                icon: favoriteIds.contains(loaded.id)
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                tooltip: favoriteIds.contains(loaded.id)
-                    ? 'إزالة من المفضلة'
-                    : 'حفظ في المفضلة',
-                onPressed: _changingFavorite || _consumingPendingFavorite
+                icon: favoriteStatus.icon,
+                tooltip: favoriteStatus.tooltip,
+                onPressed: _changingFavorite || _consumingPendingFavorite || favoriteStatus.loading
                     ? null
+                    : favoriteStatus.failed ? () => ref.invalidate(favoritePropertyIdsProvider)
                     : () => _toggleFavorite(
                           loaded.id,
-                          currentlyFavorite: favoriteIds.contains(loaded.id),
+                          currentlyFavorite: favoriteStatus.selected,
                         ),
               ),
             AppIconButton(

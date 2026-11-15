@@ -20,6 +20,7 @@ import 'package:real_estate_mobile/features/broker/presentation/broker_activity.
 import 'package:real_estate_mobile/features/broker/presentation/broker_directory.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/account/data/private_collection.dart';
 
 // Synthetic fixtures are confined to tests; production reads authorized backend data.
 final exampleBroker = BrokerProfile.fromJson({'id': 1, 'name': 'دلال عرض تجريبي', 'account_type': 'broker', 'verified': true,
@@ -62,6 +63,11 @@ class BrokerTestRepository implements BrokerRepository {
     BrokerAvailability(id: 11, title: 'شقة حدة', purpose: 'sale', status: 'available', needsConfirmation: true),
     BrokerAvailability(id: 12, title: 'منزل السنينة', purpose: 'rent', status: 'available', needsConfirmation: false),
   ];
+  @override
+  Future<PrivateCollectionPage<BrokerAvailability>> availabilityPage({int page = 1, bool onlyDue = false}) async {
+    final items = (await availability()).where((item) => !onlyDue || item.needsConfirmation || item.status == 'confirmation_paused').toList();
+    return PrivateCollectionPage(items: items, currentPage: 1, lastPage: 1, total: items.length);
+  }
   @override
   Future<void> updateAvailability(List<int> ids, String state) async { availabilityChanges.add((List.of(ids), state)); }
   @override

@@ -55,6 +55,63 @@ class BrokerExperienceApiTest extends TestCase
         $this->assertSame('returned_for_correction',$rent->fresh()->review_status);
     }
 
+    public function test_owned_availability_pages_reach_beyond_the_legacy_250_row_cap(): void
+    {
+        [$broker,$headers]=$this->actor('availability-pages',true);
+        [$other]=$this->actor('availability-pages-other',true);
+        $first=$this->listing($broker);
+        $first->forceFill(['availability_due_at'=>now()->addDay()])->saveQuietly();
+        $rows=[];
+        for ($i=0;$i<250;$i++) {
+            $rows[]=['user_id'=>$broker->id,'title'=>'Synthetic availability '.$i,'purpose'=>'sale','type'=>'apartment',
+                'price'=>100000,'currency'=>'YER','latitude'=>15.35,'longitude'=>44.2,'status'=>'published',
+                'review_status'=>'approved','availability_status'=>'available','availability_due_at'=>now()->addDay(),
+                'published_at'=>now(),'created_at'=>now(),'updated_at'=>now()];
+        }
+        Property::query()->insert($rows);
+        $foreign=$this->listing($other);
+        $foreign->forceFill(['availability_due_at'=>now()->subDay()])->saveQuietly();
+        $this->listing($broker)->forceFill(['availability_status'=>'sold'])->saveQuietly();
+        $this->listing($broker)->forceFill(['availability_status'=>'rented'])->saveQuietly();
+        $this->listing($broker)->forceFill(['status'=>'draft'])->saveQuietly();
+        $base='/api/broker/listings/availability';
+        $this->withHeaders($headers)->getJson($base)->assertOk()->assertJsonCount(250,'data')
+            ->assertJsonPath('meta.total',251)->assertJsonPath('meta.last_page',2);
+        $ids=[];
+        for ($page=1;$page<=6;$page++) {
+            $response=$this->withHeaders($headers)->getJson($base.'?per_page=50&page='.$page)->assertOk()
+                ->assertJsonPath('meta.current_page',$page)->assertJsonPath('meta.last_page',6)
+                ->assertJsonCount($page===6 ? 1 : 50,'data');
+            $ids=array_merge($ids,array_column($response->json('data'),'id'));
+        }
+        $this->assertCount(251,array_unique($ids));
+        $expected=Property::query()->withoutGlobalScopes()->where('user_id',$broker->id)->where('status','published')
+            ->where('availability_status','available')->orderBy('id')->pluck('id')->all();
+        $this->assertSame($expected,$ids);
+        $this->assertNotContains($foreign->id,$ids);
+        $this->withHeaders($headers)->getJson($base.'?per_page=251')->assertUnprocessable();
+        $this->withHeaders($headers)->getJson($base.'?page=0')->assertUnprocessable();
+    }
+
+    public function test_availability_due_filter_runs_before_pagination_and_preserves_ownership(): void
+    {
+        [$broker,$headers]=$this->actor('due-pages',true);
+        [$other]=$this->actor('due-pages-other',true);
+        $this->listing($broker)->forceFill(['availability_due_at'=>null])->saveQuietly();
+        $this->listing($broker)->forceFill(['availability_due_at'=>now()->addDay()])->saveQuietly();
+        $due=$this->listing($broker);
+        $due->forceFill(['availability_due_at'=>now()->subDay()])->saveQuietly();
+        $paused=$this->listing($broker);
+        $paused->forceFill(['availability_due_at'=>now()->addDay(),'availability_status'=>'confirmation_paused'])->saveQuietly();
+        $this->listing($other)->forceFill(['availability_due_at'=>now()->subDays(2)])->saveQuietly();
+        $base='/api/broker/listings/availability?only_due=1&per_page=1&page=';
+        $this->withHeaders($headers)->getJson($base.'1')->assertOk()->assertJsonPath('meta.total',2)
+            ->assertJsonPath('data.0.id',$due->id)->assertJsonPath('data.0.needs_confirmation',true);
+        $this->withHeaders($headers)->getJson($base.'2')->assertOk()->assertJsonPath('meta.last_page',2)
+            ->assertJsonPath('data.0.id',$paused->id)->assertJsonPath('data.0.needs_confirmation',false);
+        $this->withHeaders($headers)->getJson('/api/broker/listings/availability?only_due=wrong')->assertUnprocessable();
+    }
+
     public function test_bulk_update_is_atomic_and_rejects_foreign_listings(): void
     {
         [$broker,$headers]=$this->actor('own',true);

@@ -1,11 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../account/data/private_collection.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../domain/broker_models.dart';
 
-final brokerRepositoryProvider = Provider<BrokerRepository>((ref) => BrokerRepository(ref.watch(dioProvider), ref.watch(authRepositoryProvider)));
+final brokerRepositoryProvider = Provider<BrokerRepository>((ref) => BrokerRepository(ref.watch(dioProvider), ref.watch(authRepositoryProvider), requestScope: ref.watch(accountRequestScopeProvider)));
 final brokerGovernorateProvider = StateProvider<String?>((ref) => 'أمانة العاصمة');
 final brokerDirectoryProvider = FutureProvider.autoDispose<List<BrokerProfile>>((ref) async =>
   (await ref.watch(brokerRepositoryProvider).directory(governorate: ref.watch(brokerGovernorateProvider), perPage: 5)).items);
@@ -17,6 +20,12 @@ final brokerWorkspaceProvider = FutureProvider.autoDispose<Map<String, dynamic>>
 final brokerAvailabilityProvider = FutureProvider.autoDispose<List<BrokerAvailability>>((ref) {
   ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(brokerRepositoryProvider).availability();
+});
+final brokerAvailabilityPagesProvider = StateNotifierProvider.autoDispose.family<
+    PrivateCollectionController<BrokerAvailability>, PrivateCollectionState<BrokerAvailability>, bool>((ref, onlyDue) {
+  final repository = ref.watch(brokerRepositoryProvider);
+  return accountCollection(ref, load: (page) => repository.availabilityPage(page: page, onlyDue: onlyDue),
+    idOf: (BrokerAvailability item) => item.id);
 });
 final brokerFinanceProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) {
   ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
@@ -33,12 +42,23 @@ final brokerThreadDealProvider = FutureProvider.autoDispose.family<BrokerDeal?, 
 });
 
 class BrokerRepository {
-  BrokerRepository(this._dio, this._auth);
+  BrokerRepository(this._dio, this._auth, {AccountRequestScope? requestScope}) : _requestScope = requestScope;
   final Dio _dio;
   final AuthRepository _auth;
+  final AccountRequestScope? _requestScope;
   Future<Map<String, dynamic>> _get(String path, {Map<String, dynamic>? query, bool public = false}) async {
-    final r = await _dio.get<Map<String, dynamic>>(path, queryParameters: query,
-      options: public ? await _auth.optionalAuthOptions() : await _auth.requiredAuthOptions());
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    void verify() {
+      if (public) { return; }
+      _requestScope?.verify();
+      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) { throw StateError('ACCOUNT_CHANGED'); }
+    }
+    verify();
+    final options = public ? await _auth.optionalAuthOptions()
+      : await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    verify();
+    final r = await _dio.get<Map<String, dynamic>>(path, queryParameters: query, options: options);
+    verify();
     return r.data ?? const {};
   }
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> data) async =>
@@ -66,7 +86,23 @@ class BrokerRepository {
     await _dio.patch<void>('/broker/customers/$threadId/stage', data: {'stage': stage}, options: await _auth.requiredAuthOptions());
   }
   Future<List<BrokerAvailability>> availability() async => brokerRows((await _get('/broker/listings/availability'))['data']).map(BrokerAvailability.fromJson).toList();
-  Future<void> updateAvailability(List<int> ids, String state) async { await _post('/broker/listings/availability', {'property_ids': ids, 'state': state}); }
+  Future<PrivateCollectionPage<BrokerAvailability>> availabilityPage({int page = 1, bool onlyDue = false}) async {
+    if (page < 1) throw ArgumentError.value(page, 'page');
+    return PrivateCollectionPage.parse(await _get('/broker/listings/availability',
+      query: {'page': page, 'per_page': 50, 'only_due': onlyDue ? 1 : 0}),
+      requestedPage: page, parse: BrokerAvailability.fromJson);
+  }
+  Future<void> updateAvailability(List<int> ids, String state) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    void verify() {
+      _requestScope?.verify();
+      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) { throw StateError('ACCOUNT_CHANGED'); }
+    }
+    verify();
+    await _dio.post<void>('/broker/listings/availability', data: {'property_ids': ids, 'state': state}, options: options);
+    verify();
+  }
   Future<BrokerDeal> reportDeal(int threadId, {double? amount}) async => BrokerDeal.fromJson(brokerMap((await _post('/broker/customers/$threadId/completed-deal', {if (amount != null) 'basis_amount': amount}))['data']));
   Future<BrokerPage<BrokerDeal>> activity({int? threadId, int page = 1}) async =>
     _page(await _get('/broker/activity', query: {'page': page, if (threadId != null) 'thread_id': threadId}), BrokerDeal.fromJson);

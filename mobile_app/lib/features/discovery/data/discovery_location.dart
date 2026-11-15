@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
@@ -59,8 +60,15 @@ class DiscoveryLocationAccess {
   Future<LocationPermission> requestPermission() => Geolocator.requestPermission();
   Future<HomeLocation> locate() async {
     if (!await Geolocator.isLocationServiceEnabled()) throw StateError('Location disabled');
+    // Android's low-power fused request can wait for a network fix without
+    // starting GPS. Use the GPS-capable priority only with precise permission.
+    final hasPreciseAndroidPermission = defaultTargetPlatform == TargetPlatform.android &&
+        await Geolocator.getLocationAccuracy() == LocationAccuracyStatus.precise;
     final position = await Geolocator.getCurrentPosition(locationSettings:
-      const LocationSettings(accuracy: LocationAccuracy.low, timeLimit: Duration(seconds: 8)));
+      LocationSettings(
+        accuracy: hasPreciseAndroidPermission ? LocationAccuracy.high : LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 8),
+      ));
     return HomeLocation(latitude: position.latitude, longitude: position.longitude, label: 'موقعي', device: true);
   }
 }

@@ -1,0 +1,39 @@
+name: Phase23 multi-type query summary
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-query-summary.yml
+      - mobile_app/lib/features/discovery/presentation/smart_search_query_summary.dart
+      - mobile_app/test/phase23_multi_type_summary_test.dart
+permissions:
+  contents: read
+jobs:
+  card-media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve the existing approved dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Analyze the affected query summary
+        working-directory: mobile_app
+        run: flutter analyze --fatal-infos lib/features/discovery/presentation/smart_search_query_summary.dart test/phase23_multi_type_summary_test.dart
+      - name: Verify editable multi-type criteria and retained map/budget scope
+        working-directory: mobile_app
+        run: |
+          flutter test --no-pub test/phase23_multi_type_summary_test.dart
+          flutter test --no-pub test/search_query_wave_test.dart --plain-name 'query criteria retain exact money'

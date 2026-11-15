@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/network/conditional_image_prefetch.dart';
 import '../../../core/widgets/viewport_media.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../../core/branding/aqer_brand.dart';
@@ -186,7 +187,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         try { ref.read(marketplaceRepositoryProvider).invalidateFeed(query); ref.invalidate(marketplaceFeedProvider(query));
           await ref.read(marketplaceFeedProvider(query).future); } catch (_) { /* Inline retry retains only this query. */ }
       }, child: CustomScrollView(key: const PageStorageKey('marketplace-home'), controller: _feedScroll,
-        cacheExtent: 0, physics: const AlwaysScrollableScrollPhysics(), slivers: [
+        cacheExtent: ConditionalImagePrefetch.enabled ? ConditionalImagePrefetch.extent : 0,
+        physics: const AlwaysScrollableScrollPhysics(), slivers: [
         SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 0), child: Theme(data: theme, child: Column(children: [
           Row(children: [
             _HomeCircleAction(key: const ValueKey('home-filters'), tooltip: 'فلاتر البحث', icon: 'filter',

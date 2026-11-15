@@ -14,7 +14,10 @@ void main() {
 }
 
 class RealEstateApp extends ConsumerWidget {
-  const RealEstateApp({super.key});
+  const RealEstateApp({super.key, this.acceptanceWrapper});
+
+  // Used only by the separately compiled, opt-in UAT acceptance entrypoint.
+  final Widget Function(BuildContext, Widget)? acceptanceWrapper;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,11 +38,14 @@ class RealEstateApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: router,
-      builder: (context, child) => PushLaunchCoordinator(
-        child: ReleaseGate(
-          child: child ?? const SizedBox.shrink(),
-        ),
-      ),
+      builder: (context, child) {
+        final content = PushLaunchCoordinator(
+          child: ReleaseGate(
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+        return acceptanceWrapper?.call(context, content) ?? content;
+      },
     );
   }
 }

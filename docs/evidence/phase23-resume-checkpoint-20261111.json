@@ -1,0 +1,72 @@
+{
+  "phase_complete": false,
+  "source_before_fix": "77017f226f1867ac46b1bb09650ef9b442809f3a",
+  "environment": "executor unavailable after transport recovery timed out; no local artifact generation available",
+  "accepted_evidence_replayed": false,
+  "db_verification": {
+    "authorized": true,
+    "migrations": 59,
+    "max_batch": 22,
+    "postgres": "17.6",
+    "postgis": "3.3.7",
+    "storage_private": true,
+    "upload_intents_exists": false
+  },
+  "contact_diagnosis": {
+    "run": 43085775037,
+    "attempt": 2,
+    "status": "OBSERVED",
+    "account_phone_valid": false,
+    "existing_owned_listing_contact_valid": true,
+    "number_exported": false,
+    "session_closed": true
+  },
+  "report": {
+    "id": 9,
+    "task_id": 94,
+    "thread_id": 37,
+    "actor": 6,
+    "native_run": 43087697204,
+    "claim_step": 4,
+    "verification_step": 5,
+    "status": "in_progress",
+    "assigned_to_user_id": 6,
+    "audit_event_ids": [
+      41,
+      42
+    ],
+    "content_exported": false,
+    "decision_performed": false
+  },
+  "native": {
+    "run": 43087697204,
+    "last_reviewed_checkpoint": 7,
+    "finish_command_published": true,
+    "finish_commit": "97cb1bdb6da226bc638e89fa16c37ffa3db7f914",
+    "workflow_conclusion": "success after deliberate finish; not phase acceptance",
+    "cleanup": "API session cleanup and Native logout require terminal receipt review; one support token remains in this run window"
+  },
+  "remaining": [
+    "APP008 Native recheck after executor recovery",
+    "Apply valid owned fixture contact without disclosure to existing western draft",
+    "Duplicate and distinct-unit cases on that same draft",
+    "Exact-commit UAT backend deploy5315a9e after Render login",
+    "Only affected AI followup Native recheck after deployment",
+    "Other uncovered cases from coverage-current.json",
+    "Finalize separate item/journey reports, workbook, latest APK and compatibility"
+  ],
+  "retained": {
+    "property_id": 106,
+    "draft_key": "ad008330-99d5-4a51-b844-ae62886d8803",
+    "draft_revision": 21,
+    "draft_submitted": false,
+    "exclude": [
+      3,
+      21
+    ],
+    "technical_defer": [
+      11
+    ],
+    "prefetch": "OFF"
+  }
+}

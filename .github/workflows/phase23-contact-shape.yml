@@ -1,0 +1,32 @@
+name: Phase23 contact-format diagnosis only
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - scripts/phase23_contact_shape.py
+      - .github/workflows/phase23-contact-shape.yml
+permissions:
+  contents: read
+jobs:
+  contact-shape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Describe only the fixture contact format and revoke the session
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: python3 -B scripts/phase23_contact_shape.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-contact-shape-${{ github.run_id }}
+          path: phase23-contact-shape-evidence/RECEIPT.json
+          retention-days: 30
+          if-no-files-found: error
+

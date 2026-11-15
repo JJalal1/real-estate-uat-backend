@@ -1,0 +1,31 @@
+name: Phase23 preserve paused Native sealed originals
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - scripts/phase23_preserve_paused.py
+      - .github/workflows/phase23-preserve-paused.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  preserve-sealed-originals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Verify and preserve source-bound encrypted originals without keys
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/phase23_preserve_paused.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase23-paused1574-sealed-originals-${{ github.run_id }}
+          path: phase23-paused-sealed-originals/
+          retention-days: 30
+          if-no-files-found: error

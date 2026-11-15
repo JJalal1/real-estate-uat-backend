@@ -11,7 +11,7 @@ import 'wave6_product_ui_test.dart' show pumpWave6, finishWave6, editorSnapshot,
 
 void main() {
   setUpAll(loadUxFixtures);
-  testWidgets('D08 live dictation waits for the recognizer result before silence stop', (tester) async {
+  testWidgets('D08 live dictation keeps listening after a confirmed segment and a pause', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false);
     final capture = VoiceCaptureController(voice);
     addTearDown(capture.dispose); addTearDown(voice.dispose);
@@ -29,15 +29,16 @@ void main() {
     recording.emit(const VoiceEvent('segment', text: 'شقة للإيجار'));
     recording.emit(const VoiceEvent('speech_end')); // Android onResults confirmed the segment.
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 2499));
+    await tester.pump(const Duration(seconds: 5));
+    expect(capture.phase, VoicePhase.listening);
     expect(recording.stops, 0);
-    await tester.pump(const Duration(milliseconds: 1));
+    capture.stop();
     expect(recording.stops, 1);
     recording.emit(const VoiceEvent('final', text: 'شقة للإيجار'));
     await tester.pump();
     expect(await result, 'شقة للإيجار');
   });
-  testWidgets('D09 a new partial after a segment cancels the old silence timer', (tester) async {
+  testWidgets('D09 the same dictation session accepts another phrase after a long pause', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false);
     final capture = VoiceCaptureController(voice);
     addTearDown(capture.dispose); addTearDown(voice.dispose);
@@ -48,7 +49,8 @@ void main() {
     recording.emit(const VoiceEvent('segment', text: 'first segment'));
     recording.emit(const VoiceEvent('speech_end'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1500));
+    await tester.pump(const Duration(seconds: 5));
+    expect(capture.phase, VoicePhase.listening);
     recording.emit(const VoiceEvent('partial', text: 'first segment continuing'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1000));
@@ -56,7 +58,9 @@ void main() {
     expect(capture.preview, 'first segment continuing');
     recording.emit(const VoiceEvent('segment', text: 'first segment continuing'));
     recording.emit(const VoiceEvent('speech_end'));
-    await tester.pump(const Duration(milliseconds: 2500));
+    await tester.pump(const Duration(seconds: 3));
+    expect(recording.stops, 0);
+    capture.stop();
     expect(recording.stops, 1);
     recording.emit(const VoiceEvent('final', text: 'first segment continuing'));
     await tester.pump();
@@ -150,7 +154,7 @@ void main() {
     expect(current.cancellations, 1);
     expect(capture.preview, isEmpty);
   });
-  testWidgets('D02 D03 short pauses survive and VAD silence stops once before a reliable final', (tester) async {
+  testWidgets('D02 D03 a recorded clip keeps listening until the user stops it once', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false);
     final controller = VoiceCaptureController(voice);
     addTearDown(controller.dispose); addTearDown(voice.dispose);
@@ -158,12 +162,16 @@ void main() {
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('speech_start'));
     voice.latest.emit(const VoiceEvent('partial', text: 'أربع غرف'));
     voice.latest.emit(const VoiceEvent('speech_end')); await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1500)); expect(voice.latest.stops, 0);
+    await tester.pump(const Duration(seconds: 5)); expect(voice.latest.stops, 0);
     voice.latest.emit(const VoiceEvent('speech_start')); await tester.pump();
     voice.latest.emit(const VoiceEvent('segment', text: 'أربع غرف وحمامين'));
     voice.latest.emit(const VoiceEvent('speech_end')); await tester.pump();
-    await tester.pump(const Duration(milliseconds: 2499)); expect(voice.latest.stops, 0);
-    await tester.pump(const Duration(milliseconds: 1)); expect(voice.latest.stops, 1);
+    await tester.pump(const Duration(seconds: 5));
+    expect(controller.phase, VoicePhase.listening);
+    expect(voice.latest.stops, 0);
+    controller.stop();
+    controller.stop();
+    expect(voice.latest.stops, 1);
     expect(controller.phase, VoicePhase.processing); expect(controller.transcript, isEmpty);
     voice.latest.emit(const VoiceEvent('final', text: 'أربع غرف وحمامين')); await tester.pump();
     expect(await result, 'أربع غرف وحمامين'); expect(controller.phase, VoicePhase.idle);
@@ -177,14 +185,22 @@ void main() {
     expect(voice.latest.stops, 0); expect(controller.transcript, isEmpty);
     controller.cancel(); await tester.pump(); expect(await result, isNull);
   });
-  testWidgets('D03 silence without any speech cancels without returning a search query', (tester) async {
+  testWidgets('D03 initial silence keeps listening and an empty manual finish yields no query', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false);
     final capture = VoiceCaptureController(voice); addTearDown(capture.dispose); addTearDown(voice.dispose);
     final result = capture.start(); voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
-    await tester.pump(const Duration(seconds: 15)); expect(await result, isNull);
-    expect(voice.latest.cancellations, 1); expect(voice.latest.stops, 0); expect(capture.transcript, isEmpty);
+    await tester.pump(const Duration(seconds: 16));
+    expect(capture.phase, VoicePhase.listening);
+    expect(voice.latest.cancellations, 0);
+    expect(voice.latest.stops, 0);
+    capture.stop();
+    voice.latest.emit(const VoiceEvent('final'));
+    await tester.pump();
+    expect(await result, isNull);
+    expect(voice.latest.stops, 1);
+    expect(capture.transcript, isEmpty);
   });
-  testWidgets('D04 D07 canceled generation cannot revive text or its silence timer', (tester) async {
+  testWidgets('D04 D07 canceled generation cannot revive text or affect the next capture', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false);
     final capture = VoiceCaptureController(voice); addTearDown(capture.dispose); addTearDown(voice.dispose);
     final oldResult = capture.start(), old = voice.latest;
@@ -246,6 +262,11 @@ void main() {
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('speech_start'));
     voice.latest.emit(const VoiceEvent('segment', text: 'حمامين')); voice.latest.emit(const VoiceEvent('speech_end')); await tester.pump();
     await tester.pump(const Duration(milliseconds: 2500));
+    expect(voice.latest.stops, 0);
+    final finish = find.byKey(const ValueKey('voice-finish'));
+    await tester.ensureVisible(finish);
+    await tester.tap(finish);
+    await tester.pump();
     voice.latest.emit(const VoiceEvent('final', text: 'حمامين')); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(brief).controller!.text, 'كتبت هذا حمامين');
     expect(find.byKey(const ValueKey('listing-ai-field-type')), findsNothing);

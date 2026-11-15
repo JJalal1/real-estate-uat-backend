@@ -1,15 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import '../network/conditional_image_prefetch.dart';
 
 /// A fixed-size media slot may be laid out in a scroll cache or hidden tab.
 /// Mount its network child only while it intersects every ancestor viewport.
 /// Completed bytes remain in the existing session cache; unmounting releases
 /// the last lease and cancels an unfinished transfer.
 class ViewportMedia extends StatefulWidget {
-  const ViewportMedia({required this.builder, this.placeholder, super.key});
+  const ViewportMedia({required this.builder, this.placeholder, this.onPrefetchChanged, super.key});
   final WidgetBuilder builder;
   final Widget? placeholder;
+  final void Function(bool nearby, bool visible, bool scrolling)? onPrefetchChanged;
 
   @override
   State<ViewportMedia> createState() => _ViewportMediaState();
@@ -21,6 +23,7 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
   bool _mediaWasBuilt = false;
   Timer? _dwellTimer;
   bool _dwelled = false;
+  bool _prefetchForeground = true;
 
   bool get _deferNewMedia => _positions.any((position) => position.recommendDeferredLoading(context));
   void _resetDwell() { _dwellTimer?.cancel(); _dwellTimer = null; _dwelled = false; }
@@ -81,6 +84,8 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
+    _prefetchForeground = state == AppLifecycleState.resumed;
+    if (!_prefetchForeground) widget.onPrefetchChanged?.call(false, false, true);
     _schedule();
     WidgetsBinding.instance.scheduleFrame();
   }
@@ -97,17 +102,27 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
       if (!intersects) _resetDwell();
       final visible = intersects && (_mediaWasBuilt || _canStartNewMedia());
       if (visible != _visible) setState(() => _visible = visible);
+      if (widget.onPrefetchChanged != null) {
+        final scrolling = _positions.any((p) => p.isScrollingNotifier.value) || _deferNewMedia;
+        widget.onPrefetchChanged!(!intersects && _prefetchForeground && !scrolling &&
+          _intersectsViewport(margin: ConditionalImagePrefetch.extent), intersects, scrolling);
+      }
     });
   }
 
-  bool _intersectsViewport() {
+  bool _intersectsViewport({double margin = 0}) {
     if (!_foreground || !TickerMode.of(context)) return false;
     final route = ModalRoute.of(context);
     if (route != null && !route.isCurrent) return false;
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.attached || !box.hasSize || box.size.isEmpty) return false;
     final rect = MatrixUtils.transformRect(box.getTransformTo(null), Offset.zero & box.size);
-    var clip = Offset.zero & MediaQuery.sizeOf(context);
+    if (margin > 0 && _positions.isEmpty) return false;
+    final axis = margin > 0 ? axisDirectionToAxis(_positions.first.axisDirection) : Axis.vertical;
+    Rect expanded(Rect bounds) => margin == 0 ? bounds : axis == Axis.vertical
+      ? Rect.fromLTRB(bounds.left, bounds.top - margin, bounds.right, bounds.bottom + margin)
+      : Rect.fromLTRB(bounds.left - margin, bounds.top, bounds.right + margin, bounds.bottom);
+    var clip = expanded(Offset.zero & MediaQuery.sizeOf(context));
     RenderObject child = box;
     RenderObject? parent = box.parent;
     while (parent != null) {
@@ -124,7 +139,7 @@ class _ViewportMediaState extends State<ViewportMedia> with WidgetsBindingObserv
       }
       if (parent is RenderAbstractViewport || parent is RenderClipRect || parent is RenderClipRRect) {
         final bounds = MatrixUtils.transformRect(parent.getTransformTo(null), parent.paintBounds);
-        clip = clip.intersect(bounds);
+        clip = clip.intersect(expanded(bounds));
       }
       child = parent;
       parent = parent.parent;

@@ -1,3 +1,16 @@
+/// Display labels include the legacy floor alias without offering it as a type.
+const propertyTypeLabels = <String, String>{
+  'apartment': 'شقة',
+  'floor': 'شقة',
+  'house': 'منزل',
+  'villa': 'فيلا',
+  'building': 'عمارة',
+  'land': 'أرض',
+  'farm': 'مزرعة',
+  'shop': 'محل',
+  'office': 'مكتب',
+};
+
 const propertyAreaUnitLabels = <String, String>{
   'sqm': 'متر مربع',
   'libna_sanaani': 'لبنة صنعاني',

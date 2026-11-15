@@ -30,6 +30,12 @@ class AdaptiveImagePolicy {
     _sampleAt != null && _clock().difference(_sampleAt!) < const Duration(seconds: 60) &&
     (_bytesPerSecond ?? double.infinity) < 128 * 1024;
 
+  bool canPrefetch(ImageNetworkConditions network) => network.metered == false &&
+    !network.dataSaver && network.networkKey != 'unknown' &&
+    _sampleNetwork == network.networkKey && _sampleAt != null &&
+    _clock().difference(_sampleAt!) < const Duration(seconds: 60) &&
+    (_bytesPerSecond ?? 0) >= 128 * 1024;
+
   String choose({required PropertyImageUse use, required double logicalEdge,
     required double pixelRatio, required ImageNetworkConditions network}) {
     if (use == PropertyImageUse.zoom) return 'zoom'; // explicit user request only

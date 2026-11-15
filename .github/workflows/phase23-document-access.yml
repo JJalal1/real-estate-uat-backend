@@ -1,0 +1,33 @@
+name: Phase23 synthetic private document headers
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-document-access.yml
+      - scripts/phase23_document_access.py
+      - scripts/tests/test_phase23_document_access.py
+permissions:
+  contents: read
+jobs:
+  document-headers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_document_access.py -v
+      - name: Verify normal document access and private cache headers without reading files
+        env:
+          UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+          AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION: ${{ secrets.AQER_PHASE23_ACTOR_ALLOWLIST_ATTESTATION }}
+        run: python3 -B scripts/phase23_document_access.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-document-headers-${{ github.run_id }}
+          path: phase23-document-access-sealed/
+          retention-days: 30
+          if-no-files-found: warn

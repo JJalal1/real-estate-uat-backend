@@ -1,0 +1,106 @@
+{
+  "session_date": "2026-11-16",
+  "session_timezone": "Asia/Aden",
+  "android_log_timezone": "UTC",
+  "pr": 186,
+  "branch": "work/phase23-acceptance-20261111",
+  "item": 27,
+  "device": "emulator-5554",
+  "version_code": 1810,
+  "package": "com.aqer.yemen.uat.retest",
+  "app_source_commit": "c598c5745d5629590665cc18829a71e611f52db1",
+  "installed_apk_sha256": "b2a6c0a2e3dd33a679bc1f6a426452e21fe07f44dba5cdf594d5e72ae4493831",
+  "input": {
+    "type": "user speech via laptop microphone",
+    "expected_segments": [
+      "أبحث عن شقة",
+      "للإيجار في صنعاء"
+    ],
+    "target_pause_seconds": 5,
+    "pause_independently_verified": false,
+    "host_microphone_forwarding_enabled_for_test": true,
+    "host_microphone_forwarding_disabled_after_capture": true,
+    "raw_microphone_audio_in_evidence": false
+  },
+  "android": {
+    "recognition_service": "com.google.android.tts/com.google.android.apps.speech.tts.googletts.service.GoogleTTSRecognitionService",
+    "locale": "ar-YE",
+    "voice_recognition_capture_reported_not_silenced": true,
+    "native_recognition_error": "NO_SPEECH_DETECTED",
+    "final_transcript_observed": false,
+    "audio_signal_quality_verified": false
+  },
+  "app": {
+    "expected_final_field": "أبحث عن شقة للإيجار في صنعاء",
+    "observed_final_field": "",
+    "observed_warning": "لم نلتقط كلامًا واضحًا. حاول مرة أخرى أو اكتب طلبك.",
+    "finish_button_visible_at_elapsed_seconds_across_attempts": [
+      5,
+      14
+    ]
+  },
+  "acceptance": "open",
+  "round_passed": false,
+  "evidence_archive": {
+    "name": "uat1810-item27-live-mic-20261116.zip",
+    "bytes": 2315104,
+    "sha256": "e4f75396d378f69ad6dd616aa0dd843dbd5faf2b95c0b4f039add91cc4171c78"
+  },
+  "evidence_files": [
+    {
+      "name": "01-ready.png",
+      "bytes": 125265,
+      "sha256": "02ddf1ce62c75a7866a75122fd0735a7d2d3b92eea844ea88fdf49c432e22f31"
+    },
+    {
+      "name": "02-listening-00m05s.png",
+      "bytes": 81706,
+      "sha256": "4a32108a2625fd7e5727d6c4012cfd63b336c8b3b15f58a496a1cc9c4120784c"
+    },
+    {
+      "name": "02-listening-00m14s.png",
+      "bytes": 82145,
+      "sha256": "621e786e62b562c06196fa64d6276bfc7e8f6eb40d6370ab4ea84e7b2509f65b"
+    },
+    {
+      "name": "02-finalizing.png",
+      "bytes": 65371,
+      "sha256": "1011b744d25d91a8a738c85cf15e0251940e6baa41fa1c181d080d1add6141dd"
+    },
+    {
+      "name": "03-field-after-finish.png",
+      "bytes": 140084,
+      "sha256": "06bcfbecb39ce9d98e22352916bbc7815c8ea94af1f0b6bf300f038bc7ac2cd6"
+    },
+    {
+      "name": "live-dictation.mp4",
+      "bytes": 2284788,
+      "sha256": "10d52fbc02795804ede5252dc3bffc4edc36d9c575691f961c656c586d4e1117"
+    },
+    {
+      "name": "field-readback.json",
+      "bytes": 157,
+      "sha256": "47f76a78fa0c423f30bdccf39c5c4b07c4c4f41a0d18d4d1828ed70c88891d4e"
+    },
+    {
+      "name": "android-recognition-events.txt",
+      "bytes": 7775,
+      "sha256": "b641898f210ed207f353ec64a2b2a1502615fe64bcebb3c6965648035698823f"
+    },
+    {
+      "name": "android-recording-route.txt",
+      "bytes": 741,
+      "sha256": "4006e1cd14317030414efb4ebd7c8bc5851380495e6397e68da2b3c4f7441d44"
+    },
+    {
+      "name": "README-item27-live.md",
+      "bytes": 2135,
+      "sha256": "6cccc691ccf6898492b96abb2d0a461dc742ad61c1f77ebc4096968a27db4f01"
+    },
+    {
+      "name": "SHA256SUMS",
+      "bytes": 885,
+      "sha256": "bcbf30bdd62d373d925277c925cab5b4517b174268ce83af4a237e0f0c6903bb"
+    }
+  ]
+}

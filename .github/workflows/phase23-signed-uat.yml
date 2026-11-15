@@ -1,0 +1,165 @@
+name: Phase23 stable UAT signing readiness
+# Contract checks only by default. A reviewed push carrying [build-signed-uat]
+# additionally builds one encrypted installer; it never deploys or runs journeys.
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - .github/workflows/phase23-signed-uat.yml
+      - scripts/import_ci_uat_signing.py
+      - scripts/prepare_phase23_signed_uat.py
+      - scripts/tests/test_uat_signing_configuration.py
+      - scripts/tests/test_phase23_signed_uat.py
+permissions:
+  contents: read
+concurrency:
+  group: phase23-signed-uat
+  cancel-in-progress: false
+jobs:
+  signing-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Check importer with synthetic keys and the actual runner file permissions
+        env:
+          AQER_TEST_RUNNER_SIGNING: 'true'
+          AQER_SIGNING_ENVIRONMENT: uat
+        run: python3 -B -m unittest discover -s scripts/tests -p test_uat_signing_configuration.py -v
+      - run: python3 -B -m unittest discover -s scripts/tests -p test_phase23_signed_uat.py -v
+      - name: Report presence only; never read secret values in contract checks
+        env:
+          HAS_KEYSTORE: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 != '' }}
+          HAS_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD != '' }}
+          HAS_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS != '' }}
+          HAS_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD != '' }}
+          HAS_CERTIFICATE_PIN: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 != '' }}
+          HAS_FIREBASE_CLIENT: ${{ secrets.AQER_UAT_GOOGLE_SERVICES_JSON_BASE64 != '' }}
+        run: |
+          python3 -B - <<'PY'
+          import json, os
+          names = ('KEYSTORE', 'STORE_PASSWORD', 'KEY_ALIAS', 'KEY_PASSWORD', 'CERTIFICATE_PIN', 'FIREBASE_CLIENT')
+          presence = {name.lower(): os.environ['HAS_' + name] == 'true' for name in names}
+          print('AQER_UAT_CONFIGURATION_PRESENCE ' + json.dumps({
+              'present': presence, 'signing_material_verified': False,
+              'stable_apk_built': False, 'real_fcm_delivery_tested': False,
+          }, sort_keys=True))
+          PY
+  signed-installer:
+    if: ${{ contains(github.event.head_commit.message, '[build-signed-uat]') }}
+    needs: signing-contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AQER_SIGNING_ENVIRONMENT: uat
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
+      UAT_API_BASE_URL: https://real-estate-uat-api-frankfurt.onrender.com/api
+      PHASE23_PREFETCH_ON: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Require the already reviewed product components
+        run: |
+          python3 -B - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'scripts')
+          from phase23_preflight import guard
+          guard(os.environ)
+          run_number = os.environ['GITHUB_RUN_NUMBER']
+          assert run_number.isdigit(), 'invalid_run_number'
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('PHASE23_BUILD=' + str(1611 + int(run_number)) + '\n')
+              stream.write('GRADLE_USER_HOME=' + os.environ['RUNNER_TEMP'] + '/aqer-signed-uat-gradle\n')
+          print('AQER_REVIEWED_PRODUCT_COMPONENTS_UNCHANGED')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Reuse only reviewed public Gradle dependencies
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ${{ env.GRADLE_USER_HOME }}/caches/modules-2
+            ${{ env.GRADLE_USER_HOME }}/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Resolve the existing reviewed dependency lock
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          flutter pub get --enforce-lockfile
+      - name: Import optional existing UAT Firebase client configuration
+        env:
+          AQER_UAT_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.AQER_UAT_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: python3 -B scripts/import_ci_uat_firebase.py
+      - name: Validate and stage the required owner supplied UAT signing key
+        env:
+          AQER_UAT_KEYSTORE_BASE64: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 }}
+          AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
+          AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
+          AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
+          AQER_UAT_SIGNING_CERT_SHA256: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 }}
+        run: python3 -B scripts/import_ci_uat_signing.py --required
+      - name: Build one ordinary UAT release with the verified key
+        working-directory: mobile_app
+        env:
+          AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
+          AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
+          AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
+        run: |
+          flutter build apk --flavor uat --release --no-pub --build-number="$PHASE23_BUILD" \
+            --dart-define=APP_BUILD_NUMBER="$PHASE23_BUILD" --dart-define=APP_ENVIRONMENT=uat \
+            --dart-define=API_BASE_URL="$UAT_API_BASE_URL" \
+            --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
+            --dart-define=AQER_CONDITIONAL_PREFETCH="$PHASE23_PREFETCH_ON" \
+            --dart-define=AQER_NATIVE_NETWORK_TRACE=true
+          git diff --exit-code -- lib android assets pubspec.yaml
+      - name: Verify the APK certificate, Android requirements and encrypt the installer
+        run: python3 -B scripts/prepare_phase23_signed_uat.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase23-signed-uat-${{ github.run_id }}
+          path: |
+            phase23-signed-uat-sealed/installer.cms
+            phase23-signed-uat-sealed/APK_VERIFICATION.json
+          retention-days: 30
+          if-no-files-found: error
+      - name: Remove temporary signing material even after a failed build
+        if: always()
+        run: |
+          python3 -B - <<'PY'
+          import os
+          from pathlib import Path
+          directory = Path(os.environ['RUNNER_TEMP']) / 'aqer-uat-signing'
+          if directory.is_symlink():
+              raise RuntimeError('refuse_unexpected_signing_directory_symlink')
+          (directory / 'uat-release.keystore').unlink(missing_ok=True)
+          if directory.exists():
+              directory.rmdir()
+          Path('mobile_app/android/firebase-uat.properties').unlink(missing_ok=True)
+          print('AQER_UAT_SIGNING_MATERIAL_REMOVED')
+          PY

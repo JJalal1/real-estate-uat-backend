@@ -1,0 +1,31 @@
+name: Phase23 known synthetic case9 metadata only
+on:
+  push:
+    branches: [work/phase23-acceptance-20261111]
+    paths:
+      - scripts/phase23_case9_metadata.py
+      - .github/workflows/phase23-case9-metadata.yml
+permissions:
+  contents: read
+jobs:
+  known-case-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Read known case9 and export metadata allowlist only
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: python3 -B scripts/phase23_case9_metadata.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase23-case9-metadata-${{ github.run_id }}
+          path: phase23-case9-metadata/RECEIPT.json
+          retention-days: 30
+          if-no-files-found: error

@@ -4,13 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/features/properties/data/favorites_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
 import 'package:real_estate_mobile/features/properties/presentation/favorites_screen.dart';
+import 'support/private_collection_fixtures.dart';
 
 void main() {
   testWidgets('favorites screen has a real empty state', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          favoritePropertiesProvider.overrideWith((ref) async => const []),
+          favoritePagesProvider.overrideWith((ref) => fixedFavoritePages(const [])),
         ],
         child: const MaterialApp(home: FavoritesScreen()),
       ),
@@ -46,7 +47,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          favoritePropertiesProvider.overrideWith((ref) async => const [property]),
+          favoritePagesProvider.overrideWith((ref) => fixedFavoritePages(const [property])),
         ],
         child: const MaterialApp(home: FavoritesScreen()),
       ),

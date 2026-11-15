@@ -84,7 +84,9 @@ class SupportTaskService
         return $query
             ->orderByRaw("CASE priority WHEN 'urgent' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END")
             ->orderByRaw('CASE WHEN sla_due_at IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('sla_due_at')->orderBy('created_at');
+            ->orderBy('sla_due_at')->orderBy('created_at')
+            // Keep page boundaries stable when priority and timestamps are equal.
+            ->orderBy('id');
     }
 
     public function claim(User $actor, SupportTask $task, Request $request, bool $actingAsAgent=false): SupportTask
