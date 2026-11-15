@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
@@ -30,6 +31,28 @@ class FakeLocationAccess extends DiscoveryLocationAccess {
   @override
   Future<HomeLocation> locate() async { fixes++; return pending?.future ?? Future.value(const HomeLocation(latitude:12.8,longitude:45.0,label:'موقعي',device:true)); }
 }
+
+class RecordingGeolocator extends GeolocatorPlatform {
+  LocationAccuracyStatus accuracyStatus = LocationAccuracyStatus.precise;
+  LocationSettings? requested;
+
+  @override
+  Future<bool> isLocationServiceEnabled() async => true;
+
+  @override
+  Future<LocationAccuracyStatus> getLocationAccuracy() async => accuracyStatus;
+
+  @override
+  Future<Position> getCurrentPosition({LocationSettings? locationSettings}) async {
+    requested = locationSettings;
+    return Position(
+      latitude: 12.785998, longitude: 45.019500, timestamp: DateTime.utc(2026),
+      accuracy: 5, altitude: 0, altitudeAccuracy: 0, heading: 0,
+      headingAccuracy: 0, speed: 0, speedAccuracy: 0,
+    );
+  }
+}
+
 class DescriptionAuth implements AuthRepository {
   String token = 'fixture-a';
   @override
@@ -39,6 +62,28 @@ class DescriptionAuth implements AuthRepository {
 }
 
 void main() {
+  test('Home activates GPS for precise Android permission and keeps reduced accuracy low-power', () async {
+    final original = GeolocatorPlatform.instance;
+    final geolocator = RecordingGeolocator();
+    final access = DiscoveryLocationAccess();
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    GeolocatorPlatform.instance = geolocator;
+    addTearDown(() {
+      GeolocatorPlatform.instance = original;
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    final location = await access.locate();
+    expect(geolocator.requested?.accuracy, LocationAccuracy.high);
+    expect(geolocator.requested?.timeLimit, const Duration(seconds: 8));
+    expect(location.latitude, 12.785998);
+    expect(location.device, isTrue);
+
+    geolocator.accuracyStatus = LocationAccuracyStatus.reduced;
+    await access.locate();
+    expect(geolocator.requested?.accuracy, LocationAccuracy.low);
+  });
+
   test('apartment selector stops at seven while office and historical floor labels remain readable', () {
     expect(DynamicPropertySchema.floorOptionsFor('apartment').keys, ['0','1','2','3','4','5','6','7']);
     expect(DynamicPropertySchema.floorOptionsFor('office').containsKey('8'), true);
