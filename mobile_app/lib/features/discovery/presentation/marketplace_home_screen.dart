@@ -336,7 +336,7 @@ class _HomeBrokerCard extends StatelessWidget {
 }
 
 class MarketplaceLocationSheet extends ConsumerWidget {
-  const MarketplaceLocationSheet();
+  const MarketplaceLocationSheet({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) => Directionality(textDirection: TextDirection.rtl, child: SizedBox(
     height: MediaQuery.sizeOf(context).height * .60, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
