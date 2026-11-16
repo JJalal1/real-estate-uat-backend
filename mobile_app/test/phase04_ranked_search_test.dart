@@ -12,6 +12,7 @@ import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/map/domain/property_marker_cluster.dart';
+import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/discovery_match.dart';
@@ -53,12 +54,38 @@ void main() {
     expect(()=>DiscoveryMatch.fromJson({'kind':'exact','reasons':[],'distance_m':-1}),throwsFormatException);
   });
 
-  test('mixed classifications never share a cluster and two co-located units retain both identities', () {
+  test('co-located exact and nearby units remain visible as separate counts at every zoom', () async {
     final rows=[PropertyMarker.fromJson(_row(1)),PropertyMarker.fromJson(_row(2)),PropertyMarker.fromJson(_row(3,nearby:true))];
-    final clusters=clusterPropertyMarkers(rows,zoom:11);
-    expect(clusters,hasLength(2));
-    expect(clusters.expand((c)=>c.items).map((p)=>p.id).toSet(),{1,2,3});
-    expect(clusters.singleWhere((c)=>c.items.length==2).items.every((p)=>p.discoveryMatch?.nearby==false),isTrue);
+    for (final zoom in [11.0, 16.0, 19.0]) {
+      final clusters=clusterPropertyMarkers(rows,zoom:zoom,selectedPropertyId:3);
+      expect(clusters,hasLength(1));
+      expect(clusters.single.items.map((p)=>p.id).toSet(),{1,2,3});
+      expect(clusters.single.exactCount,2);
+      expect(clusters.single.nearbyCount,1);
+      expect(clusters.single.latitude,closeTo(15.37,1e-9));
+      expect(clusters.single.longitude,closeTo(44.19,1e-9));
+    }
+    expect(mapPropertyClusterLabel(3,nearbyCount:1),'2 + ≈1');
+    expect(mapPropertyClusterImageName(3,nearbyCount:1),isNot(mapPropertyClusterImageName(3)));
+    final bytes=await renderMapPropertyClusterImage(3,nearbyCount:1);
+    final codec=await ui.instantiateImageCodec(bytes);
+    final frame=await codec.getNextFrame();
+    expect(frame.image.width,greaterThan(frame.image.height));
+    frame.image.dispose();codec.dispose();
+    await Directory('phase04-proof').create(recursive:true);
+    await File('phase04-proof/mixed-cluster-2-exact-1-nearby.png').writeAsBytes(bytes);
+  });
+
+  test('ranked map does not silently lose loaded exact results or alternatives after marker 250', () {
+    final rows=List.generate(300,(index)=>PropertyMarker.fromJson(_row(index+1)));
+    rows.add(PropertyMarker.fromJson(_row(301,nearby:true)));
+    final visible=propertyMarkersForAnnotations(rows);
+    expect(visible,hasLength(301));
+    expect(visible.last.discoveryMatch!.nearby,isTrue);
+    final clusters=clusterPropertyMarkers(visible,zoom:19);
+    expect(clusters.single.exactCount,300);
+    expect(clusters.single.nearbyCount,1);
+    expect(clusters.single.items.map((p)=>p.id).toSet(),rows.map((p)=>p.id).toSet());
   });
 
   test('ranked repository carries identical filters through pages and rejects an old server', () async {

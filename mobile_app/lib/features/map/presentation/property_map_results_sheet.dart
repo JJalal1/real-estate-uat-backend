@@ -163,7 +163,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                 const Wrap(spacing: 16, runSpacing: 4, children: [
                   _Legend(label: 'للإيجار', color: mapRentColor), _Legend(label: 'للبيع', color: mapSaleColor),
                 ]),
-                if (ranked) const Text('≈ نتيجة قريبة من بحثك؛ السبب والمسافة موضحان في البطاقة.'),
+                if (ranked) const Text('≈ نتيجة قريبة من بحثك. التجمع مثل 2 + ≈1 يعني مطابقين وقريبًا واحدًا؛ التفاصيل في البطاقات.'),
                 if (widget.loading) const Padding(padding: EdgeInsets.only(top: 8),
                   child: Text('جارٍ تحديث النطاق… النتائج الظاهرة من آخر تحميل متاح.')),
                 if (widget.error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Column(
