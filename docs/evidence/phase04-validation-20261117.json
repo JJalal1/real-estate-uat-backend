@@ -1,0 +1,87 @@
+{
+  "acceptance": "PARTIAL_ENGINEERING_VERIFIED_LIVE_AND_PHONE_PENDING",
+  "baseline_commit": "fe6b525988a1d0128c1bc5189a976929ec9a75c1",
+  "functional_commit": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
+  "build_source_commit": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
+  "backend_component": "94e86ba803fd4ffb2010e506340a021ad6512f22",
+  "mobile_component": "2b425063e52c660016806fcad0c6b2fee9a5a1bd",
+  "pull_request": "https://github.com/JJalal1/real-estate-uat-backend/pull/189",
+  "ci": {
+    "run": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/43970257129",
+    "backend": {
+      "sqlite_job": 133660245924,
+      "postgis_job": 133660245282,
+      "database_image": "postgis/postgis:17-3.5",
+      "new_tests_per_engine": 8,
+      "new_assertions_per_engine": 85,
+      "affected_regression_per_engine": 16,
+      "affected_regression_assertions_per_engine": 209,
+      "status": "PASSED"
+    },
+    "mobile_job": 133660245716,
+    "flutter_tests": 30,
+    "flutter_analysis": "PASSED",
+    "flutter_tests_status": "PASSED",
+    "apk_verification": "BUILD_RUNNING"
+  },
+  "phone": {
+    "status": "NOT_TESTED_NO_PHYSICAL_HANDSET_ACCESS",
+    "device": null,
+    "network_normal": null,
+    "network_weak": null,
+    "repetitions_per_condition": 3,
+    "before_1812": null,
+    "after_1813": null,
+    "known_building_reference": null,
+    "gps_accuracy_m": null,
+    "gps_distance_to_reference_m": null,
+    "address_edit_coordinates_unchanged_live": null,
+    "first_results_ms": null,
+    "first_markers_ms": null,
+    "pan_zoom_response_ms": null,
+    "request_count_and_bytes": null
+  },
+  "live_backend": {
+    "deployment": null,
+    "status": "NOT_DEPLOYED_WORKSPACE_CONFIRMATION_REQUIRED",
+    "last_owner_reported_deploy": "dep-dbr6os6c6qcc73d0f6cg",
+    "baseline_only_redeployment": false,
+    "workspace_label_presented_by_render": "My Workspace"
+  },
+  "journey": {
+    "steps": [
+      "search",
+      "filters",
+      "all_exact_pages",
+      "draw",
+      "details",
+      "return",
+      "change_query",
+      "automatic_alternatives",
+      "true_empty",
+      "network_failure_retry"
+    ],
+    "new_live_native_recording": false,
+    "prior_accepted_native_replayed": false,
+    "widget_images_are_synthetic": true
+  },
+  "prior_phase_report_review": {
+    "historical_items_html_version": "4",
+    "historical_journeys_html_version": "2",
+    "historical_reports_modified_utc": "2026-11-13",
+    "latest_release_pdf_bytes_read": false,
+    "latest_28_of_32_basis": "owner handoff; historical aggregates do not override owner status",
+    "original_receipt_json_read": false,
+    "apk_bytes_independently_checked": true
+  },
+  "address_provider_observation": {
+    "evidence": "phase04-address-context-live-20261117.json",
+    "http_status": 200,
+    "cloud_elapsed_ms": 33335.5,
+    "bytes": 2815,
+    "provider_status": "nominatim+photon",
+    "confidence": "needs_review",
+    "local_geo_cell": null,
+    "independent_building_reference": false
+  }
+}
