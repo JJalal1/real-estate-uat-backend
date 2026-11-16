@@ -83,6 +83,8 @@ class Phase04GovernoratesTest extends TestCase
         foreach (['AMANAT_AL_ASIMAH', 'SANAA', 'IBB'] as $i => $code) {
             $query = http_build_query(['ranked_search' => 1, 'governorate_code' => $code]);
             $list = $this->getJson('/api/properties?'.$query)->assertOk()->assertJsonPath('meta.exact_total', 1)->assertJsonPath('data.0.id', $ids[$i])->json();
+            $this->assertSame(1, app(\App\Services\SavedPropertySearchService::class)->matchingCount(['governorate_code' => $code]));
+            $this->assertSame($code, app(\App\Services\SmartSearchService::class)->validate(['governorate_code' => $code])['governorate_code']);
             $this->assertSame($list, $this->getJson('/api/properties/nearby?'.$query)->assertOk()->json());
             $this->getJson('/api/marketplace?governorate_code='.$code)->assertOk()->assertJsonPath('data.sections.latest.0.id', $ids[$i]);
         }

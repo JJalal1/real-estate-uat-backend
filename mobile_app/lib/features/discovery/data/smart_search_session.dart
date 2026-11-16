@@ -64,7 +64,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   void updateViewport({required double south, required double west, required double north, required double east}) {
     if (![south, west, north, east].every((value) => value.isFinite) || south >= north ||
       south < -90 || north > 90 || west < -180 || east > 180) { return; }
-    final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km')..remove('governorate');
+    final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km')..remove('governorate')..remove('governorate_code');
     values.addAll({'south':south,'west':west,'north':north,'east':east});
     final next = SmartSearchFilters.fromMap(values);
     if (next.sameAs(state.filters)) return;
