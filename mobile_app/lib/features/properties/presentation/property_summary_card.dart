@@ -44,6 +44,7 @@ class PropertySummaryCard extends StatelessWidget {
       purposeLabel: p.purpose == 'rent' ? 'للإيجار' : 'للبيع', priceSuffix: monthly ? 'شهريًا' : null,
       facts: summaryPropertyFacts(p), trailing: PropertyFavoriteAction(propertyId: p.id, enabled: p.status == 'published'),
       action: PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published'), supportingText: [
+        if (p.discoveryMatch?.nearby == true) 'نتيجة قريبة · ${p.discoveryMatch!.explanation}',
         if (monthly && p.price != p.monthlyRent) '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
       ], onTap: onTap ?? () => context.push('/properties/${p.id}', extra: p));
   }

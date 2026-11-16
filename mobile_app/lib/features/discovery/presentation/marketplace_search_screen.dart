@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/network/conditional_image_prefetch.dart';
 import '../../properties/presentation/property_summary_card.dart';
+import '../../properties/presentation/discovery_section_heading.dart';
 import '../data/marketplace_search_session.dart';
 import '../data/smart_search_session.dart';
 import '../domain/smart_search_filters.dart';
@@ -104,8 +105,11 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
             'purpose': ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'],
         }))))
     else SliverList(delegate: SliverChildBuilderDelegate((context, i) => Padding(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 4), child: PropertySummaryCard(
-        key: ValueKey('home-result-${search.rows[i].id}'), property: search.rows[i])), childCount: search.rows.length)),
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 4), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (search.rows[i].discoveryMatch?.nearby == true && (i == 0 || search.rows[i-1].discoveryMatch?.nearby != true))
+          DiscoverySectionHeading(hasExact: i > 0),
+        PropertySummaryCard(key: ValueKey('home-result-${search.rows[i].id}'), property: search.rows[i]),
+      ])), childCount: search.rows.length)),
     if (search.rows.isNotEmpty && controller.home.isLoadingMore &&
         (search.loading || search.resultsError != null)) SliverToBoxAdapter(child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18), child: AppRefreshStatus(

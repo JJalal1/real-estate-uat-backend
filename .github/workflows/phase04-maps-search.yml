@@ -1,0 +1,112 @@
+name: Phase04 maps and ranked search
+on:
+  push:
+    branches: [work/phase04-maps-search-20261117]
+permissions:
+  contents: read
+concurrency:
+  group: phase04-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    name: Ranked discovery on ${{ matrix.database }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: phase04_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres -d phase04_test" --health-interval 10s --health-timeout 5s --health-retries 5
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'phase04_test' }}
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath,curl,dom,exif,fileinfo,gd,intl,mbstring,pdo_sqlite,sqlite3,pdo_pgsql
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Disposable test environment
+        run: |
+          install -m 600 /dev/null .env
+          php artisan key:generate --force
+      - name: Prepare roles for original migration chain
+        if: matrix.database == 'pgsql'
+        run: psql -h 127.0.0.1 -U postgres -d phase04_test -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+      - name: New ranking, boundary, paging and visibility contracts
+        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Small affected search regression
+        run: php artisan test tests/Feature/DiscoverySearchQualityTest.php tests/Feature/SpokenSearchCityTest.php tests/Feature/Wave01SharedFiltersTest.php --display-warnings --fail-on-warning --fail-on-risky
+  mobile:
+    name: Flutter ranked search contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve original locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Strict analysis
+        working-directory: mobile_app
+        run: python3 ../scripts/check_v3_analysis.py
+      - name: New ranked results and existing affected map contracts
+        working-directory: mobile_app
+        run: flutter test test/phase04_ranked_search_test.dart test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart --reporter expanded
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          log-accepted-android-sdk-licenses: false
+      - name: Build separate Phase04 phone candidate
+        working-directory: mobile_app
+        env:
+          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+          ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.phase04
+          ORG_GRADLE_PROJECT_AQER_UAT_APP_NAME: عقار خرائط اختبار
+        run: >-
+          flutter build apk --flavor uat --release --build-number=1813
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=APP_BUILD_NUMBER=1813
+          --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.phase04
+          --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
+          --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com
+          --dart-define=AQER_RANKED_DISCOVERY=true
+      - name: Verify actual APK identity, signer, source and 16KB packaging
+        run: python3 scripts/verify_phase04_apk.py
+      - uses: actions/upload-artifact@v4
+        if: success() && github.event.repository.private
+        with:
+          name: phase04-private-candidate-${{ github.sha }}
+          path: mobile_app/phase04-proof/
+          retention-days: 14
+          if-no-files-found: error

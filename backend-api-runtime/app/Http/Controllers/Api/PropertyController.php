@@ -59,6 +59,14 @@ class PropertyController extends Controller
         $validated = $request->validate($this->filterRules());
         $perPage = max(1, min((int) ($request->input('per_page', 20)), 50));
 
+        if ($request->boolean('ranked_search')) {
+            $page = app(\App\Services\RankedPropertyDiscoveryService::class)->page($validated,
+                max(1, (int) $request->input('page', 1)), $perPage, (string) $request->input('sort', 'latest'));
+            return response()->json(['data' => array_map(fn ($row) => array_merge(
+                $this->summaryData($row['property'], $request), ['discovery_match' => $row['match']]), $page['rows']),
+                'meta' => $page['meta']])->header('X-Aqer-Filter-Contract', '2')->header('X-Aqer-Ranked-Contract', '1');
+        }
+
         $query = $this->publicQuery();
         $this->applyFilters($query, $validated);
         $this->validateBounds($validated);
@@ -89,6 +97,9 @@ class PropertyController extends Controller
 
     public function nearby(Request $request): JsonResponse
     {
+        // Ranked consumers use exactly the same ordered pages and summary
+        // contract as the list. Legacy viewport exploration retains its scope.
+        if ($request->boolean('ranked_search')) return $this->index($request);
         $validated = $request->validate(array_merge($this->filterRules(), [
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],

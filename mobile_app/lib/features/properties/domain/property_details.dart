@@ -1,6 +1,7 @@
 import 'property_schema.dart';
 import 'property_coordinates.dart';
 import 'dart:convert';
+import 'discovery_match.dart';
 
 class PropertyImageItem {
   const PropertyImageItem({
@@ -66,6 +67,7 @@ class PropertySummary {
     this.imageUrls = const [],
     this.isSpotlight = false,
     this.floorNumber,
+    this.discoveryMatch,
   });
 
   final int id;
@@ -102,6 +104,7 @@ class PropertySummary {
   final List<String> imageUrls;
   final bool isSpotlight;
   final String? floorNumber;
+  final DiscoveryMatch? discoveryMatch;
 
   factory PropertySummary.fromJson(Map<String, dynamic> json) {
     json = DynamicPropertySchema.sanitize(json);
@@ -140,6 +143,7 @@ class PropertySummary {
       imageUrls: List.unmodifiable((json['image_urls'] as List? ?? const []).whereType<String>().where((url) => url.isNotEmpty).take(12)),
       isSpotlight: _asBool(json['is_spotlight']) ?? false,
       floorNumber: _nullableString(json['floor_number']),
+      discoveryMatch: DiscoveryMatch.fromJson(json['discovery_match']),
     );
   }
 }

@@ -168,7 +168,7 @@ class PropertyDiscoveryFilterService
         );
     }
 
-    private function normalizeArabicSearch(string $value): string
+    public function normalizeArabicSearch(string $value): string
     {
         $value = trim($value);
         if ($value === '') return '';

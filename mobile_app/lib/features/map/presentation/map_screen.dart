@@ -153,12 +153,12 @@ Future<Uint8List> renderMapPropertyPriceImage(
   return byteData.buffer.asUint8List();
 }
 
-String mapPropertyClusterImageName(int count) => 're_cluster_${count.clamp(2, 999)}';
+String mapPropertyClusterImageName(int count, {bool nearby = false}) => 're_cluster_${count.clamp(2, 999)}${nearby ? '_nearby' : ''}';
 
-Future<Uint8List> renderMapPropertyClusterImage(int count) async {
+Future<Uint8List> renderMapPropertyClusterImage(int count, {bool nearby = false}) async {
   const renderScale = 2.0;
-  final label = count > 999 ? '999+' : count.toString();
-  final diameter = count >= 100 ? 44.0 : 40.0;
+  final label = '${nearby ? '≈ ' : ''}${count > 999 ? '999+' : count}';
+  final diameter = nearby || count >= 100 ? 48.0 : 40.0;
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder)..scale(renderScale);
   final center = Offset(diameter / 2, diameter / 2);
@@ -787,11 +787,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         if (cluster.isCluster) {
           final ids = cluster.items.map((row) => row.id).toList()..sort();
           keys.add('cluster:${ids.join(',')}');
-          final imageName = mapPropertyClusterImageName(cluster.items.length);
+          final nearby = cluster.first.discoveryMatch?.nearby == true;
+          final imageName = mapPropertyClusterImageName(cluster.items.length, nearby: nearby);
           await _ensureMapClusterImage(
             controller,
             imageName: imageName,
             count: cluster.items.length,
+            nearby: nearby,
           );
           if (generation != _annotationGeneration) return;
           options.add(
@@ -815,7 +817,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         keys.add('property:${property.id}');
         final selected = property.id == _selected?.id;
         final rent = property.purpose == 'rent';
-        final label = mapPropertyPriceLabel(property.price);
+        final label = '${property.discoveryMatch?.nearby == true ? '≈ ' : ''}${mapPropertyPriceLabel(property.price)}';
         final imageName = mapPropertyPriceImageName(
           label,
           selected: selected,
@@ -910,9 +912,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     MapLibreMapController controller, {
     required String imageName,
     required int count,
+    bool nearby = false,
   }) async {
     if (_registeredPriceImages.contains(imageName)) return;
-    final bytes = await renderMapPropertyClusterImage(count);
+    final bytes = await renderMapPropertyClusterImage(count, nearby: nearby);
     await controller.addImage(imageName, bytes);
     _registeredPriceImages.add(imageName);
   }
@@ -1485,7 +1488,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final search=ref.read(_searchSession), controller=_mapController;
     if(controller==null || !mounted)return;
     final values=search.filters.values;
-    if(widget.enforceViewport && const ['south','west','north','east'].every((key)=>values[key] is num)) {
+    if((widget.enforceViewport || search.filters.hasMapArea) && const ['south','west','north','east'].every((key)=>values[key] is num)) {
       // Reopening the same map restores its actual bounds, including an empty
       // result viewport, rather than fitting only its remaining listing pins.
       final bounds=LatLngBounds(southwest:LatLng((values['south'] as num).toDouble(),(values['west'] as num).toDouble()),
@@ -1528,7 +1531,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final rows=state.rows.where((p)=>hasValidPropertyCoordinates(p.latitude, p.longitude)).map((p)=>PropertyMarker(
       id:p.id,title:p.title,price:p.monthlyRent??p.price,currency:p.currency,latitude:p.latitude,longitude:p.longitude,distanceKm:0,
       purpose:p.purpose,type:p.type,areaM2:p.areaM2,bedrooms:p.bedrooms,bathrooms:p.bathrooms,address:p.address,
-      mainImage:p.mainImage,imageUrls:p.imageUrls,isSpotlight:p.isSpotlight,monthlyRent:p.monthlyRent)).toList(growable:false);
+      mainImage:p.mainImage,imageUrls:p.imageUrls,isSpotlight:p.isSpotlight,monthlyRent:p.monthlyRent,
+      discoveryMatch:p.discoveryMatch)).toList(growable:false);
     if(_selected!=null && !rows.any((p)=>p.id==_selected!.id))_selected=null;
     _queueMarkerSync(rows);
     final user = ref.watch(authControllerProvider).asData?.value;

@@ -1,3 +1,7 @@
+# Active Phase04 maps and search — November17
+
+Owner scope: docs/PHASE04_MAPS_SEARCH_20261117_AR.md. Start fe6b525, original APK1812 bytes verified. New isolated execution branch work/phase04-maps-search-20261117. Ranked discovery uses the existing Laravel public scope and shared Flutter search session. The opt-in versioned contract is staged for testing, not yet deployed; AQER_RANKED_DISCOVERY defaults OFF until an explicitly built candidate enables it. Physical-handset/GPS/before-after acceptance remains separate. No baseline-only backend redeploy or Phase23 Native replay. The owner's28/32 delivery decision and named deferrals supersede historical aggregate counts below.
+
 # Phase23 continuation authorized — November13
 
 The owner authorized execution of the saved completion plan after UAT1590. Read `docs/PHASE23_EXECUTION_2026-11-13_AR.md` and the latest dated remaining-acceptance report first. Source fixes and tests are in progress; the 20/8/2/2 acceptance counts are unchanged. Paid portions remain parked; video3/21 remain excluded and TUS11 remains behind its separate backup/restore gate. No Production/store or paid-resource activation.

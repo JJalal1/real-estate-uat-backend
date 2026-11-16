@@ -44,7 +44,7 @@ List<PropertyMarkerCluster> clusterPropertyMarkers(
     }
     final latCell = (item.latitude / cellDegrees).floor();
     final lonCell = (item.longitude / cellDegrees).floor();
-    buckets.putIfAbsent('$latCell:$lonCell', () => <PropertyMarker>[]).add(item);
+    buckets.putIfAbsent('$latCell:$lonCell:${item.discoveryMatch?.nearby == true ? 'nearby' : 'exact'}', () => <PropertyMarker>[]).add(item);
   }
 
   return buckets.values.map((bucket) {
