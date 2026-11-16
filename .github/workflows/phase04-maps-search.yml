@@ -88,6 +88,7 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           log-accepted-android-sdk-licenses: false
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Build separate Phase04 phone candidate
         working-directory: mobile_app
         env:
