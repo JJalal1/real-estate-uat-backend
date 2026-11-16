@@ -98,9 +98,9 @@ class Phase04RankedDiscoveryTest extends TestCase
     {
         $sanaa = Governorate::firstOrCreate(['name_ar' => 'صنعاء'], ['code' => 'p4-sanaa', 'is_active' => true]);
         $taiz = Governorate::firstOrCreate(['name_ar' => 'تعز'], ['code' => 'p4-taiz', 'is_active' => true]);
-        $a = GeoCell::create(['governorate_id' => $sanaa->id, 'code' => 'p4-a', 'name_ar' => 'حي المرحلة الرابعة', 'name_en' => 'Old quarter',
+        $a = $this->cell(['governorate_id' => $sanaa->id, 'code' => 'p4-a', 'name_ar' => 'حي المرحلة الرابعة', 'name_en' => 'Old quarter',
             'is_active' => true, 'boundary_json' => ['type' => 'Polygon', 'coordinates' => [$this->ring]]]);
-        GeoCell::create(['governorate_id' => $taiz->id, 'code' => 'p4-b', 'name_ar' => 'حي المرحلة الرابعة', 'is_active' => true,
+        $this->cell(['governorate_id' => $taiz->id, 'code' => 'p4-b', 'name_ar' => 'حي المرحلة الرابعة', 'is_active' => true,
             'boundary_json' => ['type' => 'Polygon', 'coordinates' => [array_map(fn ($point) => [$point[0] - .17, $point[1] - 1.79], $this->ring)]]]);
         $near = $this->listing(['latitude' => 15.37, 'longitude' => 44.2005, 'geo_cell_id' => null]);
         $this->listing(['address' => 'تعز حي المرحلة الرابعة', 'latitude' => 13.58, 'longitude' => 44.02]);
@@ -149,9 +149,21 @@ class Phase04RankedDiscoveryTest extends TestCase
             'status' => 'published', 'review_status' => 'approved', 'published_at' => now()], $overrides));
         $property->forceFill(['availability_status' => 'available', 'availability_confirmed_at' => now(), 'availability_due_at' => now()->addDays(14)])->saveQuietly();
         if (DB::getDriverName() === 'pgsql') {
-            DB::statement('UPDATE properties SET location=ST_SetSRID(ST_MakePoint(longitude,latitude),4326)::geography WHERE id=?',[$property->id]);
+            DB::statement('UPDATE properties SET location=ST_SetSRID(ST_MakePoint(longitude,latitude),4326)::geography WHERE id=?', [$property->id]);
         }
 
         return $property;
+    }
+
+    private function cell(array $values): GeoCell
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            return GeoCell::create($values);
+        }
+        $json = json_encode($values['boundary_json'], JSON_THROW_ON_ERROR);
+        $row = DB::selectOne('INSERT INTO geo_cells (governorate_id,code,name_ar,name_en,boundary_json,is_active,boundary,created_at,updated_at) VALUES (?,?,?,?,?::jsonb,TRUE,ST_GeomFromGeoJSON(?),?,?) RETURNING id',
+            [$values['governorate_id'], $values['code'], $values['name_ar'], $values['name_en'] ?? null, $json, $json, now(), now()]);
+
+        return GeoCell::findOrFail($row->id);
     }
 }

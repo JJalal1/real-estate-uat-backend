@@ -246,6 +246,14 @@ class PropertyRepository {
         throw const FormatException('Missing discovery classification.');
       }
       final meta = response.data?['meta'] as Map? ?? const {};
+      if (rankedDiscovery && (response.data?['data'] is! List || meta['current_page'] is! int || meta['current_page'] != page ||
+          meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+          meta['total'] is! int || (meta['total'] as int) < 0 ||
+          meta['exact_total'] is! int || (meta['exact_total'] as int) < 0 ||
+          meta['alternative_total'] is! int || (meta['alternative_total'] as int) < 0 ||
+          (meta['exact_total'] as int) + (meta['alternative_total'] as int) != meta['total'])) {
+        throw const FormatException('Invalid ranked pagination metadata.');
+      }
       return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
     }, refresh: refresh, cancelToken: cancelToken);
   }

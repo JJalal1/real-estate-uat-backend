@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -34,7 +33,9 @@ Map<String, dynamic> _row(int id, {bool nearby = false}) => {
     'distance_m':nearby?80:null,'distance_reference':nearby?'drawn_boundary':null},
 };
 ResponseBody _body(List<Map<String,dynamic>> rows, {int page=1,int last=1,bool acknowledge=true}) => ResponseBody.fromString(
-  jsonEncode({'data':rows,'meta':{'current_page':page,'last_page':last}}),200,
+  jsonEncode({'data':rows,'meta':{'current_page':page,'last_page':last,
+    'total':last>1?21:rows.length,'exact_total':last>1?20:rows.where((r)=>(r['discovery_match'] as Map)['kind']=='exact').length,
+    'alternative_total':last>1?1:rows.where((r)=>(r['discovery_match'] as Map)['kind']=='nearby').length}}),200,
   headers:{'content-type':['application/json'],'x-aqer-filter-contract':['2'],if(acknowledge)'x-aqer-ranked-contract':['1']});
 
 void main() {
@@ -83,6 +84,9 @@ void main() {
     dio.httpClientAdapter=_Adapter((_) async => ResponseBody.fromString('{"message":"unavailable"}',503,headers:{'content-type':['application/json']}));
     final repo=PropertyRepository(dio,AuthRepository(dio),rankedDiscovery:true);
     await expectLater(repo.searchListings({'search':'سنعا'}),throwsA(isA<DioException>()));
+    dio.httpClientAdapter=_Adapter((_) async => ResponseBody.fromString('{"data":[],"meta":{}}',200,
+      headers:{'content-type':['application/json'],'x-aqer-filter-contract':['2'],'x-aqer-ranked-contract':['1']}));
+    await expectLater(repo.searchListings({'search':'سنعا'}),throwsFormatException);
     dio.close(force:true);
   });
 
@@ -90,7 +94,7 @@ void main() {
     final old=Completer<ResponseBody>();
     final dio=Dio(BaseOptions(baseUrl:'https://example.invalid/api'));
     dio.httpClientAdapter=_Adapter((q) async => q.queryParameters['search']=='قديم' ? old.future : _body([_row(9,nearby:true)]));
-    final session=SmartSearchSession(AiRepository(dio),PropertyRepository(dio,AuthRepository(dio),rankedDiscovery:true));
+    final session=SmartSearchSession(AiRepository(dio,AuthRepository(dio)),PropertyRepository(dio,AuthRepository(dio),rankedDiscovery:true));
     final first=session.replaceManually(SmartSearchFilters.fromMap({'search':'قديم','purpose':'rent'}));
     await Future<void>.delayed(Duration.zero);
     await session.replaceManually(SmartSearchFilters.fromMap({'search':'سنعا','purpose':'rent'}));
