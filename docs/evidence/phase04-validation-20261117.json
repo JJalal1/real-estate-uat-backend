@@ -1,5 +1,5 @@
 {
-  "acceptance": "PARTIAL_ENGINEERING_VERIFIED_LIVE_AND_PHONE_PENDING",
+  "acceptance": "PARTIAL_LIVE_API_VERIFIED_NATIVE_PHONE_PENDING",
   "baseline_commit": "fe6b525988a1d0128c1bc5189a976929ec9a75c1",
   "functional_commit": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
   "build_source_commit": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
@@ -39,14 +39,24 @@
     "first_results_ms": null,
     "first_markers_ms": null,
     "pan_zoom_response_ms": null,
-    "request_count_and_bytes": null
+    "request_count_and_bytes": null,
+    "historical_pre_deployment_measurement_available": false,
+    "future_version_comparison_scope": "1812 legacy and 1813 ranked against the same deployed e282 backend; label as a post-deployment controlled client-version comparison, not historical pre-deployment measurements"
   },
   "live_backend": {
-    "deployment": null,
-    "status": "NOT_DEPLOYED_WORKSPACE_CONFIRMATION_REQUIRED",
-    "last_owner_reported_deploy": "dep-dbr6os6c6qcc73d0f6cg",
-    "baseline_only_redeployment": false,
-    "workspace_label_presented_by_render": "My Workspace"
+    "deployment": "dep-dbtojepsrm7s73dj4j7g",
+    "status": "LIVE_VERIFIED",
+    "service_id": "srv-dahj3vlg1s2s73bdqhtg",
+    "workspace_id": "tea-d4v0q98gjchc73cistt0",
+    "source_commit": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
+    "backend_component": "94e86ba803fd4ffb2010e506340a021ad6512f22",
+    "matches_apk_source": true,
+    "finished_at_utc": "2026-11-16T22:55:40.313595Z",
+    "service_branch": "work/wave2-review-current",
+    "auto_deploy": "no",
+    "source_and_settings_verified": true,
+    "evidence": "phase04-live-deploy-20261117.json",
+    "baseline_only_redeployment": false
   },
   "journey": {
     "steps": [
@@ -115,17 +125,58 @@
     "upgrades_owner_1812": false,
     "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
     "required_ranked_contract": "1",
-    "backend_deployed": false,
+    "backend_deployed": true,
     "physical_phone_acceptance": false,
     "zip_elf_16kb": "verified",
     "artifact_id": 14280205400,
     "artifact_zip_sha256": "8f246fbec29a33fd6d7fc5089e5596245d2cb8a9ac13735337a05f392acf0a5c",
     "independent_download_hash_verified": true,
-    "receipt": "phase04-apk-1813-receipt.json"
+    "receipt": "phase04-apk-1813-receipt.json",
+    "ci_receipt_backend_deployed_field_is_build_time": true
   },
   "delivery": {
     "apk": "https://chatgpt.com/library?file_id=libfile_fde3_f-e52ec3c7c3508191b0e76a626d81dfa4_28ccbb7d29fc819182a5e9441c015abf&account_id=personal",
     "receipt": "https://chatgpt.com/library?file_id=libfile_fde3_f-23c01aa563248191a8d8cabfbe3680cc_28ccbb7d29fc819182a5e9441c015abf&account_id=personal",
-    "report": "https://chatgpt.com/library?file_id=libfile_fde3_f-32fcc5e00144819187b4b60c1ec5906f_28ccbb7d29fc819182a5e9441c015abf&account_id=personal"
+    "report": "https://chatgpt.com/library?file_id=libfile_fde3_f-32fcc5e00144819187b4b60c1ec5906f_28ccbb7d29fc819182a5e9441c015abf&account_id=personal",
+    "render_screenshot_local_name": "AQER-Phase04-UAT-Live.jpg",
+    "render_screenshot_sha256": "79080532bd52f4ab6e233638c1a9ac89440baeaa22aaf11c67d7fa1b3a1c53c6",
+    "render_screenshot": "https://chatgpt.com/library?file_id=libfile_fde3_f-eaf91c651ca88191a19ce53582ba577a_28ccbb7d29fc819182a5e9441c015abf&account_id=personal",
+    "report_version": 1,
+    "receipt_version": 1
+  },
+  "live_api": {
+    "evidence": "phase04-live-api-20261117.json",
+    "requests": 14,
+    "assertions_passed": 22,
+    "all_passed": true,
+    "scope": "public GET requests from cloud, not Native or physical-phone performance",
+    "business_writes": 0,
+    "live_exact_pages_then_nearby": [
+      [
+        93,
+        "exact"
+      ],
+      [
+        106,
+        "exact"
+      ],
+      [
+        107,
+        "nearby"
+      ]
+    ],
+    "polygon_exact": [
+      93
+    ],
+    "polygon_nearby": [
+      106,
+      107
+    ],
+    "polygon_nearby_distance_m": 966.3,
+    "typo_automatic_alternatives": 3,
+    "price_differences": [
+      5000,
+      10000
+    ]
   }
 }

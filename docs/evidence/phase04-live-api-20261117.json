@@ -1,0 +1,1727 @@
+{
+  "observed_at_utc": "2026-11-16T22:58:27.916801+00:00",
+  "deployment": "dep-dbtojepsrm7s73dj4j7g",
+  "deploy_source": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
+  "scope": "public read-only live API; not Native or phone performance",
+  "business_writes": 0,
+  "cases": [
+    {
+      "case": "health",
+      "path": "/health",
+      "query": {},
+      "status": 200,
+      "elapsed_ms": 9160.9,
+      "bytes": 46,
+      "headers": {
+        "X-Aqer-Filter-Contract": null,
+        "X-Aqer-Ranked-Contract": null,
+        "X-Request-ID": "263bdeff-1686-489b-953d-9ecc095c746f"
+      },
+      "body": {
+        "status": "ok",
+        "database": true,
+        "postgis": true
+      }
+    },
+    {
+      "case": "exact_page1",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "per_page": 2,
+        "page": 1
+      },
+      "status": 200,
+      "elapsed_ms": 10198.5,
+      "bytes": 4098,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "5fbe3c57-a3e7-4d96-a0c4-14a130d5986e"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 93,
+            "title": "اختبار المالك — مراجعة الصور",
+            "purpose": "rent",
+            "type": "office",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 75000,
+            "currency": "YER",
+            "area_m2": 65,
+            "area_value": 65,
+            "area_unit": "sqm",
+            "bedrooms": null,
+            "bathrooms": null,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "صنعاء موقع اصطناعي لاختبار المالك 2026-10-26-owner-v2",
+            "latitude": 15.123456,
+            "longitude": 44.654321,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-15T20:38:33+00:00",
+            "availability_due_at": "2026-11-22T20:38:33+00:00",
+            "view_count": 1,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "0",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "exact",
+              "reasons": [],
+              "distance_m": null
+            },
+            "base_price": 75000,
+            "display_price": 75000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 20%",
+            "monthly_rent": 75000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": 20,
+              "payer": "tenant",
+              "amount": 15000,
+              "amount_type": "percentage",
+              "fixed_amount": null,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          },
+          {
+            "id": 107,
+            "title": "شقة النور الغربية اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 180000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-12T02:17:51+00:00",
+            "availability_due_at": "2026-11-19T02:17:51+00:00",
+            "view_count": 3,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "exact",
+              "reasons": [],
+              "distance_m": null
+            },
+            "base_price": 180000,
+            "display_price": 180000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 180000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 1,
+          "last_page": 2,
+          "per_page": 2,
+          "total": 3,
+          "exact_total": 3,
+          "alternative_total": 0,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "exact_page2",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "per_page": 2,
+        "page": 2
+      },
+      "status": 200,
+      "elapsed_ms": 7971.9,
+      "bytes": 2570,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "b0fe5c08-7e74-4ac1-8c4d-5e0cded514e7"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 106,
+            "title": "شقة النور اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 175000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-11T02:06:53+00:00",
+            "availability_due_at": "2026-11-18T02:06:53+00:00",
+            "view_count": 11,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/173?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/175?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 3,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "exact",
+              "reasons": [],
+              "distance_m": null
+            },
+            "base_price": 175000,
+            "display_price": 175000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 175000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 2,
+          "last_page": 2,
+          "per_page": 2,
+          "total": 3,
+          "exact_total": 3,
+          "alternative_total": 0,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "map_same_page1",
+      "path": "/properties/nearby",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "per_page": 2,
+        "page": 1
+      },
+      "status": 200,
+      "elapsed_ms": 7008.6,
+      "bytes": 4098,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "fdb208eb-9aad-4be3-83bb-3f97272ca0cd"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 93,
+            "title": "اختبار المالك — مراجعة الصور",
+            "purpose": "rent",
+            "type": "office",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 75000,
+            "currency": "YER",
+            "area_m2": 65,
+            "area_value": 65,
+            "area_unit": "sqm",
+            "bedrooms": null,
+            "bathrooms": null,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "صنعاء موقع اصطناعي لاختبار المالك 2026-10-26-owner-v2",
+            "latitude": 15.123456,
+            "longitude": 44.654321,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-15T20:38:33+00:00",
+            "availability_due_at": "2026-11-22T20:38:33+00:00",
+            "view_count": 1,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "0",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "exact",
+              "reasons": [],
+              "distance_m": null
+            },
+            "base_price": 75000,
+            "display_price": 75000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 20%",
+            "monthly_rent": 75000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": 20,
+              "payer": "tenant",
+              "amount": 15000,
+              "amount_type": "percentage",
+              "fixed_amount": null,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          },
+          {
+            "id": 107,
+            "title": "شقة النور الغربية اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 180000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-12T02:17:51+00:00",
+            "availability_due_at": "2026-11-19T02:17:51+00:00",
+            "view_count": 3,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "exact",
+              "reasons": [],
+              "distance_m": null
+            },
+            "base_price": 180000,
+            "display_price": 180000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 180000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 1,
+          "last_page": 2,
+          "per_page": 2,
+          "total": 3,
+          "exact_total": 3,
+          "alternative_total": 0,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "typo_automatic",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "search": "سنعا",
+        "purpose": "rent",
+        "per_page": 20
+      },
+      "status": 200,
+      "elapsed_ms": 7903.8,
+      "bytes": 7055,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "14c227cf-c6d4-4f5f-b896-fd3912e22286"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 93,
+            "title": "اختبار المالك — مراجعة الصور",
+            "purpose": "rent",
+            "type": "office",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 75000,
+            "currency": "YER",
+            "area_m2": 65,
+            "area_value": 65,
+            "area_unit": "sqm",
+            "bedrooms": null,
+            "bathrooms": null,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "صنعاء موقع اصطناعي لاختبار المالك 2026-10-26-owner-v2",
+            "latitude": 15.123456,
+            "longitude": 44.654321,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-15T20:38:33+00:00",
+            "availability_due_at": "2026-11-22T20:38:33+00:00",
+            "view_count": 1,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "0",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "search",
+                  "message": "كتابة قريبة من بحثك: صنعاء"
+                }
+              ],
+              "distance_m": null,
+              "distance_reference": "text_only"
+            },
+            "base_price": 75000,
+            "display_price": 75000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 20%",
+            "monthly_rent": 75000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": 20,
+              "payer": "tenant",
+              "amount": 15000,
+              "amount_type": "percentage",
+              "fixed_amount": null,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          },
+          {
+            "id": 106,
+            "title": "شقة النور اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 175000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-11T02:06:53+00:00",
+            "availability_due_at": "2026-11-18T02:06:53+00:00",
+            "view_count": 11,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/173?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/175?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 3,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "search",
+                  "message": "كتابة قريبة من بحثك: صنعاء"
+                }
+              ],
+              "distance_m": null,
+              "distance_reference": "text_only"
+            },
+            "base_price": 175000,
+            "display_price": 175000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 175000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          },
+          {
+            "id": 107,
+            "title": "شقة النور الغربية اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 180000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-12T02:17:51+00:00",
+            "availability_due_at": "2026-11-19T02:17:51+00:00",
+            "view_count": 3,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "search",
+                  "message": "كتابة قريبة من بحثك: صنعاء"
+                }
+              ],
+              "distance_m": null,
+              "distance_reference": "text_only"
+            },
+            "base_price": 180000,
+            "display_price": 180000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 180000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 1,
+          "last_page": 1,
+          "per_page": 20,
+          "total": 3,
+          "exact_total": 0,
+          "alternative_total": 3,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "closest_budget",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "type": "apartment",
+        "currency": "YER",
+        "max_price": 170000,
+        "per_page": 20
+      },
+      "status": 200,
+      "elapsed_ms": 7824.4,
+      "bytes": 5193,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "717c2ac3-67d9-4271-907a-3dfb0fc2804c"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 106,
+            "title": "شقة النور اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 175000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-11T02:06:53+00:00",
+            "availability_due_at": "2026-11-18T02:06:53+00:00",
+            "view_count": 11,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/173?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/175?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 3,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "max_price",
+                  "message": "أعلى من سقف السعر بـ5000 YER",
+                  "expected": 170000,
+                  "actual": 175000,
+                  "difference": 5000
+                }
+              ],
+              "distance_m": null,
+              "distance_reference": "text_only"
+            },
+            "base_price": 175000,
+            "display_price": 175000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 175000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          },
+          {
+            "id": 107,
+            "title": "شقة النور الغربية اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 180000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-12T02:17:51+00:00",
+            "availability_due_at": "2026-11-19T02:17:51+00:00",
+            "view_count": 3,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "max_price",
+                  "message": "أعلى من سقف السعر بـ10000 YER",
+                  "expected": 170000,
+                  "actual": 180000,
+                  "difference": 10000
+                }
+              ],
+              "distance_m": null,
+              "distance_reference": "text_only"
+            },
+            "base_price": 180000,
+            "display_price": 180000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 180000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 1,
+          "last_page": 1,
+          "per_page": 20,
+          "total": 2,
+          "exact_total": 0,
+          "alternative_total": 2,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "draw_inside_outside",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "purpose": "rent",
+        "area_polygon": "[[44.2,15.1],[44.67,15.1],[44.67,15.4],[44.2,15.4],[44.2,15.1]]",
+        "per_page": 20
+      },
+      "status": 200,
+      "elapsed_ms": 7816.6,
+      "bytes": 6883,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "0e0d98ff-db62-4adb-b2e7-ede1ff77258f"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 93,
+            "title": "اختبار المالك — مراجعة الصور",
+            "purpose": "rent",
+            "type": "office",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 75000,
+            "currency": "YER",
+            "area_m2": 65,
+            "area_value": 65,
+            "area_unit": "sqm",
+            "bedrooms": null,
+            "bathrooms": null,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "صنعاء موقع اصطناعي لاختبار المالك 2026-10-26-owner-v2",
+            "latitude": 15.123456,
+            "longitude": 44.654321,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-15T20:38:33+00:00",
+            "availability_due_at": "2026-11-22T20:38:33+00:00",
+            "view_count": 1,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "0",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "exact",
+              "reasons": [],
+              "distance_m": null
+            },
+            "base_price": 75000,
+            "display_price": 75000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 20%",
+            "monthly_rent": 75000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": 20,
+              "payer": "tenant",
+              "amount": 15000,
+              "amount_type": "percentage",
+              "fixed_amount": null,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          },
+          {
+            "id": 106,
+            "title": "شقة النور اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 175000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-11T02:06:53+00:00",
+            "availability_due_at": "2026-11-18T02:06:53+00:00",
+            "view_count": 11,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/173?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/175?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 3,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "location",
+                  "message": "خارج المنطقة المرسومة",
+                  "distance_m": 966.3
+                }
+              ],
+              "distance_m": 966.3,
+              "distance_reference": "drawn_boundary"
+            },
+            "base_price": 175000,
+            "display_price": 175000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 175000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          },
+          {
+            "id": 107,
+            "title": "شقة النور الغربية اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 180000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-12T02:17:51+00:00",
+            "availability_due_at": "2026-11-19T02:17:51+00:00",
+            "view_count": 3,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "location",
+                  "message": "خارج المنطقة المرسومة",
+                  "distance_m": 966.3
+                }
+              ],
+              "distance_m": 966.3,
+              "distance_reference": "drawn_boundary"
+            },
+            "base_price": 180000,
+            "display_price": 180000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 180000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 1,
+          "last_page": 1,
+          "per_page": 20,
+          "total": 3,
+          "exact_total": 1,
+          "alternative_total": 2,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "no_relevant_alternative",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "max_price": 1,
+        "per_page": 20
+      },
+      "status": 200,
+      "elapsed_ms": 7626.5,
+      "bytes": 204,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "3cfdce53-7ce7-45fd-bee5-33015db418f4"
+      },
+      "body": {
+        "data": [],
+        "meta": {
+          "current_page": 1,
+          "last_page": 1,
+          "per_page": 20,
+          "total": 0,
+          "exact_total": 0,
+          "alternative_total": 0,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "purpose_conflict",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "purpose": "rent",
+        "search": "صنعاء للبيع"
+      },
+      "status": 422,
+      "elapsed_ms": 7468.1,
+      "bytes": 675,
+      "headers": {
+        "X-Aqer-Filter-Contract": null,
+        "X-Aqer-Ranked-Contract": null,
+        "X-Request-ID": "5248afe5-54ea-4f84-9cf7-3e0ab70e0faa"
+      },
+      "body": {
+        "message": "الغرض المكتوب يخالف فلتر البيع أو الإيجار. عدّل النص أو الفلتر.",
+        "errors": {
+          "search": [
+            "الغرض المكتوب يخالف فلتر البيع أو الإيجار. عدّل النص أو الفلتر."
+          ]
+        }
+      }
+    },
+    {
+      "case": "legacy_contract",
+      "path": "/properties",
+      "query": {
+        "search": "صنعاء",
+        "purpose": "rent",
+        "per_page": 2
+      },
+      "status": 200,
+      "elapsed_ms": 7450.7,
+      "bytes": 3837,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": null,
+        "X-Request-ID": "7b89e519-8ec9-43bf-ba38-312b9a3b4892"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 93,
+            "title": "اختبار المالك — مراجعة الصور",
+            "purpose": "rent",
+            "type": "office",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 75000,
+            "currency": "YER",
+            "area_m2": 65,
+            "area_value": 65,
+            "area_unit": "sqm",
+            "bedrooms": null,
+            "bathrooms": null,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "صنعاء موقع اصطناعي لاختبار المالك 2026-10-26-owner-v2",
+            "latitude": 15.123456,
+            "longitude": 44.654321,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-15T20:38:33+00:00",
+            "availability_due_at": "2026-11-22T20:38:33+00:00",
+            "view_count": 1,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "0",
+            "is_spotlight": false,
+            "base_price": 75000,
+            "display_price": 75000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 20%",
+            "monthly_rent": 75000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": 20,
+              "payer": "tenant",
+              "amount": 15000,
+              "amount_type": "percentage",
+              "fixed_amount": null,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          },
+          {
+            "id": 107,
+            "title": "شقة النور الغربية اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 180000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-12T02:17:51+00:00",
+            "availability_due_at": "2026-11-19T02:17:51+00:00",
+            "view_count": 3,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "base_price": 180000,
+            "display_price": 180000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 180000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 1,
+          "last_page": 2,
+          "per_page": 2,
+          "total": 3
+        }
+      }
+    },
+    {
+      "case": "combined_page1",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "max_price": 175000,
+        "per_page": 1,
+        "page": 1
+      },
+      "status": 200,
+      "elapsed_ms": 9247.8,
+      "bytes": 1934,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "ec6c3f52-fb86-47b9-923d-610339e26ec6"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 93,
+            "title": "اختبار المالك — مراجعة الصور",
+            "purpose": "rent",
+            "type": "office",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 75000,
+            "currency": "YER",
+            "area_m2": 65,
+            "area_value": 65,
+            "area_unit": "sqm",
+            "bedrooms": null,
+            "bathrooms": null,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "صنعاء موقع اصطناعي لاختبار المالك 2026-10-26-owner-v2",
+            "latitude": 15.123456,
+            "longitude": 44.654321,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-15T20:38:33+00:00",
+            "availability_due_at": "2026-11-22T20:38:33+00:00",
+            "view_count": 1,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/158?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "0",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "exact",
+              "reasons": [],
+              "distance_m": null
+            },
+            "base_price": 75000,
+            "display_price": 75000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 20%",
+            "monthly_rent": 75000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": 20,
+              "payer": "tenant",
+              "amount": 15000,
+              "amount_type": "percentage",
+              "fixed_amount": null,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 1,
+          "last_page": 3,
+          "per_page": 1,
+          "total": 3,
+          "exact_total": 2,
+          "alternative_total": 1,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "combined_page2",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "max_price": 175000,
+        "per_page": 1,
+        "page": 2
+      },
+      "status": 200,
+      "elapsed_ms": 9325.0,
+      "bytes": 2570,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "92de2b4e-fb46-4880-ab07-c9e2c7b2402a"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 106,
+            "title": "شقة النور اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 175000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-11T02:06:53+00:00",
+            "availability_due_at": "2026-11-18T02:06:53+00:00",
+            "view_count": 11,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/172?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/173?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/175?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 3,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "exact",
+              "reasons": [],
+              "distance_m": null
+            },
+            "base_price": 175000,
+            "display_price": 175000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 175000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 2,
+          "last_page": 3,
+          "per_page": 1,
+          "total": 3,
+          "exact_total": 2,
+          "alternative_total": 1,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "combined_page3",
+      "path": "/properties",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "max_price": 175000,
+        "per_page": 1,
+        "page": 3
+      },
+      "status": 200,
+      "elapsed_ms": 10149.0,
+      "bytes": 2594,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "d2d3aeb8-55d2-4716-a6eb-047fe17cf683"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 107,
+            "title": "شقة النور الغربية اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 180000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-12T02:17:51+00:00",
+            "availability_due_at": "2026-11-19T02:17:51+00:00",
+            "view_count": 3,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "max_price",
+                  "message": "أعلى من سقف السعر بـ5000 YER",
+                  "expected": 175000,
+                  "actual": 180000,
+                  "difference": 5000
+                }
+              ],
+              "distance_m": null,
+              "distance_reference": "text_only"
+            },
+            "base_price": 180000,
+            "display_price": 180000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 180000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 3,
+          "last_page": 3,
+          "per_page": 1,
+          "total": 3,
+          "exact_total": 2,
+          "alternative_total": 1,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    },
+    {
+      "case": "combined_map_page3",
+      "path": "/properties/nearby",
+      "query": {
+        "ranked_search": 1,
+        "search": "صنعاء",
+        "purpose": "rent",
+        "max_price": 175000,
+        "per_page": 1,
+        "page": 3
+      },
+      "status": 200,
+      "elapsed_ms": 10124.6,
+      "bytes": 2594,
+      "headers": {
+        "X-Aqer-Filter-Contract": "2",
+        "X-Aqer-Ranked-Contract": "1",
+        "X-Request-ID": "ed9393bb-8aab-474e-b36a-3fbcee9b89a3"
+      },
+      "body": {
+        "data": [
+          {
+            "id": 107,
+            "title": "شقة النور الغربية اختبار المرحلة23",
+            "purpose": "rent",
+            "type": "apartment",
+            "unit_occupies_entire_floor": false,
+            "tenure_type": null,
+            "price": 180000,
+            "currency": "YER",
+            "area_m2": null,
+            "area_value": null,
+            "area_unit": null,
+            "bedrooms": 3,
+            "bathrooms": 2,
+            "has_parking": false,
+            "has_elevator": null,
+            "floors_count": null,
+            "units_per_floor": null,
+            "shop_openings": null,
+            "building_facade": "north",
+            "address": "المحافظة: أمانة العاصمة - المدينة: مدينة صنعاء - المديرية: مديرية الثورة - الحي: حارة الميثاق - الشارع: شارع اختبار المرحلة23",
+            "latitude": 15.3694,
+            "longitude": 44.191,
+            "status": "published",
+            "availability_status": "available",
+            "availability_confirmed_at": "2026-11-12T02:17:51+00:00",
+            "availability_due_at": "2026-11-19T02:17:51+00:00",
+            "view_count": 3,
+            "main_image": "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd",
+            "image_urls": [
+              "https://real-estate-uat-api-frankfurt.onrender.com/api/property-media/176?variant=card&v=v2-wm-bf7611483e0689ad9ccd"
+            ],
+            "image_count": 1,
+            "floor_number": "2",
+            "is_spotlight": false,
+            "discovery_match": {
+              "kind": "nearby",
+              "reasons": [
+                {
+                  "field": "max_price",
+                  "message": "أعلى من سقف السعر بـ5000 YER",
+                  "expected": 175000,
+                  "actual": 180000,
+                  "difference": 5000
+                }
+              ],
+              "distance_m": null,
+              "distance_reference": "text_only"
+            },
+            "base_price": 180000,
+            "display_price": 180000,
+            "price_display_mode": "excludes_sai",
+            "price_display_note": "السعي 10000 YER",
+            "monthly_rent": 180000,
+            "rental_term_months": null,
+            "advance_months": null,
+            "sai": {
+              "rate_percent": null,
+              "payer": "tenant",
+              "amount": 10000,
+              "amount_type": "fixed",
+              "fixed_amount": 10000,
+              "currency": "YER"
+            },
+            "financial_hold": false,
+            "sai_attestation_required": true,
+            "sai_attestation_text": null
+          }
+        ],
+        "meta": {
+          "current_page": 3,
+          "last_page": 3,
+          "per_page": 1,
+          "total": 3,
+          "exact_total": 2,
+          "alternative_total": 1,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        }
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "check": "health",
+      "passed": true
+    },
+    {
+      "check": "exact_page1_ranked_contract",
+      "passed": true
+    },
+    {
+      "check": "exact_page2_ranked_contract",
+      "passed": true
+    },
+    {
+      "check": "map_same_page1_ranked_contract",
+      "passed": true
+    },
+    {
+      "check": "typo_automatic_ranked_contract",
+      "passed": true
+    },
+    {
+      "check": "closest_budget_ranked_contract",
+      "passed": true
+    },
+    {
+      "check": "draw_inside_outside_ranked_contract",
+      "passed": true
+    },
+    {
+      "check": "no_relevant_alternative_ranked_contract",
+      "passed": true
+    },
+    {
+      "check": "three_exact_across_two_pages",
+      "passed": true
+    },
+    {
+      "check": "list_map_page_and_classification_parity",
+      "passed": true
+    },
+    {
+      "check": "typo_automatic_explained",
+      "passed": true
+    },
+    {
+      "check": "nearest_price_differences_and_purpose_type",
+      "passed": true
+    },
+    {
+      "check": "inside_first_then_outside_explained",
+      "passed": true
+    },
+    {
+      "check": "true_empty_no_random_stock",
+      "passed": true
+    },
+    {
+      "check": "purpose_conflict_422",
+      "passed": true
+    },
+    {
+      "check": "legacy_exact_contract_preserved",
+      "passed": true
+    },
+    {
+      "check": "combined_page1_contract",
+      "passed": true
+    },
+    {
+      "check": "combined_page2_contract",
+      "passed": true
+    },
+    {
+      "check": "combined_page3_contract",
+      "passed": true
+    },
+    {
+      "check": "combined_map_page3_contract",
+      "passed": true
+    },
+    {
+      "check": "live_exact_two_pages_then_alternative",
+      "passed": true
+    },
+    {
+      "check": "live_alternative_map_page_parity",
+      "passed": true
+    }
+  ],
+  "assertions_passed": 22,
+  "passed": true,
+  "last_observed_at_utc": "2026-11-16T23:02:55.337159+00:00"
+}
