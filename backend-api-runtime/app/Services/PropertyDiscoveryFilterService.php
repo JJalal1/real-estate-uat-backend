@@ -45,6 +45,7 @@ class PropertyDiscoveryFilterService
             'max_monthly_rent' => ['nullable', 'numeric', 'min:0'],
             'min_monthly_rent' => ['nullable', 'numeric', 'min:0'],
             'governorate' => ['nullable', 'string', 'max:120'],
+            'governorate_code' => ['nullable', Rule::in(app(YemenGovernorateCatalog::class)->codes()), Rule::exists('governorates', 'code')->where('is_active', true)],
             'floor_number' => ['nullable', 'string', 'max:32'],
             'building_facade' => ['nullable', Rule::in(self::FACADES)],
             'has_parking' => ['nullable', 'boolean'], 'has_elevator' => ['nullable', 'boolean'],
@@ -67,7 +68,10 @@ class PropertyDiscoveryFilterService
     {
         $validated=app(DynamicPropertySchema::class)->filters($validated);
         if (isset($validated['advertiser_id'])) $query->where('user_id', $validated['advertiser_id']);
-        if (! empty($validated['governorate'])) {
+        if (! empty($validated['governorate_code'])) {
+            // Explicit picker/GPS identity is spatial and never aliases Sanaa province to the capital.
+            app(YemenGovernorateCatalog::class)->apply($query, $validated['governorate_code']);
+        } elseif (! empty($validated['governorate'])) {
             $name = $validated['governorate'];
             $aliases = $this->governorateAliases($name);
             $query->where(function (Builder $regional) use ($aliases): void {

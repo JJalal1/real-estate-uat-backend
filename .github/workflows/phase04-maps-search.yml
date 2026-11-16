@@ -53,7 +53,7 @@ jobs:
         if: matrix.database == 'pgsql'
         run: psql -h 127.0.0.1 -U postgres -d phase04_test -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
       - name: New ranking, boundary, paging and visibility contracts
-        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
+        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php tests/Feature/Phase04GovernoratesTest.php tests/Feature/Phase04RegionalFixturesTest.php tests/Feature/UatCityDemoSeedTest.php tests/Feature/Wave3MarketplacePurposeTest.php tests/Feature/Wave3MarketplaceApiTest.php --display-warnings --fail-on-warning --fail-on-risky
       - name: Small affected search regression
         run: php artisan test tests/Feature/DiscoverySearchQualityTest.php tests/Feature/SpokenSearchCityTest.php tests/Feature/Wave01SharedFiltersTest.php --display-warnings --fail-on-warning --fail-on-risky
   mobile:
@@ -81,7 +81,7 @@ jobs:
         run: python3 ../scripts/check_v3_analysis.py
       - name: New ranked results and existing affected map contracts
         working-directory: mobile_app
-        run: flutter test test/phase04_ranked_search_test.dart test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart --reporter expanded --timeout 2m
+        run: flutter test test/phase04_ranked_search_test.dart test/phase04_governorates_test.dart test/current_wave_contract_test.dart test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart --reporter expanded --timeout 2m
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -104,9 +104,9 @@ jobs:
           ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.phase04
           ORG_GRADLE_PROJECT_AQER_UAT_APP_NAME: عقار خرائط اختبار
         run: >-
-          flutter build apk --flavor uat --release --build-number=1813
+          flutter build apk --flavor uat --release --build-number=1814
           --dart-define=APP_ENVIRONMENT=uat
-          --dart-define=APP_BUILD_NUMBER=1813
+          --dart-define=APP_BUILD_NUMBER=1814
           --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.phase04
           --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
           --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com

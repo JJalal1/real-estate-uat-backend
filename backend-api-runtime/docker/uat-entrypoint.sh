@@ -98,4 +98,10 @@ if [ "${UAT_EXECUTIVE_JOURNEY_RUN:-}" = "2026-10-26-109-v5" ]; then
   ) &
 fi
 
+# Approved additive batch: background execution keeps health checks available.
+# The UAT/project/origin guards, DB advisory lock and durable marker prevent replay.
+if [ "${UAT_PHASE04_REGIONAL_FIXTURES_RUN:-}" = "20261117-regional-v1" ]; then
+  (php artisan db:seed --class=UatPhase04RegionalSeeder --force || echo 'AQER_PHASE04_REGIONAL: failed; inspect sanitized fixture diagnostics.') &
+fi
+
 exec apache2-foreground

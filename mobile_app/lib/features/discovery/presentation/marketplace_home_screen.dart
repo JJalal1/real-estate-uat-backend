@@ -16,6 +16,7 @@ import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
+import '../domain/smart_search_filters.dart';
 import '../data/discovery_location.dart';
 import 'home_ai_search_entry.dart';
 import 'smart_search_assistant.dart';
@@ -61,7 +62,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   HomeFeedQuery get _query {
     final location = ref.read(homeLocationProvider);
     final filters = ref.watch(marketplaceSearchControllerProvider).criteria;
-    return HomeFeedQuery(latitude: location.latitude, longitude: location.longitude, governorate: location.governorate,
+    return HomeFeedQuery(latitude: location.latitude, longitude: location.longitude, governorate: location.governorate, governorateCode: location.governorateCode, accuracyMetres: location.accuracyMetres,
       type: filters.values['type']?.toString(), purpose: filters.values['purpose']?.toString(),
       filters: filters, device: location.device);
   }
@@ -92,6 +93,14 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           else if (choice == 'manual') { await _chooseLocation(); }
         }
       }
+      if (deviceChosen && mounted && ref.read(homeLocationProvider).device) {
+        ref.read(marketplaceSearchControllerProvider.notifier).locationChanged();
+      }
+      if (deviceChosen && mounted && ref.read(homeLocationProvider).needsConfirmation) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('دقة الموقع لا تكفي لتأكيد المحافظة. اخترها يدويًا.'),
+          action: SnackBarAction(label: 'اختيار المحافظة', onPressed: _chooseLocation)));
+      }
     } catch (_) {
       if (deviceChosen && mounted) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('تعذّر تحديد موقعك. يمكنك اختيار المنطقة يدويًا.'),
@@ -100,9 +109,12 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   }
 
   Future<void> _chooseLocation() async {
-    final choice = await AppBottomSheet.show<Object>(context, builder: (_) => const _HomeLocationSheet());
+    final choice = await AppBottomSheet.show<Object>(context, builder: (_) => const MarketplaceLocationSheet());
     if (!mounted) return;
-    if (choice is HomeLocation) { await ref.read(discoveryLocationCoordinatorProvider).selectManual(choice); }
+    if (choice is HomeLocation) {
+      await ref.read(discoveryLocationCoordinatorProvider).selectManual(choice);
+      if (mounted) ref.read(marketplaceSearchControllerProvider.notifier).locationChanged();
+    }
     else if (choice == 'device') { await _tryDeviceLocation(prompt: true); }
   }
 
@@ -141,7 +153,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       if (ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'] != null) 'purpose': ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'].toString(),
       if(governorate!=null && section!='nearby')'governorate':governorate,
       if(section=='nearby')...{'lat':'${location.latitude}','lon':'${location.longitude}'},
-    }).toString(), extra: ref.read(marketplaceSearchControllerProvider).criteria);
+    }).toString(), extra: SmartSearchFilters.fromMap({
+      ...ref.read(marketplaceSearchControllerProvider).criteria.values,
+      if (section != 'nearby' && location.governorateCode != null && !location.needsConfirmation) 'governorate_code': location.governorateCode,
+    }));
   }
 
 
@@ -175,7 +190,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             style: TextButton.styleFrom(foregroundColor: theme.colorScheme.primary),
             icon: _locationBusy ? const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2))
               : EbrokerImage('location', size: 17, color: theme.colorScheme.primary),
-            label: Text(data?.label ?? location.label, maxLines: 1, overflow: TextOverflow.ellipsis)))),
+            label: Text(location.needsConfirmation ? location.label : (data?.label ?? location.label), maxLines: 1, overflow: TextOverflow.ellipsis)))),
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text('عقار اليمن', maxLines: 1, overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w700)),
@@ -320,20 +335,19 @@ class _HomeBrokerCard extends StatelessWidget {
   ])));
 }
 
-class _HomeLocationSheet extends ConsumerWidget {
-  const _HomeLocationSheet();
+class MarketplaceLocationSheet extends ConsumerWidget {
+  const MarketplaceLocationSheet();
   @override
   Widget build(BuildContext context, WidgetRef ref) => Directionality(textDirection: TextDirection.rtl, child: SizedBox(
     height: MediaQuery.sizeOf(context).height * .60, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(padding: const EdgeInsets.fromLTRB(18, 18, 18, 6), child: Text('أين تبحث؟', style: Theme.of(context).textTheme.titleLarge)),
       ListTile(leading: const EbrokerIcon(Icons.near_me_outlined, size: 22), title: const Text('استخدم موقعي'),
         onTap: () => Navigator.of(context).pop('device')),
-      ListTile(leading: const EbrokerIcon(Icons.location_on_outlined, size: 22), title: const Text('صنعاء'),
-        onTap: () => Navigator.of(context).pop(const HomeLocation(governorate: 'صنعاء', manual: true))),
       const Divider(height: 1),
       Expanded(child: ref.watch(homeLocationsProvider).when(loading: () => const AppLoadingState(),
         error: (error, _) => AppErrorState(message: friendlyApiError(error), onRetry: () => ref.invalidate(homeLocationsProvider)),
-        data: (rows) => ListView(children: [for (final row in rows.where((row) => row.label != 'صنعاء')) ListTile(
+        data: (rows) => ListView(children: [for (final row in rows) ListTile(
+          key: ValueKey('home-governorate-${row.governorateCode ?? row.governorate}'),
           leading: const EbrokerIcon(Icons.location_on_outlined, size: 22), title: Text(row.label), onTap: () => Navigator.of(context).pop(row))]))),
     ])));
 }

@@ -30,7 +30,7 @@ def main():
     if len(certificates) != 1:
         raise RuntimeError('one_verified_test_signer_required')
     badging = call(tools / 'aapt', 'dump', 'badging', apk)
-    if (f"name='{PACKAGE}' versionCode='1813'" not in badging or "sdkVersion:'23'" not in badging
+    if (f"name='{PACKAGE}' versionCode='1814'" not in badging or "sdkVersion:'23'" not in badging
             or "targetSdkVersion:'36'" not in badging or 'application-debuggable' in badging):
         raise RuntimeError('isolated_candidate_identity_mismatch')
     call(tools / 'zipalign', '-c', '-P', '16', '4', apk)
@@ -47,11 +47,11 @@ def main():
                 elf(archive.read(name))
     output = ROOT / 'mobile_app/phase04-proof'
     output.mkdir(exist_ok=True)
-    exported = output / 'AQER-UAT-1813-Phase04.apk'
+    exported = output / 'AQER-UAT-1814-Phase04.apk'
     shutil.copy2(apk, exported)
     record = {'source_commit': source, 'backend_component': call('git', 'rev-parse', 'HEAD:backend-api-runtime').strip(),
               'mobile_component': call('git', 'rev-parse', 'HEAD:mobile_app').strip(), 'package': PACKAGE,
-              'version_code': 1813, 'sha256': hashlib.file_digest(exported.open('rb'), 'sha256').hexdigest(),
+              'version_code': 1814, 'sha256': hashlib.file_digest(exported.open('rb'), 'sha256').hexdigest(),
               'bytes': exported.stat().st_size, 'signer_certificate_sha256': certificates[0].lower(), 'signing': 'disposable CI UAT key',
               'upgrades_owner_1812': False, 'api': API, 'required_ranked_contract': '1',
               'backend_deployed': False, 'physical_phone_acceptance': False, 'abis': abis, 'zip_elf_16kb': 'verified'}

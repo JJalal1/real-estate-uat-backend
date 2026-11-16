@@ -242,16 +242,23 @@ class PropertyController extends Controller
         foreach (['latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east', 'area_polygon'] as $key) unset($rules[$key]);
         $v = $request->validate(array_merge($rules, [
             'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180']]));
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
+            'accuracy_m' => ['nullable', 'numeric', 'between:0,100000']]));
         $filters = $v;
-        unset($filters['latitude'], $filters['longitude']);
+        unset($filters['latitude'], $filters['longitude'], $filters['accuracy_m']);
         $discovery->validateGeometry($filters);
         $filters = app(\App\Services\DynamicPropertySchema::class)->filters($filters);
         $context = app(\App\Services\MarketplaceContextService::class)->resolve($v);
         $context['purpose'] = $filters['purpose'] ?? null;
         $context['filters'] = $filters;
         $base = $this->publicQuery();
-        $this->applyFilters($base, array_replace($filters, ['governorate' => $context['governorate']]));
+        if ($context['governorate_code'] === null) $base->whereRaw('1=0');
+        else {
+            $regionalFilters = array_replace($filters, ['governorate' => $context['governorate']]);
+            // New explicit picker/GPS identities are exact; old name-only clients retain their contract.
+            if (isset($v['governorate_code']) || isset($v['latitude'], $v['longitude'])) $regionalFilters['governorate_code'] = $context['governorate_code'];
+            $this->applyFilters($base, $regionalFilters);
+        }
         $sections = [];
         foreach (['spotlight', 'latest', 'sale', 'rent'] as $section) {
             if (isset($v['purpose']) && in_array($section, ['sale', 'rent'], true) && $section !== $v['purpose']) {
@@ -265,7 +272,7 @@ class PropertyController extends Controller
         }
         if (isset($v['latitude'],$v['longitude'])) {
             $nearby=$this->publicQuery();
-            $nearbyFilters=$filters;unset($nearbyFilters['governorate']);$this->applyFilters($nearby,$nearbyFilters);
+            $nearbyFilters=$filters;unset($nearbyFilters['governorate'], $nearbyFilters['governorate_code']);$this->applyFilters($nearby,$nearbyFilters);
             $lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
             if(DB::getDriverName()==='pgsql'){
                 $point='ST_SetSRID(ST_MakePoint(?, ?),4326)::geography';
@@ -281,9 +288,9 @@ class PropertyController extends Controller
         $purposeOrder=count($sections['rent'])>count($sections['sale'])?['rent','sale']:['sale','rent'];
         $sectionOrder=array_values(array_filter(array_merge(['nearby','spotlight','latest'],$purposeOrder),fn($key)=>!empty($sections[$key])));
         $ranking = app(\App\Services\BrokerRankingService::class);
-        $localNames = $context['governorate'] === 'صنعاء' ? ['صنعاء', 'أمانة العاصمة'] : [$context['governorate']];
+        $localNames = [$context['governorate']];
         $localOwnerIds = (clone $base)->select('properties.user_id');
-        $brokers = $ranking->query($context['governorate'])->where(function ($q) use ($context, $localNames, $localOwnerIds): void {
+        $brokers = $ranking->query($context['governorate'])->when($context['governorate'] === null, fn ($q) => $q->whereRaw('1=0'))->where(function ($q) use ($context, $localNames, $localOwnerIds): void {
             $q->whereHas('accountVerificationProfile', fn ($profile) => $profile
                 ->whereIn('details->governorate', $localNames)
                 ->orWhereJsonContains('details->work_areas', $context['governorate']))
@@ -296,6 +303,17 @@ class PropertyController extends Controller
     public function marketplaceLocations(): JsonResponse
     {
         return response()->json(['data' => app(\App\Services\MarketplaceContextService::class)->locations()]);
+    }
+
+    public function marketplaceLocationContext(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'accuracy_m' => ['nullable', 'numeric', 'between:0,100000'],
+        ]);
+        return response()->json(['data' => app(\App\Services\MarketplaceContextService::class)->resolve($input)])
+            ->header('Cache-Control', 'private, no-store');
     }
 
     public function show(Request $request, Property $property): JsonResponse

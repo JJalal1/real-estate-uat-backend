@@ -5,7 +5,7 @@ class SmartSearchFilters {
   final Map<String, dynamic> values;
 
   static const mapFields = {'area_polygon', 'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east'};
-  static const fields = {'governorate', 'advertiser_id', 'spotlight', 'type', 'types', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
+  static const fields = {'governorate_code', 'governorate', 'advertiser_id', 'spotlight', 'type', 'types', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
     'min_bedrooms', 'min_bathrooms', 'floor_number', 'has_parking', 'has_elevator', 'building_facade', 'unit_occupies_entire_floor'};
   static const types = {'apartment': 'شقة', 'house': 'منزل', 'villa': 'فيلا', 'building': 'عمارة', 'land': 'أرض', 'farm': 'مزرعة', 'shop': 'محل', 'office': 'مكتب'};
   static const facades = {'north': 'شمالية', 'south': 'جنوبية', 'east': 'شرقية', 'west': 'غربية', 'northeast': 'شمالية شرقية',
@@ -71,7 +71,8 @@ class SmartSearchFilters {
       return SmartSearchFilters.fromMap({...values, 'types': selected.toList(growable: false)});
     }
     final next = Map<String, dynamic>.from(values);
-    if (key == 'budget') { next.remove('min_price'); next.remove('max_price'); }
+    if (key == 'governorate') { next.remove('governorate'); next.remove('governorate_code'); }
+    else if (key == 'budget') { next.remove('min_price'); next.remove('max_price'); }
     else if (key == 'map_area') { for (final field in mapFields) { next.remove(field); } }
     else if (key == 'type' || key == 'types') { next.remove('type'); next.remove('types'); }
     else { next.remove(key); }
@@ -109,7 +110,7 @@ class SmartSearchFilters {
     final result = <(String, String)>[];
     for (final entry in values.entries) {
       final key = entry.key, value = entry.value;
-      if (const ['min_price', 'max_price'].contains(key) || mapFields.contains(key)) continue;
+      if (const ['min_price', 'max_price', 'governorate_code'].contains(key) || mapFields.contains(key)) continue;
       if (key == 'types') {
         for (final type in selectedTypes) { result.add(('type:$type', types[type]!)); }
         continue;

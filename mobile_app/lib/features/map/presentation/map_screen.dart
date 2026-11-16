@@ -712,7 +712,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _center = LatLng((bounds.southwest.latitude + bounds.northeast.latitude) / 2,
         (bounds.southwest.longitude + bounds.northeast.longitude) / 2);
       // The camera owns the viewport after a pan; a Home city must not pin it.
-      _extraFilters = Map<String, dynamic>.from(_extraFilters)..remove('governorate');
+      _extraFilters = Map<String, dynamic>.from(_extraFilters)..remove('governorate')..remove('governorate_code');
       if (_selected != null && !_insideBounds(_selected!, bounds)) _selected = null;
     });
   }
@@ -1140,7 +1140,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _center = LatLng(location.latitude, location.longitude);
         _cameraBounds = null;
         _selectedAreaBounds = null; _selectedAreaGeometry = null;
-        _extraFilters = Map<String, dynamic>.from(_extraFilters)..remove('governorate');
+        _extraFilters = Map<String, dynamic>.from(_extraFilters)..remove('governorate')..remove('governorate_code');
       }
       if (normalized.isNotEmpty) {
         _recentSearches = <String>[
@@ -1261,7 +1261,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         const bounds = ['south', 'west', 'north', 'east'];
         final hasViewport = bounds.every((key) => current[key] is num);
         final values = Map<String, dynamic>.from(current)
-          ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || key == 'governorate');
+          ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || const ['governorate', 'governorate_code'].contains(key));
         values.addAll({'area_polygon': geometry.encodedRing,
           if (hasViewport) ...{for (final key in bounds) key: current[key]}
           else ...{'south': geometry.bounds.southwest.latitude, 'west': geometry.bounds.southwest.longitude,
@@ -1419,7 +1419,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
     final rawProperties = ref.watch(nearbyPropertiesProvider(query));
     final criterionValues = Map<String, dynamic>.from(_currentSmartFilters().apiFilters)
-      ..removeWhere((key, _) => const ['latitude','longitude','radius_km','south','west','north','east','governorate'].contains(key));
+      ..removeWhere((key, _) => const ['latitude','longitude','radius_km','south','west','north','east','governorate','governorate_code'].contains(key));
     final criterionKeys = criterionValues.keys.toList()..sort();
     final criteria = [for (final key in criterionKeys) '$key:${criterionValues[key]}'].join('|');
     if (rawProperties.asData != null) { _lastGoodItems = rawProperties.asData!.value; _lastGoodCriteria = criteria; }

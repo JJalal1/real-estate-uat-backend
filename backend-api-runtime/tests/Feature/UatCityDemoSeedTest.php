@@ -91,17 +91,19 @@ class UatCityDemoSeedTest extends TestCase
         }
     }
 
-    public function test_location_fallback_ignores_private_ads_and_partial_city_names(): void
+    public function test_governorate_catalog_is_independent_of_private_ads_and_partial_city_names(): void
     {
         $user = \App\Models\User::create(['name' => 'UAT', 'email' => 'location@example.invalid', 'password' => 'test-only']);
         foreach ([['draft', 'إب، حي خاص'], ['published', 'شارع إبراهيم، منطقة أخرى']] as [$status, $address]) {
             Property::create(['user_id' => $user->id, 'title' => 'اختبار', 'purpose' => 'rent', 'type' => 'shop', 'price' => 100000,
                 'currency' => 'YER', 'address' => $address, 'latitude' => 13.96, 'longitude' => 44.18, 'status' => $status, 'availability_status' => 'available']);
         }
-        $this->assertSame([], app(MarketplaceContextService::class)->locations());
+        $before = app(MarketplaceContextService::class)->locations();
+        $this->assertCount(22, $before);
         Property::create(['user_id' => $user->id, 'title' => 'اختبار', 'purpose' => 'rent', 'type' => 'shop', 'price' => 100000,
             'currency' => 'YER', 'address' => 'إب، موقع تجريبي', 'latitude' => 13.96, 'longitude' => 44.18, 'status' => 'published', 'availability_status' => 'available']);
-        $this->getJson('/api/marketplace/locations')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.label', 'إب');
+        $this->getJson('/api/marketplace/locations')->assertOk()->assertJsonCount(22, 'data');
+        $this->assertSame($before, app(MarketplaceContextService::class)->locations());
         $this->assertDatabaseCount('geo_cells', 0);
     }
 }
