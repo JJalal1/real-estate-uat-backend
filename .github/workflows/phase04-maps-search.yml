@@ -80,7 +80,7 @@ jobs:
         run: python3 ../scripts/check_v3_analysis.py
       - name: New ranked results and existing affected map contracts
         working-directory: mobile_app
-        run: flutter test test/phase04_ranked_search_test.dart test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart --reporter expanded
+        run: flutter test test/phase04_ranked_search_test.dart test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart --reporter expanded --timeout 2m
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

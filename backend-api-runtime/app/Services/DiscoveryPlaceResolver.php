@@ -17,20 +17,18 @@ class DiscoveryPlaceResolver
             return null;
         }
         $places = [];
-        foreach (Governorate::query()->where('is_active', true)->orderBy('id')->get(['id', 'name_ar', 'name_en']) as $city) {
-            if ($governorate !== null && $this->key($city->name_ar) !== $this->key($governorate)) {
-                continue;
-            }
+        $cities = Governorate::query()->where('is_active', true)->orderBy('id')->get(['id', 'name_ar', 'name_en']);
+        $cityNames = $cities->pluck('name_ar', 'id');
+        foreach ($cities as $city) {
             $places[] = ['kind' => 'governorate', 'id' => $city->id, 'name' => $city->name_ar,
                 'governorate' => $city->name_ar, 'names' => [$city->name_ar, $city->name_en]];
         }
         $cells = GeoCell::query()->where('is_active', true)
             ->whereHas('governorate', fn ($q) => $q->where('is_active', true))
-            ->when($governorate !== null, fn ($q) => $q->whereHas('governorate', fn ($g) => $g->where('name_ar', $governorate)))
             ->orderBy('id')->get(['id', 'name_ar', 'name_en', 'governorate_id']);
         foreach ($cells as $cell) {
             $places[] = ['kind' => 'cell', 'id' => $cell->id, 'name' => $cell->name_ar,
-                'names' => [$cell->name_ar, $cell->name_en]];
+                'governorate' => $cityNames[$cell->governorate_id], 'names' => [$cell->name_ar, $cell->name_en]];
         }
         // Optional local aliases must name an existing unique active place.
         // This is data configuration, never an AI-generated gazetteer.
@@ -44,25 +42,34 @@ class DiscoveryPlaceResolver
         }
         unset($place);
         $exact = array_values(array_filter($places, fn ($p) => in_array($key, array_map($this->key(...), array_filter($p['names'])), true)));
-        if (count($exact) === 1) {
-            return $exact[0] + ['approximate' => false];
-        }
+        // Protect a valid recorded name globally before trying a spelling repair.
+        // A conflicting city filter must not turn that name into another city.
         if ($exact !== []) {
-            return null;
+            return $this->uniqueInGovernorate($exact, $governorate, false);
         }
         // A common omitted final hamza (صنعا) remains a spelling alias. A
         // substitution (سنعا) is a nearby result, never a silent exact match.
         $plain = str_replace('ء', '', $key);
         $aliases = array_values(array_filter($places, fn ($p) => str_replace('ء', '', $this->key($p['name'])) === $plain));
-        if (count($aliases) === 1) {
-            return $aliases[0] + ['approximate' => false];
+        if ($aliases !== []) {
+            return $this->uniqueInGovernorate($aliases, $governorate, false);
         }
-        if ($aliases !== [] || mb_strlen($plain) < 4) {
+        if (mb_strlen($plain) < 4) {
             return null;
         }
         $near = array_values(array_filter($places, fn ($p) => $this->oneEdit($plain, str_replace('ء', '', $this->key($p['name'])))));
 
-        return count($near) === 1 ? $near[0] + ['approximate' => true] : null;
+        return $this->uniqueInGovernorate($near, $governorate, true);
+    }
+
+    private function uniqueInGovernorate(array $places, ?string $governorate, bool $approximate): ?array
+    {
+        if ($governorate !== null) {
+            $names = array_map($this->key(...), $this->filters->governorateAliases($governorate));
+            $places = array_values(array_filter($places, fn ($place) => in_array($this->key($place['governorate']), $names, true)));
+        }
+
+        return count($places) === 1 ? $places[0] + ['approximate' => $approximate] : null;
     }
 
     private function key(?string $value): string

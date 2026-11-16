@@ -69,8 +69,12 @@ class Phase04RankedDiscoveryTest extends TestCase
         $this->getJson('/api/properties?'.http_build_query(['ranked_search' => 1, 'search' => 'سنعا', 'purpose' => 'rent']))
             ->assertOk()->assertJsonPath('meta.exact_total', 0)->assertJsonPath('data.0.id', $row->id)
             ->assertJsonPath('data.0.discovery_match.kind', 'nearby')->assertJsonPath('data.0.discovery_match.reasons.0.field', 'search');
+        $this->getJson('/api/properties?'.http_build_query(['ranked_search' => 1, 'search' => 'سنعا', 'purpose' => 'rent', 'governorate' => 'أمانة العاصمة']))
+            ->assertOk()->assertJsonPath('data.0.id', $row->id)->assertJsonPath('data.0.discovery_match.kind', 'nearby');
         Governorate::create(['code' => 'p4-valid', 'name_ar' => 'سنعا', 'is_active' => true]);
         $this->getJson('/api/properties?'.http_build_query(['ranked_search' => 1, 'search' => 'سنعا', 'purpose' => 'rent']))
+            ->assertOk()->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/properties?'.http_build_query(['ranked_search' => 1, 'search' => 'سنعا', 'purpose' => 'rent', 'governorate' => 'صنعاء']))
             ->assertOk()->assertJsonPath('meta.total', 0);
         $city->update(['is_active' => false]);
     }
@@ -92,6 +96,13 @@ class Phase04RankedDiscoveryTest extends TestCase
         $this->assertLessThan(100, $data[2]['discovery_match']['distance_m']);
         $this->assertSame('خارج المنطقة المرسومة', $data[2]['discovery_match']['reasons'][0]['message']);
         $this->assertSame($before, DB::table('properties')->orderBy('id')->get()->toJson());
+        // Geography stays nearest-first even if the nearer alternative also
+        // needs a small budget relaxation; both differences remain explained.
+        $near->update(['price' => 110000]);
+        $data = $this->getJson('/api/properties?'.http_build_query($q + ['max_price' => 100000]))
+            ->assertOk()->json('data');
+        $this->assertSame([$near->id, $further->id], array_column(array_slice($data, 2), 'id'));
+        $this->assertCount(2, $data[2]['discovery_match']['reasons']);
     }
 
     public function test_empty_named_neighborhood_uses_recorded_boundary_and_same_name_other_city_stays_scoped(): void
@@ -139,6 +150,16 @@ class Phase04RankedDiscoveryTest extends TestCase
         $this->listing(['purpose' => 'sale', 'price' => 110000, 'monthly_rent' => 110000]);
         $this->getJson('/api/properties?'.http_build_query(['ranked_search' => 1, 'max_monthly_rent' => 100000]))
             ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $rent->id);
+    }
+
+    public function test_recorded_english_place_alias_preserves_a_legacy_english_address(): void
+    {
+        $city = Governorate::firstOrCreate(['name_ar' => 'إب'], ['code' => 'p4-ibb', 'is_active' => true]);
+        $city->update(['name_en' => 'Ibb', 'is_active' => true]);
+        $row = $this->listing(['address' => 'Ibb central district']);
+        $arabic = $this->listing(['address' => 'اب، الحي المركزي']);
+        $this->getJson('/api/properties?'.http_build_query(['ranked_search' => 1, 'search' => 'Ibb', 'purpose' => 'rent']))
+            ->assertOk()->assertJsonPath('meta.exact_total', 2)->assertJsonFragment(['id' => $row->id])->assertJsonFragment(['id' => $arabic->id]);
     }
 
     private function listing(array $overrides = []): Property

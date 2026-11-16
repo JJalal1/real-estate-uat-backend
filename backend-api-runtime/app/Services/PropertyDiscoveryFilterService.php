@@ -69,7 +69,7 @@ class PropertyDiscoveryFilterService
         if (isset($validated['advertiser_id'])) $query->where('user_id', $validated['advertiser_id']);
         if (! empty($validated['governorate'])) {
             $name = $validated['governorate'];
-            $aliases = in_array($name, ['صنعاء', 'أمانة العاصمة'], true) ? ['صنعاء', 'أمانة العاصمة'] : [$name];
+            $aliases = $this->governorateAliases($name);
             $query->where(function (Builder $regional) use ($aliases): void {
                 $regional->whereHas('geoCell.governorate', fn ($g) => $g->where('is_active', true)->whereIn('name_ar', $aliases))
                     ->orWhere(function (Builder $legacy) use ($aliases): void {
@@ -168,6 +168,11 @@ class PropertyDiscoveryFilterService
         );
     }
 
+    public function governorateAliases(string $name): array
+    {
+        return in_array($name, ['صنعاء', 'أمانة العاصمة'], true) ? ['صنعاء', 'أمانة العاصمة'] : [$name];
+    }
+
     public function normalizeArabicSearch(string $value): string
     {
         $value = trim($value);
@@ -183,8 +188,11 @@ class PropertyDiscoveryFilterService
         return trim($value);
     }
 
-    private function normalizedArabicSql(string $column): string
+    public function normalizedArabicSql(string $column): string
     {
+        if (!in_array($column, ['title', 'description', 'address'], true)) {
+            throw new \InvalidArgumentException('Only fixed discovery text columns may be normalized.');
+        }
         $expression = "LOWER(COALESCE({$column}, ''))";
         foreach ([
             'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي', 'ة' => 'ه',

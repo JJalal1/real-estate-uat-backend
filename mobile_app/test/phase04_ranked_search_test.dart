@@ -123,9 +123,12 @@ void main() {
       expect(find.textContaining('خارج المنطقة المرسومة'),findsOneWidget);
       expect(tester.takeException(),isNull);
       final boundary=key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      final image=await boundary.toImage();
-      final bytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();image.dispose();
-      await tester.runAsync(() async {await Directory('phase04-proof').create(recursive:true);await File('phase04-proof/map-sheet-${dark?'dark-large':'light'}.png').writeAsBytes(bytes);});
+      await tester.runAsync(() async {
+        final image=await boundary.toImage();
+        final bytes=(await image.toByteData(format:ui.ImageByteFormat.png))!.buffer.asUint8List();image.dispose();
+        await Directory('phase04-proof').create(recursive:true);
+        await File('phase04-proof/map-sheet-${dark?'dark-large':'light'}.png').writeAsBytes(bytes);
+      });
       await tester.pumpWidget(const SizedBox());await tester.pumpAndSettle();
     });
   }

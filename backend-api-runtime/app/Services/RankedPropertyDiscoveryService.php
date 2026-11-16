@@ -64,7 +64,7 @@ class RankedPropertyDiscoveryService
 
         return ['rows' => $rows, 'meta' => ['current_page' => $page, 'last_page' => max(1, (int) ceil($total / $perPage)),
             'per_page' => $perPage, 'total' => $total, 'exact_total' => $exactTotal, 'alternative_total' => count($nearby),
-            'alternative_limit' => self::ALTERNATIVE_LIMIT, 'ranking' => 'fewest_changes,budget,distance,filter_gap,id']];
+            'alternative_limit' => self::ALTERNATIVE_LIMIT, 'ranking' => 'distance_when_known,fewest_changes,budget,filter_gap,id']];
     }
 
     private function query(array $input, ?array $place, bool $geometry = true): Builder
@@ -75,7 +75,8 @@ class RankedPropertyDiscoveryService
             if ($place['kind'] === 'cell') {
                 $query->where('geo_cell_id', $place['id']);
             } else {
-                $input['governorate'] ??= $place['name'];
+                $this->applyRecordedGovernorate($query, $place);
+                unset($input['governorate']);
             }
         }
         $this->filters->apply($query, $input);
@@ -84,6 +85,22 @@ class RankedPropertyDiscoveryService
         }
 
         return $query;
+    }
+
+    private function applyRecordedGovernorate(Builder $query, array $place): void
+    {
+        $query->where(function (Builder $region) use ($place): void {
+            $this->filters->apply($region, ['governorate' => $place['name']]);
+            $region->orWhere(function (Builder $legacy) use ($place): void {
+                $legacy->whereNull('geo_cell_id')->where(function (Builder $address) use ($place): void {
+                    $column = $this->filters->normalizedArabicSql('address');
+                    $expression = DB::getDriverName() === 'pgsql' ? "STRPOS({$column}, ?) > 0" : "INSTR({$column}, ?) > 0";
+                    foreach (array_filter($place['names']) as $name) {
+                        $address->orWhereRaw($expression, [mb_strtolower($this->filters->normalizeArabicSearch($name))]);
+                    }
+                });
+            });
+        });
     }
 
     private function alternatives(array $input, ?array $place, Builder $exact): array
@@ -146,12 +163,14 @@ class RankedPropertyDiscoveryService
         $differenceSql = '('.implode(' + ', $parts).')';
         $query->select('properties.*')->selectRaw("{$distanceSql} AS discovery_distance_m", $distanceBindings)
             ->selectRaw("{$locationSql} AS discovery_location_difference", $locationBindings)
-            ->whereRaw("{$differenceSql} BETWEEN 1 AND 2", $bindings)
-            ->orderByRaw("{$differenceSql} ASC", $bindings);
+            ->whereRaw("{$differenceSql} BETWEEN 1 AND 2", $bindings);
+        if ($reference !== null) {
+            $query->orderBy('discovery_distance_m');
+        }
+        $query->orderByRaw("{$differenceSql} ASC", $bindings);
         if ($overParts !== []) {
             $query->orderByRaw('CASE WHEN ('.implode(' OR ', $overParts).') THEN 1 ELSE 0 END ASC', $overBindings);
         }
-        $query->orderBy('discovery_distance_m');
         if ($gapParts !== []) {
             $query->orderByRaw('('.implode(' + ', $gapParts).') ASC', $gapBindings);
         }
