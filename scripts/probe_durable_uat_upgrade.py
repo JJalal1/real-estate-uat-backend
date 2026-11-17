@@ -131,7 +131,10 @@ def assert_clean_package(listing):
 
 def package_metadata(dump, uid):
     versions = re.findall(r'^\s*versionCode=([0-9]+)\b', dump, re.MULTILINE)
-    users = re.findall(r'^\s*userId=([0-9]+)\s*$', dump, re.MULTILINE)
+    # Android 16/API36 Settings.dumpPackageLPr names this appId; older releases
+    # printed userId. This fresh emulator uses user 0, whose UID equals appId.
+    # Accept one spelling only rather than guessing among multiple identities.
+    users = re.findall(r'^\s*(?:appId|userId)=([0-9]+)\s*$', dump, re.MULTILINE)
     installed = re.findall(r'^\s*firstInstallTime=(.+)$', dump, re.MULTILINE)
     if (len(versions) != 1 or len(users) != 1 or len(installed) != 1 or
             not re.fullmatch(r'[1-9][0-9]*', uid) or int(uid) < 10000 or uid != users[0]):

@@ -91,6 +91,29 @@ class UpgradeGuards(unittest.TestCase):
             with self.assertRaises(subject.UpgradeError):
                 subject.package_metadata(changed, uid)
 
+    def test_api36_aosp_app_id_and_single_user_zero_install_time(self):
+        # AOSP android16-release Settings.dumpPackageLPr prints appId globally
+        # and firstInstallTime under each user. The dedicated fresh AVD has user0.
+        dump = (
+            'Packages:\n'
+            '  Package [com.aqer.yemen.uat.offline] (1234):\n'
+            '    appId=10123\n'
+            '    pkg=Package{1234 com.aqer.yemen.uat.offline}\n'
+            '    versionCode=1816 minSdk=23 targetSdk=36\n'
+            '    User 0: ceDataInode=123 installed=true hidden=false stopped=true\n'
+            '      installReason=0\n'
+            '      dataDir=/data/user/0/com.aqer.yemen.uat.offline\n'
+            '      firstInstallTime=2026-11-17 01:00:00\n'
+        )
+        self.assertEqual(subject.package_metadata(dump, '10123'), {
+            'version_code': 1816, 'uid': 10123,
+            'first_install_time': '2026-11-17 01:00:00',
+        })
+        for extra in ['    appId=10123\n', '    userId=10123\n',
+                      '    userId=10124\n', '      firstInstallTime=other\n']:
+            with self.subTest(extra=extra), self.assertRaises(subject.UpgradeError):
+                subject.package_metadata(dump + extra, '10123')
+
     def test_paths_cannot_escape_workspace_or_follow_symlinks(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
