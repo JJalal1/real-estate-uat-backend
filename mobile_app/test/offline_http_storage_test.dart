@@ -1,7 +1,9 @@
+import 'package:flutter/services.dart';
+import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
+import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
@@ -287,6 +289,63 @@ void main() {
     connection.offline();
     await expectLater(dio.get<dynamic>('/messages/threads/9', options: auth),
         throwsA(isA<DioException>()));
+  });
+
+  test(
+      'first successful login and profile update restore offline before any auth-me GET',
+      () async {
+    const channel = MethodChannel('real_estate/secure_store');
+    String? token;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'writeToken') {
+        token = (call.arguments as Map)['token'] as String;
+      }
+      if (call.method == 'deleteToken') {
+        token = null;
+      }
+      return call.method == 'readToken' ? token : null;
+    });
+    addTearDown(() => TestDefaultBinaryMessengerBinding
+        .instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+    wire.response = (request) => ResponseBody.fromString(
+            jsonEncode({
+              'data': request.path == '/auth/email/login'
+                  ? {
+                      'token': 'synthetic-new-login',
+                      'user': {
+                        'id': 7,
+                        'name': 'First login',
+                        'account_status': 'active'
+                      }
+                    }
+                  : {
+                      'id': 7,
+                      'name': 'Updated profile',
+                      'account_status': 'active'
+                    }
+            }),
+            200,
+            headers: {
+              'content-type': ['application/json']
+            });
+    final repository = AuthRepository(dio, offlineStore: store);
+    await repository.verifyWhatsApp(
+        const WhatsAppAuthPending(
+            phone: '', email: 'synthetic@fixture.invalid', isNewAccount: false),
+        '000000');
+    expect(wire.calls.where((request) => request.path == '/auth/me'), isEmpty);
+    connection.offline();
+    expect((await repository.restoreSession())?.name, 'First login');
+    connection.online();
+    await repository.completeProfile('Updated profile');
+    connection.offline();
+    expect(
+        (await AuthRepository(dio, offlineStore: storage()).restoreSession())
+            ?.name,
+        'Updated profile');
+    expect(wire.calls.where((request) => request.path == '/auth/me'), isEmpty);
   });
 
   test(

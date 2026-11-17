@@ -4,6 +4,20 @@ import '../local/stage6_secure_session_store.dart';
 import 'offline_connection.dart';
 import 'offline_store.dart';
 
+String offlineRequestIdentity(RequestOptions r) {
+  final query = Map<String, dynamic>.from(r.queryParameters);
+  if (r.uri.path.endsWith('/properties/nearby')) {
+    for (final key in const ['latitude', 'longitude']) {
+      final value = double.tryParse(query[key]?.toString() ?? '');
+      if (value != null) query[key] = (value * 1000).round() / 1000;
+    }
+  }
+  final keys = query.keys.toList()..sort();
+  return '${r.uri.origin}${r.uri.path}|${jsonEncode({
+        for (final key in keys) key: query[key]
+      })}|${r.headers['Authorization'] ?? r.headers['authorization'] ?? ''}';
+}
+
 class OfflineHttpInterceptor extends Interceptor {
   OfflineHttpInterceptor(this.store, this.connection);
   final OfflineStore store;
@@ -31,20 +45,7 @@ class OfflineHttpInterceptor extends Interceptor {
         RegExp(r'^/listing-editor-drafts/[a-fA-F0-9-]{36}$').hasMatch(path);
   }
 
-  String identity(RequestOptions r) {
-    final query = Map<String, dynamic>.from(r.queryParameters);
-    if (r.uri.path.endsWith('/properties/nearby')) {
-      for (final key in const ['latitude', 'longitude']) {
-        final value = double.tryParse(query[key]?.toString() ?? '');
-        if (value != null) query[key] = (value * 1000).round() / 1000;
-      }
-    }
-    final keys = query.keys.toList()..sort();
-    return '${r.uri.origin}${r.uri.path}|${jsonEncode({
-          for (final key in keys) key: query[key]
-        })}|${r.headers['Authorization'] ?? r.headers['authorization'] ?? ''}';
-  }
-
+  String identity(RequestOptions r) => offlineRequestIdentity(r);
   bool private(RequestOptions r) =>
       r.headers.keys.any((k) => k.toLowerCase() == 'authorization');
   String space(RequestOptions r) => 'http_snapshots';

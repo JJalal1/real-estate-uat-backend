@@ -1,3 +1,5 @@
+import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
+import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 // Isolated native acceptance entry. Never shipped in the ordinary APK.
 // No real account, credentials, auth/AI/business API, external HTTP or upload.
 import 'dart:convert';
@@ -53,6 +55,27 @@ class _SyntheticWire implements HttpClientAdapter {
     if (!online) {
       throw DioException(
           requestOptions: options, type: DioExceptionType.connectionError);
+    }
+    if (options.uri.path.endsWith('/auth/email/login')) {
+      return ResponseBody.fromString(
+          jsonEncode({
+            'data': {
+              'token': 'synthetic-native-only',
+              'user': {
+                'id': _actor,
+                'name': 'synthetic native actor',
+                'account_status': 'active',
+                'phone_verified_at': '2026-11-17T00:00:00Z',
+                'profile_completed_at': '2026-11-17T00:00:00Z',
+                'roles': <String>[],
+                'permissions': <String>[]
+              }
+            }
+          }),
+          200,
+          headers: {
+            'content-type': ['application/json']
+          });
     }
     if (options.uri.path.contains('property-media')) {
       return ResponseBody.fromBytes(_bytes, 200, headers: {
@@ -135,12 +158,7 @@ Future<void> _run() async {
   final disk = PublicPhotoDiskCache(origin: Uri.parse(_origin));
   final loader = PublicPhotoLoader(dio, disk, connection: connection);
   final recovery = ListingRecoveryStore();
-  const paths = [
-    '/properties/7',
-    '/auth/me',
-    '/messages/threads',
-    '/messages/threads/9'
-  ];
+  const paths = ['/properties/7', '/messages/threads', '/messages/threads/9'];
   final auth =
       Options(headers: {'Authorization': 'Bearer synthetic-native-only'});
   var actualSends = 0;
@@ -172,7 +190,14 @@ Future<void> _run() async {
         }
       });
   await box.initialize();
+  final authRepository = AuthRepository(dio, offlineStore: _store);
   if (phase == 1) {
+    await authRepository.verifyWhatsApp(
+        const WhatsAppAuthPending(
+            phone: '',
+            email: 'synthetic@synthetic.invalid',
+            isNewAccount: false),
+        '000000');
     for (final path in paths) {
       await dio.get<dynamic>(path, options: auth);
     }
@@ -195,6 +220,8 @@ Future<void> _run() async {
     await box.enqueue('property', 7, 'synthetic second');
     _require(actualSends == 0 && box.rows.length == 2, 'durable_queue_no_send');
   } else if (phase == 2) {
+    _require((await authRepository.restoreSession())?.id == _actor,
+        'offline_session_after_first_login');
     for (final path in paths) {
       final response = await dio.get<dynamic>(path, options: auth);
       _require(
