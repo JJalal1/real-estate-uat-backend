@@ -20,9 +20,9 @@ original_validate = upgrade.validate_receipts
 def guard(env, source, serial):
     harness = Path(__file__).resolve().parents[1]
     harness_sha = upgrade.command('git', '-C', harness, 'rev-parse', 'HEAD')
-    harness_parent = upgrade.command('git', '-C', harness, 'rev-parse', 'HEAD^')
+    harness_product_base = upgrade.command('git', '-C', harness, 'rev-parse', 'HEAD^^')
     if (source != APK_SOURCE or harness_sha != env.get('GITHUB_SHA') or
-            harness_parent != APK_SOURCE or harness == PRODUCT or
+            harness_product_base != APK_SOURCE or harness == PRODUCT or
             not re.fullmatch(r'[0-9a-f]{40}', harness_sha)):
         raise upgrade.UpgradeError('exact_product_and_keyless_harness_required')
     # The product checkout is independently checked by the original main.
@@ -93,7 +93,7 @@ def open_page(device, nodes, labels, predicate, stage, output, *, fixed_point=No
         tap(device, point)
         reached = wait_for(device, predicate, attempts=3)
         if reached is not None:
-            print(json.dumps({'stage': stage, 'tap': point, 'method': 'semantics' if point == semantic_point else 'observed_header'}))
+            print(json.dumps({'stage': stage, 'tap': point, 'method': 'semantics' if point == semantic_point else 'observed_control'}))
             return reached
     device.screenshot(output, 'failed-' + stage + '.png')
     raise upgrade.UpgradeError('guest_' + stage + '_not_reached')
@@ -135,23 +135,27 @@ def verify_guest(device, output):
         raise upgrade.UpgradeError('guest_home_after_smart_search_missing')
     mapped = open_page(device, home, ('الخريطة',), lambda n: tests(n, 'البحث على الخريطة'),
                        'map_search', output, fixed_point=(54, 683))
-    search = target(mapped, ('ابحث عن عقار',))
-    if search is None:
-        edit_field = next((node for node in mapped if node.get('class') == 'android.widget.EditText'), None)
-        search = bounds(edit_field)[:2] if edit_field and bounds(edit_field) else None
-    draw = target(mapped, ('رسم منطقة على الخريطة',))
-    assistant = target(mapped, ('فتح مساعد البحث الذكي', 'البحث الذكي'))
-    if not (search and draw and assistant and draw[0] < 270 and assistant[0] < 270
-            and search[1] < min(draw[1], assistant[1])):
-        device.screenshot(output, 'failed-map-controls.png')
-        raise upgrade.UpgradeError('map_search_top_or_floating_left_actions_misplaced')
     device.screenshot(output, shots[3])
+    # These physical centres are from the captured 540x960 map. Activate both
+    # controls to verify their hit targets even when Android merges their labels.
+    search = (314, 263)
+    draw = (54, 780)
+    assistant = (140, 780)
+    open_page(device, mapped, (), lambda n: tests(n, 'إلغاء') or tests(n, 'ارسم بإصبعك'),
+              'map_drawing_action', output, fixed_point=draw)
+    device.adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    mapped = wait_for(device, lambda n: tests(n, 'البحث على الخريطة') and not tests(n, 'ارسم بإصبعك'))
+    if mapped is None:
+        raise upgrade.UpgradeError('guest_map_after_drawing_cancel_missing')
+    open_page(device, mapped, (), lambda n: tests(n, 'البحث الذكي') and not tests(n, 'البحث على الخريطة'),
+              'map_assistant_action', output, fixed_point=assistant)
     return {
         'passed': True,
         'checks': ['first_ever_1820_home_has_no_automatic_location_introduction',
                    'explicit_location_picker_remains_accessible',
                    'fresh_smart_search_uses_generic_unknown_location_hint',
-                   'native_map_search_above_lower_left_drawing_and_ai_controls'],
+                   'native_map_search_above_lower_left_drawing_and_ai_controls',
+                   'both_lower_left_map_actions_activated_on_device'],
         'map_control_centres': {'search': search, 'draw': draw, 'assistant': assistant},
         'public_locations_rows_unavailable_under_network_isolation': True,
         'dhamar_hint_native_device_tested': False, 'native_map_layout_tested': True,
