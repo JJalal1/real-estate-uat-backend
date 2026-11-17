@@ -13,7 +13,7 @@ from prepare_phase1_close import android_tools, elf
 
 ROOT = Path(__file__).resolve().parents[1]
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
-PACKAGE = 'com.aqer.yemen.uat.phase04'
+PACKAGE = 'com.aqer.yemen.uat.offline'
 
 
 def main():
@@ -53,7 +53,7 @@ def main():
               'mobile_component': call('git', 'rev-parse', 'HEAD:mobile_app').strip(), 'package': PACKAGE,
               'version_code': 1815, 'sha256': hashlib.file_digest(exported.open('rb'), 'sha256').hexdigest(),
               'bytes': exported.stat().st_size, 'signer_certificate_sha256': certificates[0].lower(), 'signing': 'disposable CI UAT key',
-              'upgrades_owner_1812': False, 'api': API, 'required_ranked_contract': '1',
+              'upgrades_owner_1812': False, 'upgrades_1814': False, 'parallel_install_preserves_1814': True, 'api': API, 'required_ranked_contract': '1',
               'offline_followup': True, 'backend_deployed': False, 'physical_phone_acceptance': False, 'abis': abis, 'zip_elf_16kb': 'verified'}
     (output / 'APK_VERIFICATION.json').write_text(json.dumps(record, indent=2) + '\n')
     print(json.dumps(record))

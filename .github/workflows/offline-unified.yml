@@ -50,17 +50,17 @@ jobs:
             ~/.gradle/caches/modules-2
             ~/.gradle/wrapper/dists
           key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
-      - name: Build separate Phase04 phone candidate
+      - name: Build one unified isolated phone candidate
         working-directory: mobile_app
         env:
           AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
-          ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.phase04
-          ORG_GRADLE_PROJECT_AQER_UAT_APP_NAME: عقار خرائط اختبار
+          ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.offline
+          ORG_GRADLE_PROJECT_AQER_UAT_APP_NAME: عقار أوفلاين اختبار
         run: >-
           flutter build apk --flavor uat --release --build-number=1815
           --dart-define=APP_ENVIRONMENT=uat
           --dart-define=APP_BUILD_NUMBER=1815
-          --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.phase04
+          --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline
           --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
           --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com
           --dart-define=AQER_RANKED_DISCOVERY=true
