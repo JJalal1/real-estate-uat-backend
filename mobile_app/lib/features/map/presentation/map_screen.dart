@@ -1146,12 +1146,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _openDetails(PropertyMarker property) async {
+    if (!_journeyCurrent) return;
     setState(() => _selected = property);
     await context.push('/properties/${property.id}', extra: PropertySummary(id: property.id, title: property.title,
       purpose: property.purpose ?? '', type: property.type ?? '', price: property.price, currency: property.currency,
       latitude: property.latitude, longitude: property.longitude, monthlyRent: property.monthlyRent,
       mainImage: property.mainImage, imageUrls: property.imageUrls));
-    if (mounted && widget.enforceViewport) await ref.read(_searchSession.notifier).search();
+    if (_journeyCurrent && widget.enforceViewport) await ref.read(_searchSession.notifier).search();
   }
 
   VoidCallback? _favoriteAction(int propertyId, AsyncValue<Set<int>>? ids) {
@@ -1365,6 +1366,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _finishAreaStroke(DragEndDetails _) async {
+    if (!_journeyCurrent) return;
     final controller = _mapController;
     final projector = ref.read(sharedSearchMapProjectorProvider);
     final draft = _simplifyAreaStroke(_areaDraftPoints);
@@ -1385,7 +1387,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       for (final point in draft) {
         final pixels = MapScreenCoordinateSpace.logicalToPlatformPixels(point, pixelRatio);
         geoPoints.add(await (projector != null ? projector(pixels) : controller!.toLatLng(pixels)));
-        if (!mounted || generation != _areaSelectionGeneration || !_selectingArea) return;
+        if (!_journeyCurrent || generation != _areaSelectionGeneration || !_selectingArea) return;
       }
       final geometry = MapAreaGeometry.fromPoints(geoPoints);
       if (!geometry.isMeaningful) {
@@ -1397,7 +1399,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         }
         return;
       }
-      if (!mounted) return;
+      if (!_journeyCurrent) return;
       setState(() {
         _selectedAreaGeometry = geometry;
         _selectedAreaBounds = geometry.bounds;

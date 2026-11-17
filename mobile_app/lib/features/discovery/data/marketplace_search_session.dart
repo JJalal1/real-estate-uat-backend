@@ -45,8 +45,16 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   bool get active => state.active || _mapActive;
   int get mapJourneyToken => _mapJourney;
   bool isMapJourneyCurrent(int token) => mounted && _mapActive && token == _mapJourney;
-  MarketplaceSearchUi uiFor({bool onMap = false}) => onMap && _mapActive
-      ? state.mapEditor ?? state : state;
+  MarketplaceSearchUi uiFor({bool onMap = false}) {
+    if (!onMap || !_mapActive) return state;
+    final editor = state.mapEditor ?? state;
+    // A user-drawn/visible map area replaces the inherited province context.
+    // Its chips and editor must describe the same scope as the actual request.
+    return map.snapshot.filters.hasMapArea &&
+            (editor.criteria.values.containsKey('governorate') || editor.criteria.values.containsKey('governorate_code'))
+        ? editor.copyWith(criteria: editor.criteria.without('governorate'))
+        : editor;
+  }
 
   bool _canEdit(bool onMap) => mounted && (!onMap || _mapActive);
   void _setUi(MarketplaceSearchUi value, {required bool onMap}) {

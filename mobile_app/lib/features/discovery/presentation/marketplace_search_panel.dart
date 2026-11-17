@@ -431,18 +431,19 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
     final cameraHint = mapSearchInitialCamera(filters, homeLocation) ??
       (needsProvinceHint
         ? mapSearchInitialCamera(filters, homeLocation, ref.watch(homeLocationsProvider).asData?.value ?? const []) : null);
-    final hasJourney = _mapToken != null && identical(_mapJourney, journey) && journey.isMapJourneyCurrent(_mapToken!);
+    final mapToken = _mapToken;
+    final hasJourney = mapToken != null && identical(_mapJourney, journey) && journey.isMapJourneyCurrent(mapToken);
     return PopScope(onPopInvokedWithResult: (didPop, _) { if (didPop) { _routeExited = true; _releaseMap(); } },
       child: Scaffold(appBar: AppBar(title: const Text('البحث على الخريطة', maxLines: 2),
         toolbarHeight: (56 + (MediaQuery.textScalerOf(context).scale(18) - 18) * 2).clamp(56,116).toDouble(),
         automaticallyImplyLeading: !widget.embedded),
         resizeToAvoidBottomInset: true,
         body: !visible || !hasJourney ? const SizedBox.shrink()
-          : MapScreen(key: ValueKey('marketplace-map-$actor-$_mapToken'), sharedSearchJourney: true,
+          : MapScreen(key: ValueKey('marketplace-map-$actor-$mapToken'), sharedSearchJourney: true,
           searchSessionProvider: marketplaceMapResultsProvider, enforceViewport: true,
           toolbarAboveMap: true, cameraCenterHint: cameraHint, onSmartSearch: _openSmartSearch,
-          isJourneyCurrent: () => mounted && !_routeExited && widget.active && _mapToken != null &&
-            identical(_mapJourney, journey) && journey.isMapJourneyCurrent(_mapToken!),
+          isJourneyCurrent: () => mounted && !_routeExited && widget.active && mapToken != null && _mapToken == mapToken &&
+            identical(_mapJourney, journey) && journey.isMapJourneyCurrent(mapToken),
           onMapInteraction: () { FocusScope.of(context).unfocus(); journey.stopEditing(onMap: true); },
           searchToolbarBuilder: (_, actions) => SizedBox(key: const ValueKey('marketplace-search-toolbar'),
             child: MarketplaceSearchPanel(onMap: true, mapActions: actions)))));

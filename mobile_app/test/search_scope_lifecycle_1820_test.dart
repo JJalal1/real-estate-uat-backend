@@ -90,6 +90,8 @@ void main() {
     await _settle();
     map.updateViewport(south: 13, west: 43, north: 14, east: 44);
     await _settle();
+    expect(owner.uiFor(onMap: true).criteria.values.containsKey('governorate'), isFalse);
+    expect(owner.uiFor(onMap: true).criteria.values.containsKey('governorate_code'), isFalse);
     owner.setChoice('max_price', 150000, onMap: true);
     await _settle();
     expect(map.snapshot.filters.values['south'], 13);
