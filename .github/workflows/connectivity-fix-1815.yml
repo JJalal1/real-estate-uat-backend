@@ -1,27 +1,40 @@
-name: Connectivity fix for the installed UAT 1815
+name: Connectivity fix and durable UAT signing transition
 on:
   push:
     branches: [work/fix-connectivity-1815-20261117]
     paths:
       - mobile_app/**
+      - docs/uat-signing-identity.json
       - scripts/import_ci_uat_signing.py
+      - scripts/uat_signing_identity.py
       - scripts/tests/test_uat_signing_configuration.py
+      - scripts/tests/test_uat_signing_identity.py
       - scripts/verify_connectivity_fix_apk.py
+      - scripts/probe_durable_uat_upgrade.py
+      - scripts/tests/test_durable_uat_upgrade*.py
       - .github/workflows/connectivity-fix-1815.yml
+      - .github/workflows/durable-uat-upgrade.yml
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: connectivity-fix-1815-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   signing_readiness:
-    name: Presence only and installed signer pin
+    name: Public approval policy and boolean signing presence only
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       compatible: ${{ steps.readiness.outputs.compatible }}
     steps:
-      - name: Emit public readiness without reading signing material
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read the public identity; pending approval is not delivery approval
+        id: identity
+        run: python3 -B scripts/uat_signing_identity.py --github-output
+      - name: Emit readiness without reading secret values
         id: readiness
         env:
           HAS_KEYSTORE: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 != '' }}
@@ -29,27 +42,22 @@ jobs:
           HAS_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS != '' }}
           HAS_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD != '' }}
           HAS_CERTIFICATE_PIN: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 != '' }}
-          INSTALLED_CERTIFICATE_PIN_MATCHES: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 == 'a157c63cd37090cebac83d2a2786e1e3342a8b09f17daeea30e93a5cbd65796f' }}
+          APPROVED_CERTIFICATE_PIN_MATCHES: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 == steps.identity.outputs.certificate_sha256 }}
         run: |
           python3 -B - <<'PY'
-          import json, os
+          import json, os, sys
           from pathlib import Path
-          names = ('KEYSTORE', 'STORE_PASSWORD', 'KEY_ALIAS', 'KEY_PASSWORD', 'CERTIFICATE_PIN')
-          present = {name.lower(): os.environ['HAS_' + name] == 'true' for name in names}
-          pin_matches = os.environ['INSTALLED_CERTIFICATE_PIN_MATCHES'] == 'true'
-          compatible = all(present.values()) and pin_matches
-          receipt = {
-              'source_commit': os.environ['GITHUB_SHA'], 'present': present,
-              'installed_certificate_pin_matches': pin_matches, 'compatible': compatible,
-              'status': 'configuration_present_pending_validation' if compatible else 'blocked_missing_or_mismatched_installed_signer',
-              'signing_material_verified': False, 'apk_built': False,
-              'installed_device_upgrade_tested': False, 'duplicate_apk_created': False,
-          }
+          sys.path.insert(0, 'scripts')
+          from uat_signing_identity import PRESENCE_NAMES, load_public_identity, signing_readiness
+          present = {name: os.environ['HAS_' + name.upper()] == 'true' for name in PRESENCE_NAMES}
+          pin_matches = os.environ['APPROVED_CERTIFICATE_PIN_MATCHES'] == 'true'
+          receipt = signing_readiness(load_public_identity(), present, pin_matches)
+          receipt['source_commit'] = os.environ['GITHUB_SHA']
           output = Path('connectivity-readiness')
           output.mkdir()
           (output / 'SIGNING_READINESS.json').write_text(json.dumps(receipt, indent=2) + '\n')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
-              stream.write('compatible=' + str(compatible).lower() + '\n')
+              stream.write('compatible=' + str(receipt['compatible']).lower() + '\n')
           print(json.dumps(receipt, sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
@@ -76,6 +84,10 @@ jobs:
           AQER_TEST_RUNNER_SIGNING: 'true'
           AQER_SIGNING_ENVIRONMENT: uat
         run: python3 -B -m unittest discover -s scripts/tests -p test_uat_signing_configuration.py -v
+      - name: Public durable signing identity and approval contracts
+        run: python3 -B -m unittest discover -s scripts/tests -p test_uat_signing_identity.py -v
+      - name: Disposable update probe guards with synthetic fixtures only
+        run: python3 -B -m unittest discover -s scripts/tests -p test_durable_uat_upgrade.py -v
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.3'
@@ -106,8 +118,8 @@ jobs:
           test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart
           test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart
           --reporter expanded --timeout 2m
-  delivery:
-    name: Build 1816 only with the installed app signer
+  build_1816:
+    name: Build 1816 in a fresh job with the approved durable signer
     needs: [tests, signing_readiness]
     if: ${{ needs.tests.result == 'success' && needs.signing_readiness.outputs.compatible == 'true' && github.event.repository.private }}
     runs-on: ubuntu-latest
@@ -122,6 +134,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Require approved identity and verified GitHub secret storage
+        run: python3 -B scripts/uat_signing_identity.py --require-delivery-approval
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -148,7 +162,7 @@ jobs:
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
-      - name: Validate and stage the existing pinned UAT key; never generate one
+      - name: Validate and stage the GitHub-configured durable UAT key
         env:
           AQER_UAT_KEYSTORE_BASE64: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 }}
           AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
@@ -156,7 +170,9 @@ jobs:
           AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
           AQER_UAT_SIGNING_CERT_SHA256: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 }}
         run: python3 -B scripts/import_ci_uat_signing.py --required
-      - name: Build an update candidate in the same installed package
+      - name: Require the imported certificate to match the approved public identity
+        run: python3 -B scripts/uat_signing_identity.py --require-delivery-approval --verify-imported-environment
+      - name: Build 1816 with the stable package and signing identity
         working-directory: mobile_app
         env:
           AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
@@ -170,8 +186,8 @@ jobs:
           --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
           --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com
           --dart-define=AQER_RANKED_DISCOVERY=true
-      - name: Verify exact installed signer, identity, compiled API and packaging
-        run: python3 -B scripts/verify_connectivity_fix_apk.py
+      - name: Verify approved signer, identity, compiled API and packaging
+        run: python3 -B scripts/verify_connectivity_fix_apk.py --version 1816
       - uses: actions/upload-artifact@v4
         if: success() && github.event.repository.private
         with:
@@ -195,3 +211,107 @@ jobs:
               directory.rmdir()
           print('AQER_UAT_SIGNING_MATERIAL_REMOVED')
           PY
+  build_1817:
+    name: Build 1817 in a fresh job with the approved durable signer
+    needs: [build_1816, signing_readiness]
+    if: ${{ needs.build_1816.result == 'success' && needs.signing_readiness.outputs.compatible == 'true' && github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      AQER_SIGNING_ENVIRONMENT: uat
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
+      ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.offline
+      ORG_GRADLE_PROJECT_AQER_UAT_APP_NAME: عقار أوفلاين اختبار
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require approved identity and verified GitHub secret storage
+        run: python3 -B scripts/uat_signing_identity.py --require-delivery-approval
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          log-accepted-android-sdk-licenses: false
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Reuse existing reviewed public Gradle dependencies
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Resolve original locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Validate and stage the GitHub-configured durable UAT key
+        env:
+          AQER_UAT_KEYSTORE_BASE64: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 }}
+          AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
+          AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
+          AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
+          AQER_UAT_SIGNING_CERT_SHA256: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 }}
+        run: python3 -B scripts/import_ci_uat_signing.py --required
+      - name: Require the imported certificate to match the approved public identity
+        run: python3 -B scripts/uat_signing_identity.py --require-delivery-approval --verify-imported-environment
+      - name: Build 1817 with the stable package and signing identity
+        working-directory: mobile_app
+        env:
+          AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
+          AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
+          AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
+        run: >-
+          flutter build apk --flavor uat --release --no-pub --build-number=1817
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=APP_BUILD_NUMBER=1817
+          --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline
+          --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
+          --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com
+          --dart-define=AQER_RANKED_DISCOVERY=true
+      - name: Verify approved signer, identity, compiled API and packaging
+        run: python3 -B scripts/verify_connectivity_fix_apk.py --version 1817
+      - uses: actions/upload-artifact@v4
+        if: success() && github.event.repository.private
+        with:
+          name: connectivity-fix-1817-${{ github.sha }}
+          path: |
+            mobile_app/connectivity-proof/AQER-UAT-1817-Durable-Update.apk
+            mobile_app/connectivity-proof/APK_VERIFICATION.json
+          retention-days: 14
+          if-no-files-found: error
+      - name: Remove staged signing key even after failure or cancellation
+        if: always()
+        run: |
+          python3 -B - <<'PY'
+          import os
+          from pathlib import Path
+          directory = Path(os.environ['RUNNER_TEMP']) / 'aqer-uat-signing'
+          if directory.is_symlink():
+              raise RuntimeError('refuse_unexpected_signing_directory_symlink')
+          (directory / 'uat-release.keystore').unlink(missing_ok=True)
+          if directory.exists():
+              directory.rmdir()
+          print('AQER_UAT_SIGNING_MATERIAL_REMOVED')
+          PY
+  durable_upgrade:
+    name: Android evidence for durable 1816 to 1817 update
+    needs: [build_1816, build_1817, signing_readiness]
+    if: ${{ needs.build_1816.result == 'success' && needs.build_1817.result == 'success' && github.event.repository.private }}
+    uses: ./.github/workflows/durable-uat-upgrade.yml
+    with:
+      source_sha: ${{ github.sha }}
+      # This fingerprint is public policy, not a secret-valued job output.
+      expected_pin: '8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3'
+      baseline_artifact: connectivity-fix-1816-${{ github.sha }}
+      upgrade_artifact: connectivity-fix-1817-${{ github.sha }}

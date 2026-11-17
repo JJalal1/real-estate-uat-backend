@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Verify a same-package/same-signer 1816 candidate; never claim device upgrade."""
+"""Verify a durable UAT baseline/update against its approved public identity."""
+import argparse
 import hashlib
 import json
 import os
@@ -11,14 +12,13 @@ import sys
 import zipfile
 
 from prepare_phase1_close import android_tools, elf
+from uat_signing_identity import load_public_identity, verify_imported_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 BRANCH = 'refs/heads/work/fix-connectivity-1815-20261117'
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
 PACKAGE = 'com.aqer.yemen.uat.offline'
 APP_NAME = 'عقار أوفلاين اختبار'
-VERSION = 1816
-INSTALLED_1815_SIGNER = 'a157c63cd37090cebac83d2a2786e1e3342a8b09f17daeea30e93a5cbd65796f'
 ABIS = {'arm64-v8a', 'armeabi-v7a', 'x86_64'}
 
 
@@ -31,22 +31,25 @@ def call(*args):
                           capture_output=True, text=True, timeout=90).stdout
 
 
-def main():
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--version', type=int, choices=(1816, 1817), required=True)
+    version = parser.parse_args(argv).version
+    identity = load_public_identity(require_approval=True)
+    certificate = identity['certificate_sha256']
     env = os.environ
     if not (env.get('GITHUB_ACTIONS') == 'true' and
             env.get('GITHUB_REPOSITORY') == 'JJalal1/real-estate-uat-backend' and
-            env.get('GITHUB_REF') == BRANCH and env.get('GITHUB_EVENT_NAME') == 'push' and
-            env.get('AQER_SIGNING_ENVIRONMENT') == 'uat' and
-            env.get('AQER_UAT_SIGNING_CONFIGURED') == 'true' and
-            env.get('AQER_ALLOW_DEBUG_RELEASE_SIGNING') == 'false' and
-            env.get('AQER_UAT_SIGNING_CERT_SHA256') == INSTALLED_1815_SIGNER):
-        raise VerificationError('verified_installed_uat_signing_context_required')
+            env.get('GITHUB_REF') == BRANCH and env.get('GITHUB_EVENT_NAME') == 'push'):
+        raise VerificationError('explicit_durable_uat_ci_context_required')
+    verify_imported_environment(identity, env)
     source = call('git', 'rev-parse', 'HEAD').strip()
     if source != env.get('GITHUB_SHA') or not re.fullmatch(r'[a-f0-9]{40}', source):
         raise VerificationError('source_checkout_mismatch')
     call('git', 'diff', '--exit-code', 'HEAD', '--', 'mobile_app/lib',
          'mobile_app/android', 'mobile_app/assets', 'mobile_app/pubspec.yaml',
-         'backend-api-runtime')
+         'backend-api-runtime', 'docs/uat-signing-identity.json',
+         'scripts/uat_signing_identity.py', 'scripts/verify_connectivity_fix_apk.py')
     # The established CI resolver completes the original lock with reviewed,
     # pinned entries. Verify that contract rather than requiring a byte-identical
     # committed lock, which would reject the existing reviewed build procedure.
@@ -60,11 +63,11 @@ def main():
     certificates = re.findall(
         r'^Signer #([1-9][0-9]*) certificate SHA-256 digest:\s*([a-fA-F0-9]{64})\s*$',
         signature, re.MULTILINE)
-    if [(number, digest.lower()) for number, digest in certificates] != [('1', INSTALLED_1815_SIGNER)]:
-        raise VerificationError('installed_1815_signer_mismatch')
+    if [(number, digest.lower()) for number, digest in certificates] != [('1', certificate)]:
+        raise VerificationError('approved_durable_uat_signer_mismatch')
     badging = call(tools / 'aapt', 'dump', 'badging', apk)
     packages = re.findall(r"^package: name='([^']+)' versionCode='([0-9]+)'", badging, re.MULTILINE)
-    if (packages != [(PACKAGE, str(VERSION))] or
+    if (packages != [(PACKAGE, str(version))] or
             re.findall(r"^sdkVersion:'([0-9]+)'$", badging, re.MULTILINE) != ['23'] or
             re.findall(r"^targetSdkVersion:'([0-9]+)'$", badging, re.MULTILINE) != ['36'] or
             f"application-label:'{APP_NAME}'" not in badging or
@@ -88,7 +91,9 @@ def main():
     output = ROOT / 'mobile_app/connectivity-proof'
     output.mkdir(mode=0o700)
     try:
-        exported = output / 'AQER-UAT-1816-Connectivity-Fix.apk'
+        filename = ('AQER-UAT-1816-Connectivity-Fix.apk' if version == 1816
+                    else 'AQER-UAT-1817-Durable-Update.apk')
+        exported = output / filename
         shutil.copy2(apk, exported)
         with exported.open('rb') as stream:
             digest = hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -96,13 +101,23 @@ def main():
             'source_commit': source,
             'mobile_component': call('git', 'rev-parse', 'HEAD:mobile_app').strip(),
             'backend_component': call('git', 'rev-parse', 'HEAD:backend-api-runtime').strip(),
-            'package': PACKAGE, 'version_code': VERSION, 'sha256': digest,
+            'package': PACKAGE, 'version_code': version, 'sha256': digest,
             'application_name': APP_NAME,
             'bytes': exported.stat().st_size,
-            'signer_certificate_sha256': INSTALLED_1815_SIGNER,
-            'same_package_and_certificate_as_installed_1815': True,
-            'signing': 'existing GitHub-configured UAT key; actual certificate pinned to installed 1815',
-            'debug_signing_allowed': False, 'new_signing_key_generated': False,
+            'signer_certificate_sha256': certificate,
+            'approved_public_identity': 'docs/uat-signing-identity.json',
+            'approved_for_delivery': identity['approved_for_delivery'],
+            'github_secret_storage_verified': identity['github_secret_storage_verified'],
+            'same_package_as_1815': True, 'same_certificate_as_1815': False,
+            'previous_1815_certificate_sha256': identity['previous_1815_certificate_sha256'],
+            'transition_from_1815': identity['transition_from_1815'],
+            'one_time_clean_install_required_from_1815': True,
+            'upgrade_from_1815_compatible': False,
+            'durable_identity_first_version': identity['first_durable_version'],
+            'identity_role': 'durable_baseline' if version == 1816 else 'durable_update_candidate',
+            'upgrade_from_1816_expected_identity_compatible': version == 1817,
+            'signing': 'GitHub-configured durable UAT key; actual APK certificate matches approved public identity',
+            'debug_signing_allowed': False,
             'api': API, 'compiled_api_verified_for_all_abis': True,
             'resolved_dependency_lock_sha256': hashlib.sha256(lock.read_bytes()).hexdigest(),
             'dependency_lock_guard_verified': True,
@@ -110,8 +125,9 @@ def main():
             'min_sdk': 23, 'target_sdk': 36, 'abis': sorted(ABIS),
             'zip_elf_16kb': 'verified', 'backend_deployed': False,
             'parallel_install_required': False, 'installed_device_upgrade_tested': False,
+            'durable_update_pair_verified_in_this_job': False,
             'physical_phone_acceptance': False, 'native_acceptance_tested_in_this_job': False,
-            'scope': 'APK identity, signer, version and packaging; installed-device update and data retention remain untested',
+            'scope': 'APK identity, signer, version and packaging only; 1815 requires one-time clean install; durable update and data retention need separate Android evidence',
         }
         (output / 'APK_VERIFICATION.json').write_text(json.dumps(record, indent=2) + '\n')
     except Exception:
