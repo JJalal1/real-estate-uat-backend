@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'public_photo_disk_cache.dart';
 import '../../../core/platform/uat_network_trace.dart';
+import '../../../core/offline/offline_connection.dart';
+import '../../../core/network/adaptive_image_policy.dart';
 
 class PublicPhotoTransfer {
   const PublicPhotoTransfer(this.bytes, {this.downloadedBytes = 0, this.notModified = false});
@@ -12,16 +14,41 @@ class PublicPhotoTransfer {
 }
 
 class PublicPhotoLoader {
-  const PublicPhotoLoader(this.dio, this.disk);
+  const PublicPhotoLoader(this.dio, this.disk, {this.connection});
   final Dio dio;
   final PublicPhotoDiskCache disk;
+  final OfflineConnectionController? connection;
 
   Future<PublicPhotoTransfer> load(String url, {required CancelToken cancelToken,
     int? backgroundByteLimit, bool Function()? foregroundAttached,
-    void Function(int)? onReceivedBytes, bool requirePublicResponse = false}) async {
+    void Function(int)? onReceivedBytes, bool requirePublicResponse = false,
+      bool revalidate = false}) async {
     final epoch = disk.epoch;
-    final cached = await disk.read(url).timeout(const Duration(milliseconds: 300), onTimeout: () => null);
+    final offline = connection?.current == OfflineConnection.offline;
+    final small = const ['thumb', 'card', 'preview']
+        .contains(Uri.tryParse(url)?.queryParameters['variant']);
+    if (offline && !small)
+      { throw StateError(
+          'لا يوجد اتصال. فتح الصور الكبيرة والتكبير يحتاجان الإنترنت.'); }
+    var cached = await disk.read(url, allowStale: small || offline).timeout(const Duration(milliseconds: 300), onTimeout: () => null);
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
+    if (offline && cached == null && small) {
+      for (final variant in const ['card', 'thumb', 'preview', 'detail', 'gallery']) {
+        cached = await disk.read(AdaptiveImagePolicy.variantUrl(url, variant),
+            allowStale: true);
+        if (cached != null) break;
+      }
+    }
+    if (cached != null && small && !revalidate) {
+      if (!offline &&
+          connection?.current == OfflineConnection.online &&
+          disk.needsValidation(url)) {
+        unawaited(load(url, cancelToken: CancelToken(), revalidate: true)
+            .catchError((Object _) => PublicPhotoTransfer(cached!.bytes)));
+      }
+      return PublicPhotoTransfer(cached.bytes, notModified: true);
+    }
+    if (offline) throw StateError('لا يوجد اتصال. هذه الصورة لم تُحفظ بعد.');
     final traceSequence = UatNetworkTrace.startImage(Uri.parse(dio.options.baseUrl), url);
     final traceTimer = traceSequence != null ? (Stopwatch()..start()) : null;
     final response = await dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes,
@@ -41,26 +68,38 @@ class PublicPhotoLoader {
       await disk.forget(url);
       throw DioException.badResponse(statusCode: response.statusCode!, requestOptions: response.requestOptions, response: response);
     }
-    if (!disk.accepts(response.headers)) unawaited(disk.forget(url));
-    if (requirePublicResponse && !disk.accepts(response.headers) && foregroundAttached?.call() != true) {
+    // A 304 intentionally omits entity headers (Symfony removes MIME/length).
+    // Reuse the known public derivative contract; explicit private/no-store or
+    // Set-Cookie still wins and invalidates persistence.
+    final cacheHeaders = response.statusCode == 304 && cached != null ? Headers.fromMap({
+      ...response.headers.map,
+      'content-type': [response.headers.value('content-type') ?? 'image/jpeg'],
+      'cache-control': [response.headers.value('cache-control') ?? 'public, max-age=86400'],
+      'etag': [response.headers.value('etag') ?? cached.etag],
+    }) : response.headers;
+    if (!disk.accepts(cacheHeaders)) unawaited(disk.forget(url));
+    if (requirePublicResponse && !disk.accepts(cacheHeaders) && foregroundAttached?.call() != true) {
       throw StateError('Speculative image response is not publicly cacheable');
     }
     if (traceTimer != null) {
       final measurement = UatNetworkTrace.publicImageMeasurement(
         origin: Uri.parse(dio.options.baseUrl), url: url,
-        publicResponse: disk.accepts(response.headers),
+        publicResponse: disk.accepts(cacheHeaders),
         bytes: response.statusCode == 304 ? 0 : (response.data?.length ?? 0),
         elapsedMs: traceTimer.elapsedMilliseconds, status: response.statusCode ?? 0);
       if (measurement != null) UatNetworkTrace.emit({...measurement, 'seq': traceSequence!});
     }
-    // Disk bytes are never displayed before the server has revalidated public
-    // visibility. Unpublication/authorization failure wins over a cached ETag.
+    // A historical small preview may render immediately. Explicit full-size
+    // requests still require online visibility validation.
     if (response.statusCode == 304 && cached != null) {
+      await disk.put(url, cached.bytes, cacheHeaders, expectedEpoch: epoch);
       return PublicPhotoTransfer(cached.bytes, notModified: true);
     }
     final bytes = Uint8List.fromList(response.data ?? const []);
     if (bytes.isEmpty || bytes.lengthInBytes > 8 * 1024 * 1024) throw StateError('Invalid display image size');
-    unawaited(disk.put(url, bytes, response.headers, expectedEpoch: epoch));
+    // Persist a cacheable visible derivative before acknowledging it to the
+    // widget, so an immediate process stop cannot lose a just-shown preview.
+    await disk.put(url, bytes, response.headers, expectedEpoch: epoch);
     return PublicPhotoTransfer(bytes, downloadedBytes: bytes.lengthInBytes);
   }
 }

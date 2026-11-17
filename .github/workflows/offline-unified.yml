@@ -1,0 +1,75 @@
+name: Unified offline browsing and messages
+on:
+  push:
+    branches: [work/offline-unified-20261117]
+    paths: ['mobile_app/**', 'backend-api-runtime/**', 'scripts/verify_offline_apk.py', '.github/workflows/offline-unified.yml']
+permissions:
+  contents: read
+concurrency:
+  group: offline-unified-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  mobile:
+    name: Offline state, cache and delivery contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve original locked dependencies
+        working-directory: mobile_app
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+      - name: Strict analysis
+        working-directory: mobile_app
+        run: python3 ../scripts/check_v3_analysis.py
+      - name: New offline contracts and affected regressions
+        working-directory: mobile_app
+        run: flutter test test/offline_http_storage_test.dart test/offline_message_outbox_test.dart test/offline_photo_and_draft_test.dart test/offline_search_restore_test.dart test/offline_coordinator_intent_test.dart test/offline_conversation_loading_test.dart test/private_journey_actor_scope_test.dart test/wave1_public_photo_cache_test.dart test/adaptive_image_quality_test.dart test/private_listing_card_photo_test.dart test/message_inbox_pagination_test.dart test/session_lifecycle_race_test.dart test/stage6_auth_user_test.dart test/owner_auth_boundary_test.dart test/compact_cards_email_login_test.dart test/phase23_draft_network_recovery_test.dart test/phase04_ranked_search_test.dart test/phase04_governorates_test.dart test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart --reporter expanded --timeout 2m
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          log-accepted-android-sdk-licenses: false
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Reuse existing reviewed public Gradle dependencies
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+      - name: Build one unified isolated phone candidate
+        working-directory: mobile_app
+        env:
+          AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'true'
+          ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.offline
+          ORG_GRADLE_PROJECT_AQER_UAT_APP_NAME: عقار أوفلاين اختبار
+        run: >-
+          flutter build apk --flavor uat --release --build-number=1815
+          --dart-define=APP_ENVIRONMENT=uat
+          --dart-define=APP_BUILD_NUMBER=1815
+          --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline
+          --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api
+          --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com
+          --dart-define=AQER_RANKED_DISCOVERY=true
+      - name: Verify actual APK identity, signer, source and 16KB packaging
+        run: python3 scripts/verify_offline_apk.py
+      - uses: actions/upload-artifact@v4
+        if: success() && github.event.repository.private
+        with:
+          name: offline-unified-private-candidate-${{ github.sha }}
+          path: mobile_app/offline-proof/
+          retention-days: 14
+          if-no-files-found: error

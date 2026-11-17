@@ -1,3 +1,4 @@
+import '../../../core/offline/offline_connection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/local/listing_recovery_store.dart';
@@ -74,6 +75,18 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       ]);
       if (!_current || request != _request) return;
       _local = device[0] as Map<String, dynamic>?; _savedLocal = device[1] as List<Map<String, dynamic>>;
+      if (ref.read(offlineConnectionProvider) == OfflineConnection.offline) {
+        if (widget.existingProperty != null) {
+          _property = widget.existingProperty;
+          _open = true;
+        } else if (!_showSaved && !_hasRecoverableWork) {
+          _fresh = true;
+          _assistant = false;
+          _open = true;
+        }
+        if (_current) setState(() => _loading = false);
+        return;
+      }
       final rows = await Future.wait<dynamic>([
         _repository.list().timeout(const Duration(seconds: 15)),
         ref.read(propertyRepositoryProvider).myListings().timeout(const Duration(seconds: 15)),
@@ -90,7 +103,15 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
         await _protectSavedLocal();
         if (_current) { _fresh = true; _assistant = widget.startWithAssistant; _open = true; }
       }
-    } catch (e) { if (_current && request == _request) _error = friendlyApiError(e); }
+    } catch (e) { if (_current && request == _request) {
+        if (offlineTransportFailure(e) && !_showSaved && !_hasRecoverableWork) {
+          _fresh = true;
+          _assistant = false;
+          _open = true;
+        } else {
+          _error = friendlyApiError(e); }
+      }
+    }
     if (_current && request == _request) setState(() => _loading = false);
   }
   Future<void> _protectSavedLocal() async {
@@ -140,9 +161,28 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     } finally { if (_current) setState(() => _confirming = false); }
   }
   Future<void> _startNew() async {
-    if (_working || _loading || !_sourcesComplete || !_current) return;
+    final offline =
+        ref.read(offlineConnectionProvider) == OfflineConnection.offline;
+    if (_working || _loading || (!_sourcesComplete && !offline) || !_current) return;
     setState(() { _working = true; _error = null; });
     try {
+      if (offline) {
+        // Never retire an unknown server recovery while disconnected. Preserve
+        // even legacy/unclassified device work before opening a separate UUID.
+        if (_local != null)
+          { await _store.pinExplicitSave(widget.actor,
+              preserveUnclassified: true); }
+        if (_current)
+          { setState(() {
+            _fresh = true;
+            _selected = null;
+            _editorLocal = null;
+            _property = null;
+            _assistant = false;
+            _open = true;
+          }); }
+        return;
+      }
       if ((_localAutomatic || _automatic != null) &&
           !await _confirm('بدء إعلان جديد؟', 'سيُستبدل التقدم التلقائي المعروض فقط. تبقى المسودات التي حفظتها صراحة في «مسوداتي» دون حذف.')) { return; }
       if (!_current) return;
@@ -195,6 +235,8 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   void dispose() { _request++; super.dispose(); }
   @override
   Widget build(BuildContext context) {
+    final offline =
+        ref.watch(offlineConnectionProvider) == OfflineConnection.offline;
     if (_open) {
       final editor = ListingEditorScreen(existingProperty: _property, accountDraft: _selected, localRecovery: _editorLocal,
         startFresh: _fresh, startWithAssistant: _assistant);
@@ -226,11 +268,20 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
                 else if (remote != null) { _resume(remote); }
                 else { _resumeProperty(legacy!); }
               }),
-            TextButton(key: const ValueKey('listing-recovery-new'), onPressed: _working || !_sourcesComplete ? null : _startNew,
+            TextButton(key: const ValueKey('listing-recovery-new'), onPressed: _working || (!_sourcesComplete && !offline)
+                                            ? null : _startNew,
               child: const Text('بدء إعلان جديد')),
             if (local != null && !_localAutomatic || remote != null && !remote.isRecovery || legacy != null)
               const Text('تظل مسوداتك المحفوظة في «مسوداتي» عند بدء إعلان جديد.'),
           ],
+                                  if (!_loading &&
+                                      local == null &&
+                                      remote == null &&
+                                      legacy == null &&
+                                      offline)
+                                    AppButton(
+                                        label: 'تجهيز إعلان على الجهاز',
+                                        onPressed: _working ? null : _startNew),
           TextButton(key: const ValueKey('listing-saved-drafts'), onPressed: _working ? null : () => setState(() => _showSaved = true), child: const Text('مسوداتي')),
           TextButton(onPressed: _working ? null : () => Navigator.of(context).maybePop(), child: const Text('رجوع')),
         ])))))));

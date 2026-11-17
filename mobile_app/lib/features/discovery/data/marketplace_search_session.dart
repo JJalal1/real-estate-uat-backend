@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/auth_controller.dart';
@@ -53,6 +52,53 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
         'search': [text.trim(), state.landUse].where((s) => s.isNotEmpty).join(' ')});
   }
   SmartSearchFilters suggestionFilters({bool onMap = false}) => _filters(text: state.draftQuery, onMap: onMap);
+  void restoreOfflineHomeCriteria(SmartSearchFilters filters) {
+    if (state.active || state.criteria.values.isNotEmpty) return;
+    final values = Map<String, dynamic>.from(filters.values)
+      ..removeWhere((key, _) =>
+          SmartSearchFilters.mapFields.contains(key) ||
+          const ['governorate', 'governorate_code', 'search'].contains(key));
+    state = state.copyWith(criteria: SmartSearchFilters.fromMap(values));
+  }
+
+  Future<void> restoreOfflineSession(Map<String, dynamic> saved,
+      {bool Function()? current}) async {
+    if (state.active || state.draftQuery.isNotEmpty || home.snapshot.started)
+      { return; }
+    final criteria = SmartSearchFilters.fromMap(
+        Map<String, dynamic>.from(saved['criteria'] as Map? ?? const {}));
+    state = MarketplaceSearchUi(
+        criteria: criteria,
+        active: saved['active'] == true,
+        submittedQuery: saved['submitted']?.toString() ?? '',
+        draftQuery: saved['draft']?.toString() ?? '',
+        landUse: saved['land_use']?.toString() ?? '');
+    Future<void> restore(SmartSearchSession session, String key) async {
+      final raw = saved['${key}_filters'];
+      if (raw is! Map || saved['${key}_started'] != true) return;
+      if (current?.call() == false) return;
+      final filters =
+          SmartSearchFilters.fromMap(Map<String, dynamic>.from(raw));
+      await session.replaceManually(filters);
+      if (current?.call() == false || !mounted || !session.mounted) { return; }
+      final pages = (saved['${key}_pages'] as num? ?? 1).toInt().clamp(1, 8);
+      for (var page = 1;
+          page < pages && current?.call() != false && session.mounted &&
+              session.snapshot.more &&
+              session.snapshot.resultsError == null &&
+              session.snapshot.filters.sameAs(filters) &&
+              current?.call() != false;
+          page++) {
+        await session.search(more: true);
+      }
+    }
+
+    await restore(home, 'home');
+    if (!mounted || current?.call() == false || !home.mounted || !map.mounted) { return; }
+    if (home.snapshot.started && home.snapshot.resultsError == null) { _lastSubmit = home.snapshot.filters.signature; }
+    await restore(map, 'map');
+  }
+
   void locationChanged() {
     final next = Map<String, dynamic>.from(state.criteria.values)..remove('governorate')..remove('governorate_code');
     state = state.copyWith(criteria: SmartSearchFilters.fromMap(next));
@@ -91,7 +137,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     _lastSubmit = '';
     if (home.snapshot.started) {
       final filters = _filters(text: state.submittedQuery);
-      _lastSubmit = jsonEncode(filters.apiFilters);
+      _lastSubmit = filters.signature;
       unawaited(home.replaceManually(filters));
     }
     if (state.mapOpen) {
@@ -105,7 +151,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     if (!mounted || state.draftQuery.trim().length > 120) return;
     final filters = _filters(text: state.draftQuery);
     if ((filters.values['search']?.toString().length ?? 0) > 120) return;
-    final key = jsonEncode(filters.apiFilters);
+    final key = filters.signature;
     state = state.copyWith(active: true, editing: false, submittedQuery: state.draftQuery.trim());
     if (!force && key == _lastSubmit && home.snapshot.started && home.snapshot.resultsError == null) return;
     _lastSubmit = key;
@@ -146,7 +192,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     state = state.copyWith(criteria: SmartSearchFilters.fromMap(next), draftQuery: text,
       submittedQuery: text, landUse: '', active: true, editing: false);
     final homeFilters = _filters(text: text);
-    _lastSubmit = jsonEncode(homeFilters.apiFilters);
+    _lastSubmit = homeFilters.signature;
     if (!home.snapshot.started || home.snapshot.resultsError != null || !home.snapshot.filters.sameAs(homeFilters)) {
       unawaited(home.replaceManually(homeFilters));
     }

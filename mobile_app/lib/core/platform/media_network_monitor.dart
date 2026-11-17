@@ -28,14 +28,16 @@ class MediaNetworkMonitor {
     _checked = DateTime.now();
     return _pending = _read();
   }
+  ImageNetworkConditions? _current;
+  ImageNetworkConditions? get latest => _current;
   Future<ImageNetworkConditions> _read() async {
     try {
       final state = await channel.invokeMapMethod<String, dynamic>('imageNetworkState')
         .timeout(const Duration(seconds: 2));
-      return ImageNetworkConditions(metered: state?['metered'] as bool?,
+      return _current = ImageNetworkConditions(metered: state?['metered'] as bool?,
         dataSaver: state?['dataSaver'] == true,
         networkKey: state?['networkKey']?.toString() ?? 'unknown',
         transport: state?['transport']?.toString() ?? 'unknown');
-    } catch (_) { return const ImageNetworkConditions(); }
+    } catch (_) { return _current = const ImageNetworkConditions(); }
   }
 }

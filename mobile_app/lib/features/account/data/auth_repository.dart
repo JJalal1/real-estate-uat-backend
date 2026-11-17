@@ -1,3 +1,5 @@
+import '../../../core/offline/offline_http.dart' show offlineRequestIdentity;
+import '../../../core/offline/offline_store.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,11 +9,12 @@ import '../../../core/network/api_client.dart';
 import '../domain/auth_user.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return AuthRepository(ref.watch(dioProvider));
+  return AuthRepository(ref.watch(dioProvider), offlineStore: ref.watch(offlineStoreProvider));
 });
 
 class AuthRepository {
-  AuthRepository(this._dio);
+  AuthRepository(this._dio, {OfflineStore? offlineStore}): _offlineStore = offlineStore;
+  final OfflineStore? _offlineStore;
 
   final Dio _dio;
   final _store = Stage6SecureSessionStore.instance;
@@ -38,6 +41,8 @@ class AuthRepository {
           error.response?.statusCode == 403) {
         await _store.deleteTokenIfMatches(token);
         _requireSession(epoch);
+        _store.beginSessionChange();
+        try { await _offlineStore?.clear('http_snapshots'); } catch (_) {}
         return null;
       }
       rethrow;
@@ -114,7 +119,7 @@ class AuthRepository {
     final response = await _dio.post<Map<String, dynamic>>('/auth/email/verify',
       data: {'code': code.trim()}, options: await requiredAuthOptions());
     _requireSession(epoch);
-    return _userFromData(response.data);
+    return _checkpointCurrentUser(response.data, epoch);
   }
 
   Future<AuthResult> register({
@@ -167,6 +172,11 @@ class AuthRepository {
       }
     } finally {
       if (token != null) await _store.deleteTokenIfMatches(token);
+    // Epoch fencing has already stopped late responses from refilling this
+      // snapshot space. Retained outboxes remain sealed to their own actor.
+      if (epoch == _store.sessionEpoch) {
+        try { await _offlineStore?.clear('http_snapshots'); } catch (_) {}
+      }
     }
   }
 
@@ -194,7 +204,7 @@ class AuthRepository {
       options: await requiredAuthOptions(),
     );
     _requireSession(epoch);
-    return _userFromData(response.data);
+    return _checkpointCurrentUser(response.data, epoch);
   }
 
   Future<AuthUser> completeProfile(String name) async {
@@ -205,7 +215,7 @@ class AuthRepository {
       options: await requiredAuthOptions(),
     );
     _requireSession(epoch);
-    return _userFromData(response.data);
+    return _checkpointCurrentUser(response.data, epoch);
   }
 
   Future<AuthUser> updateProfile({
@@ -291,6 +301,8 @@ class AuthRepository {
       await _store.deleteTokenIfMatches(token);
       throw StateError('ACCOUNT_CHANGED');
     }
+    await _checkpointUser(userData, token, epoch);
+    _requireSession(epoch);
     final raw = data['legacy_listings_claimed'];
     final claimed =
         raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '') ?? 0;
@@ -298,6 +310,30 @@ class AuthRepository {
       user: user,
       legacyListingsClaimed: claimed,
     );
+  }
+
+  Future<AuthUser> _checkpointCurrentUser(Map<String, dynamic>? body, int epoch) async {
+    final user = _userFromData(body);
+    final data = body?['data'] as Map<String, dynamic>;
+    final raw = data['user'] is Map<String, dynamic> ? data['user'] as Map<String, dynamic> : data;
+    final token = await _store.readToken();
+    _requireSession(epoch);
+    if (token != null && user.id > 0) { await _checkpointUser(raw, token, epoch); }
+    _requireSession(epoch);
+    return user;
+  }
+
+  Future<void> _checkpointUser(Map<String, dynamic> user, String token, int epoch) async {
+    final cache = _offlineStore;
+    if (cache == null) { return; }
+    final request = RequestOptions(path: '/auth/me', baseUrl: _dio.options.baseUrl,
+      headers: {'Authorization': 'Bearer $token'}, method: 'GET');
+    try {
+      await cache.write('http_snapshots', offlineRequestIdentity(request), {
+        'body': {'data': Map<String, dynamic>.from(user)}, 'headers': <String, List<String>>{},
+        'at': DateTime.now().toIso8601String(), 'semantics': <String, dynamic>{},
+      }, private: true, current: () => epoch == _store.sessionEpoch);
+    } catch (_) { /* A full device must not invalidate successful online login. */ }
   }
 
   AuthUser _userFromData(Map<String, dynamic>? body) {

@@ -1,3 +1,4 @@
+import '../../../core/offline/offline_connection.dart';
 import '../domain/listing_contact_policy.dart';
 import '../domain/rental_condition_summary.dart';
 import 'dart:async';
@@ -167,7 +168,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   late ListingAccountDraftRepository _accountRepository;
   late String _draftKey;
   int _draftRevision = 0;
-  bool _draftSavedExplicitly = false;
+  bool _draftSavedExplicitly = false, _offlinePrepared = false;
+  bool _offlineState = false;
+  bool get _offline => _offlineState;
+  bool get _localOnly => _offline || (_offlinePrepared && !_persistStarting);
   bool _accountSaved = false, _accountSyncing = false, _accountConflict = false;
   String? _accountError, _descriptionError;
   String? _stepError, _locationError;
@@ -244,10 +248,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!DynamicPropertySchema.applies('area_value', data)) data.remove('area_unit');
     if (data['purpose'] == 'rent') fields.remove('price');
     data['fields'] = fields;
+    data.remove('offline_prepared');
     return data;
   }
 
   Future<void> _saveAccount(Map<String, dynamic> snapshot, Map<String, String> photos, {bool manual = false}) {
+    if (_localOnly) {
+      _pendingAccount = null;
+      return _accountTail;
+    }
     if (_accountConflict || !_sessionValid || _disposed || (!manual && !_autoSaveEligible())) return _accountTail;
     if (_accountSyncing && !manual && _pendingAccount?.$3 == true) return _accountTail;
     _pendingAccount = (_serverSnapshot(snapshot), Map.of(photos), manual);
@@ -258,6 +267,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       try {
         accountLoop: while (_pendingAccount != null) {
           var pending = _pendingAccount!; _pendingAccount = null;
+          if (_localOnly) return;
           if (!pending.$3 && !_autoSaveEligible()) continue accountLoop;
           if (_needsReconcile) {
             try {
@@ -343,6 +353,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         }
         final ready=_photoKeys.every((key)=>key.startsWith('property-') || _remotePhotos.containsKey(key));
         _accountSaved = ready && _checkpointSignature==jsonEncode(_serverSnapshot(_recoverySnapshot()));
+        if (ready && !_offline && _persistStarting) _offlinePrepared = false;
         _accountError = ready ? null : 'لم يكتمل رفع بعض الصور. أعد محاولة الملف المتعثر.';
         if (_accountSaved) _confirmedEditSignature=_editSignature;
       } catch (e) {
@@ -637,7 +648,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
-    'editor_version': 11, 'draft_kind': _draftSavedExplicitly ? 'saved' : 'recovery',
+    'offline_prepared': _offlinePrepared,
+        'editor_version': 11, 'draft_kind': _draftSavedExplicitly ? 'saved' : 'recovery',
     'entry_method': widget.startWithAssistant ? 'assistant' : 'manual',
     'media_version':1, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
     'type_confirmed': _typeConfirmed, 'purpose_confirmed': _purposeConfirmed, 'completion_only': _completionOnly, 'completion_reviewing': _reviewingCompleted,
@@ -689,6 +701,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<bool> _writeLocalRecovery({bool manual = false}) async {
+    if (_offline) _offlinePrepared = true;
     final userId = _recoveryUserId;
     if (userId == null || !_recoveryReady || _recoveryFinished || _disposed || (!manual && !_autoSaveEligible())) return false;
     final data = _recoverySnapshot(), images = List<String>.of(_imagePaths);
@@ -718,7 +731,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     await _saveAccount(data,{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path},manual:manual);
   }
 
-  bool _autoSaveEligible() => DynamicPropertySchema.canBeginAutomaticSave(
+  bool _autoSaveEligible() => (_localOnly &&
+          (_imagePaths.isNotEmpty ||
+              _typeConfirmed ||
+              _purposeConfirmed ||
+              _recoveryFields.values
+                  .any((field) => field.text.trim().isNotEmpty))) ||
+      DynamicPropertySchema.canBeginAutomaticSave(
       DynamicPropertySchema.draftProgress(_recoverySnapshot()));
 
   Future<void> _requestExit() async {
@@ -727,7 +746,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!_hasUnsavedChanges && !_busy) { _leaveEditor();return; }
     _exitDialogOpen=true;
     final choice=await AppDialog.show<String>(context,title:'لديك تعديلات غير محفوظة',
-      content:const Text('يمكنك متابعة التعديل أو حفظ المسودة قبل الخروج. التجاهل يترك آخر حفظ مؤكد على الحساب.'),
+      content:Text(_localOnly
+            ? 'يمكنك حفظ المدخلات والصور على هذا الجهاز وإكمالها لاحقًا. لا تُرفع تلقائيًا عند عودة الاتصال.'
+            : 'يمكنك متابعة التعديل أو حفظ المسودة قبل الخروج. التجاهل يترك آخر حفظ مؤكد على الحساب.'),
       actions:[
         TextButton(key:const ValueKey('listing-exit-continue'),onPressed:()=>Navigator.pop(context,'continue'),child:const Text('متابعة التعديل')),
         TextButton(key:const ValueKey('listing-exit-discard'),onPressed:_busy?null:()=>Navigator.pop(context,'discard'),child:const Text('تجاهل التغييرات')),
@@ -742,9 +763,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (mounted) _leaveEditor();
       } else if (choice=='save') {
         _draftSavedExplicitly = true;
-        await _saveRecovery(retryFailed:true,manual:true);
+        // Save on exit is explicit; connectivity alone never starts uploading.
+        _persistStarting = !_offline;
+        try { await _saveRecovery(retryFailed:true,manual:true); }
+        finally { _persistStarting = false; }
         if (!mounted) return;
-        if (_accountSaved && !_recoveryFailed) { _leaveEditor(); }
+        if ((_accountSaved || _offline && _recoverySaved) && !_recoveryFailed) { _leaveEditor(); }
         else { setState(()=>_stepError='لم يكتمل حفظ المسودة. بياناتك باقية هنا؛ أعد المحاولة أو تابع التعديل.'); }
       }
     } catch (_) { _recoveryFinished=false;if (mounted) setState(()=>_stepError='تعذر إتمام الخروج. بياناتك باقية هنا.'); }
@@ -780,6 +804,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final data = useLocal ? local : widget.accountDraft?.payload;
     if (!mounted) return;
     if (data != null) {
+      _offlinePrepared = data['offline_prepared'] == true || _offline;
       _draftSavedExplicitly = _draftSavedExplicitly || !isAutomaticListingRecovery(data) || widget.accountDraft?.propertyId != null;
       if (widget.accountDraft == null && data['draft_key'] is String) _draftKey = data['draft_key'] as String;
       if (widget.accountDraft == null && data['server_revision'] is int) _draftRevision = data['server_revision'] as int;
@@ -856,7 +881,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _recoverySaved = true;
       if (data['proof_needs_reselection'] == true && _ownershipProofPath==null) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
     }
-    if (_recoveredServerId!=null) await _resolveRecoveredDraft();
+    if (_recoveredServerId!=null&& !_localOnly) await _resolveRecoveredDraft();
     if (!mounted || !_sessionValid) return;
     _clearHiddenFields();
     if (_completionOnly) _completionFields = _missingFields();
@@ -999,6 +1024,21 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   @override
   void initState() {
     super.initState();
+    _offlineState = ref.read(offlineConnectionProvider) == OfflineConnection.offline;
+    _offlinePrepared = _offline;
+    ref.listenManual(offlineConnectionProvider, (_, next) {
+      _offlineState = next == OfflineConnection.offline;
+      if (next == OfflineConnection.offline && mounted && _sessionValid) {
+        _offlinePrepared = true;
+        _pendingAccount = null;
+        if (_draftRevision > 0) _needsReconcile = true;
+        for (final cancel in _photoCancels.values) {
+          cancel.cancel('Connectivity lost; retained locally');
+        }
+        if (_recoveryReady) unawaited(_writeLocalRecovery(manual: true));
+        super.setState(() {});
+      }
+    });
     _initialAssistantPending = widget.startWithAssistant;
     WidgetsBinding.instance.addObserver(this);
     _descriptionCapture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_descriptionVoiceChanged);
@@ -1189,7 +1229,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             : _initialAssistantPending || !_recoveryReady ? const AppLoadingState() : Column(
             children: [
               if (_recoveryUserId != null) Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 0), child: Text(
-                _recoveryFailed ? 'تعذر حفظ نسخة الجهاز. مدخلاتك باقية هنا؛ أعد المحاولة قبل الخروج.' : _accountConflict ? 'تغيرت المسودة على جهاز آخر. افتح أحدث نسخة قبل المتابعة.' : _accountError != null ? 'تعذر الحفظ على الحساب. ${_recoverySaved ? 'تقدمك محفوظ على الجهاز.' : ''} أعد المحاولة.' : _accountSyncing ? 'جارٍ حفظ تقدمك على حسابك…' : _accountSaved ? 'حُفظ تقدمك وصورك على حسابك' : 'يُحفظ تقدمك تلقائيًا على حسابك',
+                _recoveryFailed ? 'تعذر حفظ نسخة الجهاز. مدخلاتك باقية هنا؛ أعد المحاولة قبل الخروج.' : _accountConflict ? 'تغيرت المسودة على جهاز آخر. افتح أحدث نسخة قبل المتابعة.' : _localOnly
+                                                    ? (_recoverySaved
+                                                        ? 'مدخلاتك وصورك محفوظة على الجهاز. رفعها ينتظر اتصالك وضغط الحفظ أو الإرسال.'
+                                                        : 'تُحفظ المدخلات على الجهاز؛ الرفع يتطلب اتصالًا وضغطة منك.')
+                                                    : _accountError != null ? 'تعذر الحفظ على الحساب. ${_recoverySaved ? 'تقدمك محفوظ على الجهاز.' : ''} أعد المحاولة.' : _accountSyncing ? 'جارٍ حفظ تقدمك على حسابك…' : _accountSaved ? 'حُفظ تقدمك وصورك على حسابك' : 'يُحفظ تقدمك تلقائيًا على حسابك',
                 style: Theme.of(context).textTheme.bodySmall)),
               if (_accountError != null && !_accountConflict) TextButton(onPressed: _busy || _accountSyncing ? null : ()=>_saveRecovery(retryFailed:true,manual:true), child: const Text('إعادة محاولة الحفظ')),
               if (correctionReason != null &&
@@ -2216,6 +2260,16 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _persistOnce({required bool submit}) async {
+    if (_offline) {
+      _offlinePrepared = true;
+      _draftSavedExplicitly = true;
+      final saved = await _writeLocalRecovery(manual: true);
+      if (mounted && _sessionValid)
+        { _message(saved
+            ? 'حُفظت البيانات والصور على الجهاز. أعد الاتصال ثم اضغط الحفظ أو الإرسال للمراجعة لرفعها.'
+            : 'تعذر الحفظ على الجهاز. بياناتك باقية هنا؛ أعد المحاولة.'); }
+      return;
+    }
     if (!_recoveryReady || !await _resolveRecoveredDraft()) return;
     if (!mounted || !_sessionValid) return;
     final validation = submit ? _validateForSubmit() : _validateCore();

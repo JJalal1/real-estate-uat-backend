@@ -323,8 +323,8 @@ class _PropertyLocationPickerScreenState
                     onCameraIdle: _onCameraIdle,
                     trackCameraPosition: true,
                     minMaxZoomPreference: const MinMaxZoomPreference(3, 19),
-                    rotateGesturesEnabled: false,
-                    tiltGesturesEnabled: false,
+                    rotateGesturesEnabled: true,
+                    tiltGesturesEnabled: true,
                   ))),
                 ),
                 PositionedDirectional(

@@ -19,19 +19,30 @@ class PublicPhotoRecord {
 
 /// Only published API derivatives with an explicit public response contract.
 /// Exact URL/variant/version identity is retained; signed and private URLs are
-/// ineligible. Every process restart revalidates with ETag before accepting a
-/// disk hit. IO is serialized, bounded and best effort, never a browsing gate.
+/// ineligible. Historical previews can render offline or during background
+/// validation. IO is serialized, bounded and best effort, never a browsing gate.
 class PublicPhotoDiskCache {
   PublicPhotoDiskCache({required this.origin, Future<Directory> Function()? directory,
-    DateTime Function()? clock, this.maxEntries = 160, this.maxBytes = 48 * 1024 * 1024,
+    DateTime Function()? clock, this.maxEntries = 512, this.maxBytes = 96 * 1024 * 1024,
     this.maxImageBytes = 2 * 1024 * 1024})
-    : _directory = directory ?? (() async => Directory('${(await getTemporaryDirectory()).path}/aqer-public-photos-v1')),
+    : _directory = directory ?? (() async => Directory('${(await getApplicationSupportDirectory()).path}/aqer-public-photos-v1')),
       _clock = clock ?? DateTime.now;
   final Uri origin;
   final Future<Directory> Function() _directory;
   final DateTime Function() _clock;
   final int maxEntries, maxBytes, maxImageBytes;
   Future<void> _tail = Future.value();
+  int? _knownCount, _knownBytes;
+  final _validated = <String, DateTime>{};
+  bool needsValidation(String url) {
+    final at = _validated[url];
+    if (at != null && _clock().difference(at) < const Duration(minutes: 5))
+      { return false; }
+    _validated[url] = _clock();
+    while (_validated.length > maxEntries) { _validated.remove(_validated.keys.first); }
+    return true;
+  }
+
   int _epoch = 0;
   int get epoch => _epoch;
   Future<void> get idle => _tail;
@@ -69,7 +80,7 @@ class PublicPhotoDiskCache {
     return result.future;
   }
 
-  Future<PublicPhotoRecord?> read(String url) {
+  Future<PublicPhotoRecord?> read(String url, {bool allowStale = false}) {
     if (!eligible(url)) return Future.value();
     final epoch = _epoch;
     return _serial(() async {
@@ -83,10 +94,12 @@ class PublicPhotoDiskCache {
           raw['expires_at'] is! String) { return null; }
       final expires = DateTime.tryParse(raw['expires_at'] as String);
       final length = await image.length();
-      if (expires == null || !expires.isAfter(_clock()) || length < 1 || length > maxImageBytes || raw['bytes'] != length) {
+      if (expires == null || expires.add(const Duration(days: 30)).isBefore(_clock()) || length < 1 || length > maxImageBytes || raw['bytes'] != length) {
         await _remove(root, key); return null;
       }
+      if (!allowStale && !expires.isAfter(_clock())) return null;
       final bytes = await image.readAsBytes();
+      await metadata.setLastModified(_clock());
       if (epoch != _epoch) return null;
       hits++;
       return PublicPhotoRecord(bytes: bytes, etag: raw['etag'] as String, expiresAt: expires);
@@ -114,7 +127,10 @@ class PublicPhotoDiskCache {
     await _serial<void>(() async {
       if (_epoch != expectedEpoch) return;
       final root = await _directory(); await root.create(recursive: true);
+      if (_knownCount == null) await _trim(root);
       final key = _key(url), image = File('${root.path}/$key.img'), metadata = File('${root.path}/$key.json');
+      final replacing = await image.exists() && await metadata.exists();
+      final oldBytes = replacing ? await image.length() : 0;
       final staged = File('${image.path}.tmp');
       await staged.writeAsBytes(bytes, flush: true);
       await staged.rename(image.path);
@@ -123,8 +139,12 @@ class PublicPhotoDiskCache {
         'bytes': bytes.lengthInBytes, 'expires_at': _clock().add(lifetime).toIso8601String(),
         'stored_at': _clock().toIso8601String()}), flush: true);
       await stagedMetadata.rename(metadata.path);
+      await metadata.setLastModified(_clock());
       writes++;
-      await _trim(root);
+      _knownCount = _knownCount! + (replacing ? 0 : 1);
+      _knownBytes = _knownBytes! + bytes.lengthInBytes - oldBytes;
+      if (_knownCount! > maxEntries || _knownBytes! > maxBytes)
+        { await _trim(root); }
     });
   }
 
@@ -133,16 +153,26 @@ class PublicPhotoDiskCache {
     await _serial<void>(() async { await _remove(await _directory(), _key(url)); invalidations++; });
   }
 
+  void invalidate() {
+    _epoch++;
+    _validated.clear();
+  }
+
   Future<void> clear() async {
     _epoch++;
     await _serial<void>(() async {
       final root = await _directory();
       if (await root.exists()) await root.delete(recursive: true);
+      _knownCount = null;
+      _knownBytes = null;
+      _validated.clear();
       invalidations++;
     });
   }
 
   Future<void> _remove(Directory root, String key) async {
+    _knownCount = null;
+    _knownBytes = null;
     for (final suffix in ['json', 'img', 'json.tmp', 'img.tmp']) {
       final file = File('${root.path}/$key.$suffix');
       if (await file.exists()) await file.delete();
@@ -163,8 +193,8 @@ class PublicPhotoDiskCache {
         final data = jsonDecode(await file.readAsString()) as Map;
         final expiry = DateTime.parse(data['expires_at'] as String);
         final image = File('${root.path}/$key.img');
-        if (!expiry.isAfter(_clock()) || !await image.exists()) { await _remove(root, key); continue; }
-        entries.add((key: key, at: DateTime.parse(data['stored_at'] as String), bytes: await image.length()));
+        if (expiry.add(const Duration(days: 30)).isBefore(_clock()) || !await image.exists()) { await _remove(root, key); continue; }
+        entries.add((key: key, at: await file.lastModified(), bytes: await image.length()));
       } catch (_) { await _remove(root, key); }
     }
     entries.sort((a, b) => a.at.compareTo(b.at));
@@ -173,11 +203,13 @@ class PublicPhotoDiskCache {
       if (count <= maxEntries && bytes <= maxBytes) break;
       await _remove(root, entry.key); count--; bytes -= entry.bytes;
     }
+  _knownCount = count;
+    _knownBytes = bytes;
   }
 }
 
 final publicPhotoDiskCacheProvider = Provider<PublicPhotoDiskCache>((ref) {
   final cache = PublicPhotoDiskCache(origin: Uri.parse(ref.watch(dioProvider).options.baseUrl));
-  ref.listen(propertyDataRevisionProvider, (_, __) { unawaited(cache.clear()); });
+  ref.listen(propertyDataRevisionProvider, (_, __) { cache.invalidate(); });
   return cache;
 });

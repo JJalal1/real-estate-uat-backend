@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/offline/offline_connection.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
@@ -136,7 +137,7 @@ final homeLocationProvider = StateProvider<HomeLocation>((ref) => const HomeLoca
 final homeLocationAttemptedProvider = StateProvider<bool>((ref) => false);
 final homeLocationsProvider = FutureProvider<List<HomeLocation>>((ref) => ref.watch(marketplaceRepositoryProvider).locations());
 final marketplaceFeedProvider = FutureProvider.autoDispose.family<MarketplaceFeed, HomeFeedQuery>((ref, query) async {
-  final revision = ref.watch(propertyDataRevisionProvider);
+  final int revision = ref.watch<int>(propertyDataRevisionProvider) + ref.watch<int>(offlineResumeRevisionProvider);
   final transfer = CancelToken();
   ref.onDispose(() => transfer.cancel('Marketplace disposed'));
   return ref.watch(marketplaceRepositoryProvider).feed(query, cancelToken: transfer, cacheRevision: revision);

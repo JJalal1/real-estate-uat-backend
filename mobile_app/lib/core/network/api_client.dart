@@ -3,6 +3,9 @@ import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../platform/uat_network_trace.dart';
+import '../offline/offline_http.dart';
+import '../offline/offline_store.dart';
+import '../offline/offline_connection.dart';
 
 class ApiEnvironmentConfig {
   const ApiEnvironmentConfig._();
@@ -72,6 +75,7 @@ final dioProvider = Provider<Dio>((ref) {
       headers: {'Accept': 'application/json'},
     ),
   );
+  dio.interceptors.add(OfflineHttpInterceptor(ref.watch(offlineStoreProvider), ref.read(offlineConnectionProvider.notifier)));
   dio.interceptors.add(_NearbyRequestCacheInterceptor());
   dio.interceptors.add(_RequestTimingInterceptor());
   if (UatNetworkTrace.enabled) {

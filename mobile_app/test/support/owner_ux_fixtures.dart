@@ -58,7 +58,7 @@ class _Network extends MediaNetworkMonitor {
 class _PreviewDisk extends PublicPhotoDiskCache {
   _PreviewDisk() : super(origin: Uri.parse('https://synthetic.example'));
   @override
-  Future<PublicPhotoRecord?> read(String url) async => null;
+  Future<PublicPhotoRecord?> read(String url, {bool allowStale = false}) async => null;
   @override
   Future<void> put(String url, Uint8List bytes, Headers headers, {required int expectedEpoch}) async {}
   @override
