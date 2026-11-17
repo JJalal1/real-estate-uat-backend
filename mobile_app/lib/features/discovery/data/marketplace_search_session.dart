@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/auth_controller.dart';
@@ -95,7 +94,9 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     }
 
     await restore(home, 'home');
-    if (mounted && current?.call() != false) await restore(map, 'map');
+    if (!mounted || current?.call() == false || !home.mounted || !map.mounted) { return; }
+    if (home.snapshot.started && home.snapshot.resultsError == null) { _lastSubmit = home.snapshot.filters.signature; }
+    await restore(map, 'map');
   }
 
   void locationChanged() {
@@ -136,7 +137,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     _lastSubmit = '';
     if (home.snapshot.started) {
       final filters = _filters(text: state.submittedQuery);
-      _lastSubmit = jsonEncode(filters.apiFilters);
+      _lastSubmit = filters.signature;
       unawaited(home.replaceManually(filters));
     }
     if (state.mapOpen) {
@@ -150,7 +151,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     if (!mounted || state.draftQuery.trim().length > 120) return;
     final filters = _filters(text: state.draftQuery);
     if ((filters.values['search']?.toString().length ?? 0) > 120) return;
-    final key = jsonEncode(filters.apiFilters);
+    final key = filters.signature;
     state = state.copyWith(active: true, editing: false, submittedQuery: state.draftQuery.trim());
     if (!force && key == _lastSubmit && home.snapshot.started && home.snapshot.resultsError == null) return;
     _lastSubmit = key;
@@ -191,7 +192,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     state = state.copyWith(criteria: SmartSearchFilters.fromMap(next), draftQuery: text,
       submittedQuery: text, landUse: '', active: true, editing: false);
     final homeFilters = _filters(text: text);
-    _lastSubmit = jsonEncode(homeFilters.apiFilters);
+    _lastSubmit = homeFilters.signature;
     if (!home.snapshot.started || home.snapshot.resultsError != null || !home.snapshot.filters.sameAs(homeFilters)) {
       unawaited(home.replaceManually(homeFilters));
     }

@@ -13,7 +13,13 @@ void main() {
     'draft': 'ذمار',
     'criteria': {'purpose': 'rent', 'min_bedrooms': 3},
     'home_started': true,
-    'home_filters': {'search': 'ذمار', 'purpose': 'rent', 'min_bedrooms': 3},
+    'home_filters': {
+      'search': 'ذمار',
+      'purpose': 'rent',
+      'min_bedrooms': 3,
+      'governorate': 'ذمار',
+      'governorate_code': 'YE-DH'
+    },
     'home_pages': 2,
     'map_started': true,
     'map_filters': {
@@ -31,12 +37,17 @@ void main() {
       'restart restores saved search pages and independent map bounds without replacing shared criteria',
       () async {
     final repo = Wave3PropertiesFake();
-    repo.onSearch = (filters, page) async =>
-        ([wave3Property(page)], page == 1);
+    repo.onSearch = (filters, page) async => ([wave3Property(page)], page == 1);
     final home = SmartSearchSession(Wave3AiFake(), repo),
         map = SmartSearchSession(Wave3AiFake(), repo);
-    final controller =
-        MarketplaceSearchController(home, map, () => const HomeLocation());
+    final controller = MarketplaceSearchController(
+        home,
+        map,
+        () => const HomeLocation(
+            governorate: 'ذمار',
+            governorateCode: 'YE-DH',
+            label: 'ذمار',
+            manual: true));
     await controller.restoreOfflineSession(saved, current: () => true);
     expect(home.snapshot.rows.map((r) => r.id), [1, 2]);
     expect(home.snapshot.page, 2);
@@ -45,6 +56,10 @@ void main() {
     expect(controller.active, true);
     expect(controller.suggestionFilters().values['purpose'], 'rent');
     expect(controller.suggestionFilters().values['min_bedrooms'], 3);
+    controller.enterMap();
+    expect(home.snapshot.page, 2);
+    expect(home.snapshot.rows.map((r) => r.id), [1, 2]);
+    expect(map.snapshot.filters.values['south'], 14.0);
     controller.dispose();
     home.dispose();
     map.dispose();
@@ -63,8 +78,14 @@ void main() {
     };
     final home = SmartSearchSession(Wave3AiFake(), repo),
         map = SmartSearchSession(Wave3AiFake(), repo);
-    final controller =
-        MarketplaceSearchController(home, map, () => const HomeLocation());
+    final controller = MarketplaceSearchController(
+        home,
+        map,
+        () => const HomeLocation(
+            governorate: 'ذمار',
+            governorateCode: 'YE-DH',
+            label: 'ذمار',
+            manual: true));
     final restore =
         controller.restoreOfflineSession(saved, current: () => current);
     await started.future;
