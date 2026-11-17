@@ -22,8 +22,8 @@ use RuntimeException;
 class UatCityDemoSeeder extends Seeder
 {
     public const MARKER = 'uat.marketplace.city-demo.20261018.v1';
-    private array $publicPaths = [];
-    private array $privatePaths = [];
+    protected array $publicPaths = [];
+    protected array $privatePaths = [];
 
     public function run(): void
     {
@@ -82,7 +82,7 @@ class UatCityDemoSeeder extends Seeder
         $this->command?->info('Added 24 fictional city listings, eight per city; no existing records were reset.');
     }
 
-    private function listing(User $actor, string $city, int $cityIndex, float $lat, float $lon, string $type, string $label, string $purpose, int $i): Property
+    protected function listing(User $actor, string $city, int $cityIndex, float $lat, float $lon, string $type, string $label, string $purpose, int $i, array $overrides = []): Property
     {
         $monthly = [110000, 220000, 390000, 950000, 65000, 100000, 120000, 90000][$i] + $cityIndex * 10000;
         $sale = [48000000, 85000000, 165000000, 270000000, 22000000, 39000000, 30000000, 36000000][$i] + $cityIndex * 500000;
@@ -103,6 +103,7 @@ class UatCityDemoSeeder extends Seeder
             'contact_phone' => $actor->phone, 'contact_whatsapp' => $actor->phone,
             'ownership_document_type' => 'purchase_deed', 'document_owner_name' => 'مالك وهمي للاختبار '.($cityIndex + 1).'-'.($i + 1),
             'owner_relationship_type' => 'agent'];
+        $data = array_replace($data, $overrides);
         $schema = app(DynamicPropertySchema::class);
         $data = $schema->facts($data, true);
         $data = $schema->validateApartmentFloor($data);
@@ -121,14 +122,19 @@ class UatCityDemoSeeder extends Seeder
         $property->refresh()->forceFill(['status' => 'published', 'review_status' => 'approved', 'submitted_at' => now(), 'reviewed_at' => now(), 'published_at' => now(),
             'availability_status' => 'available', 'availability_confirmed_at' => now(), 'availability_due_at' => now()->addDays($purpose === 'rent' ? 7 : 14)])->save();
         $identity->ensureRepresentation($property);
-        DB::table('listing_reviews')->insert(['listing_id' => $property->id, 'action' => 'uat_city_demo_fixture', 'actor_name_snapshot' => 'UAT fictional fixture setup',
+        DB::table('listing_reviews')->insert(['listing_id' => $property->id, 'action' => $this->fixtureReviewAction(), 'actor_name_snapshot' => 'UAT fictional fixture setup',
             'from_review_status' => 'draft', 'to_review_status' => 'approved', 'reason' => 'Owner-requested fictional UAT fixture; not a human or production review.',
             'listing_snapshot' => json_encode(['id' => $property->id, 'title' => $property->title]), 'metadata' => json_encode(['uat_city_demo' => true]), 'created_at' => now()]);
         if (DB::getDriverName() === 'pgsql') DB::statement('UPDATE properties SET location=ST_SetSRID(ST_MakePoint(longitude,latitude),4326)::geography WHERE id=?', [$property->id]);
         return $property;
     }
 
-    private function proof(User $actor, Property $property): void
+    protected function fixtureReviewAction(): string
+    {
+        return 'uat_city_demo_fixture';
+    }
+
+    protected function proof(User $actor, Property $property): void
     {
         $image = imagecreatetruecolor(720, 200);
         imagefilledrectangle($image, 0, 0, 719, 199, imagecolorallocate($image, 238, 242, 245));

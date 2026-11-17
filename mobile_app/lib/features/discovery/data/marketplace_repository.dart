@@ -8,36 +8,40 @@ import '../../properties/domain/property_details.dart';
 import '../domain/smart_search_filters.dart';
 
 class HomeLocation {
-  const HomeLocation({this.latitude = 15.3694, this.longitude = 44.1910, this.governorate,
-    this.label = 'صنعاء', this.manual = false, this.device = false});
+  const HomeLocation({this.latitude = 15.3694, this.longitude = 44.1910, this.governorate, this.governorateCode,
+    this.label = 'صنعاء', this.manual = false, this.device = false, this.accuracyMetres, this.needsConfirmation = false});
   final double latitude, longitude;
-  final String? governorate;
+  final String? governorate, governorateCode;
   final String label;
-  final bool manual;
-  final bool device;
+  final bool manual, device, needsConfirmation;
+  final double? accuracyMetres;
   Map<String, dynamic> get searchContext => !manual && !device && governorate == null ? const {} : {
-    if (governorate != null) 'governorate': governorate,
-    'latitude': latitude, 'longitude': longitude, 'radius_km': 30,
+    if (governorate != null && !needsConfirmation) 'governorate': governorate,
+    if (governorateCode != null && !needsConfirmation) 'governorate_code': governorateCode,
+    // A manual governorate covers its complete boundary, not a city-center circle.
+    if (device) ...{'latitude': latitude, 'longitude': longitude, 'radius_km': 30},
   };
   factory HomeLocation.fromJson(Map<String, dynamic> j) => HomeLocation(
     latitude: (j['latitude'] as num).toDouble(), longitude: (j['longitude'] as num).toDouble(),
-    governorate: j['governorate']?.toString(), label: j['label']?.toString() ?? 'المنطقة', manual: true);
+    governorate: j['governorate']?.toString(), governorateCode: j['governorate_code']?.toString(),
+    label: j['label']?.toString() ?? 'المنطقة', manual: true);
 }
 
 class HomeFeedQuery {
-  const HomeFeedQuery({required this.latitude, required this.longitude, this.governorate, this.type, this.purpose,
+  const HomeFeedQuery({required this.latitude, required this.longitude, this.governorate, this.governorateCode, this.accuracyMetres, this.type, this.purpose,
     required this.device, this.filters = const SmartSearchFilters()});
   final double latitude, longitude;
-  final String? governorate, type, purpose;
+  final String? governorate, governorateCode, type, purpose;
+  final double? accuracyMetres;
   final bool device;
   final SmartSearchFilters filters;
   SmartSearchFilters get effectiveFilters => SmartSearchFilters.fromMap({...filters.values,
     if (type != null) 'type': type, if (purpose != null) 'purpose': purpose});
   @override
   bool operator ==(Object other) => other is HomeFeedQuery && other.latitude == latitude && other.longitude == longitude &&
-    other.governorate == governorate && other.device == device && effectiveFilters.sameAs(other.effectiveFilters);
+    other.governorate == governorate && other.governorateCode == governorateCode && other.accuracyMetres == accuracyMetres && other.device == device && effectiveFilters.sameAs(other.effectiveFilters);
   @override
-  int get hashCode => Object.hash(latitude, longitude, governorate, device, effectiveFilters.signature);
+  int get hashCode => Object.hash(latitude, longitude, governorate, governorateCode, accuracyMetres, device, effectiveFilters.signature);
 }
 
 class MarketplaceFeed {
@@ -73,8 +77,10 @@ class MarketplaceRepository {
     final filters = query.effectiveFilters.apiFilters;
     final r = await _dio.get<Map<String, dynamic>>('/marketplace', queryParameters: {
       ...filters,
-      if (query.governorate != null) 'governorate': query.governorate,
-      if (query.governorate == null && query.device) ...{'latitude': query.latitude, 'longitude': query.longitude},
+      if (!query.device && query.governorate != null) 'governorate': query.governorate,
+      if (!query.device && query.governorateCode != null) 'governorate_code': query.governorateCode,
+      if (query.device) ...{'latitude': query.latitude, 'longitude': query.longitude,
+        if (query.accuracyMetres != null) 'accuracy_m': query.accuracyMetres},
     }, cancelToken: cancelToken, options: Options(listFormat: ListFormat.multiCompatible));
     ensurePropertyFilterContract(r, filters, requireAcknowledgement: filters.keys.any((key) => !const ['type', 'purpose'].contains(key)));
     final body = r.data?['data'];
@@ -107,6 +113,17 @@ class MarketplaceRepository {
       while (_cache.length > 8) { _cache.remove(_cache.keys.first); }
     }
     return feed;
+  }
+  Future<HomeLocation> resolveLocation(HomeLocation fix) async {
+    final r = await _dio.get<Map<String, dynamic>>('/marketplace/location-context', queryParameters: {
+      'latitude': fix.latitude, 'longitude': fix.longitude,
+      if (fix.accuracyMetres != null) 'accuracy_m': fix.accuracyMetres,
+    });
+    final body = r.data?['data'];
+    if (body is! Map || body['source'] != 'device') throw StateError('Invalid location context.');
+    return HomeLocation(latitude: fix.latitude, longitude: fix.longitude, accuracyMetres: fix.accuracyMetres,
+      governorate: body['governorate']?.toString(), governorateCode: body['governorate_code']?.toString(),
+      label: body['needs_confirmation'] == false ? (body['label']?.toString() ?? 'اختر محافظتك') : 'أكّد المحافظة', device: true, needsConfirmation: body['needs_confirmation'] != false);
   }
   Future<List<HomeLocation>> locations() async {
     final r = await _dio.get<Map<String, dynamic>>('/marketplace/locations');

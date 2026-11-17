@@ -1,0 +1,16 @@
+{
+  "commit": {
+    "createdAt": "2026-11-16T23:44:28Z",
+    "id": "5a5d96dfa4f6c6fe3e523f2f72e4c9a56f5f4f19",
+    "message": "fix(phase04): retain governorate identity in assisted and saved search"
+  },
+  "createdAt": "2026-11-16T23:46:41.79304Z",
+  "finishedAt": "2026-11-16T23:47:26.228384Z",
+  "id": "dep-dbtpbo88v5cc73av6o20",
+  "startedAt": "2026-11-16T23:46:41.764186Z",
+  "status": "live",
+  "trigger": "manual",
+  "updatedAt": "2026-11-16T23:47:58.200197Z",
+  "fixture_flag_saved": "disabled",
+  "flag_change_scope": "Dashboard Save only; takes effect on next deployment. Durable DB marker already prevents rerun."
+}

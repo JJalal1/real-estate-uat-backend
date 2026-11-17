@@ -1,0 +1,24 @@
+{
+  "source_commit": "5a5d96dfa4f6c6fe3e523f2f72e4c9a56f5f4f19",
+  "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+  "mobile_component": "e160c4dc8a7bd991f7de004c2de4c8c81f3e30d2",
+  "phase04_run": 43981888164,
+  "backend_sqlite": {
+    "tests": 41,
+    "assertions": 1926,
+    "status": "success"
+  },
+  "backend_postgresql17_postgis35": {
+    "tests": 41,
+    "assertions": 1926,
+    "status": "success"
+  },
+  "flutter_tests": 44,
+  "flutter_strict_analysis_issues": 0,
+  "native_apk_verifier": "success",
+  "unified_backend_smoke_run": 43981896114,
+  "unified_backend_smoke": "success",
+  "launch_readiness_run": 43981896164,
+  "launch_readiness": "success",
+  "physical_phone_acceptance": false
+}

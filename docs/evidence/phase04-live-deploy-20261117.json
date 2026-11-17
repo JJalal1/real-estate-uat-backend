@@ -1,0 +1,36 @@
+{
+  "workspace_id": "tea-d4v0q98gjchc73cistt0",
+  "workspace_confirmed_by_owner": true,
+  "service_id": "srv-dahj3vlg1s2s73bdqhtg",
+  "service_name": "real-estate-uat-api-frankfurt",
+  "deploy": {
+    "commit": {
+      "createdAt": "2026-11-16T22:27:22Z",
+      "id": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
+      "message": "fix(maps): show mixed cluster counts and retain every loaded ranked result"
+    },
+    "createdAt": "2026-11-16T22:54:51.791491Z",
+    "finishedAt": "2026-11-16T22:55:40.313595Z",
+    "id": "dep-dbtojepsrm7s73dj4j7g",
+    "startedAt": "2026-11-16T22:54:51.759123Z",
+    "status": "live",
+    "trigger": "manual",
+    "updatedAt": "2026-11-16T22:56:08.832367Z"
+  },
+  "prior_deploy_id": "dep-dbr6os6c6qcc73d0f6cg",
+  "expected_backend_component": "94e86ba803fd4ffb2010e506340a021ad6512f22",
+  "apk_source_commit": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
+  "apk_sha256": "9c810e9e8ba761e17bd2243830425fd1ba7bd4a933e22d6a235fca1321bd903a",
+  "source_commit_matches_apk": true,
+  "service_branch": "work/wave2-review-current",
+  "auto_deploy": "no",
+  "service_url": "https://real-estate-uat-api-frankfurt.onrender.com",
+  "service_config_mutated": false,
+  "baseline_only_redeployment": false,
+  "production_changed": false,
+  "new_schema_migrations_added": false,
+  "cloud_startup": "HTTPS/PostgreSQL/PostGIS/Storage configuration checks passed; remote Storage not probed",
+  "physical_phone_acceptance": false,
+  "render_screenshot": "AQER-Phase04-UAT-Live.jpg",
+  "dashboard_url": "https://dashboard.render.com/web/srv-dahj3vlg1s2s73bdqhtg/deploys/dep-dbtojepsrm7s73dj4j7g?r=2026-11-16%4022%3A53%3A51%7E2026-11-16%4022%3A56%3A40"
+}

@@ -13,7 +13,7 @@ class SmartSearchService
     public const FIELDS = ['type', 'types', 'purpose', 'search', 'currency', 'min_price', 'max_price', 'min_area_m2', 'max_area_m2',
         'min_bedrooms', 'min_bathrooms', 'floor_number', 'has_parking', 'has_elevator', 'building_facade', 'unit_occupies_entire_floor'];
 
-    public const CONTEXT_FIELDS = ['governorate', 'advertiser_id', 'spotlight', 'area_polygon', 'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east'];
+    public const CONTEXT_FIELDS = ['governorate_code', 'governorate', 'advertiser_id', 'spotlight', 'area_polygon', 'latitude', 'longitude', 'radius_km', 'south', 'west', 'north', 'east'];
 
     public function __construct(private readonly GeminiClient $gemini) {}
 

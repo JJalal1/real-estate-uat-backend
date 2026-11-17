@@ -45,6 +45,7 @@ class PropertyDiscoveryFilterService
             'max_monthly_rent' => ['nullable', 'numeric', 'min:0'],
             'min_monthly_rent' => ['nullable', 'numeric', 'min:0'],
             'governorate' => ['nullable', 'string', 'max:120'],
+            'governorate_code' => ['nullable', Rule::in(app(YemenGovernorateCatalog::class)->codes()), Rule::exists('governorates', 'code')->where('is_active', true)],
             'floor_number' => ['nullable', 'string', 'max:32'],
             'building_facade' => ['nullable', Rule::in(self::FACADES)],
             'has_parking' => ['nullable', 'boolean'], 'has_elevator' => ['nullable', 'boolean'],
@@ -67,9 +68,12 @@ class PropertyDiscoveryFilterService
     {
         $validated=app(DynamicPropertySchema::class)->filters($validated);
         if (isset($validated['advertiser_id'])) $query->where('user_id', $validated['advertiser_id']);
-        if (! empty($validated['governorate'])) {
+        if (! empty($validated['governorate_code'])) {
+            // Explicit picker/GPS identity is spatial and never aliases Sanaa province to the capital.
+            app(YemenGovernorateCatalog::class)->apply($query, $validated['governorate_code']);
+        } elseif (! empty($validated['governorate'])) {
             $name = $validated['governorate'];
-            $aliases = in_array($name, ['صنعاء', 'أمانة العاصمة'], true) ? ['صنعاء', 'أمانة العاصمة'] : [$name];
+            $aliases = $this->governorateAliases($name);
             $query->where(function (Builder $regional) use ($aliases): void {
                 $regional->whereHas('geoCell.governorate', fn ($g) => $g->where('is_active', true)->whereIn('name_ar', $aliases))
                     ->orWhere(function (Builder $legacy) use ($aliases): void {
@@ -168,7 +172,12 @@ class PropertyDiscoveryFilterService
         );
     }
 
-    private function normalizeArabicSearch(string $value): string
+    public function governorateAliases(string $name): array
+    {
+        return in_array($name, ['صنعاء', 'أمانة العاصمة'], true) ? ['صنعاء', 'أمانة العاصمة'] : [$name];
+    }
+
+    public function normalizeArabicSearch(string $value): string
     {
         $value = trim($value);
         if ($value === '') return '';
@@ -183,8 +192,11 @@ class PropertyDiscoveryFilterService
         return trim($value);
     }
 
-    private function normalizedArabicSql(string $column): string
+    public function normalizedArabicSql(string $column): string
     {
+        if (!in_array($column, ['title', 'description', 'address'], true)) {
+            throw new \InvalidArgumentException('Only fixed discovery text columns may be normalized.');
+        }
         $expression = "LOWER(COALESCE({$column}, ''))";
         foreach ([
             'أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ٱ' => 'ا', 'ى' => 'ي', 'ة' => 'ه',

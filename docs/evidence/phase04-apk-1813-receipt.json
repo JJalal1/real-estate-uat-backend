@@ -1,0 +1,22 @@
+{
+  "source_commit": "e282c06913cf24e503e4e7e513bbb2b07f958e5c",
+  "backend_component": "94e86ba803fd4ffb2010e506340a021ad6512f22",
+  "mobile_component": "2b425063e52c660016806fcad0c6b2fee9a5a1bd",
+  "package": "com.aqer.yemen.uat.phase04",
+  "version_code": 1813,
+  "sha256": "9c810e9e8ba761e17bd2243830425fd1ba7bd4a933e22d6a235fca1321bd903a",
+  "bytes": 119731375,
+  "signer_certificate_sha256": "3ca41188816cfbb52547bfe82c5c7486d31cca99cd3c1e4b27938f23c380ddbe",
+  "signing": "disposable CI UAT key",
+  "upgrades_owner_1812": false,
+  "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+  "required_ranked_contract": "1",
+  "backend_deployed": false,
+  "physical_phone_acceptance": false,
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86_64"
+  ],
+  "zip_elf_16kb": "verified"
+}

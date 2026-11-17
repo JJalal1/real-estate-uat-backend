@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import '../../properties/domain/property_marker.dart';
 
+List<PropertyMarker> propertyMarkersForAnnotations(List<PropertyMarker> items) =>
+  (items.any((item) => item.discoveryMatch != null) ? items : items.take(250)).toList(growable: false);
+
 class PropertyMarkerCluster {
   const PropertyMarkerCluster({
     required this.latitude,
@@ -15,6 +18,8 @@ class PropertyMarkerCluster {
 
   bool get isCluster => items.length > 1;
   PropertyMarker get first => items.first;
+  int get nearbyCount => items.where((item) => item.discoveryMatch?.nearby == true).length;
+  int get exactCount => items.length - nearbyCount;
 }
 
 List<PropertyMarkerCluster> clusterPropertyMarkers(
@@ -22,7 +27,7 @@ List<PropertyMarkerCluster> clusterPropertyMarkers(
   required double zoom,
   int? selectedPropertyId,
 }) {
-  if (items.length <= 1 || zoom >= 15.5) {
+  if (items.length <= 1) {
     return items
         .map(
           (item) => PropertyMarkerCluster(
@@ -38,13 +43,19 @@ List<PropertyMarkerCluster> clusterPropertyMarkers(
   final buckets = <String, List<PropertyMarker>>{};
 
   for (final item in items) {
-    if (item.id == selectedPropertyId) {
+    final ranked = item.discoveryMatch != null;
+    if (!ranked && (item.id == selectedPropertyId || zoom >= 15.5)) {
       buckets['selected:${item.id}'] = [item];
       continue;
     }
     final latCell = (item.latitude / cellDegrees).floor();
     final lonCell = (item.longitude / cellDegrees).floor();
-    buckets.putIfAbsent('$latCell:$lonCell', () => <PropertyMarker>[]).add(item);
+    // One visible cluster shows both classification counts. Separate symbols
+    // at the same building would hide each other even with distinct IDs.
+    // At street zoom retain only truly co-located ranked units together.
+    final key = ranked && zoom >= 15.5
+      ? 'point:${item.latitude}:${item.longitude}' : '$latCell:$lonCell:${ranked ? 'ranked' : 'legacy'}';
+    buckets.putIfAbsent(key, () => <PropertyMarker>[]).add(item);
   }
 
   return buckets.values.map((bucket) {

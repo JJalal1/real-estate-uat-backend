@@ -8,6 +8,7 @@ import '../../../core/platform/voice_capture_controller.dart';
 import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../properties/presentation/property_summary_card.dart';
+import '../../properties/presentation/discovery_section_heading.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
 import '../domain/smart_search_filters.dart';
@@ -305,8 +306,12 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
               onRemove: controller.remove,
               onEdit: () => _edit(),
             ),
-          for (final row in state.rows) Padding(padding: const EdgeInsets.only(bottom: 12),
-            child: PropertySummaryCard(key: ValueKey('smart-search-result-${row.id}'), property: row)),
+          for (var i = 0; i < state.rows.length; i++) ...[
+            if (state.rows[i].discoveryMatch?.nearby == true && (i == 0 || state.rows[i-1].discoveryMatch?.nearby != true))
+              DiscoverySectionHeading(hasExact: i > 0),
+            Padding(padding: const EdgeInsets.only(bottom: 12),
+              child: PropertySummaryCard(key: ValueKey('smart-search-result-${state.rows[i].id}'), property: state.rows[i])),
+          ],
           if (state.rows.isNotEmpty && controller.isLoadingMore &&
               (state.loading || state.resultsError != null))
             AppRefreshStatus(loading: state.loading, error: state.resultsError,

@@ -53,6 +53,12 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
         'search': [text.trim(), state.landUse].where((s) => s.isNotEmpty).join(' ')});
   }
   SmartSearchFilters suggestionFilters({bool onMap = false}) => _filters(text: state.draftQuery, onMap: onMap);
+  void locationChanged() {
+    final next = Map<String, dynamic>.from(state.criteria.values)..remove('governorate')..remove('governorate_code');
+    state = state.copyWith(criteria: SmartSearchFilters.fromMap(next));
+    _lastSubmit = '';
+    if (state.active || home.snapshot.started) unawaited(submit(force: true));
+  }
   void begin() => state = state.copyWith(active: true, editing: true);
   void edit(String text) => state = state.copyWith(draftQuery: text, active: true, editing: true);
   void stopEditing() => state = state.copyWith(editing: false);
@@ -121,7 +127,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   void toggleType(String type) => applyFilters(state.criteria.toggleType(type));
   void applyFilters(SmartSearchFilters filters) {
     final next = Map<String, dynamic>.from(filters.values)
-      ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || const ['governorate', 'search'].contains(key));
+      ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || const ['governorate', 'governorate_code', 'search'].contains(key));
     state = state.copyWith(criteria: SmartSearchFilters.fromMap(next),
       landUse: next['type'] == 'land' ? state.landUse : '');
     unawaited(submit(force: true));

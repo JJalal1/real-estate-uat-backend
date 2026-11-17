@@ -1,4 +1,5 @@
 import 'property_schema.dart';
+import 'discovery_match.dart';
 class PropertyMarker {
   const PropertyMarker({
     required this.id,
@@ -23,6 +24,7 @@ class PropertyMarker {
     this.mainImage,
     this.imageUrls = const [],
     this.isSpotlight = false,
+    this.discoveryMatch,
   });
 
   final int id;
@@ -48,6 +50,7 @@ class PropertyMarker {
   final String? mainImage;
   final List<String> imageUrls;
   final bool isSpotlight;
+  final DiscoveryMatch? discoveryMatch;
 
   factory PropertyMarker.fromJson(Map<String, dynamic> json) {
     json = DynamicPropertySchema.sanitize(json);
@@ -75,6 +78,7 @@ class PropertyMarker {
       mainImage: _nullableString(json['main_image']),
       imageUrls: (json['image_urls'] as List? ?? const []).whereType<String>().toList(growable: false),
       isSpotlight: json['is_spotlight'] == true,
+      discoveryMatch: DiscoveryMatch.fromJson(json['discovery_match']),
     );
   }
 }

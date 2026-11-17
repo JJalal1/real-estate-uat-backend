@@ -53,6 +53,7 @@ return [
 
     'uat_wave3' => ['enabled' => filter_var(env('UAT_WAVE3_FIXTURES_ENABLED', false), FILTER_VALIDATE_BOOLEAN)],
     'uat_city_demo' => ['enabled' => filter_var(env('UAT_CITY_DEMO_SEED_ENABLED', false), FILTER_VALIDATE_BOOLEAN)],
+    'uat_phase04' => ['regional_run' => env('UAT_PHASE04_REGIONAL_FIXTURES_RUN', '')],
 
     'whatsapp' => [
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),

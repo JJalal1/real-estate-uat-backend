@@ -124,12 +124,12 @@ void main() {
     final ai=Wave3AiFake()..onRefine=(message,filters,revision) async => {'revision':revision,'filters':{
       ...filters,'type':'shop', if(message.contains('عدن')) 'governorate':'عدن'}};
     final properties=Wave3PropertiesFake();
-    const home=HomeLocation(latitude:13.58,longitude:44.02,governorate:'تعز',manual:true);
+    const home=HomeLocation(latitude:13.58,longitude:44.02,governorate:'تعز',governorateCode:'TAIZ',manual:true);
     final session=SmartSearchSession(ai,properties,defaultLocation:()=>SmartSearchFilters.fromMap(home.searchContext));
     addTearDown(session.dispose);
     final first=session.beginJourney();expect(session.state.started,false);expect(properties.queries,isEmpty);
-    await session.interpret('محل');expect(properties.queries.last.filters['latitude'],13.58);expect(properties.queries.last.filters['governorate'],'تعز');
-    await session.interpret('في عدن');expect(session.state.filters.values['governorate'],'عدن');expect(session.state.filters.values.containsKey('latitude'),false);
+    await session.interpret('محل');expect(properties.queries.last.filters.containsKey('latitude'),false);expect(properties.queries.last.filters.containsKey('radius_km'),false);expect(properties.queries.last.filters['governorate_code'],'TAIZ');expect(properties.queries.last.filters['governorate'],'تعز');
+    await session.interpret('في عدن');expect(session.state.filters.values['governorate'],'عدن');expect(session.state.filters.values.containsKey('governorate_code'),false);expect(session.state.filters.values.containsKey('latitude'),false);
     session.endJourney(first);await Future<void>.delayed(Duration.zero);expect(session.state.filters.values,isEmpty);
     session.beginJourney(savedFilters:SmartSearchFilters.fromMap({'governorate':'صنعاء','type':'land'}));
     expect(session.state.filters.values,{'governorate':'صنعاء','type':'land'});

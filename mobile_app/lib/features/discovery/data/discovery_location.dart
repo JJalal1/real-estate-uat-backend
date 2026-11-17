@@ -36,7 +36,7 @@ class DiscoveryLocationStore {
         introductionShown: data['introduction_shown'] == true || data['permission_resolved'] == true || valid,
         manual: valid ? HomeLocation.fromJson(Map<String,dynamic>.from(row)) : null,
         lastPublicRegion: validLast ? HomeLocation(latitude: (last['latitude'] as num).toDouble(),
-          longitude: (last['longitude'] as num).toDouble(), governorate: last['governorate'] as String,
+          longitude: (last['longitude'] as num).toDouble(), governorate: last['governorate'] as String, governorateCode: last['governorate_code']?.toString(),
           label: last['label']?.toString() ?? 'المنطقة') : null);
     } catch (_) { return const DiscoveryLocationPreferences(); }
   }
@@ -46,9 +46,9 @@ class DiscoveryLocationStore {
     final data = {'permission_resolved': preferences.permissionResolved,
       'introduction_shown': preferences.introductionShown,
       if (last != null) 'last_public_region': {'latitude': last.latitude, 'longitude': last.longitude,
-        'governorate': last.governorate, 'label': last.label},
+        'governorate': last.governorate, 'governorate_code': last.governorateCode, 'label': last.label},
       if (manual != null) 'manual': {'latitude': manual.latitude, 'longitude': manual.longitude,
-        'governorate': manual.governorate, 'label': manual.label}};
+        'governorate': manual.governorate, 'governorate_code': manual.governorateCode, 'label': manual.label}};
     return _writes = _writes.then((_) async {
       try { await (await _file()).writeAsString(jsonEncode(data), flush: true); } catch (_) {}
     });
@@ -69,16 +69,17 @@ class DiscoveryLocationAccess {
         accuracy: hasPreciseAndroidPermission ? LocationAccuracy.high : LocationAccuracy.low,
         timeLimit: const Duration(seconds: 8),
       ));
-    return HomeLocation(latitude: position.latitude, longitude: position.longitude, label: 'موقعي', device: true);
+    return HomeLocation(latitude: position.latitude, longitude: position.longitude, label: 'موقعي', device: true, accuracyMetres: position.accuracy.isFinite && position.accuracy > 0 ? position.accuracy : null);
   }
 }
 
 class DiscoveryLocationCoordinator {
-  DiscoveryLocationCoordinator(this._store, this._access, this._read, this._write);
+  DiscoveryLocationCoordinator(this._store, this._access, this._read, this._write, {Future<HomeLocation> Function(HomeLocation)? resolve}) : _resolve = resolve;
   final DiscoveryLocationStore _store;
   final DiscoveryLocationAccess _access;
   final HomeLocation Function() _read;
   final void Function(HomeLocation) _write;
+  final Future<HomeLocation> Function(HomeLocation)? _resolve;
   bool _resolved = false;
   bool _introductionShown = false;
   HomeLocation? _manual;
@@ -111,12 +112,12 @@ class DiscoveryLocationCoordinator {
   }
   Future<void> useDevice() => _runDevice(automatic: false);
   Future<void> rememberPublicRegion(String governorate, List<HomeLocation> registry) async {
-    if (_manual != null || !_read().device) return;
+    if (_manual != null || !_read().device || _read().needsConfirmation) return;
     for (final region in registry) {
       if (region.governorate != governorate) continue;
       if (_lastPublicRegion?.governorate == governorate) return;
       _lastPublicRegion = HomeLocation(latitude: region.latitude, longitude: region.longitude,
-        governorate: region.governorate, label: region.label);
+        governorate: region.governorate, governorateCode: region.governorateCode, label: region.label);
       await _save();
       return;
     }
@@ -134,7 +135,9 @@ class DiscoveryLocationCoordinator {
       permission = await _access.requestPermission();
     } else if (!_resolved) { _resolved = true; await _save(); }
     if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) throw StateError('Location denied');
-    final location = await _access.locate();
+    final fix = await _access.locate();
+    if (selection != _selection) return;
+    final location = _resolve == null ? fix : await _resolve(fix);
     if (selection != _selection) return;
     _manual = null;
     _write(location);
@@ -148,4 +151,5 @@ final discoveryLocationStoreProvider = Provider<DiscoveryLocationStore>((ref) =>
 final discoveryLocationAccessProvider = Provider<DiscoveryLocationAccess>((ref) => DiscoveryLocationAccess());
 final discoveryLocationCoordinatorProvider = Provider<DiscoveryLocationCoordinator>((ref) => DiscoveryLocationCoordinator(
   ref.watch(discoveryLocationStoreProvider), ref.watch(discoveryLocationAccessProvider),
-  () => ref.read(homeLocationProvider), (location) => ref.read(homeLocationProvider.notifier).state = location));
+  () => ref.read(homeLocationProvider), (location) => ref.read(homeLocationProvider.notifier).state = location,
+  resolve: (fix) => ref.read(marketplaceRepositoryProvider).resolveLocation(fix)));

@@ -31,6 +31,10 @@ if (aqerUatFirebaseFile.isFile()) {
     aqerUatFirebaseFile.withInputStream { aqerUatFirebase.load(it) }
 }
 def aqerProductionApplicationId = project.findProperty('AQER_PRODUCTION_APPLICATION_ID') ?: System.getenv('AQER_PRODUCTION_APPLICATION_ID') ?: ''
+def aqerUatApplicationId = project.findProperty('AQER_UAT_APPLICATION_ID') ?: 'com.aqer.yemen.uat'
+if (!(aqerUatApplicationId ==~ /com\.aqer\.yemen\.uat(?:\.[a-z][a-z0-9]*)*/)) {
+    throw new GradleException('The UAT preview must retain its isolated UAT namespace.')
+}
 def aqerBuildingProduction = gradle.startParameter.taskNames.any { it.toLowerCase().contains('production') }
 if (aqerBuildingProduction && (!aqerProductionApplicationId || !aqerHasReleaseSigning)) {
     throw new GradleException('Production requires its approved application ID and release signing. UAT credentials cannot replace them.')
@@ -111,8 +115,8 @@ android {
     productFlavors {
         uat {
             dimension 'environment'
-            applicationId 'com.aqer.yemen.uat'
-            resValue 'string', 'aqer_app_name', 'عقار UAT'
+            applicationId aqerUatApplicationId
+            resValue 'string', 'aqer_app_name', project.findProperty('AQER_UAT_APP_NAME') ?: 'عقار UAT'
             buildConfigField 'boolean', 'AQER_PUSH_ENABLED', aqerUatClientEnabled.toString()
             buildConfigField 'String', 'AQER_FIREBASE_API_KEY', aqerBuildConfigString(aqerUatFirebase.getProperty('aqer.uat.firebase.apiKey', ''))
             buildConfigField 'String', 'AQER_FIREBASE_APP_ID', aqerBuildConfigString(aqerUatFirebase.getProperty('aqer.uat.firebase.appId', ''))

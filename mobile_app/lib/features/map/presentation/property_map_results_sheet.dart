@@ -5,6 +5,7 @@ import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
 import '../../properties/presentation/adaptive_property_photo.dart';
 import '../../properties/presentation/property_favorite_status.dart';
+import '../../properties/presentation/discovery_section_heading.dart';
 
 const mapRentColor = Color(0xff147d92);
 const mapSaleColor = Color(0xff0b8a55);
@@ -123,7 +124,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
       (height > 0 ? height : 1)).clamp(.14, _maximum).toDouble();
     _initial = (widget.filterPanel == null ? .29 : .55).clamp(_minimum, _maximum).toDouble();
     final selected = widget.items.where((row) => row.id == widget.selectedId);
-    final rows = [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
+    final ranked = widget.items.any((row) => row.discoveryMatch != null);
+    final rows = ranked ? widget.items : [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
     return DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
       controller: _extent, initialChildSize: _initial, minChildSize: _minimum, maxChildSize: _maximum,
       snap: true, snapSizes: [for (final size in [_initial, widget.filterPanel == null ? .5 : .75]) if (size > _minimum && size < _maximum) size],
@@ -161,6 +163,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                 const Wrap(spacing: 16, runSpacing: 4, children: [
                   _Legend(label: 'للإيجار', color: mapRentColor), _Legend(label: 'للبيع', color: mapSaleColor),
                 ]),
+                if (ranked) const Text('≈ نتيجة قريبة من بحثك. التجمع مثل 2 + ≈1 يعني مطابقين وقريبًا واحدًا؛ التفاصيل في البطاقات.'),
                 if (widget.loading) const Padding(padding: EdgeInsets.only(top: 8),
                   child: Text('جارٍ تحديث النطاق… النتائج الظاهرة من آخر تحميل متاح.')),
                 if (widget.error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Column(
@@ -174,13 +177,18 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
               if (index > rows.length) { return widget.more ? TextButton(onPressed: widget.loading ? null : widget.onMore,
                 child: const Text('المزيد من العقارات')) : const SizedBox.shrink(); }
               final row = rows[index - 1];
-              return Semantics(selected: row.id == widget.selectedId, child: Padding(
+              return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (row.discoveryMatch?.nearby == true && (index == 1 || rows[index-2].discoveryMatch?.nearby != true))
+                  DiscoverySectionHeading(hasExact: index > 1),
+                if (row.discoveryMatch?.nearby == true) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(row.discoveryMatch!.explanation)),
+                Semantics(selected: row.id == widget.selectedId, child: Padding(
                 key: ValueKey('map-result-${row.id}'), padding: const EdgeInsets.only(bottom: 12),
                 child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10),
                   border: Border.all(width: row.id == widget.selectedId ? 2 : 1,
                     color: row.id == widget.selectedId ? Theme.of(context).colorScheme.primary
                       : row.purpose == 'rent' ? mapRentColor : mapSaleColor)),
-                  child: widget.itemBuilder(row))));
+                  child: widget.itemBuilder(row)))),
+              ]);
             })),
           ]));
       });

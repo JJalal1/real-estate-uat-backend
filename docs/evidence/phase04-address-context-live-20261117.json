@@ -1,0 +1,94 @@
+{
+  "observed_at_utc": "2026-11-16T22:17:27.002078+00:00",
+  "method": "GET",
+  "path": "/regions/reverse-address",
+  "query": {
+    "latitude": 15.3694,
+    "longitude": 44.191,
+    "include_landmarks": 1
+  },
+  "status": 200,
+  "elapsed_ms": 33335.5,
+  "bytes": 2815,
+  "body": {
+    "data": {
+      "governorate": "أمانة العاصمة",
+      "city": "مدينة صنعاء",
+      "district": "مديرية الثورة",
+      "neighborhood": "حارة الميثاق",
+      "street": "شارع القاهرة",
+      "formatted_address": "حارة الميثاق, جامع عثرب, مدينة صنعاء, مديرية الثورة, أمانة العاصمة, اليمن",
+      "field_sources": {
+        "governorate": "nominatim",
+        "city": "nominatim",
+        "district": "nominatim",
+        "neighborhood": "nominatim",
+        "street": "photon"
+      },
+      "confidence": "needs_review",
+      "landmarks": [
+        {
+          "name": "بقالة وادي مزهر",
+          "kind": "سوق",
+          "distance_m": 87,
+          "distance_basis": "straight_line",
+          "source": "photon",
+          "source_url": "https://www.openstreetmap.org/node/6028250909",
+          "confidence": "mapped_feature_needs_review"
+        },
+        {
+          "name": "مستشفى القاهرة",
+          "kind": "مستشفى",
+          "distance_m": 134,
+          "distance_basis": "straight_line",
+          "source": "photon",
+          "source_url": "https://www.openstreetmap.org/node/4346542914",
+          "confidence": "mapped_feature_needs_review"
+        },
+        {
+          "name": "قاعة تاج صنعاء",
+          "kind": "قاعة مناسبات",
+          "distance_m": 170,
+          "distance_basis": "straight_line",
+          "source": "photon",
+          "source_url": "https://www.openstreetmap.org/node/9859347217",
+          "confidence": "mapped_feature_needs_review"
+        },
+        {
+          "name": "جامع الحمد",
+          "kind": "دار عبادة",
+          "distance_m": 182,
+          "distance_basis": "straight_line",
+          "source": "photon",
+          "source_url": "https://www.openstreetmap.org/node/5207054624",
+          "confidence": "mapped_feature_needs_review"
+        },
+        {
+          "name": "بقالة جابر الخدري",
+          "kind": "سوق",
+          "distance_m": 206,
+          "distance_basis": "straight_line",
+          "source": "photon",
+          "source_url": "https://www.openstreetmap.org/node/5895667760",
+          "confidence": "mapped_feature_needs_review"
+        }
+      ],
+      "provider_status": "nominatim+photon",
+      "provider_attempts": {
+        "nominatim": "ok",
+        "photon": "ok"
+      },
+      "attribution": "© OpenStreetMap contributors · ODbL · Nominatim / Photon",
+      "requires_review": true,
+      "latitude": 15.3694,
+      "longitude": 44.191,
+      "cell_id": null,
+      "governorate_id": null
+    }
+  },
+  "physical_phone": false,
+  "known_building_reference_independently_verified": false,
+  "business_writes": 0,
+  "measurement_scope": "One cloud HTTP reverse-address request, not phone GPS or map-render performance.",
+  "live_backend_commit_not_revalidated": true
+}

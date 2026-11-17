@@ -1,0 +1,49 @@
+{
+  "checked_at_utc": "2026-11-16T21:47:19.906035+00:00",
+  "status": "APK_BYTES_VERIFIED_SOURCE_FROM_OWNER_DELIVERY",
+  "apk": {
+    "name": "AQER-UAT-1812.apk",
+    "bytes": 95745290,
+    "sha256": "194e82b42aa82730788735c0383248886e46bccbc921934e24b45dd827fd379e",
+    "package": "com.aqer.yemen.uat.retest",
+    "version_code": "1812",
+    "version_name": "0.1.0",
+    "label": "عقار اختبار",
+    "min_sdk": "23",
+    "target_sdk": "36",
+    "signer_certificate_sha256": [
+      "50b4e1baabaaa6afdc37de2afe8d08ac67d7c7cdee0d6a17b75f63244519e83e"
+    ],
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a"
+    ],
+    "uat_api_literal_present_per_abi": {
+      "arm64-v8a": true,
+      "armeabi-v7a": true
+    }
+  },
+  "source_commit": "fe6b525988a1d0128c1bc5189a976929ec9a75c1",
+  "source_basis": "Owner delivery and GitHub release pin. APK VCS metadata says NO_SUPPORTED_VCS_FOUND; no claim of Gradle-log reconstruction.",
+  "receipt_basis": "Expected fields supplied verbatim by owner; original JSON asset has not been read in this session.",
+  "github_release": "https://github.com/JJalal1/real-estate-uat-backend/releases/tag/uat1812-phase04-handoff",
+  "mobile_tree": "fbc85a333db87aa302a8e1a275735afc38c93068",
+  "backend_tree": "76dcc5b61ed2bf55d05935289d09885182fef96e",
+  "backend_component_matches_commits": [
+    "1f92da8036cf2904deb668601cba6f0b0a2aeee7",
+    "a5fdfc6a0f381ae6b9b13ca9b4fa4a9f45f735f3"
+  ],
+  "owner_reported_live_deploy": "dep-dbr6os6c6qcc73d0f6cg",
+  "new_deployment_for_baseline": false,
+  "prior_phase": {
+    "owner_reported_proven": 28,
+    "total": 32,
+    "official_review": "parallel",
+    "27": "owner deferred phone dictation",
+    "11": "technical backup/restore gate",
+    "3": "owner excluded video",
+    "21": "owner excluded video"
+  },
+  "physical_handset_measurement": false,
+  "native_journeys_replayed": false
+}

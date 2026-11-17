@@ -153,58 +153,57 @@ Future<Uint8List> renderMapPropertyPriceImage(
   return byteData.buffer.asUint8List();
 }
 
-String mapPropertyClusterImageName(int count) => 're_cluster_${count.clamp(2, 999)}';
+String mapPropertyClusterImageName(int count, {bool nearby = false, int nearbyCount = 0}) =>
+  're_cluster_${count.clamp(2, 999)}${nearby || nearbyCount == count ? '_nearby' : ''}${nearbyCount > 0 && nearbyCount < count ? '_mixed_$nearbyCount' : ''}';
 
-Future<Uint8List> renderMapPropertyClusterImage(int count) async {
+String mapPropertyClusterLabel(int count, {bool nearby = false, int nearbyCount = 0}) {
+  String number(int value) => value > 999 ? '999+' : '$value';
+  if (nearbyCount > 0 && nearbyCount < count) return '${number(count - nearbyCount)} + ≈${number(nearbyCount)}';
+  return '${nearby || nearbyCount == count ? '≈ ' : ''}${number(count)}';
+}
+
+Future<Uint8List> renderMapPropertyClusterImage(int count, {bool nearby = false, int nearbyCount = 0}) async {
   const renderScale = 2.0;
-  final label = count > 999 ? '999+' : count.toString();
-  final diameter = count >= 100 ? 44.0 : 40.0;
+  final label = mapPropertyClusterLabel(count, nearby: nearby, nearbyCount: nearbyCount);
+  final mixed = nearbyCount > 0 && nearbyCount < count;
+  final diameter = nearby || nearbyCount == count || count >= 100 ? 48.0 : 40.0;
+  final painter = TextPainter(text: TextSpan(text: label,
+    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, height: 1)),
+    textDirection: TextDirection.ltr)..layout();
+  final width = mixed ? math.max(72.0, painter.width + 20) : diameter;
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder)..scale(renderScale);
-  final center = Offset(diameter / 2, diameter / 2);
+  final shape = RRect.fromRectAndRadius(Rect.fromLTWH(2, 2, width - 4, diameter - 4), Radius.circular(diameter / 2));
 
-  canvas.drawCircle(
-    center + const Offset(0, 1.5),
-    diameter / 2 - 2,
+  canvas.drawRRect(
+    shape.shift(const Offset(0, 1.5)),
     Paint()
       ..color = const Color(0x26000000)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
   );
-  canvas.drawCircle(center, diameter / 2 - 2, Paint()..color = const Color(0xFF0B8A55));
-  canvas.drawCircle(
-    center,
-    diameter / 2 - 3,
+  canvas.drawRRect(shape, Paint()..color = const Color(0xFF0B8A55));
+  canvas.drawRRect(
+    shape.deflate(1),
     Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2,
   );
 
-  final painter = TextPainter(
-    text: TextSpan(
-      text: label,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        height: 1,
-      ),
-    ),
-    textDirection: TextDirection.ltr,
-  )..layout();
   painter.paint(
     canvas,
     Offset(
-      (diameter - painter.width) / 2,
+      (width - painter.width) / 2,
       (diameter - painter.height) / 2,
     ),
   );
 
   final picture = recorder.endRecording();
   final image = await picture.toImage(
-    (diameter * renderScale).ceil(),
+    (width * renderScale).ceil(),
     (diameter * renderScale).ceil(),
   );
+  picture.dispose();
   final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
   image.dispose();
   if (byteData == null) throw StateError('Unable to encode map cluster image.');
@@ -713,7 +712,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _center = LatLng((bounds.southwest.latitude + bounds.northeast.latitude) / 2,
         (bounds.southwest.longitude + bounds.northeast.longitude) / 2);
       // The camera owns the viewport after a pan; a Home city must not pin it.
-      _extraFilters = Map<String, dynamic>.from(_extraFilters)..remove('governorate');
+      _extraFilters = Map<String, dynamic>.from(_extraFilters)..remove('governorate')..remove('governorate_code');
       if (_selected != null && !_insideBounds(_selected!, bounds)) _selected = null;
     });
   }
@@ -735,16 +734,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   String _markerSignature(List<PropertyMarker> items) {
-    final ids = items
-        .take(250)
+    final ids = propertyMarkersForAnnotations(items)
         .map((item) =>
-            '${item.id}:${item.price}:${item.purpose}:${item.latitude}:${item.longitude}')
+            '${item.id}:${item.price}:${item.purpose}:${item.latitude}:${item.longitude}:${item.discoveryMatch?.nearby}')
         .join('|');
     return '${_selected?.id ?? 0}|${((_mapController?.cameraPosition?.zoom ?? 13.5) * 2).floor()}|$ids';
   }
 
   void _queueMarkerSync(List<PropertyMarker> items) {
-    _latestMarkerItems = items.take(250).toList(growable: false);
+    _latestMarkerItems = propertyMarkersForAnnotations(items);
     if (!_styleLoaded || _mapController == null) return;
     final signature = _markerSignature(items);
     if (signature == _lastMarkerSignature) return;
@@ -770,7 +768,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (controller == null || !_styleLoaded) return;
 
     final generation = _annotationGeneration, style = _styleGeneration;
-    final visible = items.take(250).toList(growable: false);
+    final visible = propertyMarkersForAnnotations(items);
     final zoom = controller.cameraPosition?.zoom ?? 13.5;
     final clusters = clusterPropertyMarkers(
       visible,
@@ -787,11 +785,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         if (cluster.isCluster) {
           final ids = cluster.items.map((row) => row.id).toList()..sort();
           keys.add('cluster:${ids.join(',')}');
-          final imageName = mapPropertyClusterImageName(cluster.items.length);
+          final nearby = cluster.nearbyCount == cluster.items.length;
+          final imageName = mapPropertyClusterImageName(cluster.items.length, nearby: nearby, nearbyCount: cluster.nearbyCount);
           await _ensureMapClusterImage(
             controller,
             imageName: imageName,
             count: cluster.items.length,
+            nearby: nearby,
+            nearbyCount: cluster.nearbyCount,
           );
           if (generation != _annotationGeneration) return;
           options.add(
@@ -805,6 +806,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           );
           data.add(<String, dynamic>{
             'cluster_count': cluster.items.length,
+            'cluster_exact_count': cluster.exactCount,
+            'cluster_nearby_count': cluster.nearbyCount,
             'cluster_lat': cluster.latitude,
             'cluster_lon': cluster.longitude,
           });
@@ -815,7 +818,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         keys.add('property:${property.id}');
         final selected = property.id == _selected?.id;
         final rent = property.purpose == 'rent';
-        final label = mapPropertyPriceLabel(property.price);
+        final label = '${property.discoveryMatch?.nearby == true ? '≈ ' : ''}${mapPropertyPriceLabel(property.price)}';
         final imageName = mapPropertyPriceImageName(
           label,
           selected: selected,
@@ -910,9 +913,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     MapLibreMapController controller, {
     required String imageName,
     required int count,
+    bool nearby = false,
+    int nearbyCount = 0,
   }) async {
     if (_registeredPriceImages.contains(imageName)) return;
-    final bytes = await renderMapPropertyClusterImage(count);
+    final bytes = await renderMapPropertyClusterImage(count, nearby: nearby, nearbyCount: nearbyCount);
     await controller.addImage(imageName, bytes);
     _registeredPriceImages.add(imageName);
   }
@@ -1135,7 +1140,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _center = LatLng(location.latitude, location.longitude);
         _cameraBounds = null;
         _selectedAreaBounds = null; _selectedAreaGeometry = null;
-        _extraFilters = Map<String, dynamic>.from(_extraFilters)..remove('governorate');
+        _extraFilters = Map<String, dynamic>.from(_extraFilters)..remove('governorate')..remove('governorate_code');
       }
       if (normalized.isNotEmpty) {
         _recentSearches = <String>[
@@ -1256,7 +1261,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         const bounds = ['south', 'west', 'north', 'east'];
         final hasViewport = bounds.every((key) => current[key] is num);
         final values = Map<String, dynamic>.from(current)
-          ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || key == 'governorate');
+          ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || const ['governorate', 'governorate_code'].contains(key));
         values.addAll({'area_polygon': geometry.encodedRing,
           if (hasViewport) ...{for (final key in bounds) key: current[key]}
           else ...{'south': geometry.bounds.southwest.latitude, 'west': geometry.bounds.southwest.longitude,
@@ -1414,7 +1419,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
     final rawProperties = ref.watch(nearbyPropertiesProvider(query));
     final criterionValues = Map<String, dynamic>.from(_currentSmartFilters().apiFilters)
-      ..removeWhere((key, _) => const ['latitude','longitude','radius_km','south','west','north','east','governorate'].contains(key));
+      ..removeWhere((key, _) => const ['latitude','longitude','radius_km','south','west','north','east','governorate','governorate_code'].contains(key));
     final criterionKeys = criterionValues.keys.toList()..sort();
     final criteria = [for (final key in criterionKeys) '$key:${criterionValues[key]}'].join('|');
     if (rawProperties.asData != null) { _lastGoodItems = rawProperties.asData!.value; _lastGoodCriteria = criteria; }
@@ -1485,7 +1490,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final search=ref.read(_searchSession), controller=_mapController;
     if(controller==null || !mounted)return;
     final values=search.filters.values;
-    if(widget.enforceViewport && const ['south','west','north','east'].every((key)=>values[key] is num)) {
+    if((widget.enforceViewport || search.filters.hasMapArea) && const ['south','west','north','east'].every((key)=>values[key] is num)) {
       // Reopening the same map restores its actual bounds, including an empty
       // result viewport, rather than fitting only its remaining listing pins.
       final bounds=LatLngBounds(southwest:LatLng((values['south'] as num).toDouble(),(values['west'] as num).toDouble()),
@@ -1528,7 +1533,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final rows=state.rows.where((p)=>hasValidPropertyCoordinates(p.latitude, p.longitude)).map((p)=>PropertyMarker(
       id:p.id,title:p.title,price:p.monthlyRent??p.price,currency:p.currency,latitude:p.latitude,longitude:p.longitude,distanceKm:0,
       purpose:p.purpose,type:p.type,areaM2:p.areaM2,bedrooms:p.bedrooms,bathrooms:p.bathrooms,address:p.address,
-      mainImage:p.mainImage,imageUrls:p.imageUrls,isSpotlight:p.isSpotlight,monthlyRent:p.monthlyRent)).toList(growable:false);
+      mainImage:p.mainImage,imageUrls:p.imageUrls,isSpotlight:p.isSpotlight,monthlyRent:p.monthlyRent,
+      discoveryMatch:p.discoveryMatch)).toList(growable:false);
     if(_selected!=null && !rows.any((p)=>p.id==_selected!.id))_selected=null;
     _queueMarkerSync(rows);
     final user = ref.watch(authControllerProvider).asData?.value;

@@ -36,7 +36,8 @@ void ensurePropertyFilterContract(Response response, Map<String, dynamic> filter
 }
 
 class PropertyRepository {
-  PropertyRepository(this._dio, this._auth);
+  PropertyRepository(this._dio, this._auth, {this.rankedDiscovery = const bool.fromEnvironment('AQER_RANKED_DISCOVERY')});
+  final bool rankedDiscovery;
 
   final Map<int,String> _alternateContactPhones = {};
   String? alternateContactPhone(int propertyId) => _alternateContactPhones[propertyId];
@@ -231,14 +232,28 @@ class PropertyRepository {
 
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
-    final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest'};
+    final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest', if (rankedDiscovery) 'ranked_search': 1};
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
       final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken,
         options: Options(listFormat: ListFormat.multiCompatible));
       ensurePropertyFilterContract(response, params);
+      if (rankedDiscovery && response.headers.value('x-aqer-ranked-contract') != '1') {
+        throw StateError('تعذّر تطبيق ترتيب البحث حاليًا. أعد المحاولة لاحقًا.');
+      }
       final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
         .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
+      if (rankedDiscovery && rows.any((row) => row.discoveryMatch == null)) {
+        throw const FormatException('Missing discovery classification.');
+      }
       final meta = response.data?['meta'] as Map? ?? const {};
+      if (rankedDiscovery && (response.data?['data'] is! List || meta['current_page'] is! int || meta['current_page'] != page ||
+          meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
+          meta['total'] is! int || (meta['total'] as int) < 0 ||
+          meta['exact_total'] is! int || (meta['exact_total'] as int) < 0 ||
+          meta['alternative_total'] is! int || (meta['alternative_total'] as int) < 0 ||
+          (meta['exact_total'] as int) + (meta['alternative_total'] as int) != meta['total'])) {
+        throw const FormatException('Invalid ranked pagination metadata.');
+      }
       return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
     }, refresh: refresh, cancelToken: cancelToken);
   }

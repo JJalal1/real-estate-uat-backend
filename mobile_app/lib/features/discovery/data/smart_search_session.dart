@@ -64,7 +64,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   void updateViewport({required double south, required double west, required double north, required double east}) {
     if (![south, west, north, east].every((value) => value.isFinite) || south >= north ||
       south < -90 || north > 90 || west < -180 || east > 180) { return; }
-    final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km')..remove('governorate');
+    final values = Map<String,dynamic>.from(state.filters.values)..remove('latitude')..remove('longitude')..remove('radius_km')..remove('governorate')..remove('governorate_code');
     values.addAll({'south':south,'west':west,'north':north,'east':east});
     final next = SmartSearchFilters.fromMap(values);
     if (next.sameAs(state.filters)) return;
@@ -153,6 +153,13 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       final result = await _properties.searchListings(filters.apiFilters, page: page, cancelToken: transfer, refresh: !more && state.page > 0);
       if (!_acceptResultsDelivery(request, revision, epoch)) return;
       final rows = more ? List<PropertySummary>.of(state.rows) : <PropertySummary>[];
+      var seenNearby = rows.any((row) => row.discoveryMatch?.nearby == true);
+      for (final row in result.$1) {
+        if (row.discoveryMatch?.nearby == true) { seenNearby = true; }
+        else if (row.discoveryMatch != null && seenNearby) {
+          throw const FormatException('An exact result followed the nearby section.');
+        }
+      }
       final ids = rows.map((row) => row.id).toSet();
       rows.addAll(result.$1.where((row) => ids.add(row.id)));
       state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
