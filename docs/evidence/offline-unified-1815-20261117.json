@@ -1,0 +1,249 @@
+{
+  "source_commit": "30ff9e8d6a50f2db9f164b7270e16f8e899ebe5f",
+  "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+  "mobile_component": "e9d28d77bae3a1652fc06301c29195031ceffeed",
+  "package": "com.aqer.yemen.uat.offline",
+  "version_code": 1815,
+  "sha256": "d2ef77c5eb0027fa7318e508dc0780a15b982a6ca42eb124523481b7df5651b5",
+  "bytes": 120108202,
+  "signer_certificate_sha256": "a157c63cd37090cebac83d2a2786e1e3342a8b09f17daeea30e93a5cbd65796f",
+  "signing": "disposable CI UAT key",
+  "upgrades_owner_1812": false,
+  "upgrades_1814": false,
+  "parallel_install_preserves_1814": true,
+  "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+  "required_ranked_contract": "1",
+  "offline_followup": true,
+  "backend_deployed": false,
+  "physical_phone_acceptance": false,
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86_64"
+  ],
+  "zip_elf_16kb": "verified",
+  "issued_at_yemen": "2026-11-17T07:23:23+03:00",
+  "artifact_filename": "AQER-UAT-1815-Unified-Offline.apk",
+  "baseline": {
+    "source": "dde54ed2b0e37baa9bf48d96b4d043c7b395907b",
+    "version_code": 1814,
+    "sha256": "2f8884c01bcf6c7a4b0cd5d63fc71487d64095e95a39743b6ba8bd206af42d66"
+  },
+  "ci": {
+    "source_commit": "30ff9e8d6a50f2db9f164b7270e16f8e899ebe5f",
+    "candidate_run": 44014196894,
+    "native_run": 44015407765,
+    "flutter_tests": 202,
+    "strict_analysis": "passed; 0 pre-existing INFOs",
+    "targeted_regressions": "passed",
+    "apk_build": "passed",
+    "apk_identity_signature_16kb": "passed",
+    "candidate_job": 133808065475,
+    "artifact_id": 14298785650,
+    "artifact_zip_bytes": 52055831,
+    "artifact_zip_sha256": "6ba2ce1f966216081980c90051b289c01b414403ce20bfee64f53e1595a9dade",
+    "independent_apk_hash_and_zip_crc": "passed",
+    "native_attempts": [
+      {
+        "run": 44008312179,
+        "stage": "emulator boot before tests",
+        "status": "failed"
+      },
+      {
+        "run": 44011591395,
+        "stage": "SDK system image extraction before boot",
+        "status": "blocked",
+        "reason": "No space left on device"
+      },
+      {
+        "run": 44012847340,
+        "status": "cancelled",
+        "reason": "Superseded by necessary conversation loading source fix before runtime"
+      },
+      {
+        "run": 44013666473,
+        "source_commit": "1b4cdc91df032e221667ae2bbbc19c7b11be7225",
+        "stage": "svc data disable before phase2 app launch",
+        "status": "failed",
+        "reason": "ADB cellular data command exit20; cleanup command exit20 masked original; no full native acceptance"
+      }
+    ],
+    "native_source_commit": "085adc48d4293cba599c6eea8eb8ec012783a1d4",
+    "pr_regression_on_apk_source": {
+      "run": 44014203039,
+      "laravel": "passed",
+      "flutter_analysis_tests_build": "passed"
+    },
+    "native_job": 133812020020,
+    "native_status": "passed",
+    "native_artifact_id": 14298912620,
+    "native_artifact_zip_sha256": "3a6d6cfa86858bd8599ffa3c271a9c6624f712bd91c47148db97c08b8a0cccab"
+  },
+  "native_acceptance": {
+    "passed": true,
+    "status": "passed",
+    "source_commit": "085adc48d4293cba599c6eea8eb8ec012783a1d4",
+    "mobile_component": "e9d28d77bae3a1652fc06301c29195031ceffeed",
+    "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+    "package": "com.aqer.yemen.uat.offlineprobe",
+    "probe_apk_sha256": "e58906992988d2131beb52f9b4e95c219974eddde14dd9dbfd22635b123289a2",
+    "api": "synthetic.invalid; Dart sockets denied",
+    "process_launches": 3,
+    "events": [
+      {
+        "phase": 1,
+        "passed": true,
+        "http_calls": 5,
+        "synthetic_sends": 0
+      },
+      {
+        "phase": 2,
+        "passed": true,
+        "http_calls": 0,
+        "synthetic_sends": 0
+      },
+      {
+        "phase": 3,
+        "passed": true,
+        "http_calls": 0,
+        "synthetic_sends": 3
+      }
+    ],
+    "network_controls": [
+      {
+        "phase": 1,
+        "service": "wifi",
+        "mode": "enable",
+        "returncode": 0
+      },
+      {
+        "phase": 1,
+        "service": "data",
+        "mode": "enable",
+        "returncode": 0
+      },
+      {
+        "phase": 2,
+        "service": "wifi",
+        "mode": "disable",
+        "returncode": 0
+      },
+      {
+        "phase": 2,
+        "service": "data",
+        "mode": "disable",
+        "returncode": 0
+      },
+      {
+        "phase": 3,
+        "service": "wifi",
+        "mode": "enable",
+        "returncode": 0
+      },
+      {
+        "phase": 3,
+        "service": "data",
+        "mode": "enable",
+        "returncode": 0
+      }
+    ],
+    "native_failures": [],
+    "cleanup_failures": [],
+    "checks": [
+      "native_keystore_restart",
+      "native_cipher_tamper_rejected",
+      "encrypted_snapshots_at_rest",
+      "http_snapshot_restart_without_network",
+      "small_photo_restart_without_network",
+      "large_photo_offline_blocked",
+      "manual_fields_and_copied_photos_restart",
+      "outbox_actor_isolation",
+      "pending_no_send_offline",
+      "reconnect_same_client_id_after_lost_ack",
+      "native_map_offline_channel"
+    ],
+    "physical_phone_acceptance": false,
+    "public_map_tiles_or_gestures_tested": false,
+    "live_account_or_business_api_used": false
+  },
+  "native_source_scope": {
+    "apk_source_commit": "30ff9e8d6a50f2db9f164b7270e16f8e899ebe5f",
+    "native_source_commit": "085adc48d4293cba599c6eea8eb8ec012783a1d4",
+    "same_source_commit": false,
+    "full_mobile_component_equal": true,
+    "mobile_runtime_equivalence_verified": true,
+    "apk_mobile_component": "e9d28d77bae3a1652fc06301c29195031ceffeed",
+    "native_mobile_component": "e9d28d77bae3a1652fc06301c29195031ceffeed",
+    "backend_component_equal": true,
+    "apk_backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+    "native_backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+    "source_relation": "native_source_descendant_evidence_changes_only",
+    "changed_files": [
+      ".github/workflows/offline-native-probe.yml",
+      "scripts/run_offline_unified_native.py"
+    ],
+    "allowed_changes_policy": "exact .github/workflows/offline-native-probe.yml or scripts/run_offline_unified_native.py evidence collector, mobile_app/test/**, docs/**, or root .md/.rst documentation only; all other runtime and build paths must be unchanged"
+  },
+  "acceptance_scope": {
+    "native_runtime_passed": true,
+    "native_status": "passed",
+    "native_runtime_for_apk_runtime_verified": true,
+    "physical_phone_acceptance": false,
+    "public_map_tiles_or_gestures_tested": false,
+    "weak_network_or_phone_performance_measured": false
+  },
+  "targeted_fix": {
+    "case": "HTTP 304 without Content-Type",
+    "cause": "Symfony Response.prepare removes Content-Type for an empty 304 response; the previous public image cache interpreted the missing type as a reason to drop its durable preview.",
+    "change": "Retain the known public derivative contract for 304; explicit private/no-store still revokes persistence.",
+    "evidence": [
+      "wave1_public_photo_cache_test: real API 304 without Content-Type retains and renews the durable preview",
+      "wave1_public_photo_cache_test: 304 explicit no-store still removes persistence even when bytes are known"
+    ],
+    "evidence_scope": "source review and focused Flutter tests; physical phone behavior remains unmeasured"
+  },
+  "targeted_fix_secondary": {
+    "case": "Received conversation display must not wait for local outbox IO",
+    "cause": "Conversation loading awaited encrypted local outbox reconciliation before showing already received conversation details; slow or failed local storage could keep the page loading.",
+    "change": "Display received authoritative conversation details before local outbox restoration completes; keep late local completion guarded against actor/page changes.",
+    "evidence": [
+      "offline_conversation_loading_test: received conversation renders before delayed outbox restoration",
+      "offline_conversation_loading_test: failed outbox restoration cannot hide a received conversation",
+      "offline_conversation_loading_test: late outbox restoration cannot revive a previous actor page",
+      "private_journey_actor_scope_test: unchanged private overlay and actor-scope regression checks"
+    ],
+    "evidence_scope": "focused Flutter Widget tests and the unchanged affected regression suite; physical phone timing and native runtime are separate evidence scopes"
+  },
+  "live_uat": {
+    "deployment_id": "dep-dbtpbo88v5cc73av6o20",
+    "source_commit": "5a5d96dfa4f6c6fe3e523f2f72e4c9a56f5f4f19",
+    "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+    "redeployed_for_this_followup": false
+  },
+  "video_reference": {
+    "sha256": "c0d01bf67bf2eea4d99d02405b75bc0021ef2c7f877c757ae521d127ae645e9e",
+    "bytes": 48182005,
+    "seconds": 33.832189
+  },
+  "boundaries": {
+    "all_yemen_governorates_and_existing_regional_fixtures_preserved": true,
+    "main_pr185_production_changed": false,
+    "backend_database_changed": false,
+    "map_provider_changed": false,
+    "accepted_phase23_native_journeys_replayed": false,
+    "prior_status": "28/32;27 owner-deferred;11 technical hold;3/21 video excluded"
+  },
+  "installation": {
+    "parallel_to_1814": true,
+    "old_app_removal_required": false,
+    "automatic_old_app_local_data_migration": false,
+    "instructions": "ثبّت عقار أوفلاين اختبار بجانب النسخة القديمة. افتحه بالاتصال أول مرة وسجل دخولك إن أردت الدردشة والمسودات، ثم اختبر فصل الاتصال."
+  },
+  "limitations": [
+    "Physical Android handset acceptance, weak-network timing, pan/zoom/rotation/pitch smoothness and actual cached map tiles remain unmeasured.",
+    "Previously unvisited data and map regions are not predownloaded. Only saved history is available offline, within storage bounds.",
+    "The automatic outbox retry runs while the app is open or resumed; this is not an always-running background delivery service.",
+    "Official store signing and upgrades remain outside this UAT preview.",
+    "Owner review and the previous paused/excluded items retain their status."
+  ]
+}
