@@ -117,13 +117,25 @@ void main() {
     final probe = _client(wire);
     final monitor = _controller(probe);
     final checking = monitor.check(force: true);
-    await tester.pump();
+    var completed = false;
+    unawaited(checking.then<void>((_) {
+      completed = true;
+    }));
+    // Dio schedules request interception/dispatch through a zero-delay event.
+    // Advance fake time in a bounded setup loop before measuring the delay.
+    for (var frame = 0; frame < 50 && !wire.started.isCompleted; frame++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
     expect(wire.calls, hasLength(1));
     expect(probe.options.connectTimeout, const Duration(seconds: 75));
     expect(probe.options.receiveTimeout, const Duration(seconds: 45));
     await tester.pump(const Duration(seconds: 5));
     expect(monitor.current, OfflineConnection.unknown);
     response.complete(_json({'status': 'ok'}));
+    for (var frame = 0; frame < 50 && !completed; frame++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    expect(completed, true);
     await checking;
     expect(monitor.current, OfflineConnection.online);
   });
