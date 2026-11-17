@@ -22,6 +22,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Reclaim unused SDK space on disposable runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
