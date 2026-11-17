@@ -784,6 +784,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Future<void> _commitCameraCenter() async {
     if (_selectingArea || _fittingShared|| _restoringCamera) return;
     if (ref.read(offlineConnectionProvider) == OfflineConnection.offline) {
+      // Keep cached rows and their original classification, but recluster the
+      // local annotations at the camera's new zoom without a network query.
+      _queueMarkerSync(_latestMarkerItems);
       if (mounted &&
           _mapMessage !=
               'غير متصل: النتائج من آخر نطاق محفوظ. المناطق غير المحفوظة تحتاج إلى الإنترنت.')

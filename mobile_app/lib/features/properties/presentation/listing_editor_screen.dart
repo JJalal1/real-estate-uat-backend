@@ -763,9 +763,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (mounted) _leaveEditor();
       } else if (choice=='save') {
         _draftSavedExplicitly = true;
-        await _saveRecovery(retryFailed:true,manual:true);
+        // Save on exit is explicit; connectivity alone never starts uploading.
+        _persistStarting = !_offline;
+        try { await _saveRecovery(retryFailed:true,manual:true); }
+        finally { _persistStarting = false; }
         if (!mounted) return;
-        if ((_accountSaved || _localOnly && _recoverySaved) && !_recoveryFailed) { _leaveEditor(); }
+        if ((_accountSaved || _offline && _recoverySaved) && !_recoveryFailed) { _leaveEditor(); }
         else { setState(()=>_stepError='لم يكتمل حفظ المسودة. بياناتك باقية هنا؛ أعد المحاولة أو تابع التعديل.'); }
       }
     } catch (_) { _recoveryFinished=false;if (mounted) setState(()=>_stepError='تعذر إتمام الخروج. بياناتك باقية هنا.'); }

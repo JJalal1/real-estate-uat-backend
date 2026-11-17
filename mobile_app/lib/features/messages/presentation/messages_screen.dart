@@ -183,7 +183,8 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
 
     final pending = _actor == null
         ? <PendingMessage>[]
-        : ref.watch(messageOutboxProvider(_actor!));
+        : ref.watch(messageOutboxProvider(_actor!)).where((message) =>
+            message.status != 'sent' || (!_unreadOnly && !_items.any((thread) => thread.id == message.threadId))).toList();
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
