@@ -52,11 +52,29 @@
     "target_package": "com.aqer.yemen.uat.offline",
     "target_version_code": 1816,
     "required_previous_signer_sha256": "a157c63cd37090cebac83d2a2786e1e3342a8b09f17daeea30e93a5cbd65796f",
-    "key_presence_currently": "pending current CI presence-only check",
+    "key_presence_currently": {
+      "apk_built": false,
+      "compatible": false,
+      "duplicate_apk_created": false,
+      "installed_certificate_pin_matches": false,
+      "installed_device_upgrade_tested": false,
+      "present": {
+        "certificate_pin": false,
+        "key_alias": false,
+        "key_password": false,
+        "keystore": false,
+        "store_password": false
+      },
+      "signing_material_verified": false,
+      "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
+      "status": "blocked_missing_or_mismatched_installed_signer"
+    },
     "apk_delivered": false,
-    "upgrade_on_device_verified": false
+    "upgrade_on_device_verified": false,
+    "status": "BLOCKED_MATCHING_PRIVATE_KEY_NOT_CONFIGURED"
   },
   "prior_acceptance": "28/32;27owner-deferred;11technicalhold;3/21excluded; unchanged",
   "physical_phone_after_fix_tested": false,
-  "test_outcome": "pending exact-sourceCI"
+  "test_outcome": "221Flutter+23Python+strictanalysis passed; synthetic Android3process restart passed",
+  "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45"
 }

@@ -1,0 +1,142 @@
+{
+  "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
+  "mobile_component": "bd84496bf2512f6402190639e4f92ac040c4dff3",
+  "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+  "ci_run": 44068966637,
+  "test_job": 133989946948,
+  "flutter_tests": 221,
+  "python_tests": 23,
+  "strict_analysis": "passed;0pre-existing INFOs",
+  "test_outcome": "passed",
+  "signing_readiness": {
+    "apk_built": false,
+    "compatible": false,
+    "duplicate_apk_created": false,
+    "installed_certificate_pin_matches": false,
+    "installed_device_upgrade_tested": false,
+    "present": {
+      "certificate_pin": false,
+      "key_alias": false,
+      "key_password": false,
+      "keystore": false,
+      "store_password": false
+    },
+    "signing_material_verified": false,
+    "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
+    "status": "blocked_missing_or_mismatched_installed_signer"
+  },
+  "installer_status": "blocked_no_matching_key_configured",
+  "installer_built": false,
+  "installer_delivered": false,
+  "native_run": 44068228464,
+  "native_job": 133987549256,
+  "native_artifact_id": 14321752935,
+  "native_zip_sha256": "89aa2451a7e5e4a4d7e8f217b72eeec29b6066814a15f22a48f1f5d40cbf2d7a",
+  "native_receipt": {
+    "passed": true,
+    "status": "passed",
+    "source_commit": "7b6af7ad6b247eecf40fe356a3a782328f031fe2",
+    "mobile_component": "f155dac61fca65f7052d1384208c7b55a3b0e904",
+    "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+    "package": "com.aqer.yemen.uat.offlineprobe",
+    "probe_apk_sha256": "ddac14d2fab725b7eaaf99a5fa8a9299891280098ef15b26c8ac7f575784feb7",
+    "api": "synthetic.invalid; Dart sockets denied",
+    "process_launches": 3,
+    "events": [
+      {
+        "phase": 1,
+        "passed": true,
+        "http_calls": 5,
+        "synthetic_sends": 0
+      },
+      {
+        "phase": 2,
+        "passed": true,
+        "http_calls": 0,
+        "synthetic_sends": 0
+      },
+      {
+        "phase": 3,
+        "passed": true,
+        "http_calls": 0,
+        "synthetic_sends": 3
+      }
+    ],
+    "network_controls": [
+      {
+        "phase": 1,
+        "service": "wifi",
+        "mode": "enable",
+        "returncode": 0
+      },
+      {
+        "phase": 1,
+        "service": "data",
+        "mode": "enable",
+        "returncode": 0
+      },
+      {
+        "phase": 2,
+        "service": "wifi",
+        "mode": "disable",
+        "returncode": 0
+      },
+      {
+        "phase": 2,
+        "service": "data",
+        "mode": "disable",
+        "returncode": 0
+      },
+      {
+        "phase": 3,
+        "service": "wifi",
+        "mode": "enable",
+        "returncode": 0
+      },
+      {
+        "phase": 3,
+        "service": "data",
+        "mode": "enable",
+        "returncode": 0
+      }
+    ],
+    "native_failures": [],
+    "cleanup_failures": [],
+    "checks": [
+      "native_keystore_restart",
+      "native_cipher_tamper_rejected",
+      "encrypted_snapshots_at_rest",
+      "http_snapshot_restart_without_network",
+      "small_photo_restart_without_network",
+      "large_photo_offline_blocked",
+      "manual_fields_and_copied_photos_restart",
+      "outbox_actor_isolation",
+      "pending_no_send_offline",
+      "reconnect_same_client_id_after_lost_ack",
+      "native_map_offline_channel"
+    ],
+    "physical_phone_acceptance": false,
+    "public_map_tiles_or_gestures_tested": false,
+    "live_account_or_business_api_used": false
+  },
+  "native_source_equivalence": {
+    "native_source": "7b6af7ad6b247eecf40fe356a3a782328f031fe2",
+    "same_full_mobile_tree": false,
+    "runtime_files_identical": true,
+    "backend_component_identical": true,
+    "differences": [
+      "mobile_app/test/offline_connection_detection_test.dart"
+    ],
+    "meaning": "Only fake-time test scheduling differs; no runtime/build/dependency difference.",
+    "tested_source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45"
+  },
+  "phone_after_fix_acceptance": false,
+  "upgrade_on_installed_device_tested": false,
+  "server_redeployed": false,
+  "main_pr185_production_changed": false,
+  "remaining": [
+    "Matching1815 privatekey provisioning, or explicit one-time transition to a durable UAT key with local-data protection",
+    "Build and verify installable APK",
+    "Physical handset verification of reported WiFi case and update/data retention"
+  ]
+}
