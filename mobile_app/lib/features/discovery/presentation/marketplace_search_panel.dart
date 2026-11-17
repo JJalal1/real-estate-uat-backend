@@ -63,7 +63,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
       initial: SmartSearchFilters.fromMap({...pending, if (ui.draftQuery.isNotEmpty) 'search': ui.draftQuery}), focus: focus));
     if (!mounted || value == null || actor != ref.read(authControllerProvider).asData?.value?.id ||
         !identical(controller, ref.read(marketplaceSearchControllerProvider.notifier)) ||
-        (widget.onMap && !controller.isMapJourneyCurrent(token))) return;
+        (widget.onMap && !controller.isMapJourneyCurrent(token))) { return; }
     controller.edit(value.values['search']?.toString() ?? '', onMap: widget.onMap);
     controller.applyFilters(value, onMap: widget.onMap);
   }
@@ -76,7 +76,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
       initial: controller.uiFor(onMap: widget.onMap).landUse));
     if (!mounted || value == null || actor != ref.read(authControllerProvider).asData?.value?.id ||
         !identical(controller, ref.read(marketplaceSearchControllerProvider.notifier)) ||
-        (widget.onMap && !controller.isMapJourneyCurrent(token))) return;
+        (widget.onMap && !controller.isMapJourneyCurrent(token))) { return; }
     controller.setLandUse(value, onMap: widget.onMap);
   }
 
@@ -412,7 +412,7 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _entryQueued = false;
         if (!mounted || _routeExited || actor != ref.read(authControllerProvider).asData?.value?.id ||
-            !widget.active) return;
+            !widget.active) { return; }
         if (!identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) {
           setState(() {});
           return;
@@ -442,7 +442,7 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
           : MapScreen(key: ValueKey('marketplace-map-$actor-$mapToken'), sharedSearchJourney: true,
           searchSessionProvider: marketplaceMapResultsProvider, enforceViewport: true,
           toolbarAboveMap: true, cameraCenterHint: cameraHint, onSmartSearch: _openSmartSearch,
-          isJourneyCurrent: () => mounted && !_routeExited && widget.active && mapToken != null && _mapToken == mapToken &&
+          isJourneyCurrent: () => mounted && !_routeExited && widget.active && _mapToken == mapToken &&
             identical(_mapJourney, journey) && journey.isMapJourneyCurrent(mapToken),
           onMapInteraction: () { FocusScope.of(context).unfocus(); journey.stopEditing(onMap: true); },
           searchToolbarBuilder: (_, actions) => SizedBox(key: const ValueKey('marketplace-search-toolbar'),

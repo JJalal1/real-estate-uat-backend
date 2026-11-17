@@ -8,6 +8,7 @@ import 'package:real_estate_mobile/features/discovery/domain/smart_search_filter
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'support/owner_ux_fixtures.dart';
 import 'wave2_home_search_test.dart' show Listings, PageResult;
 
@@ -56,7 +57,7 @@ void main() {
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('radius_km'), isFalse);
     expect(properties.calls.single['governorate'], 'ذمار');
     expect(properties.calls.single.containsKey('latitude'), isFalse);
-    reply.complete(([], false));
+    reply.complete((<PropertySummary>[], false));
     await tester.pumpAndSettle();
     expect(properties.calls, hasLength(1));
     expect(tester.takeException(), isNull);

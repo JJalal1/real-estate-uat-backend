@@ -138,7 +138,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     }
     final changed = state.criteria.values['type'] != type || state.criteria.values.containsKey('types');
     final next = Map<String, dynamic>.from(state.criteria.values)..remove('type')..remove('types');
-    if (type != null) next['type'] = type;
+    next['type'] = type;
     state = state.copyWith(active: true, criteria: SmartSearchFilters.fromMap(next),
       editing: state.draftQuery.trim() != state.submittedQuery);
     if (changed) { _lastSubmit = ''; home.reset(); }
@@ -209,7 +209,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   void remove(String key, {bool onMap = false}) {
     if (!_canEdit(onMap)) return;
     if (key == 'land_use') { setLandUse('', onMap: onMap); return; }
-    if (onMap && key == 'map_area') { unawaited(map.remove(key)); return; }
+    if (onMap && key == 'map_area') { map.remove(key); return; }
     applyFilters(uiFor(onMap: onMap).criteria.without(key), onMap: onMap);
   }
 

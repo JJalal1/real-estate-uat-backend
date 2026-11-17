@@ -5,7 +5,6 @@ import '../features/discovery/presentation/assisted_search_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/account/data/auth_controller.dart';
 import '../features/account/presentation/access_control_screen.dart';
 import '../features/account/presentation/account_safety_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';

@@ -217,7 +217,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         _journey = 0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted || _journeyEnded || actor != ref.read(authControllerProvider).asData?.value?.id ||
-              epoch != Stage6SecureSessionStore.instance.sessionEpoch) return;
+              epoch != Stage6SecureSessionStore.instance.sessionEpoch) { return; }
           _journeySession = _session;
           _journey = _journeySession.beginJourney();
         });

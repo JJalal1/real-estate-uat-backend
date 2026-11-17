@@ -1804,8 +1804,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       shadowColor: scheme.primary.withValues(alpha: .24), shape: const CircleBorder(),
       child: InkWell(key: const ValueKey('map-smart-search'), customBorder: const CircleBorder(),
         onTap: () { FocusScope.of(context).unfocus(); actions.onSmartSearch(); },
-        child: const Tooltip(message: 'البحث الذكي', child: Semantics(button: true, label: 'فتح مساعد البحث الذكي',
-          child: Padding(padding: EdgeInsets.all(10), child: SmartSearchRobotIcon(size: 38))))));
+        child: Tooltip(message: 'البحث الذكي', child: Semantics(button: true, label: 'فتح مساعد البحث الذكي',
+          child: const Padding(padding: EdgeInsets.all(10), child: SmartSearchRobotIcon(size: 38))))));
     return SizedBox(key: const ValueKey('map-floating-search-actions'), child: horizontal
       ? Row(textDirection: TextDirection.ltr, mainAxisSize: MainAxisSize.min,
           children: [draw, const SizedBox(width: 10), assistant])
