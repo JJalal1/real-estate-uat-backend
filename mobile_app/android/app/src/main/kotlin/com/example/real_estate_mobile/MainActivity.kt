@@ -19,6 +19,7 @@ import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 import java.security.KeyStore
+import java.util.concurrent.Executors
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -38,6 +39,7 @@ class MainActivity : FlutterActivity() {
         private const val GCM_TAG_BITS = 128
     }
 
+    private val offlineCrypto = Executors.newSingleThreadExecutor()
     private var pendingResult: MethodChannel.Result? = null
     private var pendingCameraFile: File? = null
     private var speechInput: InAppSpeechInput? = null
@@ -81,7 +83,7 @@ class MainActivity : FlutterActivity() {
                         else -> "other"
                     }
                     result.success(mapOf("metered" to manager.isActiveNetworkMetered,
-                        "dataSaver" to saver, "networkKey" to (network?.toString() ?: "none"),
+                        "dataSaver" to saver, "connected" to (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true), "networkKey" to (network?.toString() ?: "none"),
                         "transport" to transport))
                 }
             }
@@ -132,6 +134,29 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 try {
                     when (call.method) {
+                        "sealOfflineState", "openOfflineState" -> {
+                            val value = call.argument<String>("value").orEmpty()
+                            require(value.length <= 2 * 1024 * 1024) { "Offline state exceeds its bound." }
+                            offlineCrypto.execute {
+                                try {
+                                    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                                    val output: String
+                                    if (call.method == "sealOfflineState") {
+                                        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
+                                        cipher.updateAAD("aqer.offline.v1".toByteArray(Charsets.UTF_8))
+                                        val encoded = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+                                        output = Base64.encodeToString(cipher.iv + encoded, Base64.NO_WRAP)
+                                    } else {
+                                        val bytes = Base64.decode(value, Base64.NO_WRAP)
+                                        require(bytes.size > 28) { "Invalid offline state." }
+                                        cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(GCM_TAG_BITS, bytes.copyOfRange(0, 12)))
+                                        cipher.updateAAD("aqer.offline.v1".toByteArray(Charsets.UTF_8))
+                                        output = String(cipher.doFinal(bytes.copyOfRange(12, bytes.size)), Charsets.UTF_8)
+                                    }
+                                    runOnUiThread { result.success(output) }
+                                } catch (_: Exception) { runOnUiThread { result.error("OFFLINE_STORAGE_FAILED", "Offline state unavailable.", null) } }
+                            }
+                        }
                         "readToken" -> result.success(readSecureToken())
                         "writeToken" -> {
                             val token = call.argument<String>("token").orEmpty()
@@ -151,6 +176,7 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    @Synchronized
     private fun getOrCreateSecretKey(): SecretKey {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             throw IllegalStateException("Secure session storage requires Android 6.0 or newer.")
@@ -307,6 +333,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        offlineCrypto.shutdown()
         pushBridge?.dispose()
         pushBridge = null
         speechInput?.dispose()

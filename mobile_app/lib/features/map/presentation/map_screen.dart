@@ -1,3 +1,6 @@
+import '../../../core/offline/offline_connection.dart';
+import '../../../core/offline/offline_store.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -426,6 +429,96 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   bool _sharedSessionLinked = false;
   List<String> _recentSearches = const <String>[];
 
+  bool _cameraRestored = false, _restoringCamera = false;
+  String get _offlineCameraKey =>
+      'actor:${ref.read(authControllerProvider).asData?.value?.id ?? 'guest'}:${widget.sharedSearchJourney ? 'shared' : 'map'}';
+  String get _cameraCriteria => (widget.sharedSearchJourney
+          ? ref.read(_searchSession).filters
+          : _currentSmartFilters())
+      .signature;
+  Future<bool> _restoreOfflineCamera() async {
+    if (_cameraRestored ||
+        widget.hasInitialLocation ||
+        ref.read(offlineConnectionProvider) != OfflineConnection.offline)
+      return false;
+    _cameraRestored = true;
+    final key = _offlineCameraKey,
+        criteria = _cameraCriteria,
+        generation = _viewportGeneration;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final row = await ref
+        .read(offlineStoreProvider)
+        .read('map_views', key, private: true);
+    if (!mounted ||
+        epoch != Stage6SecureSessionStore.instance.sessionEpoch ||
+        generation != _viewportGeneration ||
+        key != _offlineCameraKey ||
+        criteria != _cameraCriteria ||
+        row?['criteria'] != criteria) return false;
+    final latitude = (row?['latitude'] as num?)?.toDouble(),
+        longitude = (row?['longitude'] as num?)?.toDouble();
+    final zoom = (row?['zoom'] as num?)?.toDouble(),
+        bearing = (row?['bearing'] as num?)?.toDouble(),
+        tilt = (row?['tilt'] as num?)?.toDouble();
+    if (latitude == null ||
+        longitude == null ||
+        zoom == null ||
+        bearing == null ||
+        tilt == null ||
+        ![latitude, longitude, zoom, bearing, tilt].every((v) => v.isFinite) ||
+        latitude.abs() > 90 ||
+        longitude.abs() > 180 ||
+        zoom < 3 ||
+        zoom > 19 ||
+        tilt < 0 ||
+        tilt > 60) return false;
+    final controller = _mapController;
+    if (controller == null) return false;
+    _restoringCamera = true;
+    try {
+      await controller.moveCamera(CameraUpdate.newCameraPosition(CameraPosition(
+          target: LatLng(latitude, longitude),
+          zoom: zoom,
+          bearing: bearing,
+          tilt: tilt)));
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _restoringCamera = false;
+    }
+  }
+
+  void _saveCamera() {
+    if (_restoringCamera ||
+        _selectingArea ||
+        !_styleLoaded ||
+        ref.read(offlineConnectionProvider) != OfflineConnection.online) return;
+    final camera = _mapController?.cameraPosition;
+    if (camera == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch,
+        key = _offlineCameraKey;
+    unawaited(ref
+        .read(offlineStoreProvider)
+        .write(
+            'map_views',
+            key,
+            {
+              'criteria': _cameraCriteria,
+              'latitude': camera.target.latitude,
+              'longitude': camera.target.longitude,
+              'zoom': camera.zoom,
+              'bearing': camera.bearing,
+              'tilt': camera.tilt
+            },
+            private: true,
+            current: () =>
+                mounted &&
+                epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
+                key == _offlineCameraKey)
+        .catchError((Object _) {}));
+  }
+
   bool _styleLoaded = false;
   String? _mapMessage;
   String _lastMarkerSignature = '';
@@ -666,7 +759,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _registeredPriceImages.clear();
       _mapSymbols.clear(); _symbolSignatures.clear(); _annotationGeneration++; _styleGeneration++;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (await _restoreOfflineCamera()) {
+        if (mounted) _queueMarkerSync(_latestMarkerItems);
+        return;
+      }
       if (mounted && widget.sharedSearchJourney) {
         if (widget.enforceViewport) {
           unawaited(_fitSharedRows().whenComplete(() {
@@ -685,18 +782,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _commitCameraCenter() async {
-    if (_selectingArea || _fittingShared) return;
+    if (_selectingArea || _fittingShared|| _restoringCamera) return;
+    if (ref.read(offlineConnectionProvider) == OfflineConnection.offline) {
+      if (mounted &&
+          _mapMessage !=
+              'غير متصل: النتائج من آخر نطاق محفوظ. المناطق غير المحفوظة تحتاج إلى الإنترنت.')
+        setState(() => _mapMessage =
+            'غير متصل: النتائج من آخر نطاق محفوظ. المناطق غير المحفوظة تحتاج إلى الإنترنت.');
+      return;
+    }
     final generation = ++_viewportGeneration;
     _viewportTimer?.cancel();
     _viewportTimer = Timer(const Duration(milliseconds: 300), () async {
       if (!mounted || generation != _viewportGeneration) return;
-      if (widget.sharedSearchJourney) { await _sharedViewport(generation); return; }
+      if (widget.sharedSearchJourney) { await _sharedViewport(generation); _saveCamera();
+        return; }
       final controller = _mapController;
       if (controller == null || !_styleLoaded) return;
       try {
         final bounds = await controller.getVisibleRegion();
         if (!mounted || generation != _viewportGeneration) return;
         _applyCameraViewport(bounds);
+        _saveCamera();
       } catch (_) {
         if (mounted && generation == _viewportGeneration) setState(() => _mapMessage = 'تعذر تحديد النطاق. حرّك الخريطة للمحاولة مجددًا.');
       }
@@ -1475,7 +1582,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _sharedViewport([int? generation]) async {
     final controller=_mapController;
-    if(controller==null || !mounted || _fittingShared || _selectingArea)return;
+    if(controller==null || !mounted || _fittingShared || _selectingArea||
+        _restoringCamera ||
+        ref.read(offlineConnectionProvider) == OfflineConnection.offline)return;
     try {
       final bounds=await controller.getVisibleRegion();
       if(!mounted || _fittingShared || (generation != null && generation != _viewportGeneration))return;
@@ -1549,7 +1658,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }, child: Stack(fit:StackFit.expand,children:[
       Positioned.fill(child:Listener(onPointerDown: (_) => widget.onMapInteraction?.call(),
         child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)
-        { if (!_selectingArea) ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east); }))),
+        { if (!_selectingArea&&
+                              ref.read(offlineConnectionProvider) !=
+                                  OfflineConnection.offline) ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east); }))),
       if (!_selectingArea) PropertyMapResultsSheet(items: rows, selectedId: _selected?.id, loading: state.loading,
         maxExtent: widget.resultsMaxExtent, collapsed: widget.collapseResults, filterPanel: toolbar,
         error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),
@@ -1574,8 +1685,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       myLocationEnabled: _userLocation != null,
       myLocationTrackingMode: MyLocationTrackingMode.none,
       minMaxZoomPreference: const MinMaxZoomPreference(3, 19),
-      rotateGesturesEnabled: false,
-      tiltGesturesEnabled: false,
+      rotateGesturesEnabled: !_selectingArea,
+      tiltGesturesEnabled: !_selectingArea,
       scrollGesturesEnabled: !_selectingArea,
       zoomGesturesEnabled: !_selectingArea,
       doubleClickZoomEnabled: !_selectingArea,

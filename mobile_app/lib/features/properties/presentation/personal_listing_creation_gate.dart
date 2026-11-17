@@ -1,3 +1,4 @@
+import '../../../core/offline/offline_connection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,6 +22,11 @@ class PersonalListingCreationGate extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).asData?.value;
+    // Local preparation grants no server publishing permission. The normal
+    // authoritative personal-property limit is checked again on upload.
+    if (user != null &&
+        ref.watch(offlineConnectionProvider) == OfflineConnection.offline)
+      return child;
     if (user == null || !user.isOwner || !user.hasVerifiedPublishingProfile) return child;
     final listings = ref.watch(myListingsProvider);
     final recovered = ref.watch(personalRecoveredListingIdProvider(user.id));

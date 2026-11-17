@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/offline/offline_coordinator.dart';
 import 'core/theme/theme_controller.dart';
 import 'core/release/release_gate.dart';
 import 'core/push/push_launch_coordinator.dart';
@@ -39,11 +40,11 @@ class RealEstateApp extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
-        final content = PushLaunchCoordinator(
+        final content = OfflineCoordinator(child: PushLaunchCoordinator(
           child: ReleaseGate(
             child: child ?? const SizedBox.shrink(),
           ),
-        );
+        ));
         return acceptanceWrapper?.call(context, content) ?? content;
       },
     );

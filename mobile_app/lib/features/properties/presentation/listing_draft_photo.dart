@@ -13,6 +13,7 @@ import '../../../core/network/adaptive_image_policy.dart';
 import '../../../core/network/conditional_image_prefetch.dart';
 import '../../../core/platform/media_network_monitor.dart';
 import '../../../core/widgets/viewport_media.dart';
+import '../../../core/offline/offline_connection.dart';
 
 final listingPhotoCacheProvider = Provider<ListingPhotoCache>((ref) {
   ref.watch(authControllerProvider.select((s) => (s.asData?.value?.id, s.asData?.value?.isActive, s.asData?.value?.permissions.toString())));
@@ -32,9 +33,9 @@ final photoPrefetchBudgetProvider = Provider<PhotoPrefetchBudget>((ref) {
 class ListingPhotoCache {
   static int _nextScope = 0;
   final int scope = ++_nextScope;
-  ListingPhotoCache({this.maxEntries = 18, this.maxBytes = 24 * 1024 * 1024,
+  ListingPhotoCache({this.maxEntries = 128, this.maxBytes = 32 * 1024 * 1024,
     this.maxImageBytes = 8 * 1024 * 1024,
-    this.ttl = const Duration(minutes: 2), DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+    this.ttl = const Duration(minutes: 30), DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
   final int maxEntries, maxBytes, maxImageBytes;
   final Duration ttl;
   final DateTime Function() _clock;
@@ -215,7 +216,7 @@ class _ListingDraftPhotoSlotState extends ConsumerState<ListingDraftPhoto> {
           if (count > received) { cache.prefetchBytes += count - received;cache.networkBytes += count - received;received = count; }
         }
         try {
-          final transfer = await PublicPhotoLoader(ref.read(dioProvider), ref.read(publicPhotoDiskCacheProvider)).load(widget.url,
+          final transfer = await PublicPhotoLoader(ref.read(dioProvider), ref.read(publicPhotoDiskCacheProvider), connection: ref.read(offlineConnectionProvider.notifier)).load(widget.url,
             cancelToken: cancel, backgroundByteLimit: ConditionalImagePrefetch.maxImageBytes,
             foregroundAttached: () => cache.hasForegroundLease(key), onReceivedBytes: counted, requirePublicResponse: true);
           counted(transfer.downloadedBytes);
@@ -307,7 +308,7 @@ class _ListingDraftPhotoState extends ConsumerState<_VisibleListingDraftPhoto> {
     } else {
     statistics.networkRequests++;
     try {
-      final result = await PublicPhotoLoader(ref.read(dioProvider), ref.read(publicPhotoDiskCacheProvider))
+      final result = await PublicPhotoLoader(ref.read(dioProvider), ref.read(publicPhotoDiskCacheProvider), connection: ref.read(offlineConnectionProvider.notifier))
         .load(widget.url, cancelToken: cancel);
       bytes = result.bytes;
       transferredBytes = result.downloadedBytes;

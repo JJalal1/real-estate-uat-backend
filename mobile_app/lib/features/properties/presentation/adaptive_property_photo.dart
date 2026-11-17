@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/adaptive_image_policy.dart';
 import '../../../core/platform/media_network_monitor.dart';
+import '../../../core/offline/offline_connection.dart';
 import 'listing_draft_photo.dart';
 
 class AdaptivePropertyPhoto extends ConsumerStatefulWidget {
@@ -44,11 +45,22 @@ class _AdaptivePropertyPhotoState extends ConsumerState<AdaptivePropertyPhoto> w
     final height = bounds.maxHeight.isFinite ? bounds.maxHeight : width;
     final edge = width > height ? width : height;
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    return FutureBuilder<ImageNetworkConditions>(future: _network, builder: (context, snapshot) {
+    final offline =
+            ref.watch(offlineConnectionProvider) == OfflineConnection.offline;
+        if (offline &&
+            const [PropertyImageUse.fullscreen, PropertyImageUse.zoom]
+                .contains(widget.use)) {
+          return const Center(
+              child: Text(
+                  'لا يوجد اتصال. فتح الصور الكبيرة والتكبير يحتاجان الإنترنت.',
+                  textAlign: TextAlign.center));
+        }
+        return FutureBuilder<ImageNetworkConditions>(initialData: ref.read(mediaNetworkMonitorProvider).current,
+            future: _network, builder: (context, snapshot) {
       if (!snapshot.hasData) { return const Center(child: SizedBox(width: 22, height: 22,
         child: CircularProgressIndicator(strokeWidth: 2))); }
       final monitor = ref.read(mediaNetworkMonitorProvider);
-      final variant = monitor.policy.choose(use: widget.use, logicalEdge: edge,
+      final variant = monitor.policy.choose(use: offline ? PropertyImageUse.card : widget.use, logicalEdge: edge,
         pixelRatio: dpr, network: snapshot.data!);
       return ListingDraftPhoto(key:ValueKey(_retryGeneration),url: AdaptiveImagePolicy.variantUrl(widget.url, variant),
         allowPrefetch: !widget.authenticated && widget.use == PropertyImageUse.card,

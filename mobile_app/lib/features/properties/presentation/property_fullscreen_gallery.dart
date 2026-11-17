@@ -1,3 +1,4 @@
+import '../../../core/offline/offline_connection.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -72,6 +73,17 @@ class _PropertyFullscreenGalleryState extends ConsumerState<PropertyFullscreenGa
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(offlineConnectionProvider) == OfflineConnection.offline)
+      return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+              appBar: AppBar(title: const Text('صور العقار')),
+              body: const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                          'لا يوجد اتصال. فتح الصور الكبيرة والتكبير يحتاجان الإنترنت.',
+                          textAlign: TextAlign.center)))));
     final gallery = Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       backgroundColor: Colors.black,
       body: Stack(fit: StackFit.expand, children: [

@@ -65,7 +65,7 @@ void main() {
     expect(await store.read(_url), isNull);
   });
 
-  test('cold restart validates ETag and ten returns transfer zero identical image bytes', () async {
+  test('cold restart renders stored preview and ten returns make zero image requests', () async {
     final first = cache(); await first.put(_url, bytes, _headers(), expectedEpoch: first.epoch);
     final requests = <RequestOptions>[];
     final dio = Dio();
@@ -78,7 +78,7 @@ void main() {
       final result = await PublicPhotoLoader(dio, cache()).load(_url, cancelToken: CancelToken());
       expect(result.bytes, bytes); expect(result.notModified, isTrue); transferred += result.downloadedBytes;
     }
-    expect(requests, hasLength(10));
+    expect(requests, isEmpty);
     expect(requests.every((request) => request.headers['If-None-Match'] == '"revision-one"'), isTrue);
     expect(transferred, 0);
     dio.close();
@@ -88,7 +88,7 @@ void main() {
     final store = cache(); await store.put(_url, bytes, _headers(), expectedEpoch: store.epoch);
     final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (request, handler) =>
       handler.resolve(Response<List<int>>(requestOptions: request, statusCode: 404, data: const []))));
-    await expectLater(PublicPhotoLoader(dio, store).load(_url, cancelToken: CancelToken()), throwsA(isA<DioException>()));
+    await expectLater(PublicPhotoLoader(dio, store).load(_url, cancelToken: CancelToken(), revalidate: true), throwsA(isA<DioException>()));
     expect(await store.read(_url), isNull); dio.close();
   });
 
@@ -100,11 +100,11 @@ void main() {
       handler.resolve(Response<List<int>>(requestOptions: request, statusCode: 200, data: replacement,
         headers: _headers(etag: '"revision-two"', control: private ? 'private, no-store' : 'public, max-age=86400')))));
     final loader = PublicPhotoLoader(dio, store);
-    final result = await loader.load(_url, cancelToken: CancelToken()); await store.idle;
+    final result = await loader.load(_url, cancelToken: CancelToken(), revalidate: true); await store.idle;
     expect(result.bytes, replacement); expect(result.downloadedBytes, 4); expect(result.notModified, isFalse);
     expect((await cache().read(_url))!.etag, '"revision-two"');
     private = true;
-    await loader.load(_url, cancelToken: CancelToken()); await store.idle;
+    await loader.load(_url, cancelToken: CancelToken(), revalidate: true); await store.idle;
     expect(await cache().read(_url), isNull); dio.close();
   });
 

@@ -1,3 +1,4 @@
+import '../../../core/offline/offline_store.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,11 +8,12 @@ import '../../../core/network/api_client.dart';
 import '../domain/auth_user.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return AuthRepository(ref.watch(dioProvider));
+  return AuthRepository(ref.watch(dioProvider), offlineStore: ref.watch(offlineStoreProvider));
 });
 
 class AuthRepository {
-  AuthRepository(this._dio);
+  AuthRepository(this._dio, {OfflineStore? offlineStore}): _offlineStore = offlineStore;
+  final OfflineStore? _offlineStore;
 
   final Dio _dio;
   final _store = Stage6SecureSessionStore.instance;
@@ -167,6 +169,9 @@ class AuthRepository {
       }
     } finally {
       if (token != null) await _store.deleteTokenIfMatches(token);
+    // Epoch fencing has already stopped late responses from refilling this
+      // snapshot space. Retained outboxes remain sealed to their own actor.
+      try { await _offlineStore?.clear('http_snapshots'); } catch (_) {}
     }
   }
 

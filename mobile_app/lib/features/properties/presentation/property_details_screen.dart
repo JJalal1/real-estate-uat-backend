@@ -1,3 +1,5 @@
+import '../../../core/offline/offline_connection.dart';
+import '../../messages/presentation/offline_message_composer.dart';
 import 'adaptive_property_photo.dart';
 import '../../../core/network/adaptive_image_policy.dart';
 import '../domain/rental_condition_summary.dart';
@@ -42,6 +44,7 @@ import 'property_favorite_status.dart';
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
   ref.watch(propertyDataRevisionProvider);
+  ref.watch(offlineResumeRevisionProvider);
   ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(propertyRepositoryProvider).details(propertyId);
 });
@@ -556,6 +559,14 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       await context.push('/verify-phone');
       return;
     }
+    if (ref.read(offlineConnectionProvider) == OfflineConnection.offline) {
+      await Navigator.of(context).push<void>(MaterialPageRoute(
+          builder: (_) => OfflineMessageComposer(
+              target: 'property',
+              targetId: property.id,
+              title: property.title)));
+      return;
+    }
     if (_startingConversation) return;
     setState(() => _startingConversation = true);
     try {
@@ -564,10 +575,15 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       ref.read(messageDataRevisionProvider.notifier).state++;
       if (mounted) await context.push('/messages/${thread.id}');
     } catch (error) {
-      if (mounted) {
+      if (mounted&& offlineTransportFailure(error)) {
+        await Navigator.of(context).push<void>(MaterialPageRoute(
+            builder: (_) => OfflineMessageComposer(
+                target: 'property',
+                targetId: property.id,
+                title: property.title)));
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(friendlyApiError(error))),
-        );
+          SnackBar(content: Text(friendlyApiError(error))));
       }
     } finally {
       if (mounted) setState(() => _startingConversation = false);

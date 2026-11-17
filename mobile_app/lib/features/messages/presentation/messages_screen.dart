@@ -1,3 +1,6 @@
+import '../../../core/offline/offline_connection.dart';
+import '../data/message_outbox.dart';
+import 'pending_message_card.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,6 +73,9 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
         _loading = actor != null;
       });
       if (actor != null) Future<void>.microtask(_load);
+    });
+    ref.listenManual(offlineResumeRevisionProvider, (_, __) {
+      if (mounted) Future.microtask(_load);
     });
     Future.microtask(_load);
   }
@@ -175,6 +181,9 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
       Future<void>.microtask(_load);
     }
 
+    final pending = _actor == null
+        ? <PendingMessage>[]
+        : ref.watch(messageOutboxProvider(_actor!));
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -185,6 +194,22 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
             key: ValueKey((_actor, _sessionEpoch, _query)),
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
+              if (pending.isNotEmpty)
+                SliverToBoxAdapter(
+                    child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text('رسائل هذا الجهاز',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.bold)),
+                              for (final message in pending)
+                                PendingMessageCard(
+                                    actor: _actor!,
+                                    message: message,
+                                    showTarget: true),
+                            ]))),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsetsDirectional.fromSTEB(

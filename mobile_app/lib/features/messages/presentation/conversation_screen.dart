@@ -1,5 +1,7 @@
+import '../../../core/offline/offline_connection.dart';
+import '../data/message_outbox.dart';
+import 'pending_message_card.dart';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -41,8 +43,6 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   bool _blocking = false;
   int _loadGeneration = 0;
   String? _error;
-  String? _pendingMessageKey;
-  String? _pendingMessageText;
   late final AccountRequestScope _scope;
 
   void _chooseQuickReply(String text) {
@@ -59,6 +59,12 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   void initState() {
     super.initState();
     _scope = ref.read(accountRequestScopeProvider);
+    ref.listenManual(messageDataRevisionProvider, (_, __) {
+      if (mounted && _scope.isCurrent) Future.microtask(_load);
+    });
+    ref.listenManual(offlineResumeRevisionProvider, (_, __) {
+      if (mounted && _scope.isCurrent) Future.microtask(_load);
+    });
     Future.microtask(_load);
   }
 
@@ -75,6 +81,16 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     try {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
+      if (!mounted || !_scope.isCurrent || generation != _loadGeneration)
+        return;
+      final actor = ref.read(authControllerProvider).asData?.value?.id;
+      if (actor != null)
+        await ref.read(messageOutboxProvider(actor).notifier).reconcile(
+            widget.threadId,
+            details.messages
+                .map((m) => m.clientMessageId)
+                .whereType<String>()
+                .toSet());
       if (!mounted || !_scope.isCurrent || generation != _loadGeneration) return;
       setState(() {
         _details = details;
@@ -133,31 +149,19 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     if (!mounted || !_scope.isCurrent) return;
     final text = _controller.text.trim();
     if (text.isEmpty || _sending || _loading || _blocking || _error != null || _details?.thread.canSend != true) return;
-    if (_pendingMessageText != null && _pendingMessageText != text) {
-      _pendingMessageKey = null;
-    }
-    final key = _pendingMessageKey ??
-        'm-${widget.threadId}-${DateTime.now().microsecondsSinceEpoch}';
-    _pendingMessageKey = key;
-    _pendingMessageText = text;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null ) return;
     setState(() => _sending = true);
     try {
-      await ref.read(messageRepositoryProvider).send(widget.threadId, text,
-          clientMessageId: key);
+      await ref.read(messageOutboxProvider(actor).notifier)
+          .enqueue('thread', widget.threadId, text);
       if (!mounted || !_scope.isCurrent) return;
-      ref.read(messageDataRevisionProvider.notifier).state++;
       _controller.clear();
-      _pendingMessageKey = null;
-      _pendingMessageText = null;
-      await _load();
     } catch (error) {
-      if (mounted && _scope.isCurrent) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
-                '${friendlyApiError(error)} يمكنك إعادة الإرسال بأمان ما دام النص لم يتغير.')));
-        if (error is DioException && error.response?.statusCode == 403) await _load();
-      }
-    } finally {
+                'تعذر حفظ الرسالة على الجهاز. النص باقٍ؛ أعد المحاولة.')));
+        } finally {
       if (mounted && _scope.isCurrent) setState(() => _sending = false);
     }
   }
@@ -402,15 +406,28 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   Widget _messageList() {
     final details = _details;
     final messages = details?.messages ?? const <PrivateMessageItem>[];
-    if (messages.isEmpty) {
-      return const Center(child: Text('ابدأ المحادثة برسالة محترمة وواضحة.'));
-    }
+    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    final pending = actor == null
+        ? <PendingMessage>[]
+        : ref
+            .watch(messageOutboxProvider(actor))
+            .where((m) =>
+                (m.threadId == widget.threadId ||
+                    m.target == 'thread' && m.targetId == widget.threadId) &&
+                !messages.any((row) => row.clientMessageId == m.id))
+            .toList()
+            .reversed
+            .toList();
+    if (messages.isEmpty&& pending.isEmpty) return const Center(child: Text('ابدأ المحادثة برسالة محترمة وواضحة.'));
     final hasOlder = details?.hasMore == true;
     return ListView.builder(
       reverse: true,
       padding: const EdgeInsets.all(14),
-      itemCount: messages.length + (hasOlder ? 1 : 0),
+      itemCount: pending.length + messages.length + (hasOlder ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index < pending.length)
+          return PendingMessageCard(actor: actor!, message: pending[index]);
+        index -= pending.length;
         if (hasOlder && index == messages.length) {
           return Center(
             child: TextButton.icon(
