@@ -42,13 +42,13 @@ class _OfflineMessageComposerState
     setState(() => _saving = true);
     try {
       await ref
-          .read(messageOutboxProvider(_actor!).notifier)
+          .read(messageOutboxProvider(_actor).notifier)
           .enqueue(widget.target, widget.targetId, _text.text);
       if (mounted) _text.clear();
     } catch (_) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('تعذر حفظ الرسالة. النص باقٍ؛ أعد المحاولة.')));
+        { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('تعذر حفظ الرسالة. النص باقٍ؛ أعد المحاولة.'))); }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -58,7 +58,7 @@ class _OfflineMessageComposerState
   Widget build(BuildContext context) {
     final actor = _actor;
     if (actor == null)
-      return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
+      { return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.'))); }
     final rows = ref
         .watch(messageOutboxProvider(actor))
         .where(

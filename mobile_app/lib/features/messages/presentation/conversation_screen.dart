@@ -82,15 +82,15 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
       final details =
           await ref.read(messageRepositoryProvider).details(widget.threadId);
       if (!mounted || !_scope.isCurrent || generation != _loadGeneration)
-        return;
+        { return; }
       final actor = ref.read(authControllerProvider).asData?.value?.id;
       if (actor != null)
-        await ref.read(messageOutboxProvider(actor).notifier).reconcile(
+        { await ref.read(messageOutboxProvider(actor).notifier).reconcile(
             widget.threadId,
             details.messages
                 .map((m) => m.clientMessageId)
                 .whereType<String>()
-                .toSet());
+                .toSet()); }
       if (!mounted || !_scope.isCurrent || generation != _loadGeneration) return;
       setState(() {
         _details = details;
@@ -158,9 +158,9 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
       if (!mounted || !_scope.isCurrent) return;
       _controller.clear();
     } catch (error) {
-      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      if (mounted && _scope.isCurrent) { ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(
-                'تعذر حفظ الرسالة على الجهاز. النص باقٍ؛ أعد المحاولة.')));
+                'تعذر حفظ الرسالة على الجهاز. النص باقٍ؛ أعد المحاولة.'))); }
         } finally {
       if (mounted && _scope.isCurrent) setState(() => _sending = false);
     }
@@ -426,7 +426,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
       itemCount: pending.length + messages.length + (hasOlder ? 1 : 0),
       itemBuilder: (context, index) {
         if (index < pending.length)
-          return PendingMessageCard(actor: actor!, message: pending[index]);
+          { return PendingMessageCard(actor: actor!, message: pending[index]); }
         index -= pending.length;
         if (hasOlder && index == messages.length) {
           return Center(

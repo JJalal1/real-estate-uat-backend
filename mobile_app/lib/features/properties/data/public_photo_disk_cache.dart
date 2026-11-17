@@ -37,7 +37,7 @@ class PublicPhotoDiskCache {
   bool needsValidation(String url) {
     final at = _validated[url];
     if (at != null && _clock().difference(at) < const Duration(minutes: 5))
-      return false;
+      { return false; }
     _validated[url] = _clock();
     return true;
   }
@@ -142,7 +142,7 @@ class PublicPhotoDiskCache {
       _knownCount = _knownCount! + (replacing ? 0 : 1);
       _knownBytes = _knownBytes! + bytes.lengthInBytes - oldBytes;
       if (_knownCount! > maxEntries || _knownBytes! > maxBytes)
-        await _trim(root);
+        { await _trim(root); }
     });
   }
 

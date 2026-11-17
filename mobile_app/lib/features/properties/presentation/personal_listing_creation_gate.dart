@@ -26,7 +26,7 @@ class PersonalListingCreationGate extends ConsumerWidget {
     // authoritative personal-property limit is checked again on upload.
     if (user != null &&
         ref.watch(offlineConnectionProvider) == OfflineConnection.offline)
-      return child;
+      { return child; }
     if (user == null || !user.isOwner || !user.hasVerifiedPublishingProfile) return child;
     final listings = ref.watch(myListingsProvider);
     final recovered = ref.watch(personalRecoveredListingIdProvider(user.id));

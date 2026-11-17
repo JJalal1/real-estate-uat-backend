@@ -2260,9 +2260,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _draftSavedExplicitly = true;
       final saved = await _writeLocalRecovery(manual: true);
       if (mounted && _sessionValid)
-        _message(saved
+        { _message(saved
             ? 'حُفظت البيانات والصور على الجهاز. أعد الاتصال ثم اضغط الحفظ أو الإرسال للمراجعة لرفعها.'
-            : 'تعذر الحفظ على الجهاز. بياناتك باقية هنا؛ أعد المحاولة.');
+            : 'تعذر الحفظ على الجهاز. بياناتك باقية هنا؛ أعد المحاولة.'); }
       return;
     }
     if (!_recoveryReady || !await _resolveRecoveredDraft()) return;

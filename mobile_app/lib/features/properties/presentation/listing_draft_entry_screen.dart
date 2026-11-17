@@ -170,17 +170,17 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
         // Never retire an unknown server recovery while disconnected. Preserve
         // even legacy/unclassified device work before opening a separate UUID.
         if (_local != null)
-          await _store.pinExplicitSave(widget.actor,
-              preserveUnclassified: true);
+          { await _store.pinExplicitSave(widget.actor,
+              preserveUnclassified: true); }
         if (_current)
-          setState(() {
+          { setState(() {
             _fresh = true;
             _selected = null;
             _editorLocal = null;
             _property = null;
             _assistant = false;
             _open = true;
-          });
+          }); }
         return;
       }
       if ((_localAutomatic || _automatic != null) &&

@@ -137,7 +137,7 @@ final homeLocationProvider = StateProvider<HomeLocation>((ref) => const HomeLoca
 final homeLocationAttemptedProvider = StateProvider<bool>((ref) => false);
 final homeLocationsProvider = FutureProvider<List<HomeLocation>>((ref) => ref.watch(marketplaceRepositoryProvider).locations());
 final marketplaceFeedProvider = FutureProvider.autoDispose.family<MarketplaceFeed, HomeFeedQuery>((ref, query) async {
-  final revision = ref.watch(propertyDataRevisionProvider)+ ref.watch(offlineResumeRevisionProvider);
+  final int revision = ref.watch<int>(propertyDataRevisionProvider) + ref.watch<int>(offlineResumeRevisionProvider);
   final transfer = CancelToken();
   ref.onDispose(() => transfer.cancel('Marketplace disposed'));
   return ref.watch(marketplaceRepositoryProvider).feed(query, cancelToken: transfer, cacheRevision: revision);

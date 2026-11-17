@@ -11,7 +11,7 @@ class OfflineHttpInterceptor extends Interceptor {
   bool eligible(RequestOptions r) {
     if (r.method != 'GET' ||
         r.responseType == ResponseType.bytes ||
-        r.uri.origin != Uri.parse(r.baseUrl).origin) return false;
+        r.uri.origin != Uri.parse(r.baseUrl).origin) { return false; }
     final path = r.uri.path.replaceFirst(Uri.parse(r.baseUrl).path, '');
     return const [
           '/marketplace',
@@ -70,14 +70,14 @@ class OfflineHttpInterceptor extends Interceptor {
         await store.read(space(r), 'latest_marketplace', private: true);
     if (latest == null ||
         jsonEncode(latest['semantics']) != jsonEncode(_semantics(r)))
-      return null;
+      { return null; }
     final context =
         ((latest['body'] as Map?)?['data'] as Map?)?['context'] as Map?;
     final code = r.queryParameters['governorate_code'],
         name = r.queryParameters['governorate'];
     if (code != null && context?['governorate_code'] != code) return null;
     if (code == null && name != null && context?['governorate'] != name)
-      return null;
+      { return null; }
     return latest;
   }
 
@@ -146,24 +146,24 @@ class OfflineHttpInterceptor extends Interceptor {
         await store.write(space(r), identity(r), record,
             private: true, current: () => _current(r));
         if (r.uri.path.endsWith('/marketplace') && !private(r))
-          await store.write(space(r), 'latest_marketplace', record,
-              private: true, current: () => _current(r));
+          { await store.write(space(r), 'latest_marketplace', record,
+              private: true, current: () => _current(r)); }
       } catch (_) {}
     }
     handler.next(response);
   }
 
   @override
-  void onError(DioException error, ErrorInterceptorHandler handler) async {
-    final r = error.requestOptions;
-    if (_current(r) && offlineTransportFailure(error)) connection.offline();
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    final r = err.requestOptions;
+    if (_current(r) && offlineTransportFailure(err)) connection.offline();
     if (eligible(r) && _current(r)) {
-      if (const [401, 403, 404, 410].contains(error.response?.statusCode)) {
+      if (const [401, 403, 404, 410].contains(err.response?.statusCode)) {
         await store.forget(space(r), identity(r));
         if (r.uri.path.endsWith('/auth/me') &&
-            const [401, 403].contains(error.response?.statusCode))
-          await store.clear('http_snapshots');
-      } else if (offlineTransportFailure(error)) {
+            const [401, 403].contains(err.response?.statusCode))
+          { await store.clear('http_snapshots'); }
+      } else if (offlineTransportFailure(err)) {
         connection.offline();
         final row = await _cached(r);
         if (_current(r) && row != null) {
@@ -172,6 +172,6 @@ class OfflineHttpInterceptor extends Interceptor {
         }
       }
     }
-    handler.next(error);
+    handler.next(err);
   }
 }

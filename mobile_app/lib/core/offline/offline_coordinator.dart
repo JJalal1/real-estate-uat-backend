@@ -81,7 +81,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
   void _queueSave() {
     if (_restoring ||
         ref.read(offlineConnectionProvider) != OfflineConnection.online ||
-        ref.read(authControllerProvider).isLoading) return;
+        ref.read(authControllerProvider).isLoading) { return; }
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 350), _saveDiscovery);
   }
@@ -89,7 +89,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
   Future<void> _saveDiscovery() async {
     if (!mounted ||
         _restoring ||
-        ref.read(offlineConnectionProvider) != OfflineConnection.online) return;
+        ref.read(offlineConnectionProvider) != OfflineConnection.online) { return; }
     final ui = ref.read(marketplaceSearchControllerProvider),
         location = ref.read(homeLocationProvider);
     final home = ref.read(homeSearchResultsProvider),
@@ -97,7 +97,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
     if (home.loading ||
         home.resultsError != null ||
         map.loading ||
-        map.resultsError != null) return;
+        map.resultsError != null) { return; }
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch,
         key = _actorKey;
     try {
@@ -140,7 +140,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
     if (!mounted ||
         _restoring ||
         ref.read(offlineConnectionProvider) != OfflineConnection.offline ||
-        ref.read(authControllerProvider).isLoading) return;
+        ref.read(authControllerProvider).isLoading) { return; }
     final key = _actorKey,
         epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     if (_restoredKey == key) return;
@@ -158,7 +158,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
       final search = ref.read(marketplaceSearchControllerProvider);
       if (search.active ||
           search.draftQuery.isNotEmpty ||
-          search.criteria.values.isNotEmpty) return;
+          search.criteria.values.isNotEmpty) { return; }
       _restoredKey = key;
       if (saved != null && saved['location'] is Map) {
         final place = saved['location'] as Map;
@@ -199,18 +199,18 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
           name = context['governorate']?.toString();
       if (location.manual &&
           location.governorateCode != null &&
-          code != location.governorateCode) return;
+          code != location.governorateCode) { return; }
       if (!location.manual && name != null)
-        ref.read(homeLocationProvider.notifier).state = HomeLocation(
+        { ref.read(homeLocationProvider.notifier).state = HomeLocation(
             governorate: name,
             governorateCode: code,
-            label: context['label']?.toString() ?? name);
+            label: context['label']?.toString() ?? name); }
       final filters = context['filters'];
       if (filters is Map)
-        ref
+        { ref
             .read(marketplaceSearchControllerProvider.notifier)
             .restoreOfflineHomeCriteria(SmartSearchFilters.fromApiFilters(
-                Map<String, dynamic>.from(filters)));
+                Map<String, dynamic>.from(filters))); }
     } catch (_) {
       /* Keep the visible journey if a snapshot cannot be restored. */
     } finally {

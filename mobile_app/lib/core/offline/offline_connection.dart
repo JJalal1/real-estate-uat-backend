@@ -27,12 +27,12 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
 
   void offline() {
     if (!_disposed && state != OfflineConnection.offline)
-      state = OfflineConnection.offline;
+      { state = OfflineConnection.offline; }
   }
 
   void online() {
     if (!_disposed && state != OfflineConnection.online)
-      state = OfflineConnection.online;
+      { state = OfflineConnection.online; }
   }
 
   Future<void> check({bool force = false}) =>
@@ -55,9 +55,9 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
           .get<dynamic>('/health')
           .timeout(const Duration(seconds: 4));
       if (r.statusCode == 200 && r.data is Map)
-        online();
+        { online(); }
       else
-        offline();
+        { offline(); }
     } catch (_) {
       offline();
     }

@@ -55,7 +55,7 @@ class _AdaptivePropertyPhotoState extends ConsumerState<AdaptivePropertyPhoto> w
                   'لا يوجد اتصال. فتح الصور الكبيرة والتكبير يحتاجان الإنترنت.',
                   textAlign: TextAlign.center));
         }
-        return FutureBuilder<ImageNetworkConditions>(initialData: ref.read(mediaNetworkMonitorProvider).current,
+        return FutureBuilder<ImageNetworkConditions>(initialData: ref.read(mediaNetworkMonitorProvider).latest,
             future: _network, builder: (context, snapshot) {
       if (!snapshot.hasData) { return const Center(child: SizedBox(width: 22, height: 22,
         child: CircularProgressIndicator(strokeWidth: 2))); }

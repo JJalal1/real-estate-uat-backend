@@ -114,9 +114,9 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
     if (!const ['thread', 'property', 'broker'].contains(target) ||
         id <= 0 ||
         text.isEmpty ||
-        text.length > 2000) throw ArgumentError('Invalid pending message');
+        text.length > 2000) { throw ArgumentError('Invalid pending message'); }
     if (state.where((row) => row.status != 'sent').length >= 100)
-      throw StateError('لديك 100 رسالة معلقة. أعد الاتصال أو احذف بعضها.');
+      { throw StateError('لديك 100 رسالة معلقة. أعد الاتصال أو احذف بعضها.'); }
     final random = Random.secure();
     final key =
         'offline-${DateTime.now().microsecondsSinceEpoch}-${List.generate(12, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
@@ -138,7 +138,7 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
     await initialize();
     if (!state
         .any((row) => row.threadId == thread && deliveredIds.contains(row.id)))
-      return;
+      { return; }
     await _edit((rows) => rows
         .where(
             (row) => row.threadId != thread || !deliveredIds.contains(row.id))
@@ -147,7 +147,7 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
 
   Future<void> cancel(String id) => _edit((rows) {
         if (rows.any((x) => x.id == id && x.status == 'sending'))
-          throw StateError('الرسالة قيد الإرسال.');
+          { throw StateError('الرسالة قيد الإرسال.'); }
         return rows.where((x) => x.id != id).toList();
       });
   Future<void> retry(String id) async {
@@ -178,11 +178,11 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
             item.threadId ?? await resolveThread(item.target, item.targetId);
         if (_disposed || !current() || !connected()) {
           if (!_disposed && current())
-            await _edit((rows) => rows
+            { await _edit((rows) => rows
                 .map((x) => x.id == item.id
                     ? x.copy(status: 'queued', threadId: thread)
                     : x)
-                .toList());
+                .toList()); }
           return;
         }
         // Persist the resolved destination before sending the original client ID.
@@ -251,7 +251,7 @@ final messageOutboxProvider = StateNotifierProvider.autoDispose
           ref.read(messageDataRevisionProvider.notifier).state++);
   unawaited(box.initialize().then((_) {
     if (ref.read(offlineConnectionProvider) == OfflineConnection.online &&
-        scope.isCurrent) unawaited(box.flush().catchError((Object _) {}));
+        scope.isCurrent) { unawaited(box.flush().catchError((Object _) {})); }
   }).catchError((Object _) {}));
   return box;
 });

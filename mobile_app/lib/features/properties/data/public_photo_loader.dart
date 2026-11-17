@@ -28,8 +28,8 @@ class PublicPhotoLoader {
     final small = const ['thumb', 'card', 'preview']
         .contains(Uri.tryParse(url)?.queryParameters['variant']);
     if (offline && !small)
-      throw StateError(
-          'لا يوجد اتصال. فتح الصور الكبيرة والتكبير يحتاجان الإنترنت.');
+      { throw StateError(
+          'لا يوجد اتصال. فتح الصور الكبيرة والتكبير يحتاجان الإنترنت.'); }
     var cached = await disk.read(url, allowStale: small || offline).timeout(const Duration(milliseconds: 300), onTimeout: () => null);
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
     if (offline && cached == null && small) {

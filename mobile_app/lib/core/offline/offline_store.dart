@@ -28,7 +28,7 @@ class OfflineStore {
   Future<void> get idle => _tail;
   Future<Directory> _root(String space) async {
     if (!RegExp(r'^[a-z_]+$').hasMatch(space))
-      throw ArgumentError('Invalid offline space');
+      { throw ArgumentError('Invalid offline space'); }
     final support =
         await (_directory?.call() ?? getApplicationSupportDirectory());
     final base = _directory == null && Platform.isAndroid
@@ -58,12 +58,12 @@ class OfflineStore {
         try {
           final f = File('${(await _root(space)).path}/${_key(identity)}.json');
           if (!await f.exists() || await f.length() > 2 * 1024 * 1024)
-            return null;
+            { return null; }
           var text = await f.readAsString();
           if (private)
-            text = await (open?.call(text) ??
+            { text = await (open?.call(text) ??
                 _channel.invokeMethod<String>(
-                    'openOfflineState', {'value': text}).then((v) => v!));
+                    'openOfflineState', {'value': text}).then((v) => v!)); }
           final row = jsonDecode(text);
           if (row is! Map ||
               row['identity'] != identity ||
@@ -73,7 +73,7 @@ class OfflineStore {
           }
           if (space != 'outbox' &&
               _clock().difference(DateTime.parse(row['at'] as String)) >
-                  const Duration(days: 30)) return null;
+                  const Duration(days: 30)) { return null; }
           return Map<String, dynamic>.from(row['data'] as Map);
         } catch (_) {
           if (strict) rethrow;
@@ -90,11 +90,11 @@ class OfflineStore {
           'data': data
         });
         if (utf8.encode(text).length > 768 * 1024)
-          throw StateError('Offline snapshot exceeds its bound');
+          { throw StateError('Offline snapshot exceeds its bound'); }
         if (private)
-          text = await (seal?.call(text) ??
+          { text = await (seal?.call(text) ??
               _channel.invokeMethod<String>(
-                  'sealOfflineState', {'value': text}).then((v) => v!));
+                  'sealOfflineState', {'value': text}).then((v) => v!)); }
         if (current?.call() == false) return;
         final root = await _root(space);
         await root.create(recursive: true);

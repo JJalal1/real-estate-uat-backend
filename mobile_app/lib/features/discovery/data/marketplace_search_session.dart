@@ -65,7 +65,7 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   Future<void> restoreOfflineSession(Map<String, dynamic> saved,
       {bool Function()? current}) async {
     if (state.active || state.draftQuery.isNotEmpty || home.snapshot.started)
-      return;
+      { return; }
     final criteria = SmartSearchFilters.fromMap(
         Map<String, dynamic>.from(saved['criteria'] as Map? ?? const {}));
     state = MarketplaceSearchUi(

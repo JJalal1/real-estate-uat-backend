@@ -74,7 +74,7 @@ class _PropertyFullscreenGalleryState extends ConsumerState<PropertyFullscreenGa
   @override
   Widget build(BuildContext context) {
     if (ref.watch(offlineConnectionProvider) == OfflineConnection.offline)
-      return Directionality(
+      { return Directionality(
           textDirection: TextDirection.rtl,
           child: Scaffold(
               appBar: AppBar(title: const Text('صور العقار')),
@@ -83,7 +83,7 @@ class _PropertyFullscreenGalleryState extends ConsumerState<PropertyFullscreenGa
                       padding: EdgeInsets.all(24),
                       child: Text(
                           'لا يوجد اتصال. فتح الصور الكبيرة والتكبير يحتاجان الإنترنت.',
-                          textAlign: TextAlign.center)))));
+                          textAlign: TextAlign.center))))); }
     final gallery = Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       backgroundColor: Colors.black,
       body: Stack(fit: StackFit.expand, children: [

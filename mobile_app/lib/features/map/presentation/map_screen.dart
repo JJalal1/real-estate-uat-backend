@@ -440,7 +440,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (_cameraRestored ||
         widget.hasInitialLocation ||
         ref.read(offlineConnectionProvider) != OfflineConnection.offline)
-      return false;
+      { return false; }
     _cameraRestored = true;
     final key = _offlineCameraKey,
         criteria = _cameraCriteria,
@@ -454,7 +454,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         generation != _viewportGeneration ||
         key != _offlineCameraKey ||
         criteria != _cameraCriteria ||
-        row?['criteria'] != criteria) return false;
+        row?['criteria'] != criteria) { return false; }
     final latitude = (row?['latitude'] as num?)?.toDouble(),
         longitude = (row?['longitude'] as num?)?.toDouble();
     final zoom = (row?['zoom'] as num?)?.toDouble(),
@@ -471,7 +471,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         zoom < 3 ||
         zoom > 19 ||
         tilt < 0 ||
-        tilt > 60) return false;
+        tilt > 60) { return false; }
     final controller = _mapController;
     if (controller == null) return false;
     _restoringCamera = true;
@@ -493,7 +493,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (_restoringCamera ||
         _selectingArea ||
         !_styleLoaded ||
-        ref.read(offlineConnectionProvider) != OfflineConnection.online) return;
+        ref.read(offlineConnectionProvider) != OfflineConnection.online) { return; }
     final camera = _mapController?.cameraPosition;
     if (camera == null) return;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch,
@@ -787,8 +787,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (mounted &&
           _mapMessage !=
               'غير متصل: النتائج من آخر نطاق محفوظ. المناطق غير المحفوظة تحتاج إلى الإنترنت.')
-        setState(() => _mapMessage =
-            'غير متصل: النتائج من آخر نطاق محفوظ. المناطق غير المحفوظة تحتاج إلى الإنترنت.');
+        { setState(() => _mapMessage =
+            'غير متصل: النتائج من آخر نطاق محفوظ. المناطق غير المحفوظة تحتاج إلى الإنترنت.'); }
       return;
     }
     final generation = ++_viewportGeneration;
@@ -1584,7 +1584,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final controller=_mapController;
     if(controller==null || !mounted || _fittingShared || _selectingArea||
         _restoringCamera ||
-        ref.read(offlineConnectionProvider) == OfflineConnection.offline)return;
+        ref.read(offlineConnectionProvider) == OfflineConnection.offline){ return; }
     try {
       final bounds=await controller.getVisibleRegion();
       if(!mounted || _fittingShared || (generation != null && generation != _viewportGeneration))return;
@@ -1660,7 +1660,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)
         { if (!_selectingArea&&
                               ref.read(offlineConnectionProvider) !=
-                                  OfflineConnection.offline) ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east); }))),
+                                  OfflineConnection.offline) { ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east); } }))),
       if (!_selectingArea) PropertyMapResultsSheet(items: rows, selectedId: _selected?.id, loading: state.loading,
         maxExtent: widget.resultsMaxExtent, collapsed: widget.collapseResults, filterPanel: toolbar,
         error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),

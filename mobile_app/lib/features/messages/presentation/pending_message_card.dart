@@ -29,8 +29,8 @@ class PendingMessageCard extends ConsumerWidget {
         }
       } catch (_) {
         if (context.mounted)
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('تعذر تحديث الرسالة المحفوظة. أعد المحاولة.')));
+          { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('تعذر تحديث الرسالة المحفوظة. أعد المحاولة.'))); }
       }
     }
 

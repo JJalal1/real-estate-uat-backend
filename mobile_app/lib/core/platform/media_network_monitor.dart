@@ -29,7 +29,7 @@ class MediaNetworkMonitor {
     return _pending = _read();
   }
   ImageNetworkConditions _current = const ImageNetworkConditions();
-  ImageNetworkConditions get current => _current;
+  ImageNetworkConditions get latest => _current;
   Future<ImageNetworkConditions> _read() async {
     try {
       final state = await channel.invokeMapMethod<String, dynamic>('imageNetworkState')
