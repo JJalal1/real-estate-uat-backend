@@ -77,6 +77,7 @@ class _DelayedOutboxStore extends OfflineStore {
   Future<Map<String, dynamic>?> read(String space, String identity,
       {bool private = false, bool strict = false}) {
     if (space != 'outbox') throw StateError('Unexpected store $space');
+    if (identity != 'actor:1') return Future.value(null);
     reads++;
     return pending.future;
   }
@@ -124,7 +125,13 @@ class _Harness {
     await container.read(authControllerProvider.future);
     await tester.pumpWidget(UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: ConversationScreen(threadId: 10))));
+        child: Consumer(builder: (context, ref, child) {
+          // Match OfflineCoordinator's real root ownership: the current actor's
+          // outbox stays alive before a conversation's first receipt/frame.
+          final actor = ref.watch(authControllerProvider).asData?.value?.id;
+          if (actor != null) ref.watch(messageOutboxProvider(actor));
+          return const MaterialApp(home: ConversationScreen(threadId: 10));
+        })));
     await tester.pumpAndSettle();
   }
 
