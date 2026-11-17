@@ -1,3 +1,4 @@
+import 'dart:async';
 import '../../../core/offline/offline_connection.dart';
 import '../data/message_outbox.dart';
 import 'pending_message_card.dart';
@@ -83,20 +84,23 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
           await ref.read(messageRepositoryProvider).details(widget.threadId);
       if (!mounted || !_scope.isCurrent || generation != _loadGeneration)
         { return; }
-      final actor = ref.read(authControllerProvider).asData?.value?.id;
-      if (actor != null)
-        { await ref.read(messageOutboxProvider(actor).notifier).reconcile(
-            widget.threadId,
-            details.messages
-                .map((m) => m.clientMessageId)
-                .whereType<String>()
-                .toSet()); }
-      if (!mounted || !_scope.isCurrent || generation != _loadGeneration) return;
       setState(() {
         _details = details;
         _loading = false;
         _error = null;
       });
+      // A received conversation must not wait for local outbox IO. The list
+      // already hides pending rows whose client IDs are present in this receipt;
+      // cleanup can finish independently without hiding authoritative messages.
+      final actor = ref.read(authControllerProvider).asData?.value?.id;
+      if (actor != null) {
+        unawaited(ref.read(messageOutboxProvider(actor).notifier).reconcile(
+            widget.threadId,
+            details.messages
+                .map((m) => m.clientMessageId)
+                .whereType<String>()
+                .toSet()).catchError((Object _) {}));
+      }
     } catch (error) {
       if (!mounted || !_scope.isCurrent || generation != _loadGeneration) return;
       setState(() {
