@@ -34,7 +34,7 @@ void main() {
     final home = scope.read(marketplaceSearchControllerProvider.notifier);
     home.edit('بحث Home القديم');
     home.applyFilters(SmartSearchFilters.fromMap({'type': 'villa', 'purpose': 'sale', 'max_price': 90000000}));
-    await Future<void>.delayed(Duration.zero);
+    await tester.pump();
     final parent = scope.read(homeSearchResultsProvider);
     await scope.read(smartSearchSessionProvider.notifier).replaceManually(
       SmartSearchFilters.fromMap({'search': 'بحث AI القديم', 'purpose': 'rent', 'min_bedrooms': 9}));
@@ -95,7 +95,7 @@ void main() {
     parent.edit('ذمار'); await parent.submit();
     final mapToken = parent.enterMap();
     parent.setChoice('purpose', 'rent', onMap: true);
-    await Future<void>.delayed(Duration.zero);
+    await tester.pump();
     final homeBefore = scope.read(homeSearchResultsProvider), mapBefore = scope.read(marketplaceMapResultsProvider);
     final production = scope.read(appRouterProvider);
     addTearDown(production.dispose);
