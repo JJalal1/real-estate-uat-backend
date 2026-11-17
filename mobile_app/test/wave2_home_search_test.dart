@@ -247,7 +247,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('published-search-submit'))); await tester.pumpAndSettle();
     final homeScroll=tester.widget<CustomScrollView>(find.byKey(const PageStorageKey('home-search-results'))).controller!;
     final open=tester.widget<TextButton>(find.byKey(const ValueKey('home-search-map'))).onPressed!;
+    final parentSnapshot = scope.read(homeSearchResultsProvider);
+    expect(parentSnapshot.rows, hasLength(12));
+    expect(scope.read(marketplaceSearchControllerProvider).editing, isFalse);
+    expect(homeScroll.position.maxScrollExtent, greaterThanOrEqualTo(150));
     homeScroll.jumpTo(150); await tester.pump();
+    expect(homeScroll.offset, 150);
     // The entry lives at the top of the result sliver. Invoke its real callback
     // without altering the saved scroll position to make the restoration check exact.
     open(); await tester.pumpAndSettle();
@@ -280,6 +285,9 @@ void main() {
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'),isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['south'],15);
     navigation.pop(); await tester.pumpAndSettle();
+    expect(identical(scope.read(homeSearchResultsProvider), parentSnapshot), isTrue);
+    expect(scope.read(marketplaceSearchControllerProvider).editing, isFalse);
+    expect(homeScroll.position.maxScrollExtent, greaterThanOrEqualTo(150));
     expect(homeScroll.offset,150);
     expect(tester.widget<TextField>(find.byKey(const ValueKey('home-search'))).controller!.text,'ش');
     expect(tester.takeException(),isNull); await closeUx(tester);

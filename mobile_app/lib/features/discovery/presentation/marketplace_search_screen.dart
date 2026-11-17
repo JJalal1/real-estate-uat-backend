@@ -35,7 +35,14 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
     final owner = ref.read(marketplaceSearchControllerProvider.notifier);
     final journey = owner.enterMap();
     try { await context.push('/marketplace-search-map'); }
-    finally { owner.leaveMap(journey); _openingMap = false; _restoreMapOffset(); }
+    finally {
+      owner.leaveMap(journey);
+      _openingMap = false;
+      // Returning restores the route's previous focus history as well as its
+      // scroll. Release the editor before its caret can reveal the old input.
+      if (mounted) FocusScope.of(context).unfocus();
+      _restoreMapOffset();
+    }
   }
 
   void _restoreMapOffset() {

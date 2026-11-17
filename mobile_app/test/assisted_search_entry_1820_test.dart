@@ -119,8 +119,8 @@ void main() {
     expect(accepted.filters.values['max_price'], 100000);
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));
     await tester.tap(find.byKey(const ValueKey('smart-search-map'))); await tester.pumpAndSettle();
-    expect(tester.widget<MapScreen>(find.byType(MapScreen)).cameraCenterHint!.latitude, 13.58);
-    expect(tester.widget<MapScreen>(find.byType(MapScreen)).cameraCenterHint!.longitude, 44.02);
+    expect(tester.widget<MapScreen>(find.byType(MapScreen)).cameraCenterHint!.latitude, closeTo(13.58, 1e-9));
+    expect(tester.widget<MapScreen>(find.byType(MapScreen)).cameraCenterHint!.longitude, closeTo(44.02, 1e-9));
     await tester.tap(find.byKey(const ValueKey('map-smart-search'))); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('smart-search-list')), findsNothing);
     final withinJourney = scope.read(smartSearchSessionProvider);

@@ -50,8 +50,8 @@ void main() {
     await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
     await tester.pump();
     final map = tester.widget<MapScreen>(find.byType(MapScreen));
-    expect(map.cameraCenterHint!.latitude, 14.5428);
-    expect(map.cameraCenterHint!.longitude, 44.4051);
+    expect(map.cameraCenterHint!.latitude, closeTo(14.5428, 1e-9));
+    expect(map.cameraCenterHint!.longitude, closeTo(44.4051, 1e-9));
     expect(scope.read(marketplaceMapResultsProvider).filters.values['governorate_code'], 'DH');
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('south'), isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('radius_km'), isFalse);

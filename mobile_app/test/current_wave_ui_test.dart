@@ -23,6 +23,18 @@ class CountingDescriptionAi extends Wave6Ai {
     return pending?.future??Future.value({'description':'منزل للبيع من الحقائق المدخلة.'});
   }
 }
+
+class _LocationMarketplace extends Wave3MarketplaceFake {
+  _LocationMarketplace() : super(onFeed: (query) async =>
+      MarketplaceFeed(label: query.governorate ?? 'صنعاء', governorate: query.governorate));
+
+  @override
+  Future<HomeLocation> resolveLocation(HomeLocation fix) async => HomeLocation(
+    latitude: fix.latitude, longitude: fix.longitude, accuracyMetres: fix.accuracyMetres,
+    governorate: 'عدن', governorateCode: 'ADEN', label: 'عدن', device: true,
+  );
+}
+
 void main() {
   for(final scale in [1.0,2.4]) {
     testWidgets('current wave Sai defaults to fixed, spells the amount and caps percentages at scale $scale',(tester) async {
@@ -62,7 +74,7 @@ void main() {
   });
   testWidgets('explicit home location permission updates the real feed query and manual city persists',(tester)async {
     final store=MemoryLocationStore(),access=FakeLocationAccess()..decision=LocationPermission.whileInUse;
-    final repository=Wave3MarketplaceFake(onFeed:(q)async=>MarketplaceFeed(label:q.governorate??(q.device?'عدن':'صنعاء')));
+    final repository=_LocationMarketplace();
     await pumpWave6(tester,const MarketplaceHomeScreen(),allowLocation:true,locationStore:store,locationAccess:access,marketplace:repository);
     expect(access.requests,0);expect(repository.queries.last.device,false);
     expect(find.byKey(const ValueKey('location-introduction-device')), findsNothing);
