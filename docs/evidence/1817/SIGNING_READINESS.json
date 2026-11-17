@@ -1,0 +1,22 @@
+{
+  "present": {
+    "keystore": true,
+    "store_password": true,
+    "key_alias": true,
+    "key_password": true,
+    "certificate_pin": true
+  },
+  "approved_certificate_pin_matches": true,
+  "approved_for_delivery": true,
+  "github_secret_storage_verified": true,
+  "certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+  "package": "com.aqer.yemen.uat.offline",
+  "compatible": true,
+  "status": "configuration_present_pending_private_key_validation",
+  "signing_material_verified": false,
+  "apk_built": false,
+  "transition_from_1815": "one_time_clean_install_required",
+  "upgrade_from_1815_compatible": false,
+  "installed_device_upgrade_tested": false,
+  "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1"
+}

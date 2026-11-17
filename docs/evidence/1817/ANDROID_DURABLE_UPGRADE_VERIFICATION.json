@@ -1,0 +1,55 @@
+{
+  "passed": true,
+  "status": "passed",
+  "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+  "package": "com.aqer.yemen.uat.offline",
+  "signer_certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+  "android_api": 36,
+  "environment": "disposable_rooted_emulator",
+  "physical_phone_acceptance": false,
+  "real_account_data_used": false,
+  "live_business_api_used": false,
+  "signing_material_used_in_probe": false,
+  "keystore_or_signed_in_session_migration_tested": false,
+  "cleanup_failures": [],
+  "limits": "Ordinary APK install-replace and synthetic private file preservation only; not the one-time removal of 1815, real user data migration, cryptographic key migration, or handset acceptance.",
+  "baseline": {
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+    "package": "com.aqer.yemen.uat.offline",
+    "version_code": 1816,
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "signer_certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+    "sha256": "0365b904eb345a569a23a02faaf67d118513ce321877b243c843f91370370e4d",
+    "bytes": 120125418
+  },
+  "upgrade": {
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+    "package": "com.aqer.yemen.uat.offline",
+    "version_code": 1817,
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "signer_certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+    "sha256": "4c6141d08c045a23c63ee183b3bdb339de51ec1f58ae3f34aec014685764eda1",
+    "bytes": 120125414
+  },
+  "package_absent_before_first_install": true,
+  "network_isolation": "verified IPv4 and IPv6 OUTPUT reject rules scoped to the fresh application UID; no network interface validation claim",
+  "same_certificate": true,
+  "baseline_install": {
+    "version_code": 1816,
+    "uid": 10216,
+    "first_install_time": "2026-11-17 12:38:41"
+  },
+  "upgrade_install": {
+    "version_code": 1817,
+    "uid": 10216,
+    "first_install_time": "2026-11-17 12:38:41"
+  },
+  "uid_preserved": true,
+  "first_install_time_preserved": true,
+  "private_fixture_sha256": {
+    "files/aqer_theme_mode.txt": "e6bb5689beec52c4672bd4df92c3613d128d30cdc2b704f76953fe43d89c4ae8",
+    "no_backup/listing_recovery/u999999/p0/state.json": "769c3f52334694b489ed0d1f3b292d86fc08040a78d5bbbcc1c42ea3ee538cf0"
+  },
+  "ordinary_baseline_and_upgrade_launch_passed": true,
+  "uninstall_or_clear_data_used": false
+}

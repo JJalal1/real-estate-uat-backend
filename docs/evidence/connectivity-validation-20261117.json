@@ -1,142 +1,308 @@
 {
-  "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
+  "schema": 2,
+  "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+  "version_code": 1817,
   "mobile_component": "bd84496bf2512f6402190639e4f92ac040c4dff3",
   "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
-  "ci_run": 44068966637,
-  "test_job": 133989946948,
+  "ci_run": 44081151224,
+  "test_job": 134031928111,
+  "strict_analysis": "passed",
   "flutter_tests": 221,
-  "python_tests": 23,
-  "strict_analysis": "passed;0pre-existing INFOs",
+  "python_tests": 49,
+  "python_breakdown": {
+    "importer": 23,
+    "identity": 12,
+    "upgrade_guards": 14
+  },
   "test_outcome": "passed",
-  "signing_readiness": {
-    "apk_built": false,
-    "compatible": false,
-    "duplicate_apk_created": false,
-    "installed_certificate_pin_matches": false,
-    "installed_device_upgrade_tested": false,
-    "present": {
-      "certificate_pin": false,
-      "key_alias": false,
-      "key_password": false,
-      "keystore": false,
-      "store_password": false
+  "ci": {
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+    "ci_run_id": 44081151224,
+    "tests": {
+      "job_id": 134031928111,
+      "conclusion": "success",
+      "strict_analysis": "passed",
+      "flutter_passed": 221,
+      "python_importer_passed": 23,
+      "python_policy_passed": 12,
+      "python_upgrade_guard_passed": 14
     },
+    "jobs": {
+      "build_1816": {
+        "job_id": 134033156108,
+        "conclusion": "success"
+      },
+      "build_1817": {
+        "job_id": 134038356405,
+        "conclusion": "success"
+      },
+      "durable_upgrade": {
+        "job_id": 134042866377,
+        "conclusion": "success"
+      }
+    },
+    "artifacts": {
+      "1816": {
+        "id": 14326894103,
+        "archive_sha256": "87eb788c594d2cfb4cf4792b542a08bfbebc9f3663bbc104e71a43ab90f835c6"
+      },
+      "1817": {
+        "id": 14328756670,
+        "archive_sha256": "ad711d6e9471d0cd0e8540a69aa4da7f41468df6d3ba83513a5aad605d443b34"
+      },
+      "durable_upgrade": {
+        "id": 14328672618,
+        "archive_sha256": "fff984dc729204e9bc2a7a381b60d61170c901eac49c02c7bbfe3f54699dd087"
+      }
+    }
+  },
+  "signing_readiness": {
+    "present": {
+      "keystore": true,
+      "store_password": true,
+      "key_alias": true,
+      "key_password": true,
+      "certificate_pin": true
+    },
+    "approved_certificate_pin_matches": true,
+    "approved_for_delivery": true,
+    "github_secret_storage_verified": true,
+    "certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+    "package": "com.aqer.yemen.uat.offline",
+    "compatible": true,
+    "status": "configuration_present_pending_private_key_validation",
     "signing_material_verified": false,
-    "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
-    "status": "blocked_missing_or_mismatched_installed_signer"
+    "apk_built": false,
+    "transition_from_1815": "one_time_clean_install_required",
+    "upgrade_from_1815_compatible": false,
+    "installed_device_upgrade_tested": false,
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1"
   },
-  "installer_status": "blocked_no_matching_key_configured",
-  "installer_built": false,
-  "installer_delivered": false,
-  "native_run": 44068228464,
-  "native_job": 133987549256,
-  "native_artifact_id": 14321752935,
-  "native_zip_sha256": "89aa2451a7e5e4a4d7e8f217b72eeec29b6066814a15f22a48f1f5d40cbf2d7a",
-  "native_receipt": {
+  "installer_status": "ready_verified_1817",
+  "installer_built": true,
+  "deliveryfilesavailable": true,
+  "installer": {
+    "artifact_filename": "AQER-UAT-1817-Connectivity-Fix.apk",
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+    "version_code": 1817,
+    "package": "com.aqer.yemen.uat.offline",
+    "sha256": "4c6141d08c045a23c63ee183b3bdb339de51ec1f58ae3f34aec014685764eda1",
+    "bytes": 120125414,
+    "signer_certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api"
+  },
+  "shipping_receipt": "1817/AQER-UAT-1817-Connectivity-Receipt.json",
+  "build_receipts": {
+    "1816": "1817/APK_VERIFICATION_1816.json",
+    "1817": "1817/APK_VERIFICATION_1817.json"
+  },
+  "emulator_upgrade": {
     "passed": true,
-    "status": "passed",
-    "source_commit": "7b6af7ad6b247eecf40fe356a3a782328f031fe2",
-    "mobile_component": "f155dac61fca65f7052d1384208c7b55a3b0e904",
+    "raw_receipt": "1817/ANDROID_DURABLE_UPGRADE_VERIFICATION.json",
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+    "environment": "disposable_rooted_emulator",
+    "android_api": 36,
+    "from_version": 1816,
+    "to_version": 1817,
+    "same_certificate": true,
+    "uid": 10216,
+    "uid_preserved": true,
+    "first_install_time": "2026-11-17 12:38:41",
+    "first_install_time_preserved": true,
+    "ordinary_baseline_and_upgrade_launch_passed": true,
+    "synthetic_private_fixture_sha256": {
+      "files/aqer_theme_mode.txt": "e6bb5689beec52c4672bd4df92c3613d128d30cdc2b704f76953fe43d89c4ae8",
+      "no_backup/listing_recovery/u999999/p0/state.json": "769c3f52334694b489ed0d1f3b292d86fc08040a78d5bbbcc1c42ea3ee538cf0"
+    },
+    "uninstall_or_clear_data_used": false,
+    "scope": "Ordinary APK install-replace and synthetic private file preservation only; not the one-time removal of 1815, real user data migration, cryptographic key migration, or handset acceptance."
+  },
+  "transition_from_1815": {
+    "single_installer_for_owner": true,
+    "delivered_version": 1817,
+    "baseline_1816_is_internal_upgrade_test_input_only": true,
+    "one_time_remove_1815_then_install_1817_directly": true,
+    "same_package_as_1815": true,
+    "same_certificate_as_1815": false,
+    "previous_1815_certificate_sha256": "a157c63cd37090cebac83d2a2786e1e3342a8b09f17daeea30e93a5cbd65796f",
+    "new_durable_certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+    "upgrade_from_1815_compatible": false,
+    "owner_confirmed_no_local_drafts_or_pending_messages": true,
+    "local_1815_data_or_session_migration_claimed": false,
+    "account_server_records": "Sign in to access authenticated account records on the server; this is separate from local file/session/Keystore migration."
+  },
+  "uat_backend_compatibility": {
+    "deployment_id": "dep-dbtpbo88v5cc73av6o20",
     "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
-    "package": "com.aqer.yemen.uat.offlineprobe",
-    "probe_apk_sha256": "ddac14d2fab725b7eaaf99a5fa8a9299891280098ef15b26c8ac7f575784feb7",
-    "api": "synthetic.invalid; Dart sockets denied",
-    "process_launches": 3,
-    "events": [
-      {
-        "phase": 1,
-        "passed": true,
-        "http_calls": 5,
-        "synthetic_sends": 0
-      },
-      {
-        "phase": 2,
-        "passed": true,
-        "http_calls": 0,
-        "synthetic_sends": 0
-      },
-      {
-        "phase": 3,
-        "passed": true,
-        "http_calls": 0,
-        "synthetic_sends": 3
-      }
-    ],
-    "network_controls": [
-      {
-        "phase": 1,
-        "service": "wifi",
-        "mode": "enable",
-        "returncode": 0
-      },
-      {
-        "phase": 1,
-        "service": "data",
-        "mode": "enable",
-        "returncode": 0
-      },
-      {
-        "phase": 2,
-        "service": "wifi",
-        "mode": "disable",
-        "returncode": 0
-      },
-      {
-        "phase": 2,
-        "service": "data",
-        "mode": "disable",
-        "returncode": 0
-      },
-      {
-        "phase": 3,
-        "service": "wifi",
-        "mode": "enable",
-        "returncode": 0
-      },
-      {
-        "phase": 3,
-        "service": "data",
-        "mode": "enable",
-        "returncode": 0
-      }
-    ],
-    "native_failures": [],
-    "cleanup_failures": [],
-    "checks": [
-      "native_keystore_restart",
-      "native_cipher_tamper_rejected",
-      "encrypted_snapshots_at_rest",
-      "http_snapshot_restart_without_network",
-      "small_photo_restart_without_network",
-      "large_photo_offline_blocked",
-      "manual_fields_and_copied_photos_restart",
-      "outbox_actor_isolation",
-      "pending_no_send_offline",
-      "reconnect_same_client_id_after_lost_ack",
-      "native_map_offline_channel"
-    ],
-    "physical_phone_acceptance": false,
-    "public_map_tiles_or_gestures_tested": false,
-    "live_account_or_business_api_used": false
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "read_only_verified": true,
+    "redeployed_for_this_followup": false,
+    "checked_at": "2026-11-17T15:41:30.271019+03:00"
   },
-  "native_source_equivalence": {
-    "native_source": "7b6af7ad6b247eecf40fe356a3a782328f031fe2",
-    "same_full_mobile_tree": false,
-    "runtime_files_identical": true,
-    "backend_component_identical": true,
-    "differences": [
-      "mobile_app/test/offline_connection_detection_test.dart"
-    ],
-    "meaning": "Only fake-time test scheduling differs; no runtime/build/dependency difference.",
-    "tested_source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45"
+  "historical": {
+    "connectivity_source_73acc7e_and_native_7b6af7a": {
+      "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
+      "mobile_component": "bd84496bf2512f6402190639e4f92ac040c4dff3",
+      "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+      "ci_run": 44068966637,
+      "test_job": 133989946948,
+      "flutter_tests": 221,
+      "python_tests": 23,
+      "strict_analysis": "passed;0pre-existing INFOs",
+      "test_outcome": "passed",
+      "signing_readiness": {
+        "apk_built": false,
+        "compatible": false,
+        "duplicate_apk_created": false,
+        "installed_certificate_pin_matches": false,
+        "installed_device_upgrade_tested": false,
+        "present": {
+          "certificate_pin": false,
+          "key_alias": false,
+          "key_password": false,
+          "keystore": false,
+          "store_password": false
+        },
+        "signing_material_verified": false,
+        "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
+        "status": "blocked_missing_or_mismatched_installed_signer"
+      },
+      "installer_status": "blocked_no_matching_key_configured",
+      "installer_built": false,
+      "installer_delivered": false,
+      "native_run": 44068228464,
+      "native_job": 133987549256,
+      "native_artifact_id": 14321752935,
+      "native_zip_sha256": "89aa2451a7e5e4a4d7e8f217b72eeec29b6066814a15f22a48f1f5d40cbf2d7a",
+      "native_receipt": {
+        "passed": true,
+        "status": "passed",
+        "source_commit": "7b6af7ad6b247eecf40fe356a3a782328f031fe2",
+        "mobile_component": "f155dac61fca65f7052d1384208c7b55a3b0e904",
+        "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+        "package": "com.aqer.yemen.uat.offlineprobe",
+        "probe_apk_sha256": "ddac14d2fab725b7eaaf99a5fa8a9299891280098ef15b26c8ac7f575784feb7",
+        "api": "synthetic.invalid; Dart sockets denied",
+        "process_launches": 3,
+        "events": [
+          {
+            "phase": 1,
+            "passed": true,
+            "http_calls": 5,
+            "synthetic_sends": 0
+          },
+          {
+            "phase": 2,
+            "passed": true,
+            "http_calls": 0,
+            "synthetic_sends": 0
+          },
+          {
+            "phase": 3,
+            "passed": true,
+            "http_calls": 0,
+            "synthetic_sends": 3
+          }
+        ],
+        "network_controls": [
+          {
+            "phase": 1,
+            "service": "wifi",
+            "mode": "enable",
+            "returncode": 0
+          },
+          {
+            "phase": 1,
+            "service": "data",
+            "mode": "enable",
+            "returncode": 0
+          },
+          {
+            "phase": 2,
+            "service": "wifi",
+            "mode": "disable",
+            "returncode": 0
+          },
+          {
+            "phase": 2,
+            "service": "data",
+            "mode": "disable",
+            "returncode": 0
+          },
+          {
+            "phase": 3,
+            "service": "wifi",
+            "mode": "enable",
+            "returncode": 0
+          },
+          {
+            "phase": 3,
+            "service": "data",
+            "mode": "enable",
+            "returncode": 0
+          }
+        ],
+        "native_failures": [],
+        "cleanup_failures": [],
+        "checks": [
+          "native_keystore_restart",
+          "native_cipher_tamper_rejected",
+          "encrypted_snapshots_at_rest",
+          "http_snapshot_restart_without_network",
+          "small_photo_restart_without_network",
+          "large_photo_offline_blocked",
+          "manual_fields_and_copied_photos_restart",
+          "outbox_actor_isolation",
+          "pending_no_send_offline",
+          "reconnect_same_client_id_after_lost_ack",
+          "native_map_offline_channel"
+        ],
+        "physical_phone_acceptance": false,
+        "public_map_tiles_or_gestures_tested": false,
+        "live_account_or_business_api_used": false
+      },
+      "native_source_equivalence": {
+        "native_source": "7b6af7ad6b247eecf40fe356a3a782328f031fe2",
+        "same_full_mobile_tree": false,
+        "runtime_files_identical": true,
+        "backend_component_identical": true,
+        "differences": [
+          "mobile_app/test/offline_connection_detection_test.dart"
+        ],
+        "meaning": "Only fake-time test scheduling differs; no runtime/build/dependency difference.",
+        "tested_source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45"
+      },
+      "phone_after_fix_acceptance": false,
+      "upgrade_on_installed_device_tested": false,
+      "server_redeployed": false,
+      "main_pr185_production_changed": false,
+      "remaining": [
+        "Matching1815 privatekey provisioning, or explicit one-time transition to a durable UAT key with local-data protection",
+        "Build and verify installable APK",
+        "Physical handset verification of reported WiFi case and update/data retention"
+      ]
+    }
   },
+  "historical_raw_native_receipt_preserved": "connectivity-native-20261117.json",
   "phone_after_fix_acceptance": false,
-  "upgrade_on_installed_device_tested": false,
+  "upgrade_on_installed_owner_device_tested": false,
+  "real_user_data_or_keystore_or_session_migration_tested": false,
   "server_redeployed": false,
   "main_pr185_production_changed": false,
   "remaining": [
-    "Matching1815 privatekey provisioning, or explicit one-time transition to a durable UAT key with local-data protection",
-    "Build and verify installable APK",
-    "Physical handset verification of reported WiFi case and update/data retention"
-  ]
+    "Physical owner-handset verification of the reported WiFi case and actual install.",
+    "Weak-network timing, map tile availability, real finger gestures and known-building GPS accuracy remain unmeasured.",
+    "No acceptance claim for migration of old1815 local data, signed-in session or Keystore keys."
+  ],
+  "prior_acceptance": {
+    "prior_phase_status": "28/32",
+    "voice_27": "owner-deferred",
+    "item_11": "technical hold",
+    "items_3_21": "excluded",
+    "accepted_journeys_reopened": false,
+    "main_pr185_production_changed": false,
+    "backend_redeployed": false,
+    "map_provider_changed": false
+  },
+  "browser_screenshots_in_repository": false
 }
