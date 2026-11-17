@@ -48,7 +48,8 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
       return;
     }
     if (!_applyPriceRange()) return;
-    FocusScope.of(context).unfocus();
+    // Clear the editor's focus history before a later push can restore it.
+    FocusManager.instance.primaryFocus?.unfocus();
     await controller.submit(onMap: widget.onMap);
   }
   Future<void> _editFilters([String? focus]) async {

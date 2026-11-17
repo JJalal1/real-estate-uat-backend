@@ -289,7 +289,9 @@ void main() {
     expect(scope.read(marketplaceSearchControllerProvider).editing, isFalse);
     expect(homeScroll.position.maxScrollExtent, greaterThanOrEqualTo(150));
     expect(homeScroll.offset,150);
-    expect(tester.widget<TextField>(find.byKey(const ValueKey('home-search'))).controller!.text,'ش');
+    final restoredQuery = tester.widget<TextField>(find.byKey(const ValueKey('home-search')));
+    expect(restoredQuery.controller!.text, 'ش');
+    expect(restoredQuery.focusNode!.hasFocus, isFalse);
     expect(tester.takeException(),isNull); await closeUx(tester);
   });
 
