@@ -1,0 +1,87 @@
+{
+  "passed": true,
+  "status": "passed",
+  "source_commit": "c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+  "mobile_component": "9722ae81c0595ae217ce7fd4c600157d0608fe35",
+  "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+  "package": "com.aqer.yemen.uat.offlineprobe",
+  "probe_apk_sha256": "9472f445e8405ee0432d539794f2ada5d3395d96a04260e6fd267d435c0fc3bc",
+  "api": "synthetic.invalid; Dart sockets denied",
+  "process_launches": 3,
+  "events": [
+    {
+      "phase": 1,
+      "passed": true,
+      "http_calls": 5,
+      "synthetic_sends": 0
+    },
+    {
+      "phase": 2,
+      "passed": true,
+      "http_calls": 0,
+      "synthetic_sends": 0
+    },
+    {
+      "phase": 3,
+      "passed": true,
+      "http_calls": 0,
+      "synthetic_sends": 3
+    }
+  ],
+  "network_controls": [
+    {
+      "phase": 1,
+      "service": "wifi",
+      "mode": "enable",
+      "returncode": 0
+    },
+    {
+      "phase": 1,
+      "service": "data",
+      "mode": "enable",
+      "returncode": 0
+    },
+    {
+      "phase": 2,
+      "service": "wifi",
+      "mode": "disable",
+      "returncode": 0
+    },
+    {
+      "phase": 2,
+      "service": "data",
+      "mode": "disable",
+      "returncode": 0
+    },
+    {
+      "phase": 3,
+      "service": "wifi",
+      "mode": "enable",
+      "returncode": 0
+    },
+    {
+      "phase": 3,
+      "service": "data",
+      "mode": "enable",
+      "returncode": 0
+    }
+  ],
+  "native_failures": [],
+  "cleanup_failures": [],
+  "checks": [
+    "native_keystore_restart",
+    "native_cipher_tamper_rejected",
+    "encrypted_snapshots_at_rest",
+    "http_snapshot_restart_without_network",
+    "small_photo_restart_without_network",
+    "large_photo_offline_blocked",
+    "manual_fields_and_copied_photos_restart",
+    "outbox_actor_isolation",
+    "pending_no_send_offline",
+    "reconnect_same_client_id_after_lost_ack",
+    "native_map_offline_channel"
+  ],
+  "physical_phone_acceptance": false,
+  "public_map_tiles_or_gestures_tested": false,
+  "live_account_or_business_api_used": false
+}

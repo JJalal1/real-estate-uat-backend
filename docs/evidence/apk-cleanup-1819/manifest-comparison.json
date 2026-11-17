@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "package": "com.aqer.yemen.uat.offline",
+  "baseline": {
+    "filename": "AQER-UAT-1817-Durable-Update.apk",
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+    "version_code": 1817,
+    "sha256": "4c6141d08c045a23c63ee183b3bdb339de51ec1f58ae3f34aec014685764eda1",
+    "bytes": 120125414,
+    "manifest_node_count": 93,
+    "uses_permission_count": 10,
+    "declared_permission_count": 1,
+    "component_counts": {
+      "activity": 4,
+      "activity-alias": 0,
+      "service": 7,
+      "receiver": 3,
+      "provider": 3
+    },
+    "extract_native_libs": false
+  },
+  "candidate_comparisons": [
+    {
+      "apk": {
+        "filename": "AQER-UAT-1818-Clean.apk",
+        "source_commit": "c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+        "version_code": 1818,
+        "sha256": "9a3923693cf8c278c80bae8a414833f92107fb887df07097f599f1b92fed4ca4",
+        "bytes": 104022511,
+        "manifest_node_count": 93,
+        "uses_permission_count": 10,
+        "declared_permission_count": 1,
+        "component_counts": {
+          "activity": 4,
+          "activity-alias": 0,
+          "service": 7,
+          "receiver": 3,
+          "provider": 3
+        },
+        "extract_native_libs": false
+      },
+      "all_other_elements_typed_attributes_resource_ids_and_order_equal": true,
+      "permissions_components_export_flags_intent_filters_and_deeplink_data_exactly_equal": true,
+      "actual_allowed_differences": [
+        {
+          "path": "/manifest",
+          "attribute": "{http://schemas.android.com/apk/res/android}versionCode",
+          "baseline": {
+            "type": 16,
+            "value": 1817,
+            "resource_id": 16843291
+          },
+          "candidate": {
+            "type": 16,
+            "value": 1818,
+            "resource_id": 16843291
+          }
+        }
+      ]
+    },
+    {
+      "apk": {
+        "filename": "AQER-UAT-1819-Clean.apk",
+        "source_commit": "c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+        "version_code": 1819,
+        "sha256": "13af0b61df2266735030718d8f2354e332ae4d7a2e1f67acfef1b222c3644fdb",
+        "bytes": 45190809,
+        "manifest_node_count": 93,
+        "uses_permission_count": 10,
+        "declared_permission_count": 1,
+        "component_counts": {
+          "activity": 4,
+          "activity-alias": 0,
+          "service": 7,
+          "receiver": 3,
+          "provider": 3
+        },
+        "extract_native_libs": true
+      },
+      "all_other_elements_typed_attributes_resource_ids_and_order_equal": true,
+      "permissions_components_export_flags_intent_filters_and_deeplink_data_exactly_equal": true,
+      "actual_allowed_differences": [
+        {
+          "path": "/manifest",
+          "attribute": "{http://schemas.android.com/apk/res/android}versionCode",
+          "baseline": {
+            "type": 16,
+            "value": 1817,
+            "resource_id": 16843291
+          },
+          "candidate": {
+            "type": 16,
+            "value": 1819,
+            "resource_id": 16843291
+          }
+        },
+        {
+          "path": "/manifest[16]/application",
+          "attribute": "{http://schemas.android.com/apk/res/android}extractNativeLibs",
+          "baseline": {
+            "type": 18,
+            "value": false,
+            "resource_id": 16844010
+          },
+          "candidate": {
+            "type": 18,
+            "value": true,
+            "resource_id": 16844010
+          }
+        }
+      ]
+    }
+  ],
+  "uses_permission_names": [
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.RECORD_AUDIO",
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_COARSE_LOCATION",
+    "android.permission.ACCESS_WIFI_STATE",
+    "android.permission.WAKE_LOCK",
+    "com.google.android.c2dm.permission.RECEIVE",
+    "com.aqer.yemen.uat.offline.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+  ],
+  "format_reference": "https://github.com/aosp-mirror/platform_frameworks_base/blob/android16-release/libs/androidfw/include/androidfw/ResourceTypes.h",
+  "method": "Read-only bounded Python standard-library decoding of binary AndroidManifest.xml chunks, string pools, namespaces, typed attribute values and framework attribute resource IDs; validated complete node nesting and chunk boundaries.",
+  "normalization": "Ignore XML comments, line numbers, string-pool positions and namespace prefix spelling. Preserve element order, complete attributes, typed values and resource reference IDs. Permit versionCode changes and application extractNativeLibs only.",
+  "scope_limits": [
+    "No Android SDK tool or third-party parser package was installed; no APK or repository source was changed.",
+    "Resource references are compared as exact typed IDs; resources.arsc values were not resolved and no equivalence across changed resource IDs is inferred.",
+    "This checks the merged manifest, not runtime permission behavior, real account data, handset performance, map accuracy or full product acceptance."
+  ]
+}

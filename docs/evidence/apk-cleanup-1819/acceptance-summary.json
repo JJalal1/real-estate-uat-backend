@@ -1,0 +1,387 @@
+{
+  "schema_version": 1,
+  "source_commit": "c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+  "ci_run_id": 44156549567,
+  "chosen_version": 1819,
+  "status": "verified_selected_candidate",
+  "test_summary": {
+    "conclusion": "success",
+    "strict_analysis": true,
+    "flutter_passed": 221,
+    "python_passed": 77,
+    "jobs": {
+      "tests": {
+        "job_id": 134298701452,
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/44156549567/job/134298701452"
+      },
+      "build": {
+        "job_id": 134300928745,
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/44156549567/job/134300928745"
+      },
+      "offline_native": {
+        "job_id": 134300929308,
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/44156549567/job/134300929308"
+      },
+      "android_cleanup": {
+        "job_id": 134308638959,
+        "conclusion": "success",
+        "url": "https://github.com/JJalal1/real-estate-uat-backend/actions/runs/44156549567/job/134308638959"
+      }
+    },
+    "broad_pr": {
+      "run_id": 44156621084,
+      "conclusion": "success",
+      "flutter_passed": 96,
+      "laravel_passed": 11,
+      "laravel_assertions": 101,
+      "strict_analysis": true,
+      "uat_compile": true
+    }
+  },
+  "artifact_refs": {
+    "baseline": {
+      "id": 14328756670,
+      "name": "connectivity-fix-1817-e91927e9d14994c9101d6f11b8886e666bb930d1",
+      "run_id": 44081151224,
+      "archive_sha256": "ad711d6e9471d0cd0e8540a69aa4da7f41468df6d3ba83513a5aad605d443b34",
+      "archive_sha256_independently_verified": true
+    },
+    "1818": {
+      "id": 14363025905,
+      "name": "apk-cleanup-1818-c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+      "run_id": 44156549567,
+      "archive_sha256": "342241a7f5b89c8830a9d42624a60efb083201cca1b22af39d872a3f132a80fa",
+      "url": "https://api.github.com/repos/JJalal1/real-estate-uat-backend/actions/artifacts/14363025905",
+      "archive_sha256_independently_verified": true
+    },
+    "1819": {
+      "id": 14362467229,
+      "name": "apk-cleanup-1819-c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+      "run_id": 44156549567,
+      "archive_sha256": "9a82d12e145fb07b8cdc1a5a1a24a0517af952d66b70b321b8ebfad9d2234e0a",
+      "url": "https://api.github.com/repos/JJalal1/real-estate-uat-backend/actions/artifacts/14362467229",
+      "archive_sha256_independently_verified": true
+    },
+    "offline_native": {
+      "id": 14363086037,
+      "name": "apk-cleanup-offline-native-c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+      "run_id": 44156549567,
+      "archive_sha256": "0ba7e1089c32bc91cd0d9a7d2cf54337cfe36c9e69f643218e32467486a1074d",
+      "url": "https://api.github.com/repos/JJalal1/real-estate-uat-backend/actions/artifacts/14363086037",
+      "archive_sha256_independently_verified": true
+    },
+    "android_cleanup": {
+      "id": 14363206686,
+      "name": "apk-cleanup-android-proof-c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+      "run_id": 44156549567,
+      "archive_sha256": "badc1008b77581bb03b3aedb4583ee498bf67d4f4ce9da9a7da467c66774e7a2",
+      "url": "https://api.github.com/repos/JJalal1/real-estate-uat-backend/actions/artifacts/14363206686",
+      "archive_sha256_independently_verified": true
+    }
+  },
+  "observation_artifact_ref": {
+    "id": 14362679988,
+    "name": "native-packaging-observation-0e49f51f4f90e24eaf94500916cbdab6319121d9",
+    "run_id": 44161726248,
+    "archive_sha256": "3d337fac5f56775aa054664ac8530c1df271e657fecde601b0b55d67009ce202",
+    "harness_source_commit": "0e49f51f4f90e24eaf94500916cbdab6319121d9",
+    "product_source_commit": "c0629a48c2431748b5d5ac1b5d6edb9318946fa8",
+    "job_id": 134317034184,
+    "conclusion": "success",
+    "archive_sha256_independently_verified": true,
+    "unchanged_product_component_trees": {
+      "mobile_app": "9722ae81c0595ae217ce7fd4c600157d0608fe35",
+      "backend-api-runtime": "bc0e96b8266f062b7fde166ba0451148ec2402f1"
+    },
+    "original_three_start_proof_replaced": false
+  },
+  "selection_rationale": "اختيرت 1819 للتسليم التجريبي UAT بعد نجاح فحوص الوظائف والتحديث المتتابع وحفظ البيانات الاصطناعية وتطابق الموارد، مع توفير 62.38% من حجم APK. أظهر المرور الأول تأخر وسيط الفتح 1031 مللي ثانية عن 1818؛ لم يتكرر اتجاه التأخير في إعادة ABBA، التي أعطت 3993 مقابل 4770.5 مللي ثانية. تشتت العينات وتغير الاتجاه لا يثبتان تحسنًا سببيًا أو انعدام الأثر على الهاتف. يبقى قبول الأداء والخرائط والموقع على جوال فعلي مفتوحًا. تبقى القياسات الأصلية والإعادة منفصلتين كاملتين.",
+  "size_comparisons": {
+    "1817_to_1818": {
+      "before_bytes": 120125414,
+      "after_bytes": 104022511,
+      "saved_bytes": 16102903,
+      "saved_percent": 13.405075965024354
+    },
+    "1818_to_1819": {
+      "before_bytes": 104022511,
+      "after_bytes": 45190809,
+      "saved_bytes": 58831702,
+      "saved_percent": 56.556702423766716
+    },
+    "1817_to_1819": {
+      "before_bytes": 120125414,
+      "after_bytes": 45190809,
+      "saved_bytes": 74934605,
+      "saved_percent": 62.38030946557237
+    }
+  },
+  "preservation": {
+    "original_dart_native_runtime_assets_trees_unchanged": true,
+    "original_flutter_assets_and_fonts_raw_bytes_unchanged": true,
+    "retained_flutter_maplibre_datastore_raw_bytes_unchanged": true,
+    "uid_first_install_time_and_synthetic_private_files_preserved": true,
+    "native_offline_services_three_phases_passed": true
+  },
+  "scope_limits": [
+    "No new APK was built or modified by this audit.",
+    "Local SHA/ZIP/content checks supplement, rather than replace, successful CI cryptographic signing and Android install checks.",
+    "Storage observations are APK plus extracted target-ABI native files only, excluding ART/OAT/VDEX, profiles, app data, caches and install-time peak space.",
+    "Three sequential x86_64-emulator activity starts are observations; they are not phone or interactive-ready performance acceptance.",
+    "Offline probe is a synthetic entry point and separate package, not a real account or full product journey.",
+    "No physical-phone, full map tiles/gestures/GPS, real account/session/Keystore migration or Phase04 closure acceptance is inferred.",
+    "The additional ABBA receipt is a separate, fresh counterbalanced emulator observation of the same immutable APKs. It does not replace the original adverse three-start comparison, prove causality/statistical significance, or grant performance acceptance."
+  ],
+  "apk_sha256": {
+    "1817": "4c6141d08c045a23c63ee183b3bdb339de51ec1f58ae3f34aec014685764eda1",
+    "1818": "9a3923693cf8c278c80bae8a414833f92107fb887df07097f599f1b92fed4ca4",
+    "1819": "13af0b61df2266735030718d8f2354e332ae4d7a2e1f67acfef1b222c3644fdb"
+  },
+  "apk_bytes": {
+    "1817": 120125414,
+    "1818": 104022511,
+    "1819": 45190809
+  },
+  "original_measurements": {
+    "1817": {
+      "install_host_wall_ms": 14982.786,
+      "installed_identity": {
+        "version_code": 1817,
+        "uid": 10216,
+        "first_install_time": "2026-11-17 19:34:25"
+      },
+      "code_footprint": {
+        "base_apk_bytes": 120125414,
+        "extracted_native_library_bytes": 0,
+        "package_code_plus_extracted_native_bytes": 120125414,
+        "extracted_target_abi": "x86_64",
+        "extract_native_libs": false,
+        "extracted_libraries": {},
+        "scope": "Base APK file plus regular files in its nativeLibraryDir only; excludes ART/OAT/VDEX, profiles, system metadata, app data, snapshots, photos and install-time peak space; not Android Settings total storage."
+      },
+      "activity_starts": {
+        "runs": [
+          {
+            "totaltime_ms": 5646,
+            "waittime_ms": 6195,
+            "host_wall_ms": 6367.351
+          },
+          {
+            "totaltime_ms": 5642,
+            "waittime_ms": 5855,
+            "host_wall_ms": 6530.489
+          },
+          {
+            "totaltime_ms": 3907,
+            "waittime_ms": 3923,
+            "host_wall_ms": 4018.966
+          }
+        ],
+        "median_total_time_ms": 5642,
+        "median_wait_time_ms": 5855,
+        "median_host_wall_ms": 6367.351,
+        "scope": "Three force-stopped activity/process starts in one sequential x86_64 emulator; not cache-cold, interactive-ready or physical-handset performance."
+      }
+    },
+    "1818": {
+      "install_host_wall_ms": 8550.605,
+      "installed_identity": {
+        "version_code": 1818,
+        "uid": 10216,
+        "first_install_time": "2026-11-17 19:34:25"
+      },
+      "code_footprint": {
+        "base_apk_bytes": 104022511,
+        "extracted_native_library_bytes": 0,
+        "package_code_plus_extracted_native_bytes": 104022511,
+        "extracted_target_abi": "x86_64",
+        "extract_native_libs": false,
+        "extracted_libraries": {},
+        "scope": "Base APK file plus regular files in its nativeLibraryDir only; excludes ART/OAT/VDEX, profiles, system metadata, app data, snapshots, photos and install-time peak space; not Android Settings total storage."
+      },
+      "activity_starts": {
+        "runs": [
+          {
+            "totaltime_ms": 2760,
+            "waittime_ms": 2780,
+            "host_wall_ms": 2862.506
+          },
+          {
+            "totaltime_ms": 3193,
+            "waittime_ms": 3206,
+            "host_wall_ms": 3432.075
+          },
+          {
+            "totaltime_ms": 3437,
+            "waittime_ms": 3446,
+            "host_wall_ms": 3581.766
+          }
+        ],
+        "median_total_time_ms": 3193,
+        "median_wait_time_ms": 3206,
+        "median_host_wall_ms": 3432.075,
+        "scope": "Three force-stopped activity/process starts in one sequential x86_64 emulator; not cache-cold, interactive-ready or physical-handset performance."
+      }
+    },
+    "1819": {
+      "install_host_wall_ms": 4101.702,
+      "installed_identity": {
+        "version_code": 1819,
+        "uid": 10216,
+        "first_install_time": "2026-11-17 19:34:25"
+      },
+      "code_footprint": {
+        "base_apk_bytes": 45190809,
+        "extracted_native_library_bytes": 35518840,
+        "package_code_plus_extracted_native_bytes": 80709649,
+        "extracted_target_abi": "x86_64",
+        "extract_native_libs": true,
+        "extracted_libraries": {
+          "libdatastore_shared_counter.so": {
+            "bytes": 6224,
+            "sha256": "fb6c9208988c49ae94943bc3236fa763ba584722e044fa4ea9a12d2941027105"
+          },
+          "libmaplibre.so": {
+            "bytes": 11433880,
+            "sha256": "82b75b7b2777e4e6ad4991fdccffd9ffeeeff98808e9fbd2004ae0f184cb9909"
+          },
+          "libapp.so": {
+            "bytes": 12190624,
+            "sha256": "fbbb04eb61085069c26e455fec2d386003cbb2a8e1051761ee66ea9e85cd6961"
+          },
+          "libflutter.so": {
+            "bytes": 11888112,
+            "sha256": "537bea13c55618fd1fed6bd4ca06f376ef5f5522bb0a454a888ce04a6af6fd7e"
+          }
+        },
+        "scope": "Base APK file plus regular files in its nativeLibraryDir only; excludes ART/OAT/VDEX, profiles, system metadata, app data, snapshots, photos and install-time peak space; not Android Settings total storage."
+      },
+      "activity_starts": {
+        "runs": [
+          {
+            "totaltime_ms": 2828,
+            "waittime_ms": 2879,
+            "host_wall_ms": 2937.962
+          },
+          {
+            "totaltime_ms": 4224,
+            "waittime_ms": 4227,
+            "host_wall_ms": 4440.195
+          },
+          {
+            "totaltime_ms": 4322,
+            "waittime_ms": 4357,
+            "host_wall_ms": 4470.917
+          }
+        ],
+        "median_total_time_ms": 4224,
+        "median_wait_time_ms": 4227,
+        "median_host_wall_ms": 4440.195,
+        "scope": "Three force-stopped activity/process starts in one sequential x86_64 emulator; not cache-cold, interactive-ready or physical-handset performance."
+      }
+    }
+  },
+  "repeat_summary": {
+    "1818": {
+      "group_indices": [
+        1,
+        4
+      ],
+      "measured_starts": 10,
+      "fresh_install_host_wall_ms": [
+        19915.832,
+        4827.08
+      ],
+      "group_median_total_time_ms": [
+        5594,
+        4171
+      ],
+      "partial_code_native_bytes": [
+        104022511,
+        104022511
+      ],
+      "median_total_time_ms": 4770.5,
+      "median_wait_time_ms": 4822.5,
+      "median_host_wall_ms": 5023.0740000000005
+    },
+    "1819": {
+      "group_indices": [
+        2,
+        3
+      ],
+      "measured_starts": 10,
+      "fresh_install_host_wall_ms": [
+        9068.295,
+        4361.234
+      ],
+      "group_median_total_time_ms": [
+        4320,
+        3690
+      ],
+      "partial_code_native_bytes": [
+        80709649,
+        80709649
+      ],
+      "median_total_time_ms": 3993.0,
+      "median_wait_time_ms": 4118.5,
+      "median_host_wall_ms": 4374.612
+    },
+    "compressed_minus_stored": {
+      "median_total_time_ms": -777.5,
+      "median_total_time_percent": -16.298081962058482,
+      "scope": "Descriptive pooled medians from 10 starts per version, grouped ABBA after one warmup per fresh install. Not a statistical significance test, phone result or performance pass/fail."
+    }
+  },
+  "public_evidence_sha256": {
+    "1818-build.json": "c5fad8b1ecc1e82a3cdb3bf0e6e54084475e4083a5c34ce1ec4a0aba30b46c76",
+    "1819-build.json": "c60ef7e1671f8a22d8a670fe03f5c00ac6473fdcc9f742e6f1f73d06822c5e96",
+    "offline-native.json": "2ad74973041b629decd75b82c7803c61ff14a0b87f6956f2d07d2df51f6edaf4",
+    "android-update.json": "bf3225a8646c9368c60104234a5da14bd0b88c9c3678802af9aeec4375593fcc",
+    "packaging-observation.json": "f5d1ec082d8d630e3813bf0c77c578a82deec7c8a67d9a8995eacef1038ecd65",
+    "manifest-comparison.json": "c493492b9b98ec8893b2ad9d49e719fd70ca46c52d3662600a19f0101947b761"
+  },
+  "delivery_files": {
+    "AQER-UAT-1819-Clean.apk": {
+      "bytes": 45190809,
+      "sha256": "13af0b61df2266735030718d8f2354e332ae4d7a2e1f67acfef1b222c3644fdb"
+    },
+    "AQER-UAT-1819-Cleanup-Delivery-Receipt.json": {
+      "bytes": 178831,
+      "sha256": "9b7eac9aefb8db745813ae47f571ea6aca4948abda2e18d87598d9c09b90e461"
+    },
+    "AQER-UAT-1819-Cleanup-Delivery-AR.html": {
+      "bytes": 21003,
+      "sha256": "0e98131e177047b440dd18abc4f7f97e8cb9197e2d3b931c238b63f8ecf22b93"
+    }
+  },
+  "broad_harness_run": {
+    "run_id": 44161731948,
+    "source_commit": "0e49f51f4f90e24eaf94500916cbdab6319121d9",
+    "conclusion": "success"
+  },
+  "render_unchanged": {
+    "checked_at_utc": "2026-11-17T19:55:19.052303+00:00",
+    "live_deploy": "dep-dbtpbo88v5cc73av6o20",
+    "source_commit": "5a5d96dfa4f6c6fe3e523f2f72e4c9a56f5f4f19",
+    "backend_tree": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+    "redeploy_performed": false
+  },
+  "previous_phase23_status": {
+    "proven": 28,
+    "total": 32,
+    "owner_deferred": [
+      27
+    ],
+    "technical_hold": [
+      11
+    ],
+    "excluded": [
+      3,
+      21
+    ]
+  },
+  "phase04_phone_gates_closed": false
+}
