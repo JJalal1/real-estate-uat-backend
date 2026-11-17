@@ -1,0 +1,165 @@
+name: Observe existing UAT native packaging startup
+
+'on':
+  push:
+    branches: [work/apk-cleanup-1817-20261117]
+    paths:
+      - '.github/workflows/uat-native-packaging-observation.yml'
+      - 'scripts/probe_native_packaging_observation.py'
+      - 'scripts/tests/test_native_packaging_observation.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: uat-native-packaging-observation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Observe existing 1818 and 1819 with balanced fresh synthetic groups
+    if: github.event.repository.private
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      AQER_NATIVE_PACKAGING_OBSERVATION: 'true'
+      ARTIFACT_SOURCE_SHA: c0629a48c2431748b5d5ac1b5d6edb9318946fa8
+    steps:
+      # Download only the already verified public installers and receipts. This
+      # job has no signing inputs, build step, account session or Flutter SDK.
+      - name: Require the private observation context and separate source identities
+        id: context
+        run: |
+          python3 -B - <<'PY'
+          import os, re
+          if (os.environ.get('GITHUB_ACTIONS') != 'true' or
+              os.environ.get('GITHUB_REPOSITORY') != 'JJalal1/real-estate-uat-backend' or
+              os.environ.get('GITHUB_REF') != 'refs/heads/work/apk-cleanup-1817-20261117' or
+              os.environ.get('GITHUB_EVENT_NAME') != 'push' or
+              os.environ.get('AQER_NATIVE_PACKAGING_OBSERVATION') != 'true'):
+              raise RuntimeError('explicit_private_native_packaging_observation_required')
+          harness = os.environ['GITHUB_SHA']
+          if (not re.fullmatch(r'[a-f0-9]{40}', harness) or
+              os.environ['ARTIFACT_SOURCE_SHA'] != 'c0629a48c2431748b5d5ac1b5d6edb9318946fa8' or
+              harness == os.environ['ARTIFACT_SOURCE_SHA']):
+              raise RuntimeError('distinct_pinned_apk_source_and_current_harness_required')
+          forbidden = ('AQER_UAT_KEYSTORE_BASE64', 'AQER_RELEASE_STORE_FILE',
+                       'AQER_RELEASE_STORE_PASSWORD', 'AQER_RELEASE_KEY_ALIAS',
+                       'AQER_RELEASE_KEY_PASSWORD', 'AQER_UAT_GOOGLE_SERVICES_JSON_BASE64',
+                       'AQER_PHASE1_TEST_ACCESS_JSON', 'SUPABASE_SERVICE_ROLE_KEY', 'DATABASE_URL')
+          if any(os.environ.get(name) for name in forbidden):
+              raise RuntimeError('signing_or_account_material_forbidden_in_observation')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+              stream.write('artifact_name=native-packaging-observation-' + harness + '\n')
+          print('AQER_NATIVE_PACKAGING_OBSERVATION_CONTEXT_VERIFIED')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify the observation harness preserves product and original update proof
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code "$ARTIFACT_SOURCE_SHA" -- mobile_app backend-api-runtime \
+            docs/uat-signing-identity.json scripts/import_ci_uat_signing.py \
+            scripts/uat_signing_identity.py scripts/probe_apk_cleanup_upgrade.py \
+            .github/workflows/apk-cleanup.yml .github/workflows/apk-cleanup-android.yml
+          python3 -B -m unittest discover -s scripts/tests -p 'test_native_packaging_observation.py' -v
+      - name: Download the verified uncompressed 1818 from the original successful run
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14363025905'
+          run-id: '44156549567'
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: native-packaging-input/clean
+      - name: Download the verified compressed 1819 from the same original run
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14362467229'
+          run-id: '44156549567'
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: native-packaging-input/compressed
+      - name: Reject unexpected files in the downloaded public artifacts
+        run: |
+          python3 -B - <<'PY'
+          from pathlib import Path
+          expected = {
+              'clean': {'AQER-UAT-1818-Clean.apk', 'APK_VERIFICATION.json'},
+              'compressed': {'AQER-UAT-1819-Clean.apk', 'APK_VERIFICATION.json'},
+          }
+          for role, filenames in expected.items():
+              root = Path('native-packaging-input') / role
+              entries = list(root.iterdir())
+              if (root.is_symlink() or {path.name for path in entries} != filenames or
+                  any(path.is_symlink() or not path.is_file() for path in entries)):
+                  raise RuntimeError('only_pinned_apk_and_public_receipt_allowed')
+          print('AQER_NATIVE_PACKAGING_PUBLIC_ARTIFACT_CONTENTS_VERIFIED')
+          PY
+      - name: Reclaim unused SDK space on the disposable runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Boot an empty disposable packaging-observation API36 emulator
+        run: |
+          test -c /dev/kvm
+          sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/native-packaging-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd --force --name aqer-native-packaging-observation --device pixel --path "$ANDROID_AVD_HOME/aqer-native-packaging-observation.avd" --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-native-packaging-observation.avd/config.ini" <<'PYCONF'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          values = {'hw.lcd.width': '540', 'hw.lcd.height': '960', 'hw.lcd.density': '210',
+                    'showDeviceFrame': 'no', 'hw.camera.back': 'none', 'hw.camera.front': 'none',
+                    'disk.dataPartition.size': '2048M'}
+          lines = [line for line in path.read_text().splitlines() if line.split('=', 1)[0].strip() not in values]
+          path.write_text('\n'.join(lines + [key + '=' + value for key, value in values.items()]) + '\n')
+          PYCONF
+          export QT_QPA_PLATFORM=offscreen
+          printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd aqer-native-packaging-observation -port 5554 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on -memory 2048 -cores 2 > "$RUNNER_TEMP/native-packaging-emulator.log" 2>&1 &
+          emulator_pid=$!
+          deadline=$((SECONDS+250))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then cat "$RUNNER_TEMP/native-packaging-emulator.log"; exit 1; fi
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
+            sleep 2
+          done
+          if [ "$SECONDS" -ge "$deadline" ]; then cat "$RUNNER_TEMP/native-packaging-emulator.log"; adb -s emulator-5554 shell getprop sys.boot_completed || true; exit 1; fi
+      - name: Observe balanced ABBA synthetic groups with one warmup and five starts each
+        run: >-
+          python3 -B scripts/probe_native_packaging_observation.py
+          --clean-apk native-packaging-input/clean/AQER-UAT-1818-Clean.apk
+          --clean-receipt native-packaging-input/clean/APK_VERIFICATION.json
+          --compressed-apk native-packaging-input/compressed/AQER-UAT-1819-Clean.apk
+          --compressed-receipt native-packaging-input/compressed/APK_VERIFICATION.json
+          --artifact-source "$ARTIFACT_SOURCE_SHA" --harness-source "$GITHUB_SHA"
+          --serial emulator-5554 --output native-packaging-observation-proof
+      - name: Preserve the raw public observation receipt
+        uses: actions/upload-artifact@v4
+        if: always() && steps.context.outcome == 'success' && github.event.repository.private
+        with:
+          name: ${{ steps.context.outputs.artifact_name }}
+          path: native-packaging-observation-proof/NATIVE_PACKAGING_OBSERVATION.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Stop the disposable emulator
+        if: always()
+        run: adb -s emulator-5554 emu kill || true

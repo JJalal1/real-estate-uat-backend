@@ -84,10 +84,16 @@ jobs:
           cache: true
       - name: Resolve protected dependencies
         working-directory: mobile_app
+        env:
+          AQER_CLEANUP_PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
-          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$GITHUB_HEAD_REF" = work/apk-cleanup-1817-20261117 ] && [ "$GITHUB_BASE_REF" = work/fix-connectivity-1815-20261117 ] && [ "$AQER_CLEANUP_PR_HEAD_REPO" = JJalal1/real-estate-uat-backend ]; then
+            python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --cleanup1818
+          else
+            python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
+          fi
       - name: Check focused diff
         run: git diff --check a080755fd7cea731bded2a7e8e34aa7f4a8766be..HEAD -- mobile_app backend-api-runtime
       - name: Strict Flutter analysis
