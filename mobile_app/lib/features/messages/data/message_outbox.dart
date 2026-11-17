@@ -142,8 +142,9 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
         createdAt: DateTime.now(),
         threadId: target == 'thread' ? id : null);
     await _edit((rows) {
-      if (rows.where((row) => row.status != 'sent').length >= 100)
+      if (rows.where((row) => row.status != 'sent').length >= 100) {
         throw StateError('لديك 100 رسالة معلقة.');
+      }
       return [...rows, message];
     });
     if (connected()) unawaited(flush().catchError((Object _) {}));
