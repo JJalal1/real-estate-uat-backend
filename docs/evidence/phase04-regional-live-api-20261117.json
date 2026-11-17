@@ -1,0 +1,486 @@
+{
+  "all_passed": true,
+  "checks": [
+    {
+      "name": "all_22_unique_governorates",
+      "passed": true
+    },
+    {
+      "name": "capital_distinct_from_sanaa",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_list_map_identical",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_at_least_20_new_public_rows",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_fictional_labels",
+      "passed": true
+    },
+    {
+      "name": "IBB_list_map_identical",
+      "passed": true
+    },
+    {
+      "name": "IBB_at_least_20_new_public_rows",
+      "passed": true
+    },
+    {
+      "name": "IBB_fictional_labels",
+      "passed": true
+    },
+    {
+      "name": "SANAA_list_map_identical",
+      "passed": true
+    },
+    {
+      "name": "SANAA_at_least_20_new_public_rows",
+      "passed": true
+    },
+    {
+      "name": "SANAA_fictional_labels",
+      "passed": true
+    },
+    {
+      "name": "AMANAT_AL_ASIMAH_reference_point",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_reference_point",
+      "passed": true
+    },
+    {
+      "name": "SANAA_reference_point",
+      "passed": true
+    },
+    {
+      "name": "SOCOTRA_reference_point",
+      "passed": true
+    },
+    {
+      "name": "IBB_reference_point",
+      "passed": true
+    },
+    {
+      "name": "outside_yemen_never_defaults_sanaa",
+      "passed": true
+    },
+    {
+      "name": "large_accuracy_requires_confirmation",
+      "passed": true
+    },
+    {
+      "name": "IBB_detail_three_photos",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_detail_three_photos",
+      "passed": true
+    },
+    {
+      "name": "SANAA_detail_three_photos",
+      "passed": true
+    },
+    {
+      "name": "IBB_media_354_served",
+      "passed": true
+    },
+    {
+      "name": "IBB_media_355_served",
+      "passed": true
+    },
+    {
+      "name": "IBB_media_356_served",
+      "passed": true
+    },
+    {
+      "name": "IBB_different_photo_bytes",
+      "passed": true
+    },
+    {
+      "name": "SANAA_media_234_served",
+      "passed": true
+    },
+    {
+      "name": "SANAA_media_235_served",
+      "passed": true
+    },
+    {
+      "name": "SANAA_media_236_served",
+      "passed": true
+    },
+    {
+      "name": "SANAA_different_photo_bytes",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_media_294_served",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_media_295_served",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_media_296_served",
+      "passed": true
+    },
+    {
+      "name": "DHAMAR_different_photo_bytes",
+      "passed": true
+    },
+    {
+      "name": "governorate_without_ads_is_empty_200",
+      "passed": true
+    },
+    {
+      "name": "fictional_private_proof_stays_unauthorized",
+      "passed": true
+    }
+  ],
+  "requests": [
+    {
+      "path": "/marketplace/locations",
+      "params": null,
+      "status": 200,
+      "bytes": 3453,
+      "content_type": "application/json",
+      "cloud_http_ms": 8152.3,
+      "request_id": "f09ba32e-f650-44c6-bb9e-4b0a09c67e23"
+    },
+    {
+      "path": "/properties",
+      "params": {
+        "governorate_code": "IBB",
+        "ranked_search": 1,
+        "per_page": 30
+      },
+      "status": 200,
+      "bytes": 39086,
+      "content_type": "application/json",
+      "cloud_http_ms": 10136.1,
+      "request_id": "a676fd4e-4016-4c1d-bee2-58e384987b0b"
+    },
+    {
+      "path": "/properties",
+      "params": {
+        "governorate_code": "SANAA",
+        "ranked_search": 1,
+        "per_page": 30
+      },
+      "status": 200,
+      "bytes": 41497,
+      "content_type": "application/json",
+      "cloud_http_ms": 10180.4,
+      "request_id": "ce0f24ba-f076-423d-ba0c-f177ac9c49e4"
+    },
+    {
+      "path": "/properties",
+      "params": {
+        "governorate_code": "DHAMAR",
+        "ranked_search": 1,
+        "per_page": 30
+      },
+      "status": 200,
+      "bytes": 39522,
+      "content_type": "application/json",
+      "cloud_http_ms": 10180.4,
+      "request_id": "80c5fa16-0fb3-4bfe-9d66-2b4c75d28212"
+    },
+    {
+      "path": "/properties/nearby",
+      "params": {
+        "governorate_code": "DHAMAR",
+        "ranked_search": 1,
+        "per_page": 30
+      },
+      "status": 200,
+      "bytes": 39522,
+      "content_type": "application/json",
+      "cloud_http_ms": 9472.4,
+      "request_id": "77598d42-12c4-4cf5-84a5-33a1a963550e"
+    },
+    {
+      "path": "/properties/nearby",
+      "params": {
+        "governorate_code": "IBB",
+        "ranked_search": 1,
+        "per_page": 30
+      },
+      "status": 200,
+      "bytes": 39086,
+      "content_type": "application/json",
+      "cloud_http_ms": 9543.8,
+      "request_id": "0e275f00-4255-4052-b902-7dbae168e7fe"
+    },
+    {
+      "path": "/properties/nearby",
+      "params": {
+        "governorate_code": "SANAA",
+        "ranked_search": 1,
+        "per_page": 30
+      },
+      "status": 200,
+      "bytes": 41497,
+      "content_type": "application/json",
+      "cloud_http_ms": 9545.1,
+      "request_id": "40750b62-9a80-4a71-b7ff-f064db9f9ecb"
+    },
+    {
+      "path": "/marketplace/location-context",
+      "params": {
+        "latitude": 15.3694,
+        "longitude": 44.191,
+        "accuracy_m": 5
+      },
+      "status": 200,
+      "bytes": 296,
+      "content_type": "application/json",
+      "cloud_http_ms": 8578.3,
+      "request_id": "1e8c3d50-566c-43bf-8491-34b85169333c"
+    },
+    {
+      "path": "/marketplace/location-context",
+      "params": {
+        "latitude": 14.55,
+        "longitude": 44.4,
+        "accuracy_m": 5
+      },
+      "status": 200,
+      "bytes": 188,
+      "content_type": "application/json",
+      "cloud_http_ms": 8652.7,
+      "request_id": "ee4786d0-3bf6-467d-9d43-cc812d454c92"
+    },
+    {
+      "path": "/marketplace/location-context",
+      "params": {
+        "latitude": 15.46,
+        "longitude": 44.36,
+        "accuracy_m": 5
+      },
+      "status": 200,
+      "bytes": 199,
+      "content_type": "application/json",
+      "cloud_http_ms": 8656.2,
+      "request_id": "e3d464e0-5282-46e9-ad88-9d281f6ab1f5"
+    },
+    {
+      "path": "/marketplace/location-context",
+      "params": {
+        "latitude": 12.65,
+        "longitude": 54.02,
+        "accuracy_m": 5
+      },
+      "status": 200,
+      "bytes": 275,
+      "content_type": "application/json",
+      "cloud_http_ms": 8204.6,
+      "request_id": "55291fa8-b6a9-4973-aaab-7347f6af7607"
+    },
+    {
+      "path": "/marketplace/location-context",
+      "params": {
+        "latitude": 13.9667,
+        "longitude": 44.1833,
+        "accuracy_m": 5
+      },
+      "status": 200,
+      "bytes": 161,
+      "content_type": "application/json",
+      "cloud_http_ms": 8304.5,
+      "request_id": "a07222ea-dc0e-4c33-9fc3-480237192869"
+    },
+    {
+      "path": "/marketplace/location-context",
+      "params": {
+        "latitude": 24.7,
+        "longitude": 46.7,
+        "accuracy_m": 5
+      },
+      "status": 200,
+      "bytes": 213,
+      "content_type": "application/json",
+      "cloud_http_ms": 8484.8,
+      "request_id": "d75567ed-1861-40d4-b28d-cfafc16ffa4e"
+    },
+    {
+      "path": "/marketplace/location-context",
+      "params": {
+        "latitude": 14.55,
+        "longitude": 44.4,
+        "accuracy_m": 100000
+      },
+      "status": 200,
+      "bytes": 187,
+      "content_type": "application/json",
+      "cloud_http_ms": 7707.2,
+      "request_id": "866e1699-47ec-44b9-878c-4f4ba327391b"
+    },
+    {
+      "path": "/properties/167",
+      "params": null,
+      "status": 200,
+      "bytes": 15467,
+      "content_type": "application/json",
+      "cloud_http_ms": 8618.7,
+      "request_id": "d2305ef4-7369-4cc6-9039-0441c00d78d5"
+    },
+    {
+      "path": "/properties/147",
+      "params": null,
+      "status": 200,
+      "bytes": 15533,
+      "content_type": "application/json",
+      "cloud_http_ms": 8623.9,
+      "request_id": "6c252bf3-9ee4-4053-a0cb-42a72b34f9a8"
+    },
+    {
+      "path": "/properties/127",
+      "params": null,
+      "status": 200,
+      "bytes": 15485,
+      "content_type": "application/json",
+      "cloud_http_ms": 8625.5,
+      "request_id": "84aca93f-1e4a-4761-bda1-b8f536cfeea3"
+    },
+    {
+      "path": "/api/property-media/354",
+      "params": null,
+      "status": 200,
+      "bytes": 213295,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 11687.2,
+      "request_id": "7a91a78a-bd7a-4adb-a571-dbb203045564"
+    },
+    {
+      "path": "/api/property-media/355",
+      "params": null,
+      "status": 200,
+      "bytes": 172397,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 9361.4,
+      "request_id": "416a54ee-aa65-4847-ab6d-14ad558f2178"
+    },
+    {
+      "path": "/api/property-media/356",
+      "params": null,
+      "status": 200,
+      "bytes": 139177,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 9427.0,
+      "request_id": "d696a3a7-3d24-4716-b5a0-fdc11a664499"
+    },
+    {
+      "path": "/property-media/234",
+      "status": 200,
+      "bytes": 213295,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 11731.7,
+      "recovery_attempt": 1
+    },
+    {
+      "path": "/property-media/235",
+      "status": 200,
+      "bytes": 172397,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 9173.5,
+      "recovery_attempt": 1
+    },
+    {
+      "path": "/property-media/236",
+      "status": 200,
+      "bytes": 139177,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 9241.3,
+      "recovery_attempt": 1
+    },
+    {
+      "path": "/property-media/294",
+      "status": 200,
+      "bytes": 213295,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 9870.9,
+      "recovery_attempt": 1
+    },
+    {
+      "path": "/property-media/295",
+      "status": 200,
+      "bytes": 172397,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 11053.5,
+      "recovery_attempt": 1
+    },
+    {
+      "path": "/property-media/296",
+      "status": 200,
+      "bytes": 139177,
+      "content_type": "image/jpeg",
+      "cloud_http_ms": 9112.1,
+      "recovery_attempt": 1
+    },
+    {
+      "path": "/api/properties?governorate_code=ADEN&ranked_search=1&per_page=1",
+      "status": 200,
+      "bytes": 203
+    },
+    {
+      "path": "/api/listing-documents/133",
+      "status": 401,
+      "bytes": 45
+    }
+  ],
+  "initial_probe_error": {
+    "http_status": 503,
+    "error": "HTTP Error 503: Service Unavailable",
+    "error_type": "HTTPError",
+    "scope": "Concurrent first-time media generation; existing single-encoder gate is a possible cause, not a network/no-results condition."
+  },
+  "sample_images": [
+    {
+      "image_id": 234,
+      "governorate": "SANAA",
+      "sha256": "c1ee40c74c9b58a9a4340d11f04a36fb28a46093a657a9c8e161495283984d16",
+      "bytes": 213295
+    },
+    {
+      "image_id": 235,
+      "governorate": "SANAA",
+      "sha256": "edc9fac32730d9c04694b1e1400299d7794aed2df171c667b59bd82f840e66f7",
+      "bytes": 172397
+    },
+    {
+      "image_id": 236,
+      "governorate": "SANAA",
+      "sha256": "86c71f42ce6a5fe015f63f2f17cfa6d49954be57042a210fbbed71da810cb233",
+      "bytes": 139177
+    },
+    {
+      "image_id": 294,
+      "governorate": "DHAMAR",
+      "sha256": "c1ee40c74c9b58a9a4340d11f04a36fb28a46093a657a9c8e161495283984d16",
+      "bytes": 213295
+    },
+    {
+      "image_id": 295,
+      "governorate": "DHAMAR",
+      "sha256": "edc9fac32730d9c04694b1e1400299d7794aed2df171c667b59bd82f840e66f7",
+      "bytes": 172397
+    },
+    {
+      "image_id": 296,
+      "governorate": "DHAMAR",
+      "sha256": "86c71f42ce6a5fe015f63f2f17cfa6d49954be57042a210fbbed71da810cb233",
+      "bytes": 139177
+    }
+  ],
+  "source_commit": "5a5d96dfa4f6c6fe3e523f2f72e4c9a56f5f4f19",
+  "deploy_id": "dep-dbtpbo88v5cc73av6o20",
+  "phone_sensor_test": false,
+  "timings_scope": "Cloud HTTP only; no physical phone or weak-network acceptance.",
+  "at": "2026-11-16T23:57:37.342324+00:00"
+}

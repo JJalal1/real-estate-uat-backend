@@ -1,0 +1,437 @@
+{
+  "source_commit": "5a5d96dfa4f6c6fe3e523f2f72e4c9a56f5f4f19",
+  "deploy_id": "dep-dbtpbo88v5cc73av6o20",
+  "seed": {
+    "marker": {
+      "run": "20261117-regional-v1",
+      "fictional": true,
+      "seeded_at": "2026-11-16T23:48:59+00:00",
+      "property_ids": [
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167
+      ],
+      "additive_only": true,
+      "by_governorate": {
+        "IBB": [
+          148,
+          149,
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159,
+          160,
+          161,
+          162,
+          163,
+          164,
+          165,
+          166,
+          167
+        ],
+        "SANAA": [
+          108,
+          109,
+          110,
+          111,
+          112,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118,
+          119,
+          120,
+          121,
+          122,
+          123,
+          124,
+          125,
+          126,
+          127
+        ],
+        "DHAMAR": [
+          128,
+          129,
+          130,
+          131,
+          132,
+          133,
+          134,
+          135,
+          136,
+          137,
+          138,
+          139,
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147
+        ]
+      },
+      "images_per_listing": 3
+    },
+    "migrations": 59,
+    "new_images": 180,
+    "new_properties": 60
+  },
+  "comparisons": [
+    {
+      "table": "users",
+      "before": {
+        "rows": 46,
+        "cutoff": 66,
+        "table_name": "users",
+        "fingerprint": "c3ff789c11571cad8a357ebfec947e36"
+      },
+      "after": {
+        "rows": 46,
+        "cutoff": 66,
+        "table_name": "users",
+        "fingerprint": "c3ff789c11571cad8a357ebfec947e36"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "account_verification_profiles",
+      "before": {
+        "rows": 13,
+        "cutoff": 25,
+        "table_name": "account_verification_profiles",
+        "fingerprint": "eadb24fbff443ae0a4e07aef28ade370"
+      },
+      "after": {
+        "rows": 13,
+        "cutoff": 25,
+        "table_name": "account_verification_profiles",
+        "fingerprint": "eadb24fbff443ae0a4e07aef28ade370"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "properties",
+      "before": {
+        "rows": 64,
+        "cutoff": 107,
+        "table_name": "properties",
+        "fingerprint": "0630eaf914dd0c9181985418e24bd979"
+      },
+      "after": {
+        "rows": 64,
+        "cutoff": 107,
+        "table_name": "properties",
+        "fingerprint": "0630eaf914dd0c9181985418e24bd979"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_assets",
+      "before": {
+        "rows": 71,
+        "cutoff": 102,
+        "table_name": "property_assets",
+        "fingerprint": "e43bf8c82ebbdf6fb78bf03b5768d615"
+      },
+      "after": {
+        "rows": 71,
+        "cutoff": 102,
+        "table_name": "property_assets",
+        "fingerprint": "e43bf8c82ebbdf6fb78bf03b5768d615"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_images",
+      "before": {
+        "rows": 57,
+        "cutoff": 176,
+        "table_name": "property_images",
+        "fingerprint": "4b04a199c456a00308782b23fb3c2fc0"
+      },
+      "after": {
+        "rows": 57,
+        "cutoff": 176,
+        "table_name": "property_images",
+        "fingerprint": "4b04a199c456a00308782b23fb3c2fc0"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_sai_terms",
+      "before": {
+        "rows": 72,
+        "cutoff": 82,
+        "table_name": "property_sai_terms",
+        "fingerprint": "aa962ef03fa1d2b27213c42cf106cdfe"
+      },
+      "after": {
+        "rows": 72,
+        "cutoff": 82,
+        "table_name": "property_sai_terms",
+        "fingerprint": "aa962ef03fa1d2b27213c42cf106cdfe"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_payments",
+      "before": {
+        "rows": 8,
+        "cutoff": 8,
+        "table_name": "property_payments",
+        "fingerprint": "75c8b8161edda8d83eb07cf03cd18a7e"
+      },
+      "after": {
+        "rows": 8,
+        "cutoff": 8,
+        "table_name": "property_payments",
+        "fingerprint": "75c8b8161edda8d83eb07cf03cd18a7e"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_payment_allocations",
+      "before": {
+        "rows": 7,
+        "cutoff": 7,
+        "table_name": "property_payment_allocations",
+        "fingerprint": "747bfab28cd3c4731e827ec274771220"
+      },
+      "after": {
+        "rows": 7,
+        "cutoff": 7,
+        "table_name": "property_payment_allocations",
+        "fingerprint": "747bfab28cd3c4731e827ec274771220"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_platform_receivables",
+      "before": {
+        "rows": 11,
+        "cutoff": 11,
+        "table_name": "property_platform_receivables",
+        "fingerprint": "51303a77de1f389b1b2dad82369a4d21"
+      },
+      "after": {
+        "rows": 11,
+        "cutoff": 11,
+        "table_name": "property_platform_receivables",
+        "fingerprint": "51303a77de1f389b1b2dad82369a4d21"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_financial_ledger_entries",
+      "before": {
+        "rows": 18,
+        "cutoff": 18,
+        "table_name": "property_financial_ledger_entries",
+        "fingerprint": "cda67a6b01c85d5c5b010ad1e5cd1b39"
+      },
+      "after": {
+        "rows": 18,
+        "cutoff": 18,
+        "table_name": "property_financial_ledger_entries",
+        "fingerprint": "cda67a6b01c85d5c5b010ad1e5cd1b39"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_financial_ledger_lines",
+      "before": {
+        "rows": 36,
+        "cutoff": 36,
+        "table_name": "property_financial_ledger_lines",
+        "fingerprint": "ae6e5d4b0bbb601abf3e939d835917c8"
+      },
+      "after": {
+        "rows": 36,
+        "cutoff": 36,
+        "table_name": "property_financial_ledger_lines",
+        "fingerprint": "ae6e5d4b0bbb601abf3e939d835917c8"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_sai_settlements",
+      "before": {
+        "rows": 0,
+        "cutoff": 0,
+        "table_name": "property_sai_settlements",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "after": {
+        "rows": 0,
+        "cutoff": 0,
+        "table_name": "property_sai_settlements",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "property_agreements",
+      "before": {
+        "rows": 0,
+        "cutoff": 0,
+        "table_name": "property_agreements",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "after": {
+        "rows": 0,
+        "cutoff": 0,
+        "table_name": "property_agreements",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "private_messages",
+      "before": {
+        "rows": 52,
+        "cutoff": 76,
+        "table_name": "private_messages",
+        "fingerprint": "a433b42aadbdad792d3d70d9857bd9b8"
+      },
+      "after": {
+        "rows": 52,
+        "cutoff": 76,
+        "table_name": "private_messages",
+        "fingerprint": "a433b42aadbdad792d3d70d9857bd9b8"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "message_threads",
+      "before": {
+        "rows": 28,
+        "cutoff": 57,
+        "table_name": "message_threads",
+        "fingerprint": "1ddb11dd4ae15b157d4b29acf1f89652"
+      },
+      "after": {
+        "rows": 28,
+        "cutoff": 57,
+        "table_name": "message_threads",
+        "fingerprint": "1ddb11dd4ae15b157d4b29acf1f89652"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "viewing_bookings",
+      "before": {
+        "rows": 10,
+        "cutoff": 18,
+        "table_name": "viewing_bookings",
+        "fingerprint": "ebbf6d2e3dc0aed3762db3ba5ad5991a"
+      },
+      "after": {
+        "rows": 10,
+        "cutoff": 18,
+        "table_name": "viewing_bookings",
+        "fingerprint": "ebbf6d2e3dc0aed3762db3ba5ad5991a"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "listing_reviews",
+      "before": {
+        "rows": 131,
+        "cutoff": 166,
+        "table_name": "listing_reviews",
+        "fingerprint": "786959f7126151c3e1084db40f77d2f1"
+      },
+      "after": {
+        "rows": 131,
+        "cutoff": 166,
+        "table_name": "listing_reviews",
+        "fingerprint": "786959f7126151c3e1084db40f77d2f1"
+      },
+      "unchanged": true
+    },
+    {
+      "table": "listing_documents",
+      "before": {
+        "rows": 51,
+        "cutoff": 73,
+        "table_name": "listing_documents",
+        "fingerprint": "ca1a5c0e94b5e8a19dd70446943f1690"
+      },
+      "after": {
+        "rows": 51,
+        "cutoff": 73,
+        "table_name": "listing_documents",
+        "fingerprint": "ca1a5c0e94b5e8a19dd70446943f1690"
+      },
+      "unchanged": true
+    }
+  ],
+  "all_existing_rows_unchanged": true
+}
