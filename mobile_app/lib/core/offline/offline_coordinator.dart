@@ -40,7 +40,9 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
           .setOffline(next == OfflineConnection.offline)
           .catchError((Object _) => null));
       if (next == OfflineConnection.offline ||
-          next == OfflineConnection.unavailable) unawaited(_restoreDiscovery());
+          next == OfflineConnection.unavailable) {
+        unawaited(_restoreDiscovery());
+      }
       if (next == OfflineConnection.online && previous != next) {
         if (previous == OfflineConnection.offline ||
             previous == OfflineConnection.unavailable ||

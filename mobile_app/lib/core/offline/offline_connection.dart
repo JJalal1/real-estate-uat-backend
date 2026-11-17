@@ -87,7 +87,9 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
   void transportFailure(int startedRevision) {
     if (_disposed ||
         startedRevision != _revision ||
-        state == OfflineConnection.offline) return;
+        state == OfflineConnection.offline) {
+      return;
+    }
     _unavailableIfCurrent(startedRevision);
     final failureRevision = _revision;
     final pending = _checking;
