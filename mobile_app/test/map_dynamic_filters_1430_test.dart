@@ -53,11 +53,11 @@ void main() {
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
     controller.enterMap();
     scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south: 15, west: 44, north: 16, east: 45);
-    controller.setChoice('type', 'apartment');
-    controller.setChoice('purpose', 'rent');
-    controller.setChoice('min_bedrooms', 3);
-    controller.setChoice('min_bathrooms', 2);
-    controller.setChoice('max_price', 250000);
+    controller.setChoice('type', 'apartment', onMap: true);
+    controller.setChoice('purpose', 'rent', onMap: true);
+    controller.setChoice('min_bedrooms', 3, onMap: true);
+    controller.setChoice('min_bathrooms', 2, onMap: true);
+    controller.setChoice('max_price', 250000, onMap: true);
     await Future<void>.delayed(Duration.zero);
     final query = scope.read(marketplaceMapResultsProvider).filters.apiFilters;
     expect(query, containsPair('min_bedrooms', 3));
@@ -66,19 +66,20 @@ void main() {
     expect(query, containsPair('currency', 'YER'));
     expect(query, containsPair('south', 15));
     expect(listings.calls.any((call) => call['min_bathrooms'] == 2 && call['max_monthly_rent'] == 250000), isTrue);
-    controller.setChoice('type', 'land');
+    controller.setChoice('type', 'land', onMap: true);
     await Future<void>.delayed(Duration.zero);
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('min_bedrooms'), isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('min_bathrooms'), isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['max_price'], 250000);
-    controller.setChoice('purpose', 'rent');
+    controller.setChoice('purpose', 'rent', onMap: true);
     await Future<void>.delayed(Duration.zero);
-    expect(scope.read(marketplaceSearchControllerProvider).criteria.values.containsKey('purpose'), isFalse);
+    expect(controller.uiFor(onMap: true).criteria.values.containsKey('purpose'), isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.apiFilters.containsKey('purpose'), isFalse);
   });
 
   testWidgets('selected filters remain visible after apply and submit, without a purpose-all chip', (tester) async {
     final listings = Listings(), scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(listings)]);
+    scope.read(marketplaceSearchControllerProvider.notifier).enterMap();
     await pumpUx(tester, scope, const Scaffold(body: SingleChildScrollView(child: MarketplaceSearchPanel(onMap: true))));
     expect(find.byKey(const ValueKey('published-purpose-all')), findsNothing);
     await _tap(tester, 'published-type-apartment');
@@ -90,18 +91,17 @@ void main() {
     await _tap(tester, 'filter-min_bathrooms-2');
     await _apply(tester);
     expect(find.byTooltip('2 دورات مياه فأكثر'), findsOneWidget);
-    await _tap(tester, 'published-filter-max-price');
-    await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '٢٥٠٬٠٠٠');
-    await _apply(tester);
+    await tester.enterText(find.byKey(const ValueKey('published-filter-max-price')), '٢٥٠٬٠٠٠');
+    await _tap(tester, 'published-price-apply');
     await _tap(tester, 'published-search-submit');
     expect(find.byTooltip('3 غرف فأكثر'), findsOneWidget);
     expect(find.byTooltip('2 دورات مياه فأكثر'), findsOneWidget);
-    expect(scope.read(marketplaceSearchControllerProvider).criteria.values['max_price'], 250000);
+    expect(scope.read(marketplaceSearchControllerProvider.notifier).uiFor(onMap: true).criteria.values['max_price'], 250000);
     expect(find.byKey(const ValueKey('published-map-filters')), findsOneWidget);
     await _tap(tester, 'published-type-land');
     expect(find.byKey(const ValueKey('published-filter-rooms')), findsNothing);
     expect(find.byKey(const ValueKey('published-filter-bathrooms')), findsNothing);
-    expect(scope.read(marketplaceSearchControllerProvider).criteria.selectedTypes, ['apartment', 'land']);
+    expect(scope.read(marketplaceSearchControllerProvider.notifier).uiFor(onMap: true).criteria.selectedTypes, ['apartment', 'land']);
     await _tap(tester, 'published-type-apartment');
     expect(find.byKey(const ValueKey('published-filter-land-use')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -112,15 +112,15 @@ void main() {
     final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(Listings())]);
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
     controller.applyFilters(SmartSearchFilters.fromMap({'min_price': 200000, 'type': 'house'}));
+    scope.read(marketplaceSearchControllerProvider.notifier).enterMap();
     await pumpUx(tester, scope, const Scaffold(body: SingleChildScrollView(child: MarketplaceSearchPanel(onMap: true))));
-    await _tap(tester, 'published-filter-max-price');
-    await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '١٠٠٠٠٠');
-    await _apply(tester);
+    await tester.enterText(find.byKey(const ValueKey('published-filter-max-price')), '١٠٠٠٠٠');
+    await _tap(tester, 'published-price-apply');
     expect(find.text('الحد الأدنى يجب ألا يتجاوز الحد الأعلى.'), findsOneWidget);
-    expect(scope.read(marketplaceSearchControllerProvider).criteria.values.containsKey('max_price'), isFalse);
-    await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '٣٠٠٠٠٠');
-    await _apply(tester);
-    expect(scope.read(marketplaceSearchControllerProvider).criteria.values['max_price'], 300000);
+    expect(controller.uiFor(onMap: true).criteria.values.containsKey('max_price'), isFalse);
+    await tester.enterText(find.byKey(const ValueKey('published-filter-max-price')), '٣٠٠٠٠٠');
+    await _tap(tester, 'published-price-apply');
+    expect(scope.read(marketplaceSearchControllerProvider.notifier).uiFor(onMap: true).criteria.values['max_price'], 300000);
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });
@@ -182,7 +182,7 @@ void main() {
     await closeUx(tester);
   });
 
-  testWidgets('smart search receives map context and returns accepted semantic filters to the map and list', (tester) async {
+  testWidgets('smart search receives a map copy and returning preserves map and Home criteria', (tester) async {
     final ai = Wave3AiFake(), listings = Listings();
     final scope = uxContainer(extra: [
       aiRepositoryProvider.overrideWithValue(ai), propertyRepositoryProvider.overrideWithValue(listings),
@@ -191,10 +191,12 @@ void main() {
     await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
     await tester.pumpAndSettle();
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
-    controller.applyFilters(SmartSearchFilters.fromMap({'type': 'apartment', 'purpose': 'rent', 'min_bedrooms': 3}));
+    controller.applyFilters(SmartSearchFilters.fromMap({'type': 'apartment', 'purpose': 'rent', 'min_bedrooms': 3}), onMap: true);
     scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south: 15, west: 44, north: 16, east: 45);
     await tester.pumpAndSettle();
+    final mapToken = controller.mapJourneyToken;
     await _tap(tester, 'map-smart-search');
+    expect(controller.isMapJourneyCurrent(mapToken), isTrue);
     expect(find.byType(AssistedSearchScreen), findsOneWidget);
     expect(scope.read(smartSearchSessionProvider).filters.values['south'], 15);
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'خفض السعر');
@@ -202,10 +204,12 @@ void main() {
     expect(ai.requests.single.filters['min_bedrooms'], 3);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(scope.read(marketplaceSearchControllerProvider).criteria.values['max_price'], 100000);
+    expect(controller.isMapJourneyCurrent(mapToken), isTrue);
+    expect(controller.uiFor(onMap: true).criteria.values.containsKey('max_price'), isFalse);
+    expect(scope.read(marketplaceSearchControllerProvider).criteria.values, isEmpty);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['south'], 15);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'), isFalse);
-    expect(scope.read(marketplaceMapResultsProvider).filters.apiFilters['max_monthly_rent'], 100000);
+    expect(scope.read(marketplaceMapResultsProvider).filters.apiFilters.containsKey('max_monthly_rent'), isFalse);
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });
@@ -258,46 +262,40 @@ void main() {
         expect(find.byKey(const ValueKey('published-selected-has_parking')), findsOneWidget);
         expect(find.byKey(const ValueKey('map-draw-area')), findsOneWidget);
         expect(find.byKey(const ValueKey('map-smart-search')), findsOneWidget);
-        final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
+        final region = tester.getRect(find.byKey(const ValueKey('map-top-search-region')));
         final list = tester.getRect(find.byKey(const ValueKey('map-results-list')));
         final surface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
         final map = tester.getRect(find.byKey(const ValueKey('filters-map-canvas')));
+        expect(region.bottom, lessThanOrEqualTo(map.top + 1));
         expect(surface.top - map.top, greaterThanOrEqualTo(70));
-        expect(toolbar.top, greaterThanOrEqualTo(surface.top));
-        expect(toolbar.left, greaterThanOrEqualTo(surface.left));
-        expect(toolbar.right, lessThanOrEqualTo(surface.right));
         expect(list.top, greaterThan(surface.top));
-        for (final key in ['published-purpose-rent', 'published-map-filters', 'map-draw-area', 'map-smart-search']) {
-          final rect = tester.getRect(find.byKey(ValueKey(key)));
-          expect(rect.left, greaterThanOrEqualTo(toolbar.left - 1));
-          expect(rect.right, lessThanOrEqualTo(toolbar.right + 1));
-          expect(rect.bottom, lessThanOrEqualTo(toolbar.bottom + 1));
-        }
+        expect(find.descendant(of: find.byKey(const ValueKey('map-results-sheet')),
+          matching: find.byType(MarketplaceSearchPanel)), findsNothing);
+        final floating = tester.getRect(find.byKey(const ValueKey('map-floating-search-actions')));
+        expect(floating.left, closeTo(map.left + 16, 1));
+        expect(floating.bottom, lessThanOrEqualTo(surface.top - 8));
         for (final key in ['published-filter-rooms', 'published-filter-bathrooms']) {
+          await tester.ensureVisible(find.byKey(ValueKey(key)));
+          await tester.pumpAndSettle();
           final label = find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(Text));
           final paragraph = tester.renderObject<RenderParagraph>(label);
           expect(paragraph.getMaxIntrinsicWidth(double.infinity), lessThanOrEqualTo(paragraph.size.width + 1));
         }
         final maximum = find.byKey(const ValueKey('published-filter-max-price'));
-        if (scale == 1) {
-          final rect = tester.getRect(maximum);
-          expect(rect.left, greaterThanOrEqualTo(toolbar.left));
-          expect(rect.right, lessThanOrEqualTo(toolbar.right));
-          expect(rect.bottom, lessThanOrEqualTo(toolbar.bottom));
-        }
-        await uxPreview(tester, boundary, 'map-filters-1430-$dark-$scale');
-        await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -280));
-        await tester.pumpAndSettle();
         await tester.ensureVisible(maximum);
         await tester.pumpAndSettle();
-        final visible = tester.getRect(find.byKey(const ValueKey('map-results-list')));
         final control = tester.getRect(maximum);
-        expect(control.top, greaterThanOrEqualTo(visible.top - 1));
-        expect(control.bottom, lessThanOrEqualTo(visible.bottom + 1));
-        // Binary floating-point layout may differ by less than one millionth of a pixel.
+        expect(control.top, greaterThanOrEqualTo(region.top - 1));
+        expect(control.bottom, lessThanOrEqualTo(region.bottom + 1));
+        await uxPreview(tester, boundary, 'map-filters-1820-$dark-$scale');
+        await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -280));
+        await tester.pumpAndSettle();
         final expandedSurface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
+        final movedFloating = tester.getRect(find.byKey(const ValueKey('map-floating-search-actions')));
         expect(expandedSurface.top - map.top, greaterThanOrEqualTo(70 - 1e-6));
-        await uxPreview(tester, boundary, 'map-filters-1430-$dark-$scale-controls');
+        expect(movedFloating.bottom, lessThanOrEqualTo(expandedSurface.top - 8));
+        expect(tester.getRect(find.byKey(const ValueKey('map-top-search-region'))), region);
+        await uxPreview(tester, boundary, 'map-filters-1820-$dark-$scale-controls');
         expect(tester.takeException(), isNull);
         await closeUx(tester);
       });

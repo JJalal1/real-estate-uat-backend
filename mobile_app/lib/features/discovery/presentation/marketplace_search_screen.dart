@@ -32,9 +32,10 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
     _openingMap = true;
     _mapReturnOffset = _scroll.hasClients ? _scroll.offset : 0;
     FocusScope.of(context).unfocus();
-    ref.read(marketplaceSearchControllerProvider.notifier).enterMap();
+    final owner = ref.read(marketplaceSearchControllerProvider.notifier);
+    final journey = owner.enterMap();
     try { await context.push('/marketplace-search-map'); }
-    finally { _openingMap = false; _restoreMapOffset(); }
+    finally { owner.leaveMap(journey); _openingMap = false; _restoreMapOffset(); }
   }
 
   void _restoreMapOffset() {

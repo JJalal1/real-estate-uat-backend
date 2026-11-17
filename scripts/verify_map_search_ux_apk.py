@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""Verify one 1820 UAT installer against the immutable compressed 1819 baseline.
+
+UI Dart changes are expected. Assets, Android source/build configuration,
+dependencies and backend remain pinned. Never creates/exports a signing key.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import sys
+
+from verify_apk_cleanup import (API, APP_NAME, PACKAGE, ABIS, CERTIFICATE,
+    CleanupError, require, digest, regular_input, public_identity,
+    verify_android_identity, extract_native_libs, inspect_archive)
+from verify_connectivity_fix_apk import android_tools, call
+from uat_signing_identity import load_public_identity, verify_imported_environment
+
+ROOT = Path(__file__).resolve().parents[1]
+BRANCH = 'refs/heads/work/map-search-ux-1820-20261117'
+BASE_SOURCE = 'c0629a48c2431748b5d5ac1b5d6edb9318946fa8'
+BASE_SHA256 = '13af0b61df2266735030718d8f2354e332ae4d7a2e1f67acfef1b222c3644fdb'
+BASE_BYTES = 45190809
+VERSION = 1820
+GENERATED_ICON_SUBSET = 'assets/flutter_assets/fonts/MaterialIcons-Regular.otf'
+PROTECTED = ('mobile_app/assets', 'mobile_app/android', 'mobile_app/pubspec.yaml',
+             'mobile_app/pubspec.lock', 'backend-api-runtime', 'docs/uat-signing-identity.json')
+
+
+def guard(env, source, identity):
+    require(env.get('GITHUB_ACTIONS') == 'true' and
+            env.get('GITHUB_REPOSITORY') == 'JJalal1/real-estate-uat-backend' and
+            env.get('GITHUB_REF') == BRANCH and env.get('GITHUB_EVENT_NAME') == 'push' and
+            re.fullmatch(r'[a-f0-9]{40}', source) and source == env.get('GITHUB_SHA'),
+            'explicit_map_search_ux_uat_push_context_required')
+    require(identity.get('certificate_sha256') == CERTIFICATE,
+            'established_durable_uat_certificate_required')
+    verify_imported_environment(identity, env)
+
+
+def baseline_receipt(path):
+    require(path.stat().st_size <= 128 * 1024, 'oversized_1819_public_receipt')
+    def unique(pairs):
+        out = {}
+        for key, value in pairs:
+            require(key not in out, 'duplicate_1819_receipt_key')
+            out[key] = value
+        return out
+    value = json.loads(path.read_text(), object_pairs_hook=unique)
+    expected = {'source_commit': BASE_SOURCE, 'version_code': 1819, 'package': PACKAGE,
+                'api': API, 'application_name': APP_NAME,
+                'signer_certificate_sha256': CERTIFICATE, 'sha256': BASE_SHA256,
+                'bytes': BASE_BYTES, 'native_library_compression': 'deflated',
+                'extract_native_libs': True, 'approved_for_delivery': True,
+                'github_secret_storage_verified': True, 'debug_signing_allowed': False}
+    require(isinstance(value, dict) and all(value.get(k) == v and type(value.get(k)) is type(v)
+                                          for k, v in expected.items()),
+            'exact_verified_1819_baseline_receipt_required')
+    return value
+
+
+def compare_runtime_resources(before, after):
+    # Flutter regenerates this SDK icon subset from reachable UI glyphs. The
+    # owner authorizes UI changes; original image/font/SVG assets remain exact.
+    original = dict(before['protected_assets_sha256'])
+    candidate = dict(after['protected_assets_sha256'])
+    old_icons = original.pop(GENERATED_ICON_SUBSET, None)
+    new_icons = candidate.pop(GENERATED_ICON_SUBSET, None)
+    require(old_icons is not None and new_icons is not None,
+            'generated_material_icon_subset_missing')
+    require(original == candidate, 'ux1820_original_image_font_or_manifest_changed')
+    preserved = {name: value for name, value in before['native_library_sha256'].items()
+                 if not name.endswith('/libapp.so')}
+    require(all(after['native_library_sha256'].get(name) == value for name, value in preserved.items()),
+            'ux1820_retained_flutter_maplibre_datastore_changed')
+    return preserved, {'path': GENERATED_ICON_SUBSET, 'baseline_sha256': old_icons,
+                       'candidate_sha256': new_icons, 'changed': old_icons != new_icons,
+                       'scope': 'Generated SDK icon subset may follow authorized UI glyph changes. Source assets/fonts remain pinned; no original photo/font replacement.'}
+
+
+def source_guards(source):
+    protected = {}
+    for path in PROTECTED:
+        old = call('git', 'rev-parse', f'{BASE_SOURCE}:{path}').strip()
+        current = call('git', 'rev-parse', f'{source}:{path}').strip()
+        require(old == current and re.fullmatch(r'[a-f0-9]{40}', old),
+                'ux1820_protected_assets_android_dependencies_or_backend_changed')
+        protected[path] = old
+    call('git', 'diff', '--exit-code', 'HEAD', '--', 'mobile_app/lib', 'mobile_app/assets',
+         'mobile_app/android', 'mobile_app/pubspec.yaml', 'backend-api-runtime',
+         'docs/uat-signing-identity.json', 'scripts/verify_map_search_ux_apk.py',
+         'scripts/verify_v3_dependency_lock.py')
+    return protected
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--baseline-apk', required=True)
+    parser.add_argument('--baseline-receipt', required=True)
+    args = parser.parse_args(argv)
+    identity = load_public_identity(require_approval=True)
+    source = call('git', 'rev-parse', 'HEAD').strip()
+    guard(os.environ, source, identity)
+    protected = source_guards(source)
+    baseline = regular_input(args.baseline_apk, '.apk')
+    metadata = baseline_receipt(regular_input(args.baseline_receipt, '.json'))
+    require(baseline.stat().st_size == BASE_BYTES and digest(baseline) == BASE_SHA256,
+            'ux1820_baseline_apk_size_or_digest_mismatch')
+    candidate = regular_input(ROOT / 'mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk', '.apk')
+    lock = ROOT / 'mobile_app/pubspec.lock'
+    call(sys.executable, ROOT / 'scripts/verify_v3_dependency_lock.py', '--resolved', lock, '--cleanup1818')
+    tools = android_tools(Path(os.environ['ANDROID_HOME']))
+    for apk, version in ((baseline, 1819), (candidate, VERSION)):
+        verify_android_identity(apk, tools, version)
+        manifest = call(tools / 'aapt', 'dump', 'xmltree', apk, 'AndroidManifest.xml')
+        require(extract_native_libs(manifest), 'ux1820_compressed_native_extraction_required')
+    # This existing helper's candidate_version parameter selects packaging mode;
+    # actual APK version has independently been checked as1819/1820 above.
+    before = inspect_archive(baseline, candidate_version=1819)
+    after = inspect_archive(candidate, candidate_version=1819)
+    preserved, icon_subset = compare_runtime_resources(before, after)
+    output = ROOT / 'mobile_app/map-search-ux-proof'
+    output.mkdir(mode=0o700)
+    try:
+        apk = output / 'AQER-UAT-1820-Map-Search.apk'
+        shutil.copy2(candidate, apk)
+        record = {'schema': 1, 'source_commit': source, 'version_code': VERSION,
+                  'mobile_component': call('git', 'rev-parse', f'{source}:mobile_app').strip(),
+                  'backend_component': protected['backend-api-runtime'],
+                  'package': PACKAGE, 'application_name': APP_NAME, 'sha256': digest(apk),
+                  'bytes': apk.stat().st_size, 'signer_certificate_sha256': CERTIFICATE,
+                  'api': API, 'min_sdk': 23, 'target_sdk': 36, 'abis': sorted(ABIS),
+                  'approved_for_delivery': True, 'github_secret_storage_verified': True,
+                  'debug_signing_allowed': False, 'same_package_and_certificate_as_1819': True,
+                  'baseline': public_identity(metadata), 'baseline_actual_digest_verified': True,
+                  'baseline_actual_signature_verified': True, 'native_library_compression': 'deflated',
+                  'extract_native_libs': True, 'native_zip_16kb_alignment_required': False,
+                  'zip_elf_16kb': 'verified', 'compiled_api_verified_for_all_abis': True,
+                  'source_component_guards': protected,
+                  'original_assets_fonts_android_source_and_backend_unchanged': True,
+                  'retained_flutter_maplibre_datastore_sha256': preserved,
+                  'generated_material_icon_subset': icon_subset,
+                  'dependency_lock_guard_verified': True, 'resolved_dependency_lock_sha256': digest(lock),
+                  'intended_change_scope': 'Owner-authorized map/search layout, source-scoped sessions, regional hints and removal of automatic location introduction. Dart/AOT changes expected.',
+                  'installed_device_upgrade_tested': False,
+                  'physical_phone_acceptance': False, 'backend_deployed': False,
+                  'private_signing_material_in_artifacts': False,
+                  'scope': 'Actual installer signature/identity/content/source guards only; separate Android receipt records replace-install and bounded guest UI smoke. No full native journey or phone acceptance.',
+                  **after}
+        (output / 'APK_VERIFICATION.json').write_text(json.dumps(record, indent=2) + '\n')
+    except Exception:
+        shutil.rmtree(output)
+        raise
+    print(json.dumps({k: record[k] for k in ('source_commit', 'version_code', 'sha256', 'bytes')}, sort_keys=True))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as error:
+        print(str(error) if isinstance(error, CleanupError) else 'map_search_ux_apk_verification_failed', file=sys.stderr)
+        raise SystemExit(1) from None

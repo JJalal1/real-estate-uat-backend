@@ -1,0 +1,390 @@
+name: Map and search UX 1820 with preserved compressed identity
+'on':
+  push:
+    branches:
+    - work/map-search-ux-1820-20261117
+    paths:
+    - mobile_app/**
+    - scripts/import_ci_uat_signing.py
+    - scripts/verify_v3_dependency_lock.py
+    - scripts/verify_map_search_ux_apk.py
+    - scripts/probe_map_search_ux_upgrade.py
+    - scripts/tests/test_map_search_ux_delivery.py
+    - scripts/tests/test_uat_signing_configuration.py
+    - docs/apk-cleanup-dependency-policy.json
+    - .github/workflows/map-search-ux-1820.yml
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: map-search-ux-1820-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  signing_readiness:
+    name: Public approval policy and boolean signing presence only
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      compatible: ${{ steps.readiness.outputs.compatible }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - name: Read the public identity; pending approval is not delivery approval
+      id: identity
+      run: python3 -B scripts/uat_signing_identity.py --github-output
+    - name: Emit readiness without reading secret values
+      id: readiness
+      env:
+        HAS_KEYSTORE: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 != '' }}
+        HAS_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD != '' }}
+        HAS_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS != '' }}
+        HAS_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD != '' }}
+        HAS_CERTIFICATE_PIN: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 != '' }}
+        APPROVED_CERTIFICATE_PIN_MATCHES: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 == steps.identity.outputs.certificate_sha256 }}
+      run: |
+        python3 -B - <<'PY'
+        import json, os, sys
+        from pathlib import Path
+        sys.path.insert(0, 'scripts')
+        from uat_signing_identity import PRESENCE_NAMES, load_public_identity, signing_readiness
+        present = {name: os.environ['HAS_' + name.upper()] == 'true' for name in PRESENCE_NAMES}
+        pin_matches = os.environ['APPROVED_CERTIFICATE_PIN_MATCHES'] == 'true'
+        receipt = signing_readiness(load_public_identity(), present, pin_matches)
+        receipt['source_commit'] = os.environ['GITHUB_SHA']
+        output = Path('map-search-ux-readiness')
+        output.mkdir()
+        (output / 'SIGNING_READINESS.json').write_text(json.dumps(receipt, indent=2) + '\n')
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+            stream.write('compatible=' + str(receipt['compatible']).lower() + '\n')
+        print(json.dumps(receipt, sort_keys=True))
+        PY
+    - uses: actions/upload-artifact@v4
+      with:
+        name: map-search-ux-signing-readiness-${{ github.sha }}
+        path: map-search-ux-readiness/SIGNING_READINESS.json
+        retention-days: 14
+        if-no-files-found: error
+  tests:
+    name: Search and map UX contracts with affected offline regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Existing signing importer contracts with synthetic fixtures only
+      env:
+        AQER_TEST_RUNNER_SIGNING: 'true'
+        AQER_SIGNING_ENVIRONMENT: uat
+      run: python3 -B -m unittest discover -s scripts/tests -p test_uat_signing_configuration.py -v
+    - name: Public durable signing identity and approval contracts
+      run: python3 -B -m unittest discover -s scripts/tests -p test_uat_signing_identity.py -v
+    - name: Finite inherited cleanup dependency contracts before pub get
+      run: python3 -B -m unittest discover -s scripts/tests -p test_apk_cleanup_dependency_policy.py -v
+    - name: Exact 1820 delivery and keyless update guards
+      run: python3 -B -m unittest discover -s scripts/tests -p test_map_search_ux_delivery.py -v
+    - uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 3.27.3
+        channel: stable
+        cache: true
+    - name: Resolve original locked dependencies
+      working-directory: mobile_app
+      run: |
+        cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+        flutter pub get
+        python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --cleanup1818
+    - name: Strict analysis
+      working-directory: mobile_app
+      run: python3 -B ../scripts/check_v3_analysis.py
+    - name: Affected search, map, location and offline behavior including changed UX tests
+      working-directory: mobile_app
+      run: |
+        tests=(
+          test/search_scope_lifecycle_1820_test.dart
+          test/assisted_search_entry_1820_test.dart
+          test/assisted_search_suggestions_test.dart
+          test/home_location_entry_1820_test.dart
+          test/map_search_layout_1820_test.dart
+          test/wave01_shared_filters_test.dart
+          test/offline_connection_detection_test.dart
+          test/offline_http_storage_test.dart
+          test/offline_message_outbox_test.dart
+          test/offline_photo_and_draft_test.dart
+          test/offline_search_restore_test.dart
+          test/offline_coordinator_intent_test.dart
+          test/offline_conversation_loading_test.dart
+          test/private_journey_actor_scope_test.dart
+          test/wave1_public_photo_cache_test.dart
+          test/adaptive_image_quality_test.dart
+          test/private_listing_card_photo_test.dart
+          test/message_inbox_pagination_test.dart
+          test/session_lifecycle_race_test.dart
+          test/stage6_auth_user_test.dart
+          test/owner_auth_boundary_test.dart
+          test/compact_cards_email_login_test.dart
+          test/phase23_draft_network_recovery_test.dart
+          test/phase04_ranked_search_test.dart
+          test/phase04_governorates_test.dart
+          test/property_marker_cluster_test.dart
+          test/map_dynamic_filters_1430_test.dart
+          test/smart_search_pagination_recovery_test.dart
+          test/public_discovery_cancellation_test.dart
+        )
+        # Include every added/changed behavioral test in this bounded UX diff. The
+        # installer source is checked out exactly; removed test paths are ignored.
+        while IFS= read -r path; do
+          case "$path" in
+            mobile_app/test/*_test.dart)
+              test_path="${path#mobile_app/}"
+              if [ -f "$test_path" ]; then tests+=("$test_path"); fi
+              ;;
+          esac
+        done < <(git -C .. diff --name-only edb81c996060937ff5b7a84216c9eb757fefb3fa -- mobile_app/test)
+        declare -A seen=()
+        unique=()
+        for test_path in "${tests[@]}"; do
+          if [ -z "${seen[$test_path]+x}" ]; then
+            seen[$test_path]=1
+            unique+=("$test_path")
+          fi
+        done
+        printf 'Behavioral test: %s\n' "${unique[@]}"
+        flutter test "${unique[@]}" --reporter expanded --timeout 2m
+  build:
+    name: Build the single compressed 1820 with the established durable UAT signer
+    needs:
+    - tests
+    - signing_readiness
+    if: ${{ needs.tests.result == 'success' && needs.signing_readiness.outputs.compatible == 'true' && github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AQER_SIGNING_ENVIRONMENT: uat
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
+      ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.offline
+      ORG_GRADLE_PROJECT_AQER_UAT_APP_NAME: عقار أوفلاين اختبار
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Download the immutable verified 1819 baseline
+      uses: actions/download-artifact@v4
+      with:
+        artifact-ids: '14362467229'
+        run-id: '44156549567'
+        repository: ${{ github.repository }}
+        github-token: ${{ github.token }}
+        merge-multiple: true
+        path: map-search-ux-baseline
+    - name: Require approved identity and verified GitHub secret storage
+      run: python3 -B scripts/uat_signing_identity.py --require-delivery-approval
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: android-actions/setup-android@v3
+      with:
+        log-accepted-android-sdk-licenses: false
+        packages: platform-tools platforms;android-36 build-tools;36.0.0
+    - uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 3.27.3
+        channel: stable
+        cache: true
+    - name: Reuse existing reviewed public Gradle dependencies
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+      with:
+        path: |
+          ~/.gradle/caches/modules-2
+          ~/.gradle/wrapper/dists
+        key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+        restore-keys: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-
+    - name: Resolve original locked dependencies
+      working-directory: mobile_app
+      run: |
+        cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+        flutter pub get
+        python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --cleanup1818
+    - name: Validate and stage the GitHub-configured durable UAT key
+      env:
+        AQER_UAT_KEYSTORE_BASE64: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 }}
+        AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
+        AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
+        AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
+        AQER_UAT_SIGNING_CERT_SHA256: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 }}
+      run: python3 -B scripts/import_ci_uat_signing.py --required
+    - name: Require the imported certificate to match the approved public identity
+      run: python3 -B scripts/uat_signing_identity.py --require-delivery-approval --verify-imported-environment
+    - name: Build 1820 with the retained compressed native profile and all three ABIs
+      working-directory: mobile_app
+      env:
+        AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
+        AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
+        AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
+        ORG_GRADLE_PROJECT_AQER_UAT_COMPRESS_NATIVE_LIBS: 'true'
+      run: flutter build apk --flavor uat --release --no-pub --build-number=1820 --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1820 --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com --dart-define=AQER_RANKED_DISCOVERY=true
+    - name: Verify actual 1820 identity, baseline assets and native packaging
+      run: python3 -B scripts/verify_map_search_ux_apk.py --baseline-apk map-search-ux-baseline/AQER-UAT-1819-Clean.apk --baseline-receipt map-search-ux-baseline/APK_VERIFICATION.json
+    - uses: actions/upload-artifact@v4
+      if: success() && github.event.repository.private
+      with:
+        name: map-search-ux-1820-${{ github.sha }}
+        path: |-
+          mobile_app/map-search-ux-proof/AQER-UAT-1820-Map-Search.apk
+          mobile_app/map-search-ux-proof/APK_VERIFICATION.json
+        retention-days: 14
+        if-no-files-found: error
+    - name: Remove staged signing key even after failure or cancellation
+      if: always()
+      run: |
+        python3 -B - <<'PY'
+        import os
+        from pathlib import Path
+        directory = Path(os.environ['RUNNER_TEMP']) / 'aqer-uat-signing'
+        if directory.is_symlink():
+            raise RuntimeError('refuse_unexpected_signing_directory_symlink')
+        (directory / 'uat-release.keystore').unlink(missing_ok=True)
+        if directory.exists():
+            directory.rmdir()
+        print('AQER_UAT_SIGNING_MATERIAL_REMOVED')
+        PY
+  upgrade:
+    name: Update ordinary 1819 to 1820 without deleting synthetic private data
+    if: ${{ needs.build.result == 'success' && github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      AQER_MAP_SEARCH_UX_UPGRADE: 'true'
+      UPGRADE_SOURCE_SHA: ${{ github.sha }}
+    steps:
+    - name: Require the private map UX push context without signing or account inputs
+      id: context
+      run: |
+        python3 -B - <<'PYGUARD'
+        import os, re
+        if (os.environ.get('GITHUB_ACTIONS') != 'true' or
+            os.environ.get('GITHUB_REPOSITORY') != 'JJalal1/real-estate-uat-backend' or
+            os.environ.get('GITHUB_REF') != 'refs/heads/work/map-search-ux-1820-20261117' or
+            os.environ.get('GITHUB_EVENT_NAME') != 'push' or
+            os.environ.get('AQER_MAP_SEARCH_UX_UPGRADE') != 'true'):
+            raise RuntimeError('explicit_private_map_search_ux_context_required')
+        source = os.environ['UPGRADE_SOURCE_SHA']
+        if not re.fullmatch(r'[a-f0-9]{40}', source) or source != os.environ['GITHUB_SHA']:
+            raise RuntimeError('map_search_ux_source_mismatch')
+        forbidden = ('AQER_UAT_KEYSTORE_BASE64', 'AQER_RELEASE_STORE_FILE',
+                     'AQER_RELEASE_STORE_PASSWORD', 'AQER_RELEASE_KEY_ALIAS',
+                     'AQER_RELEASE_KEY_PASSWORD', 'AQER_UAT_GOOGLE_SERVICES_JSON_BASE64',
+                     'AQER_PHASE1_TEST_ACCESS_JSON', 'SUPABASE_SERVICE_ROLE_KEY', 'DATABASE_URL')
+        if any(os.environ.get(name) for name in forbidden):
+            raise RuntimeError('signing_or_account_material_forbidden_in_ux_probe')
+        print('AQER_MAP_SEARCH_UX_PUBLIC_CONTEXT_VERIFIED')
+        PYGUARD
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Download the immutable verified 1819 baseline artifact
+      uses: actions/download-artifact@v4
+      with:
+        artifact-ids: '14362467229'
+        run-id: '44156549567'
+        repository: ${{ github.repository }}
+        github-token: ${{ github.token }}
+        merge-multiple: true
+        path: map-search-ux-input/baseline
+    - name: Download the single verified 1820 candidate from the current run
+      uses: actions/download-artifact@v4
+      with:
+        name: map-search-ux-1820-${{ github.sha }}
+        path: map-search-ux-input/candidate
+    - name: Reject unexpected artifact files before starting Android
+      run: |
+        python3 -B - <<'PYFILES'
+        from pathlib import Path
+        expected = {
+            'baseline': {'AQER-UAT-1819-Clean.apk', 'APK_VERIFICATION.json'},
+            'candidate': {'AQER-UAT-1820-Map-Search.apk', 'APK_VERIFICATION.json'},
+        }
+        for name, filenames in expected.items():
+            root = Path('map-search-ux-input') / name
+            entries = list(root.iterdir())
+            if (root.is_symlink() or {path.name for path in entries} != filenames or
+                any(path.is_symlink() or not path.is_file() for path in entries)):
+                raise RuntimeError('only_verified_1819_1820_apk_and_public_receipt_allowed')
+        print('AQER_MAP_SEARCH_UX_ARTIFACT_CONTENTS_VERIFIED')
+        PYFILES
+    - name: Reclaim unused SDK space on the disposable runner
+      run: |
+        sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+        df -h /
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: android-actions/setup-android@v3
+      with:
+        packages: platform-tools platforms;android-36 build-tools;36.0.0
+    - name: Boot an empty disposable map UX API36 emulator
+      run: |
+        test -c /dev/kvm
+        sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+        export ANDROID_USER_HOME="$RUNNER_TEMP/map-search-ux-android"
+        export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+        export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+        mkdir -p "$ANDROID_AVD_HOME"
+        avdmanager create avd --force --name aqer-map-search-ux-upgrade --device pixel --path "$ANDROID_AVD_HOME/aqer-map-search-ux-upgrade.avd" --package 'system-images;android-36;google_apis;x86_64'
+        python3 - "$ANDROID_AVD_HOME/aqer-map-search-ux-upgrade.avd/config.ini" <<'PYCONF'
+        from pathlib import Path
+        import sys
+        path = Path(sys.argv[1])
+        values = {'hw.lcd.width': '540', 'hw.lcd.height': '960', 'hw.lcd.density': '210',
+                  'showDeviceFrame': 'no', 'hw.camera.back': 'none', 'hw.camera.front': 'none',
+                  'disk.dataPartition.size': '2048M'}
+        lines = [line for line in path.read_text().splitlines() if line.split('=', 1)[0].strip() not in values]
+        path.write_text('\n'.join(lines + [key + '=' + value for key, value in values.items()]) + '\n')
+        PYCONF
+        export QT_QPA_PLATFORM=offscreen
+        printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+        sudo chmod 666 /dev/kvm
+        "$ANDROID_HOME/emulator/emulator" -avd aqer-map-search-ux-upgrade -port 5554 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on -memory 2048 -cores 2 > "$RUNNER_TEMP/map-search-ux-emulator.log" 2>&1 &
+        emulator_pid=$!
+        deadline=$((SECONDS+250))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          if ! kill -0 "$emulator_pid" 2>/dev/null; then cat "$RUNNER_TEMP/map-search-ux-emulator.log"; exit 1; fi
+          if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
+          sleep 2
+        done
+        if [ "$SECONDS" -ge "$deadline" ]; then cat "$RUNNER_TEMP/map-search-ux-emulator.log"; adb -s emulator-5554 shell getprop sys.boot_completed || true; exit 1; fi
+    - name: Replace ordinary 1819 with 1820 without uninstall or data reset
+      run: |
+        python3 -B scripts/probe_map_search_ux_upgrade.py \
+          --baseline-apk map-search-ux-input/baseline/AQER-UAT-1819-Clean.apk \
+          --baseline-receipt map-search-ux-input/baseline/APK_VERIFICATION.json \
+          --candidate-apk map-search-ux-input/candidate/AQER-UAT-1820-Map-Search.apk \
+          --candidate-receipt map-search-ux-input/candidate/APK_VERIFICATION.json \
+          --source "$UPGRADE_SOURCE_SHA" --serial emulator-5554 \
+          --output map-search-ux-upgrade-proof
+    - name: Preserve public update receipt and synthetic guest UI screenshots
+      uses: actions/upload-artifact@v4
+      if: always() && steps.context.outcome == 'success' && github.event.repository.private
+      with:
+        name: map-search-ux-upgrade-${{ github.sha }}
+        path: |
+          map-search-ux-upgrade-proof/ANDROID_MAP_SEARCH_UX_UPGRADE.json
+          map-search-ux-upgrade-proof/*.png
+        retention-days: 14
+        if-no-files-found: warn
+    - name: Stop the disposable emulator
+      if: always()
+      run: adb -s emulator-5554 emu kill || true
+    needs:
+    - build

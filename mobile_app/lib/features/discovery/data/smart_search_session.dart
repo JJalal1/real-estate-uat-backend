@@ -46,13 +46,22 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   bool get isLoadingMore => _failedMore;
 
   int _journey = 0;
+  bool _journeyActive = false;
+  bool isCurrentJourney(int token) => mounted && _journeyActive && token == _journey;
   int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters}) {
     final token = ++_journey;
+    _journeyActive = true;
     reset(useLocation: true);
     if (savedFilters != null || entryFilters != null) replaceManually(savedFilters ?? entryFilters!);
     return token;
   }
   void endJourney(int token) {
+    if (!isCurrentJourney(token)) return;
+    _journeyActive = false;
+    // Route pop precedes Widget disposal and its transition animation. Reject
+    // deliveries now; defer only the observable state reset to a safe frame.
+    _inference++; _results++;
+    _resultTransfer?.cancel('Search journey ended');
     scheduleMicrotask(() { if (mounted && token == _journey) reset(); });
   }
   void setDraftText(String value) {

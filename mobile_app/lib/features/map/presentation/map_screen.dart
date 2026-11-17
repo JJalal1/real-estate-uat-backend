@@ -38,6 +38,7 @@ import '../../discovery/data/smart_search_session.dart';
 import '../../discovery/data/marketplace_repository.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
+import '../../discovery/presentation/assisted_search_screen.dart';
 
 const double mapPropertyPriceIconSize = 1.0;
 
@@ -344,6 +345,28 @@ final sharedSearchMapBuilderProvider = Provider<SharedSearchMapBuilder?>((ref)=>
 typedef SharedSearchMapProjector = Future<LatLng> Function(math.Point<num> pixels);
 final sharedSearchMapProjectorProvider = Provider<SharedSearchMapProjector?>((ref) => null);
 
+/// Presentation-only governorate center. It never narrows a province to a
+/// radius or changes the caller's accepted geographic criteria.
+LatLng? mapSearchInitialCamera(SmartSearchFilters filters, HomeLocation home,
+    [Iterable<HomeLocation> locations = const []]) {
+  if (filters.hasMapArea || (filters.values['latitude'] is num && filters.values['longitude'] is num)) return null;
+  String clean(String value) => value.trim().replaceAll('محافظة ', '')
+    .replaceAll('أ', 'ا').replaceAll('إ', 'ا').replaceAll('آ', 'ا').replaceAll('ى', 'ي');
+  final code = filters.values['governorate_code']?.toString();
+  final name = filters.values['governorate']?.toString();
+  if (code == null && name == null) return null;
+  for (final candidate in [if (!home.needsConfirmation) home, ...locations]) {
+    final matches = code != null && candidate.governorateCode != null
+      ? code.toUpperCase() == candidate.governorateCode!.toUpperCase()
+      : name != null && [candidate.governorate, candidate.label].whereType<String>()
+          .any((label) => clean(label) == clean(name));
+    if (matches && hasValidPropertyCoordinates(candidate.latitude, candidate.longitude)) {
+      return LatLng(candidate.latitude, candidate.longitude);
+    }
+  }
+  return null;
+}
+
 class MapSearchActions {
   const MapSearchActions({required this.onDrawArea, required this.onClearArea,
     required this.onSmartSearch, required this.hasDrawnArea});
@@ -354,7 +377,7 @@ class MapSearchActions {
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, this.initialFilters, this.sharedSearchJourney=false, this.searchToolbar, this.onShowList,
     this.searchSessionProvider, this.enforceViewport = false, this.resultsMaxExtent = .84,
-    this.collapseResults = false, this.onMapInteraction, this.searchToolbarBuilder, this.onSmartSearch, super.key});
+    this.collapseResults = false, this.onMapInteraction, this.searchToolbarBuilder, this.onSmartSearch, this.toolbarAboveMap = false, this.isJourneyCurrent, this.cameraCenterHint, super.key});
   final double? initialLatitude, initialLongitude;
   final String? initialType;
   final SmartSearchFilters? initialFilters;
@@ -362,9 +385,11 @@ class MapScreen extends ConsumerStatefulWidget {
   final Widget? searchToolbar;
   final Widget Function(BuildContext, MapSearchActions)? searchToolbarBuilder;
   final Future<void> Function()? onSmartSearch;
+  final bool Function()? isJourneyCurrent;
+  final LatLng? cameraCenterHint;
   final VoidCallback? onShowList;
   final StateNotifierProvider<SmartSearchSession, SmartSearchState>? searchSessionProvider;
-  final bool enforceViewport, collapseResults;
+  final bool enforceViewport, collapseResults, toolbarAboveMap;
   final double resultsMaxExtent;
   final VoidCallback? onMapInteraction;
   bool get hasInitialLocation => initialLatitude != null && initialLongitude != null &&
@@ -381,6 +406,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   static const _openFreeMapStyle =
       'https://tiles.openfreemap.org/styles/liberty';
   static const double _defaultRadiusKm = 30;
+  bool get _journeyCurrent => mounted && (widget.isJourneyCurrent?.call() ?? true);
+  bool _initialCameraResolved = true, _mapUserTouched = false;
 
   MapLibreMapController? _mapController;
   Timer? _styleLoadTimer, _viewportTimer;
@@ -426,7 +453,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   String _searchText = '';
   double _radiusKm = _defaultRadiusKm;
   Map<String, dynamic> _extraFilters = const {};
-  bool _sharedSessionLinked = false;
+  double? _sharedResultsExtent;
+  double? _pendingResultsExtent;
+  bool _resultsExtentQueued = false;
+  double? _visibleSharedMapHeight, _visibleSharedSheetMaximum;
   List<String> _recentSearches = const <String>[];
 
   bool _cameraRestored = false, _restoringCamera = false;
@@ -437,7 +467,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           : _currentSmartFilters())
       .signature;
   Future<bool> _restoreOfflineCamera() async {
-    if (_cameraRestored ||
+    if (!_journeyCurrent || _cameraRestored ||
         widget.hasInitialLocation ||
         ref.read(offlineConnectionProvider) != OfflineConnection.offline)
       { return false; }
@@ -449,7 +479,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final row = await ref
         .read(offlineStoreProvider)
         .read('map_views', key, private: true);
-    if (!mounted ||
+    if (!_journeyCurrent ||
         epoch != Stage6SecureSessionStore.instance.sessionEpoch ||
         generation != _viewportGeneration ||
         key != _offlineCameraKey ||
@@ -490,7 +520,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _saveCamera() {
-    if (_restoringCamera ||
+    if (!_journeyCurrent || _restoringCamera ||
         _selectingArea ||
         !_styleLoaded ||
         ref.read(offlineConnectionProvider) != OfflineConnection.online) { return; }
@@ -529,19 +559,43 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.cameraCenterHint != null) _center = widget.cameraCenterHint!;
     if (widget.hasInitialLocation) _center = LatLng(widget.initialLatitude!, widget.initialLongitude!);
     if (const ['apartment', 'house', 'villa', 'building', 'land', 'shop', 'office', 'farm'].contains(widget.initialType)) _filterType = widget.initialType;
-    if (widget.initialFilters != null) { _sharedSessionLinked = true; _applySharedFilters(widget.initialFilters!); }
+    if (widget.initialFilters != null) { _applySharedFilters(widget.initialFilters!); }
     if (widget.sharedSearchJourney) {
-      _applySharedFilters(ref.read(_searchSession).filters);
+      final filters = ref.read(_searchSession).filters;
+      final hint = widget.cameraCenterHint ?? mapSearchInitialCamera(filters, ref.read(homeLocationProvider));
+      if (!widget.hasInitialLocation && hint != null) _center = hint;
+      _applySharedFilters(filters);
       final rows=ref.read(_searchSession).rows;
-      if(rows.isNotEmpty && !ref.read(_searchSession).filters.hasMapArea) _center=LatLng(rows.first.latitude,rows.first.longitude);
+      if(rows.isNotEmpty && !filters.hasMapArea) _center=LatLng(rows.first.latitude,rows.first.longitude);
+      _initialCameraResolved = hint != null || widget.hasInitialLocation || filters.hasMapArea ||
+        (filters.values['latitude'] is num && filters.values['longitude'] is num) || rows.isNotEmpty ||
+        !filters.values.keys.any((key) => const ['governorate', 'governorate_code'].contains(key));
     } else {
       if (!widget.hasInitialLocation && widget.initialFilters == null) {
         _applySharedFilters(SmartSearchFilters.fromMap({...ref.read(homeLocationProvider).searchContext,
           if (widget.initialType != null) 'type':widget.initialType}));
       }
       unawaited(_restoreDiscoveryHistory());
+    }
+  }
+
+  @override
+  void didUpdateWidget(MapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final hint = widget.cameraCenterHint;
+    if (!_initialCameraResolved && !_mapUserTouched && hint != null) {
+      _center = hint;
+      _initialCameraResolved = true;
+      unawaited(() async {
+        final controller = _mapController;
+        if (!_journeyCurrent || controller == null) return;
+        try { await controller.moveCamera(CameraUpdate.newLatLngZoom(hint, 13.5)); }
+        catch (_) { return; }
+        if (_journeyCurrent) await _sharedViewport();
+      }());
     }
   }
 
@@ -645,27 +699,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _openSmartSearch() async {
     if (widget.onSmartSearch != null) { await widget.onSmartSearch!(); return; }
-    _sharedSessionLinked = true;
-    ref.read(_searchSession.notifier).replaceManually(_currentSmartFilters());
-    if (widget.initialFilters != null) { Navigator.of(context).pop(); return; }
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
-    final journey = ref.read(_searchSession.notifier);
-    await context.push('/smart-search');
-    if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id ||
-        !identical(journey, ref.read(_searchSession.notifier))) { return; }
-    setState(() => _applySharedFilters(ref.read(_searchSession).filters));
-    _persistDiscoveryHistory();
-    await _renderSelectedAreaAnnotations();
+    final initial = SmartSearchFilters.fromMap(Map<String, dynamic>.from(_currentSmartFilters().values));
+    await Navigator.of(context).push<void>(MaterialPageRoute(
+      settings: const RouteSettings(name: 'map-smart-search'),
+      builder: (_) => AssistedSearchScreen(entryFilters: initial)));
   }
 
-  Widget _withSharedSession(Widget child) => PopScope(
-    onPopInvokedWithResult: (didPop, _) {
-      if (didPop && _sharedSessionLinked) {
-        final filters = _currentSmartFilters(), current = ref.read(_searchSession).filters;
-        if (!current.sameAs(filters)) ref.read(_searchSession.notifier).replaceManually(filters);
-      }
-    }, child: child,
-  );
+  Widget _withSharedSession(Widget child) => child;
 
   void _showLocationGuidance(
     String message, {
@@ -734,6 +774,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _onMapCreated(MapLibreMapController controller) {
+    if (!_journeyCurrent) return;
     _mapController = controller;
     controller.onSymbolTapped.add(_onPropertySymbolTapped);
 
@@ -749,7 +790,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _onStyleLoaded() {
     _styleLoadTimer?.cancel();
-    if (!mounted) return;
+    if (!_journeyCurrent) return;
     setState(() {
       _styleLoaded = true;
       _mapMessage = null;
@@ -760,6 +801,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _mapSymbols.clear(); _symbolSignatures.clear(); _annotationGeneration++; _styleGeneration++;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!_journeyCurrent) return;
       if (await _restoreOfflineCamera()) {
         if (mounted) _queueMarkerSync(_latestMarkerItems);
         return;
@@ -767,7 +809,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       if (mounted && widget.sharedSearchJourney) {
         if (widget.enforceViewport) {
           unawaited(_fitSharedRows().whenComplete(() {
-            if (mounted) { _lastSharedViewport = ''; return _sharedViewport(); }
+            if (_journeyCurrent) { _lastSharedViewport = ''; return _sharedViewport(); }
           }));
         } else if (ref.read(_searchSession).started) { _fitSharedRows(); } else { _sharedViewport(); }
       } else if (mounted) { _renderSelectedAreaAnnotations(); _commitCameraCenter(); }
@@ -782,6 +824,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _commitCameraCenter() async {
+    if (!_journeyCurrent) return;
     if (_selectingArea || _fittingShared|| _restoringCamera) return;
     if (ref.read(offlineConnectionProvider) == OfflineConnection.offline) {
       // Keep cached rows and their original classification, but recluster the
@@ -797,8 +840,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final generation = ++_viewportGeneration;
     _viewportTimer?.cancel();
     _viewportTimer = Timer(const Duration(milliseconds: 300), () async {
-      if (!mounted || generation != _viewportGeneration) return;
-      if (widget.sharedSearchJourney) { await _sharedViewport(generation); _saveCamera();
+      if (!_journeyCurrent || generation != _viewportGeneration) return;
+      if (widget.sharedSearchJourney) { await _sharedViewport(generation); if (_journeyCurrent) _saveCamera();
         return; }
       final controller = _mapController;
       if (controller == null || !_styleLoaded) return;
@@ -1585,12 +1628,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _sharedViewport([int? generation]) async {
     final controller=_mapController;
-    if(controller==null || !mounted || _fittingShared || _selectingArea||
+    if(controller==null || !_journeyCurrent || (!_initialCameraResolved && !_mapUserTouched) || _fittingShared || _selectingArea||
         _restoringCamera ||
         ref.read(offlineConnectionProvider) == OfflineConnection.offline){ return; }
     try {
       final bounds=await controller.getVisibleRegion();
-      if(!mounted || _fittingShared || (generation != null && generation != _viewportGeneration))return;
+      if(!_journeyCurrent || _fittingShared || (generation != null && generation != _viewportGeneration))return;
       final signature=_viewportSignature(bounds);
       if(signature==_lastSharedViewport)return;
       _lastSharedViewport=signature;
@@ -1599,8 +1642,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _fitSharedRows() async {
+    if (!_journeyCurrent) return;
     final search=ref.read(_searchSession), controller=_mapController;
-    if(controller==null || !mounted)return;
+    if(controller==null || !_journeyCurrent)return;
     final values=search.filters.values;
     if((widget.enforceViewport || search.filters.hasMapArea) && const ['south','west','north','east'].every((key)=>values[key] is num)) {
       // Reopening the same map restores its actual bounds, including an empty
@@ -1610,7 +1654,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _fittingShared=true;
       try {
         await controller.moveCamera(CameraUpdate.newLatLngBounds(bounds,left:0,top:0,right:0,bottom:0));
-        _lastSharedViewport=_viewportSignature(await controller.getVisibleRegion());
+        if (!_journeyCurrent) return;
+        final visibleBounds = await controller.getVisibleRegion();
+        if (!_journeyCurrent) return;
+        _lastSharedViewport=_viewportSignature(visibleBounds);
       } catch(_) { /* Keep the canonical viewport when the native camera is unavailable. */ }
       finally { _fittingShared=false; }
       return;
@@ -1625,7 +1672,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     try {
       if(south==north && west==east) { await controller.moveCamera(CameraUpdate.newLatLngZoom(LatLng(south,west),14)); }
       else { await controller.moveCamera(CameraUpdate.newLatLngBounds(LatLngBounds(southwest:LatLng(south,west),northeast:LatLng(north,east)),left:32,top:150,right:32,bottom:180)); }
-      _lastSharedViewport=_viewportSignature(await controller.getVisibleRegion());
+      if (!_journeyCurrent) return;
+      final visibleBounds = await controller.getVisibleRegion();
+      if (!_journeyCurrent) return;
+      _lastSharedViewport=_viewportSignature(visibleBounds);
     } catch(_) { /* Retain the user's existing search when camera fitting is unavailable. */ }
     finally { _fittingShared=false; }
   }
@@ -1656,25 +1706,109 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final toolbar = widget.searchToolbarBuilder?.call(context, MapSearchActions(
       onDrawArea: _beginAreaSelection, onClearArea: _clearSelectedArea,
       onSmartSearch: _openSmartSearch, hasDrawnArea: state.filters.values.containsKey('area_polygon'))) ?? widget.searchToolbar;
+    final actions = MapSearchActions(onDrawArea: _beginAreaSelection,
+      onClearArea: _clearSelectedArea, onSmartSearch: _openSmartSearch,
+      hasDrawnArea: state.filters.values.containsKey('area_polygon'));
     return PopScope(canPop: !_selectingArea, onPopInvokedWithResult: (didPop, _) {
       if (!didPop && _selectingArea) _cancelAreaSelection();
-    }, child: Stack(fit:StackFit.expand,children:[
-      Positioned.fill(child:Listener(onPointerDown: (_) => widget.onMapInteraction?.call(),
-        child:canvas==null ? _buildMap() : canvas(context,rows,select,(south,west,north,east)
-        { if (!_selectingArea&&
-                              ref.read(offlineConnectionProvider) !=
-                                  OfflineConnection.offline) { ref.read(_searchSession.notifier).updateViewport(south:south,west:west,north:north,east:east); } }))),
-      if (!_selectingArea) PropertyMapResultsSheet(items: rows, selectedId: _selected?.id, loading: state.loading,
-        maxExtent: widget.resultsMaxExtent, collapsed: widget.collapseResults, filterPanel: toolbar,
-        error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),
-        more: state.more, onMore: () => ref.read(_searchSession.notifier).search(more: true),
-        onShowList: widget.onShowList,
-        itemBuilder: (row) => PropertyMapResultCard(property: row, compact: widget.enforceViewport,
-          favorite: favoriteState?.asData?.value.contains(row.id) ?? false,
-          favoriteStatus: PropertyFavoriteStatus.fromAsync(favoriteState, row.id),
-          onFavorite: _favoriteAction(row.id, favoriteState), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row))),
-      if (_selectingArea) _buildAreaSelectionOverlay(),
-    ]));
+    }, child: LayoutBuilder(builder: (context, viewport) {
+      final keyboard = View.of(context).viewInsets.bottom > 0;
+      final map = LayoutBuilder(builder: (context, bounds) {
+        final height = bounds.maxHeight > 0 ? bounds.maxHeight : 1.0;
+        final horizontalActions = height < 340;
+        final actionHeight = horizontalActions ? 58.0 : 120.0;
+        // Reserve actual map room for the controls even when results expand.
+        final maximum = widget.toolbarAboveMap
+          ? math.min(widget.resultsMaxExtent, (1 - (actionHeight + 24) / height).clamp(.29, .84)).toDouble()
+          : widget.resultsMaxExtent;
+        final titleStyle = Theme.of(context).textTheme.titleSmall;
+        final titleHeight = MediaQuery.textScalerOf(context).scale(titleStyle?.fontSize ?? 16) * (titleStyle?.height ?? 1.4);
+        final headerHeight = 40 + math.max(titleHeight * 2, 48);
+        final minimum = (headerHeight / height).clamp(.14, maximum).toDouble();
+        final extent = (_sharedResultsExtent ?? .29.clamp(minimum, maximum)).clamp(minimum, maximum).toDouble();
+        final showResults = !widget.toolbarAboveMap || (!keyboard && height >= headerHeight + actionHeight + 24);
+        if (showResults) {
+          _visibleSharedMapHeight = height;
+          _visibleSharedSheetMaximum = maximum;
+        }
+        final sheetMaximum = showResults ? maximum : (_visibleSharedSheetMaximum ?? .84);
+        // Keep the hidden results controller and its full layout alive while
+        // the keyboard temporarily reduces the usable native-map height.
+        final sheetHeight = showResults ? height
+          : math.max(_visibleSharedMapHeight ?? height, headerHeight / sheetMaximum + 1).toDouble();
+        return NotificationListener<DraggableScrollableNotification>(onNotification: (notification) {
+          if (notification.depth == 0) _trackSharedResultsExtent(notification.extent);
+          return false;
+        }, child: Stack(key: const ValueKey('shared-search-map-viewport'), fit: StackFit.expand, children: [
+          Positioned.fill(child: Listener(onPointerDown: (_) { _mapUserTouched = true; widget.onMapInteraction?.call(); },
+            child: canvas == null ? _buildMap() : canvas(context, rows, select, (south, west, north, east) {
+              if (_journeyCurrent && !_selectingArea && ref.read(offlineConnectionProvider) != OfflineConnection.offline) {
+                ref.read(_searchSession.notifier).updateViewport(south: south, west: west, north: north, east: east);
+              }
+            }))),
+          if (!_selectingArea) Offstage(offstage: !showResults, child: OverflowBox(
+            alignment: Alignment.bottomCenter, minHeight: sheetHeight, maxHeight: sheetHeight,
+            child: SizedBox(height: sheetHeight, child: PropertyMapResultsSheet(
+            items: rows, selectedId: _selected?.id, loading: state.loading,
+            maxExtent: sheetMaximum, collapsed: widget.collapseResults,
+            filterPanel: widget.toolbarAboveMap ? null : toolbar,
+            error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),
+            more: state.more, onMore: () => ref.read(_searchSession.notifier).search(more: true),
+            onShowList: widget.onShowList,
+            itemBuilder: (row) => PropertyMapResultCard(property: row, compact: widget.enforceViewport,
+              favorite: favoriteState?.asData?.value.contains(row.id) ?? false,
+              favoriteStatus: PropertyFavoriteStatus.fromAsync(favoriteState, row.id),
+              onFavorite: _favoriteAction(row.id, favoriteState), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row)))))),
+          if (!_selectingArea && widget.toolbarAboveMap && height >= actionHeight + 12) Positioned(
+            left: 16, bottom: (showResults ? extent * height : 0) + 12,
+            child: _sharedFloatingActions(actions, horizontal: horizontalActions)),
+          if (_selectingArea) _buildAreaSelectionOverlay(),
+        ]));
+      });
+      if (!widget.toolbarAboveMap || toolbar == null) return map;
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        ConstrainedBox(key: const ValueKey('map-top-search-region'),
+          constraints: BoxConstraints(maxHeight: math.min(viewport.maxHeight * .42, 280.0)),
+          child: SingleChildScrollView(key: const ValueKey('map-top-search-scroll'),
+            padding: const EdgeInsets.fromLTRB(10, 4, 10, 6), child: toolbar)),
+        Expanded(child: map),
+      ]);
+    }));
+  }
+
+  void _trackSharedResultsExtent(double extent) {
+    _pendingResultsExtent = extent;
+    if (_resultsExtentQueued || (_sharedResultsExtent != null && (_sharedResultsExtent! - extent).abs() < .0001)) return;
+    _resultsExtentQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _resultsExtentQueued = false;
+      if (!mounted || _pendingResultsExtent == null) return;
+      final next = _pendingResultsExtent!;
+      if (_sharedResultsExtent == null || (_sharedResultsExtent! - next).abs() >= .0001) {
+        setState(() => _sharedResultsExtent = next);
+      }
+    });
+  }
+
+  Widget _sharedFloatingActions(MapSearchActions actions, {required bool horizontal}) {
+    final scheme = Theme.of(context).colorScheme;
+    final draw = Material(color: actions.hasDrawnArea ? scheme.primaryContainer : scheme.surface,
+      elevation: 3, shape: const CircleBorder(), child: IconButton(
+        key: const ValueKey('map-draw-area'), tooltip: 'رسم منطقة على الخريطة',
+        constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
+        onPressed: () { FocusScope.of(context).unfocus(); actions.onDrawArea(); },
+        icon: Icon(Icons.gesture_rounded, color: scheme.primary)));
+    final assistant = Material(color: scheme.surface, elevation: 5,
+      shadowColor: scheme.primary.withValues(alpha: .24), shape: const CircleBorder(),
+      child: InkWell(key: const ValueKey('map-smart-search'), customBorder: const CircleBorder(),
+        onTap: () { FocusScope.of(context).unfocus(); actions.onSmartSearch(); },
+        child: const Tooltip(message: 'البحث الذكي', child: Semantics(button: true, label: 'فتح مساعد البحث الذكي',
+          child: Padding(padding: EdgeInsets.all(10), child: SmartSearchRobotIcon(size: 38))))));
+    return SizedBox(key: const ValueKey('map-floating-search-actions'), child: horizontal
+      ? Row(textDirection: TextDirection.ltr, mainAxisSize: MainAxisSize.min,
+          children: [draw, const SizedBox(width: 10), assistant])
+      : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+          children: [draw, const SizedBox(height: 10), assistant]));
   }
 
   Widget _buildMap() {

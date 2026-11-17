@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/platform/voice_input.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/platform/voice_capture_controller.dart';
 import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/widgets/app_components.dart';
@@ -11,6 +12,8 @@ import '../../properties/presentation/property_summary_card.dart';
 import '../../properties/presentation/discovery_section_heading.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
+import '../data/marketplace_repository.dart';
+import '../data/assisted_search_suggestions.dart';
 import '../domain/smart_search_filters.dart';
 import 'smart_search_filter_editor.dart';
 import 'smart_search_assistant.dart';
@@ -19,12 +22,10 @@ import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/saved_property_search.dart';
 
 class AssistedSearchScreen extends ConsumerStatefulWidget {
-  const AssistedSearchScreen({this.savedSearch, this.initialMapMode = false, this.entryFilters, this.onFiltersChanged, this.onExitFilters, super.key});
+  const AssistedSearchScreen({this.savedSearch, this.initialMapMode = false, this.entryFilters, super.key});
   final SavedPropertySearch? savedSearch;
   final bool initialMapMode;
   final SmartSearchFilters? entryFilters;
-  final ValueChanged<SmartSearchFilters>? onFiltersChanged;
-  final ValueChanged<SmartSearchFilters>? onExitFilters;
   @override
   ConsumerState<AssistedSearchScreen> createState() => _AssistedSearchState();
 }
@@ -40,23 +41,25 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   SmartSearchSession get _session => ref.read(smartSearchSessionProvider.notifier);
   late SmartSearchSession _journeySession;
   late final int? _entryActor;
+  late final int _entryEpoch;
+  int? _visibleActor;
+  int _visibleEpoch = 0;
   int _journey = 0;
   bool _ready = false, _mapMode = false;
-  SmartSearchFilters? _acceptedFilters;
-  bool _returnedFilters = false;
-  bool _mayReturnFilters = true;
+  bool _journeyEnded = false;
 
   @override
   void initState() {
     super.initState();
     _journeySession = _session;
     _entryActor = ref.read(authControllerProvider).asData?.value?.id;
-    _acceptedFilters = widget.savedSearch == null ? widget.entryFilters : SmartSearchFilters.fromApiFilters(widget.savedSearch!.filters);
+    _visibleActor = _entryActor;
+    _entryEpoch = _visibleEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
     _mapMode = widget.initialMapMode;
     Future.microtask(() {
-      if (!mounted) return;
-      final sameActor = _entryActor == ref.read(authControllerProvider).asData?.value?.id;
-      if (!sameActor) { _mayReturnFilters = false; _acceptedFilters = null; }
+      if (!mounted || _journeyEnded) return;
+      final sameActor = _entryActor == ref.read(authControllerProvider).asData?.value?.id &&
+          _entryEpoch == Stage6SecureSessionStore.instance.sessionEpoch;
       _journeySession = _session;
       _journey = _journeySession.beginJourney(
         savedFilters: !sameActor || widget.savedSearch == null ? null : SmartSearchFilters.fromApiFilters(widget.savedSearch!.filters),
@@ -66,7 +69,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
   }
   void _voiceChanged() {
-    if (!mounted) return;
+    if (!mounted || _journeyEnded) return;
     if (_capture.active && _capture.preview.isNotEmpty) {
       final text = appendDictation(_voiceDraft, _capture.preview);
       _voiceVisibleText = text;
@@ -75,12 +78,19 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     setState(() {});
   }
   @override
-  void dispose() { if (_journey != 0) _journeySession.endJourney(_journey); _capture.removeListener(_voiceChanged); _capture.dispose(); _description.dispose(); _scroll.dispose(); _focus.dispose(); super.dispose(); }
+  void dispose() { _capture.removeListener(_voiceChanged); _endJourney(); _capture.dispose(); _description.dispose(); _scroll.dispose(); _focus.dispose(); super.dispose(); }
+
+  void _endJourney() {
+    _journeyEnded = true;
+    ++_voiceTurn;
+    if (_journey != 0) { _journeySession.endJourney(_journey); _journey = 0; }
+    if (_capture.active || _capture.canRetry) _capture.cancel();
+  }
 
   Future<void> _send() async {
     final text = _description.text.trim();
     final state = ref.read(smartSearchSessionProvider);
-    if (text.isEmpty || _capture.active || state.interpreting ||
+    if (_journeyEnded || !_journeySession.isCurrentJourney(_journey) || text.isEmpty || _capture.active || state.interpreting ||
       (state.started && state.aiError == null && state.draftText.isEmpty && text == state.lastRequest)) { return; }
     if (text.length > 5000) { setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.'); return; }
     FocusScope.of(context).unfocus();
@@ -90,7 +100,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   }
 
   Future<void> _voice({bool retry = false}) async {
-    if (_capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
+    if (_journeyEnded || !_journeySession.isCurrentJourney(_journey) || _capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
     if (retry && !_capture.canRetry) return;
     FocusScope.of(context).unfocus();
     final revision = ref.read(smartSearchSessionProvider).revision;
@@ -101,9 +111,12 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (_description.text != _voiceDraft) _description.text = _voiceDraft;
     _voiceVisibleText = _voiceDraft;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final journey = _journey;
     final turn = ++_voiceTurn;
     final text = retry ? await _capture.retryTranscription() : await _capture.start();
-    if (!mounted || turn != _voiceTurn || actor != ref.read(authControllerProvider).asData?.value?.id ||
+    if (!mounted || _journeyEnded || journey != _journey || !_journeySession.isCurrentJourney(journey) || turn != _voiceTurn ||
+        epoch != Stage6SecureSessionStore.instance.sessionEpoch || actor != ref.read(authControllerProvider).asData?.value?.id ||
         _description.text != _voiceVisibleText) { return; }
     if (text == null) {
       _description.text = _capture.error != null && _capture.stablePreview.isNotEmpty
@@ -137,25 +150,42 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   ]);
 
   Future<void> _edit({String? focus}) async {
+    if (_journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
     if (_capture.active) _cancelVoice();
     if (focus == 'map_area') { await _openMap(); return; }
+    final owner = _session, journey = _journey, epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final next = await AppBottomSheet.show<SmartSearchFilters>(context,
       builder: (_) => SmartSearchFilterEditor(initial: ref.read(smartSearchSessionProvider).filters, focus: focus));
-    if (next != null && mounted) ref.read(smartSearchSessionProvider.notifier).replaceManually(next);
+    if (next != null && mounted && !_journeyEnded && journey == _journey && owner.isCurrentJourney(journey) &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch && identical(owner, _session)) {
+      unawaited(owner.replaceManually(next));
+    }
   }
 
   Future<void> _openMap() async {
+    if (_journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
     if (_capture.active) _cancelVoice();
     _session.setDraftText(_description.text);
     setState(() => _mapMode = !_mapMode);
   }
 
-  Widget _mapToolbar(SmartSearchState state) => Material(elevation:2,borderRadius:BorderRadius.circular(16),
+  Future<void> _focusAssistant() async {
+    if (!mounted || _journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
+    if (_capture.active) _cancelVoice();
+    if (_mapMode) setState(() => _mapMode = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _journeyEnded) return;
+      if (_scroll.hasClients) _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+      _focus.requestFocus();
+    });
+  }
+
+  Widget _mapToolbar(SmartSearchState state, String initialHint) => Material(elevation:2,borderRadius:BorderRadius.circular(16),
     color:Theme.of(context).colorScheme.surface,child:Padding(padding:const EdgeInsets.all(8),child:Column(mainAxisSize:MainAxisSize.min,children:[
       Row(children:[const SmartSearchRobotIcon(size:24),const SizedBox(width:6), Expanded(child:TextField(
         key:const ValueKey('smart-search-description'),controller:_description,focusNode:_focus,readOnly:_capture.active || state.interpreting,
         minLines:1,maxLines:2,onChanged:_session.setDraftText,onSubmitted:(_)=>_send(),
-        decoration:InputDecoration(hintText:_capture.active ? null : state.started ? 'أضف أو عدّل أي شرط…' : 'صف العقار الذي تبحث عنه',isDense:true,border:InputBorder.none))),
+        decoration:InputDecoration(hintText:_capture.active ? null : state.started ? 'أضف أو عدّل أي شرط…' : initialHint,isDense:true,border:InputBorder.none))),
         IconButton(key:const ValueKey('smart-search-voice'),tooltip:'أكمل بحثك بالصوت',onPressed:state.interpreting?null:() => _voice(),icon:const Icon(Icons.mic_none_outlined)),
         IconButton(key:const ValueKey('smart-search-send'),tooltip:'بحث',onPressed:state.interpreting?null:_send,
           icon:state.interpreting?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.search)),
@@ -168,34 +198,33 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
 
   @override
   Widget build(BuildContext context) => PopScope(onPopInvokedWithResult: (didPop, _) {
-    if (didPop && _mayReturnFilters && !_returnedFilters && _acceptedFilters != null) {
-      _returnedFilters = true;
-      widget.onExitFilters?.call(_acceptedFilters!);
-    }
+    if (didPop) _endJourney();
   }, child: _contents(context));
 
   Widget _contents(BuildContext context) {
     if (!_ready) return const Scaffold(body:Center(child:CircularProgressIndicator()));
     final state = ref.watch(smartSearchSessionProvider), theme = Theme.of(context);
+    final location = ref.watch(homeLocationProvider);
+    final regions = ref.watch(homeLocationsProvider).asData?.value ?? const <HomeLocation>[];
+    final suggestions = AssistedSearchSuggestions.forLocation(location, regions: regions);
     ref.listen(authControllerProvider, (previous, next) {
-      if (previous?.asData?.value?.id != next.asData?.value?.id) {
+      final actor = next.asData?.value?.id, epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+      if (_visibleActor != actor || _visibleEpoch != epoch) {
+        _visibleActor = actor; _visibleEpoch = epoch;
         _cancelVoice(); _description.clear();
         _lastVoiceBase = null; _lastVoiceText = null;
-        _mayReturnFilters = false; _acceptedFilters = null;
-        final actor = next.asData?.value?.id;
+        if (_journey != 0) _journeySession.endJourney(_journey);
+        _journey = 0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || actor != ref.read(authControllerProvider).asData?.value?.id) return;
-          _journeySession.endJourney(_journey);
+          if (!mounted || _journeyEnded || actor != ref.read(authControllerProvider).asData?.value?.id ||
+              epoch != Stage6SecureSessionStore.instance.sessionEpoch) return;
           _journeySession = _session;
           _journey = _journeySession.beginJourney();
         });
       }
     });
     ref.listen<SmartSearchState>(smartSearchSessionProvider, (before, after) {
-      if (_mayReturnFilters && before != null && before.revision != after.revision) {
-        _acceptedFilters = after.filters;
-        widget.onFiltersChanged?.call(after.filters);
-      }
+      if (_journeyEnded) return;
       if (_capture.active && before?.revision != after.revision) _cancelVoice();
       // Applied criteria belong to the summary. Only consume the exact draft
       // that was accepted; manual changes and newer unsent text stay intact.
@@ -210,9 +239,19 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (ModalRoute.of(context)?.isCurrent == false && _capture.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _capture.active) _cancelVoice(); });
     }
-    if (_mapMode) { return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
+    if (_mapMode) {
+      final mapOwner = _journeySession, mapJourney = _journey;
+      final mapActor = _visibleActor, mapEpoch = _visibleEpoch;
+      return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
       appBar:AppAppBar(title:'البحث على الخريطة',actions:[TextButton(key:const ValueKey('smart-search-list'),onPressed:_openMap,child:const Text('القائمة'))]),
-      body:MapScreen(sharedSearchJourney:true,searchToolbar:_mapToolbar(state),onShowList:_openMap))); }
+      body:MapScreen(key: ValueKey(('assisted-search-map', mapActor, mapEpoch, mapJourney)),
+        sharedSearchJourney:true,toolbarAboveMap:true,
+        cameraCenterHint: mapSearchInitialCamera(state.filters, location, regions),
+        searchToolbar:_mapToolbar(state, suggestions.hint),onShowList:_openMap,
+        onSmartSearch:_focusAssistant,
+        isJourneyCurrent: () => mounted && !_journeyEnded && mapJourney != 0 &&
+          _journey == mapJourney && mapOwner.isCurrentJourney(mapJourney) && _visibleActor == mapActor && _visibleEpoch == mapEpoch &&
+          identical(mapOwner, _journeySession) && identical(mapOwner, ref.read(smartSearchSessionProvider.notifier))))); }
     final controller = ref.read(smartSearchSessionProvider.notifier);
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       appBar: AppAppBar(title: 'البحث الذكي', actions: [
@@ -251,7 +290,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             readOnly: _capture.active || state.interpreting,
             minLines: state.started ? 1 : 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
             onChanged: _session.setDraftText, onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
-              hintText: _capture.active ? null : !state.started ? 'شقة للإيجار في صنعاء، ثلاث غرف…' : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
+              hintText: _capture.active ? null : !state.started ? suggestions.hint : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
           if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, onRestart: _restartVoice),
           if (!_capture.active && !state.interpreting) _voiceOptions(),
           const SizedBox(height: 8),
@@ -280,7 +319,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           const SizedBox(height: 22),
           const Text('جرّب مثلًا'),
           const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 6, children: [for (final example in const ['شقة للإيجار في صنعاء', 'منزل للبيع', 'أرض في صنعاء'])
+          Wrap(spacing: 8, runSpacing: 6, children: [for (final example in suggestions.examples)
             ActionChip(label: Text(example), onPressed: state.interpreting ? null : () { _description.text = example; _send(); })]),
         ] else ...[
           const SizedBox(height: 28),

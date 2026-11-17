@@ -114,7 +114,7 @@ void main(){
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text,'مسودة متابعة لم أرسلها');expect(container.read(smartSearchSessionProvider).filters.values,before);
     expect(find.text('15.3694,44.191'),findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('map-filter-panel-toggle'))); await tester.pumpAndSettle();
+    await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, 500)); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('marker-11')).hitTestable(), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('marker-11')));await tester.pumpAndSettle();expect(find.text('عقار تجريبي 11'),findsOneWidget);
     await tester.drag(find.byKey(const ValueKey('map-results-handle')),const Offset(0,350));await tester.pumpAndSettle();
@@ -197,7 +197,7 @@ void main(){
       await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
       expect(find.byType(MapScreen),findsOneWidget);
       expect(tester.widget<TextField>(field).controller!.text,'أضف شرطًا آخر');
-      await tester.tap(find.byKey(const ValueKey('map-filter-panel-toggle'))); await tester.pumpAndSettle();
+      await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, 500)); await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('fixture-map-11')).hitTestable(), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('fixture-map-11')));await tester.pumpAndSettle();
       expect(find.text('عقار تجريبي 11'),findsOneWidget);

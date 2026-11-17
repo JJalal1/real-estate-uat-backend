@@ -139,7 +139,9 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
               onVerticalDragUpdate: (details) => _dragHeader(details.primaryDelta ?? 0, height),
               onVerticalDragEnd: (details) => _snapHeader(details.primaryVelocity ?? 0),
               child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 0), child: Column(children: [
-                Semantics(label: 'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها',
+                Semantics(label: widget.filterPanel == null
+                  ? 'اسحب لتوسيع العقارات أو تصغيرها'
+                  : 'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها',
                   child: SizedBox(key: const ValueKey('map-results-handle'), height: 24, width: double.infinity,
                     child: Center(child: Container(width: 42, height: 4,
                       decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))))),

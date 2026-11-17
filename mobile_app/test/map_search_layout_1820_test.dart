@@ -1,0 +1,313 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
+import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
+import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'support/owner_ux_fixtures.dart';
+import 'wave2_home_search_test.dart' show Listings, PageResult;
+
+Future<void> _tap(WidgetTester tester, String key) async {
+  final target = find.byKey(ValueKey(key));
+  await tester.ensureVisible(target);
+  await tester.tap(target);
+  await tester.pumpAndSettle();
+}
+
+class _MapLifetimeCanvas extends StatefulWidget {
+  const _MapLifetimeCanvas({required this.onMount, required this.onUnmount});
+  final VoidCallback onMount, onUnmount;
+  @override
+  State<_MapLifetimeCanvas> createState() => _MapLifetimeCanvasState();
+}
+
+class _MapLifetimeCanvasState extends State<_MapLifetimeCanvas> {
+  @override
+  void initState() { super.initState(); widget.onMount(); }
+  @override
+  void dispose() { widget.onUnmount(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => const ColoredBox(color: Colors.teal);
+}
+
+void main() {
+  setUpAll(loadUxFixtures);
+
+  testWidgets('delayed Dhamar results keep the confirmed governorate camera and whole-province criteria', (tester) async {
+    final reply = Completer<PageResult>();
+    final properties = Listings()..respond = (_, __) => reply.future;
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, viewport) =>
+        const ColoredBox(color: Colors.teal)),
+    ]);
+    scope.read(homeLocationProvider.notifier).state = const HomeLocation(
+      latitude: 14.5428, longitude: 44.4051, governorate: 'ذمار', governorateCode: 'DH', label: 'ذمار', manual: true);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
+    await tester.pump();
+    final map = tester.widget<MapScreen>(find.byType(MapScreen));
+    expect(map.cameraCenterHint!.latitude, 14.5428);
+    expect(map.cameraCenterHint!.longitude, 44.4051);
+    expect(scope.read(marketplaceMapResultsProvider).filters.values['governorate_code'], 'DH');
+    expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('south'), isFalse);
+    expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('radius_km'), isFalse);
+    expect(properties.calls.single['governorate'], 'ذمار');
+    expect(properties.calls.single.containsKey('latitude'), isFalse);
+    reply.complete(([], false));
+    await tester.pumpAndSettle();
+    expect(properties.calls, hasLength(1));
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  test('governorate camera hint follows the requested registry entry without changing explicit user bounds', () {
+    const home = HomeLocation(latitude: 15.3, longitude: 44.2, governorate: 'صنعاء', label: 'صنعاء');
+    const dhamar = HomeLocation(latitude: 14.5428, longitude: 44.4051, governorate: 'ذمار', governorateCode: 'DH', label: 'ذمار');
+    final requested = SmartSearchFilters.fromMap({'governorate': 'ذمار', 'governorate_code': 'DH'});
+    expect(mapSearchInitialCamera(requested, home, [dhamar])!.latitude, 14.5428);
+    expect(requested.values.containsKey('radius_km'), isFalse);
+    expect(mapSearchInitialCamera(SmartSearchFilters.fromMap({
+      ...requested.values, 'south': 14, 'west': 44, 'north': 15, 'east': 45,
+    }), home, [dhamar]), isNull);
+    expect(mapSearchInitialCamera(SmartSearchFilters.fromMap({'governorate_code': 'UNKNOWN'}), home, [dhamar]), isNull);
+  });
+
+  testWidgets('editable map price bounds retain pending Arabic input through currency selection and clear one bound atomically', (tester) async {
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(Listings())]);
+    final controller = scope.read(marketplaceSearchControllerProvider.notifier);
+    controller.applyFilters(SmartSearchFilters.fromMap({
+      'purpose': 'rent', 'type': 'apartment', 'currency': 'USD', 'max_price': 500000,
+    }));
+    controller.enterMap();
+    final home = scope.read(marketplaceSearchControllerProvider).criteria;
+    await pumpUx(tester, scope, const Scaffold(body: SingleChildScrollView(
+      child: MarketplaceSearchPanel(onMap: true))));
+    final minimum = find.byKey(const ValueKey('published-filter-min-price'));
+    final maximum = find.byKey(const ValueKey('published-filter-max-price'));
+    await tester.enterText(minimum, '١٢٥٬٠٠٠٫٥');
+    await tester.enterText(maximum, '٢٥٠٬٠٠٠');
+    controller.setChoice('min_bedrooms', 3, onMap: true);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(minimum).controller!.text, '١٢٥٬٠٠٠٫٥');
+    expect(tester.widget<TextField>(maximum).controller!.text, '٢٥٠٬٠٠٠');
+    await _tap(tester, 'published-filter-currency');
+    expect(double.parse(tester.widget<TextField>(find.byKey(const ValueKey('filter-min_price'))).controller!.text), 125000.5);
+    await _tap(tester, 'filter-currency');
+    await tester.tap(find.text('ريال سعودي').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('تطبيق الشروط'));
+    await tester.tap(find.text('تطبيق الشروط'));
+    await tester.pumpAndSettle();
+    expect(controller.uiFor(onMap: true).criteria.values, containsPair('min_price', 125000.5));
+    expect(controller.uiFor(onMap: true).criteria.values, containsPair('max_price', 250000));
+    expect(controller.uiFor(onMap: true).criteria.values, containsPair('currency', 'SAR'));
+    expect(scope.read(marketplaceSearchControllerProvider).criteria.sameAs(home), isTrue);
+    await tester.enterText(maximum, '');
+    await _tap(tester, 'published-price-apply');
+    expect(controller.uiFor(onMap: true).criteria.values.containsKey('max_price'), isFalse);
+    expect(controller.uiFor(onMap: true).criteria.values['min_price'], 125000.5);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('invalid or reversed inline price bounds cannot replace the accepted map budget', (tester) async {
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(Listings())]);
+    final controller = scope.read(marketplaceSearchControllerProvider.notifier);
+    controller.enterMap(filters: SmartSearchFilters.fromMap({'min_price': 100, 'max_price': 200}));
+    await pumpUx(tester, scope, const Scaffold(body: SingleChildScrollView(
+      child: MarketplaceSearchPanel(onMap: true))));
+    final original = controller.uiFor(onMap: true).criteria;
+    for (final invalid in ['-1', 'Infinity', '١٠٠٠٠٠٠٠٠٠٠٠١']) {
+      await tester.enterText(find.byKey(const ValueKey('published-filter-min-price')), invalid);
+      await _tap(tester, 'published-price-apply');
+      expect(find.byKey(const ValueKey('published-price-error')), findsOneWidget);
+      expect(controller.uiFor(onMap: true).criteria.sameAs(original), isTrue);
+    }
+    await tester.enterText(find.byKey(const ValueKey('published-filter-min-price')), '٣٠٠');
+    await _tap(tester, 'published-price-apply');
+    expect(find.text('الحد الأدنى يجب ألا يتجاوز الحد الأعلى.'), findsOneWidget);
+    expect(controller.uiFor(onMap: true).criteria.sameAs(original), isTrue);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  for (final dark in [false, true]) {
+    testWidgets('360px map keeps the top price editor usable with keyboard and preserves the dragged results extent dark=$dark', (tester) async {
+      final properties = Listings();
+      final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties),
+        sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, viewport) =>
+          const ColoredBox(key: ValueKey('map-1820-canvas'), color: Colors.teal)),
+      ]);
+      await pumpUx(tester, scope, const MarketplaceSearchMapScreen(),
+        size: const Size(360, 640), scale: 2.0, dark: dark);
+      await tester.pumpAndSettle();
+      final canvas = tester.element(find.byKey(const ValueKey('map-1820-canvas')));
+      await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -250));
+      await tester.pumpAndSettle();
+      final sheetFinder = find.byKey(const ValueKey('map-results-sheet'), skipOffstage: false);
+      final sheet = tester.element(sheetFinder);
+      final extent = tester.widget<DraggableScrollableSheet>(sheetFinder).controller!.size;
+      final requests = properties.calls.length;
+      final maximum = find.byKey(const ValueKey('published-filter-max-price'));
+      await tester.ensureVisible(maximum);
+      await tester.tap(maximum);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(maximum);
+      await tester.pumpAndSettle();
+      final field = tester.getRect(maximum);
+      final region = tester.getRect(find.byKey(const ValueKey('map-top-search-region')));
+      expect(field.top, greaterThanOrEqualTo(region.top - 1));
+      expect(field.bottom, lessThanOrEqualTo(region.bottom + 1));
+      expect(find.byKey(const ValueKey('map-results-sheet')), findsNothing);
+      expect(tester.element(sheetFinder), same(sheet));
+      await tester.enterText(maximum, '١٥٠٠٠٠');
+      FocusManager.instance.primaryFocus?.unfocus();
+      tester.view.resetViewInsets();
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(maximum).controller!.text, '١٥٠٠٠٠');
+      expect(tester.element(find.byKey(const ValueKey('map-1820-canvas'))), same(canvas));
+      expect(tester.widget<DraggableScrollableSheet>(sheetFinder).controller!.size, closeTo(extent, .001));
+      expect(properties.calls.length, requests);
+      expect(tester.takeException(), isNull);
+      await closeUx(tester);
+    });
+  }
+
+  testWidgets('a viewport delivered during the map pop transition cannot revive the ended child journey', (tester) async {
+    final properties = Listings();
+    void Function(double, double, double, double)? viewport;
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, updateViewport) {
+        viewport = updateViewport;
+        return const ColoredBox(color: Colors.teal);
+      }),
+    ]);
+    final navigation = GoRouter(routes: [
+      GoRoute(path: '/', builder: (_, __) => const Scaffold(body: Text('الرئيسية'))),
+      GoRoute(path: '/map', builder: (_, __) => const MarketplaceSearchMapScreen()),
+    ]);
+    addTearDown(navigation.dispose);
+    await pumpUx(tester, scope, const SizedBox(), router: navigation);
+    unawaited(navigation.push<void>('/map'));
+    await tester.pumpAndSettle();
+    final controller = scope.read(marketplaceSearchControllerProvider.notifier);
+    final token = controller.mapJourneyToken;
+    final lateViewport = viewport!;
+    final requests = properties.calls.length;
+    navigation.pop();
+    expect(controller.isMapJourneyCurrent(token), isFalse);
+    // Deliver before pumping/disposal: the old native child is still mounted.
+    lateViewport(14, 43, 15, 44);
+    expect(properties.calls.length, requests);
+    await tester.pumpAndSettle();
+    expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('south'), isFalse);
+    expect(scope.read(marketplaceSearchControllerProvider).criteria.values, isEmpty);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('opening property details above an embedded map retains its child scope until the actual tab exit', (tester) async {
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(Listings()),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, viewport) =>
+        const ColoredBox(color: Colors.teal)),
+    ]);
+    final navigation = GoRouter(routes: [
+      GoRoute(path: '/', builder: (_, __) => const MarketplaceSearchMapScreen(embedded: true)),
+      GoRoute(path: '/properties/:id', builder: (_, __) => Scaffold(
+        appBar: AppBar(), body: const Text('تفاصيل فوق الخريطة'))),
+    ]);
+    addTearDown(navigation.dispose);
+    await pumpUx(tester, scope, const SizedBox(), router: navigation);
+    await tester.pumpAndSettle();
+    final controller = scope.read(marketplaceSearchControllerProvider.notifier);
+    controller.setChoice('type', 'house', onMap: true);
+    scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south: 15, west: 44, north: 16, east: 45);
+    await tester.pumpAndSettle();
+    final token = controller.mapJourneyToken;
+    final filters = scope.read(marketplaceMapResultsProvider).filters;
+    await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    final property = find.byKey(const ValueKey('map-result-1'));
+    await tester.ensureVisible(property);
+    await tester.tap(property);
+    await tester.pumpAndSettle();
+    expect(find.text('تفاصيل فوق الخريطة'), findsOneWidget);
+    expect(controller.isMapJourneyCurrent(token), isTrue);
+    navigation.pop();
+    await tester.pumpAndSettle();
+    expect(controller.isMapJourneyCurrent(token), isTrue);
+    expect(scope.read(marketplaceMapResultsProvider).filters.sameAs(filters), isTrue);
+    expect(scope.read(marketplaceSearchControllerProvider).criteria.values, isEmpty);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('leaving a retained embedded map disposes its camera, rejects a late viewport and starts a fresh map from Home', (tester) async {
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+    final properties = Listings();
+    var instances = 0, disposed = 0;
+    void Function(double, double, double, double)? viewport;
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, updateViewport) {
+        viewport = updateViewport;
+        return _MapLifetimeCanvas(onMount: () => instances++, onUnmount: () => disposed++);
+      }),
+    ]);
+    final controller = scope.read(marketplaceSearchControllerProvider.notifier);
+    controller.applyFilters(SmartSearchFilters.fromMap({'type': 'house'}));
+    await pumpUx(tester, scope, ValueListenableBuilder<bool>(valueListenable: visible,
+      builder: (context, enabled, child) => MarketplaceSearchMapScreen(embedded: true, active: enabled)));
+    await tester.pumpAndSettle();
+    expect(instances, 1);
+    final firstToken = controller.mapJourneyToken;
+    controller.setChoice('max_price', 100, onMap: true);
+    await tester.pumpAndSettle();
+    final lateViewport = viewport!;
+    visible.value = false;
+    await tester.pumpAndSettle();
+    expect(controller.isMapJourneyCurrent(firstToken), isFalse);
+    expect(disposed, 1);
+    expect(find.byType(MapScreen), findsNothing);
+    final requests = properties.calls.length;
+    final revision = scope.read(marketplaceMapResultsProvider).revision;
+    lateViewport(14, 43, 15, 44);
+    await tester.pumpAndSettle();
+    expect(properties.calls.length, requests);
+    expect(scope.read(marketplaceMapResultsProvider).revision, revision);
+    expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('south'), isFalse);
+    expect(scope.read(marketplaceSearchControllerProvider).criteria.values, {'type': 'house'});
+    controller.applyFilters(SmartSearchFilters.fromMap({'type': 'land'}));
+    visible.value = true;
+    await tester.pumpAndSettle();
+    expect(instances, 2);
+    expect(controller.mapJourneyToken, greaterThan(firstToken));
+    expect(controller.uiFor(onMap: true).criteria.values['type'], 'land');
+    expect(controller.uiFor(onMap: true).criteria.values.containsKey('max_price'), isFalse);
+    expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('south'), isFalse);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('very short keyboard viewport retains hidden results without a layout overflow', (tester) async {
+    final scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(Listings()),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, viewport) =>
+        const ColoredBox(key: ValueKey('map-1820-short-canvas'), color: Colors.teal)),
+    ]);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen(), size: const Size(360, 360), scale: 2.4);
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('map-results-sheet')), findsNothing);
+    expect(find.byKey(const ValueKey('map-results-sheet'), skipOffstage: false), findsOneWidget);
+    expect(tester.getSize(find.byKey(const ValueKey('map-1820-short-canvas'))).height, greaterThan(0));
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+}
