@@ -108,6 +108,23 @@ void main() {
     expect(await cache().read(_url), isNull); dio.close();
   });
 
+  test('real API 304 without Content-Type retains and renews the durable preview', () async {
+    final store = cache(); await store.put(_url, bytes, _headers(), expectedEpoch: store.epoch);
+    final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (r, h) => h.resolve(Response<List<int>>(
+      requestOptions: r, statusCode: 304, data: const [], headers: Headers.fromMap({'etag': ['"revision-one"'], 'cache-control': ['public, max-age=86400']})))));
+    final transfer = await PublicPhotoLoader(dio, store).load(_url, cancelToken: CancelToken(), revalidate: true);
+    expect(transfer.notModified, true); expect(transfer.downloadedBytes, 0);
+    expect((await cache().read(_url))?.bytes, bytes);
+    dio.close();
+  });
+  test('304 explicit no-store still removes persistence even when bytes are known', () async {
+    final store = cache(); await store.put(_url, bytes, _headers(), expectedEpoch: store.epoch);
+    final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (r, h) => h.resolve(Response<List<int>>(
+      requestOptions: r, statusCode: 304, data: const [], headers: Headers.fromMap({'etag': ['"revision-one"'], 'cache-control': ['private, no-store']})))));
+    await PublicPhotoLoader(dio, store).load(_url, cancelToken: CancelToken(), revalidate: true); await store.idle;
+    expect(await cache().read(_url), isNull); dio.close();
+  });
+
   test('superseded image response cannot persist or return a successful transfer', () async {
     final store = cache(), pending = Completer<Response<List<int>>>(), started = Completer<void>();
     final dio = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (request, handler) async {

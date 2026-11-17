@@ -68,14 +68,23 @@ class PublicPhotoLoader {
       await disk.forget(url);
       throw DioException.badResponse(statusCode: response.statusCode!, requestOptions: response.requestOptions, response: response);
     }
-    if (!disk.accepts(response.headers)) unawaited(disk.forget(url));
-    if (requirePublicResponse && !disk.accepts(response.headers) && foregroundAttached?.call() != true) {
+    // A 304 intentionally omits entity headers (Symfony removes MIME/length).
+    // Reuse the known public derivative contract; explicit private/no-store or
+    // Set-Cookie still wins and invalidates persistence.
+    final cacheHeaders = response.statusCode == 304 && cached != null ? Headers.fromMap({
+      ...response.headers.map,
+      'content-type': [response.headers.value('content-type') ?? 'image/jpeg'],
+      'cache-control': [response.headers.value('cache-control') ?? 'public, max-age=86400'],
+      'etag': [response.headers.value('etag') ?? cached.etag],
+    }) : response.headers;
+    if (!disk.accepts(cacheHeaders)) unawaited(disk.forget(url));
+    if (requirePublicResponse && !disk.accepts(cacheHeaders) && foregroundAttached?.call() != true) {
       throw StateError('Speculative image response is not publicly cacheable');
     }
     if (traceTimer != null) {
       final measurement = UatNetworkTrace.publicImageMeasurement(
         origin: Uri.parse(dio.options.baseUrl), url: url,
-        publicResponse: disk.accepts(response.headers),
+        publicResponse: disk.accepts(cacheHeaders),
         bytes: response.statusCode == 304 ? 0 : (response.data?.length ?? 0),
         elapsedMs: traceTimer.elapsedMilliseconds, status: response.statusCode ?? 0);
       if (measurement != null) UatNetworkTrace.emit({...measurement, 'seq': traceSequence!});
@@ -83,6 +92,7 @@ class PublicPhotoLoader {
     // A historical small preview may render immediately. Explicit full-size
     // requests still require online visibility validation.
     if (response.statusCode == 304 && cached != null) {
+      await disk.put(url, cached.bytes, cacheHeaders, expectedEpoch: epoch);
       return PublicPhotoTransfer(cached.bytes, notModified: true);
     }
     final bytes = Uint8List.fromList(response.data ?? const []);

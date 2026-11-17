@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   native:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       AQER_OFFLINE_NATIVE_PROBE: 'true'
@@ -63,15 +63,27 @@ jobs:
           export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
           export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
           mkdir -p "$ANDROID_AVD_HOME"
-          avdmanager create avd --force --name aqer-offline-native --device pixel --package 'system-images;android-36;google_apis;x86_64'
+          avdmanager create avd --force --name aqer-offline-native --device pixel --path "$ANDROID_AVD_HOME/aqer-offline-native.avd" --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-offline-native.avd/config.ini" <<'PYCONF'
+          from pathlib import Path
+          import sys
+          path=Path(sys.argv[1]); values={'hw.lcd.width':'540','hw.lcd.height':'960','hw.lcd.density':'210','showDeviceFrame':'no','hw.camera.back':'none','hw.camera.front':'none','disk.dataPartition.size':'2048M'}
+          lines=[line for line in path.read_text().splitlines() if line.split('=',1)[0].strip() not in values]
+          path.write_text('\n'.join(lines+[key+'='+value for key,value in values.items()])+'\n')
+          PYCONF
+          export QT_QPA_PLATFORM=offscreen
+          printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          df -h "$RUNNER_TEMP"
           sudo chmod 666 /dev/kvm
           "$ANDROID_HOME/emulator/emulator" -avd aqer-offline-native -port 5554 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on -memory 2048 -cores 2 > "$RUNNER_TEMP/offline-native-emulator.log" 2>&1 &
+          emulator_pid=$!
           deadline=$((SECONDS+250))
           while [ "$SECONDS" -lt "$deadline" ]; do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then cat "$RUNNER_TEMP/offline-native-emulator.log"; exit 1; fi
             if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
             sleep 2
           done
-          test "$SECONDS" -lt "$deadline"
+          if [ "$SECONDS" -ge "$deadline" ]; then cat "$RUNNER_TEMP/offline-native-emulator.log"; adb -s emulator-5554 shell getprop sys.boot_completed || true; exit 1; fi
       - name: Restart offline and reconnect with real encrypted Android storage
         run: python3 -B scripts/run_offline_unified_native.py --apk mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk
       - uses: actions/upload-artifact@v4
