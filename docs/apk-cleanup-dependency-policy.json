@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "mode": "apk_cleanup_1818",
+  "repository": "JJalal1/real-estate-uat-backend",
+  "branch": "work/apk-cleanup-1817-20261117",
+  "pr_base": "work/fix-connectivity-1815-20261117",
+  "golden_source": "dc2805c9215dcd500fc7034effa953a4c3751761",
+  "baseline_source": "76c3ef76b396e35dfa5659c1aa2158faecb94b78",
+  "baseline_pubspec_sha256": "1751e58e1c0e85cbca63b2636d0c2b7c912434c1d02be595b972a650c0fc43a2",
+  "baseline_lock_sha256": "536c55e77917cb193e8d51745df240dc04b50f3f5272ef34bbae60fd20acdd85",
+  "removed_roots": [
+    "drift",
+    "drift_dev",
+    "sqlite3_flutter_libs"
+  ],
+  "removed_packages": {
+    "charcode": {
+      "version": "1.4.0",
+      "archive_sha256": "fb0f1107cac15a5ea6ef0a6ef71a807b9e4267c713bb93e00e92d737cc8dbd8a",
+      "original_record_sha256": "5e46b3c49d812ab78a330714f1329289bdd585058dd22060ee4345068367e0b9",
+      "pubspec_url": "https://pub.dev/api/packages/charcode/versions/1.4.0"
+    },
+    "cli_util": {
+      "version": "0.4.2",
+      "archive_sha256": "ff6785f7e9e3c38ac98b2fb035701789de90154024a75b6cb926445e83197d1c",
+      "original_record_sha256": "f88bea4fc97c7f3683696a59a11b01e3adf8a9aa7fd766040c7862bdcac53378",
+      "pubspec_url": "https://pub.dev/api/packages/cli_util/versions/0.4.2"
+    },
+    "drift": {
+      "version": "2.28.2",
+      "archive_sha256": "540cf382a3bfa99b76e51514db5b0ebcd81ce3679b7c1c9cb9478ff3735e47a1",
+      "original_record_sha256": "c0a1551f331356790efce143026c5a9e36e568ed7e9798163ba1b8680776e926",
+      "pubspec_url": "https://pub.dev/api/packages/drift/versions/2.28.2"
+    },
+    "drift_dev": {
+      "version": "2.28.0",
+      "archive_sha256": "68c138e884527d2bd61df2ade276c3a144df84d1adeb0ab8f3196b5afe021bd4",
+      "original_record_sha256": "bf44579d2cbe158a7830ad113645064c214767976a25cfe16b64391d909693f4",
+      "pubspec_url": "https://pub.dev/api/packages/drift_dev/versions/2.28.0"
+    },
+    "recase": {
+      "version": "4.1.0",
+      "archive_sha256": "e4eb4ec2dcdee52dcf99cb4ceabaffc631d7424ee55e56f280bc039737f89213",
+      "original_record_sha256": "20539638b3431c7a7af3f885f6da659a5992d7d61568928be9551de786ac41fa",
+      "pubspec_url": "https://pub.dev/api/packages/recase/versions/4.1.0"
+    },
+    "sqlite3": {
+      "version": "2.9.4",
+      "archive_sha256": "3145bd74dcdb4fd6f5c6dda4d4e4490a8087d7f286a14dee5d37087290f0f8a2",
+      "original_record_sha256": "8c2c8bee5791933fe0dc9280c0ce96f6aa1869fad4560d3238bf0d802de6a17e",
+      "pubspec_url": "https://pub.dev/api/packages/sqlite3/versions/2.9.4"
+    },
+    "sqlite3_flutter_libs": {
+      "version": "0.5.42",
+      "archive_sha256": "eeb9e3a45207649076b808f8a5a74d68770d0b7f26ccef6d5f43106eee5375ad",
+      "original_record_sha256": "252d24147090fb6e159fdae045c1c807f709dd47e3a287d584972be1d2aafc6f",
+      "pubspec_url": "https://pub.dev/api/packages/sqlite3_flutter_libs/versions/0.5.42"
+    },
+    "sqlparser": {
+      "version": "0.41.2",
+      "archive_sha256": "57090342af1ce32bb499aa641f4ecdd2d6231b9403cea537ac059e803cc20d67",
+      "original_record_sha256": "96c61d21a01bbb91c61c6587182cec8267db066d332bd32fd51a783efebc62a5",
+      "pubspec_url": "https://pub.dev/api/packages/sqlparser/versions/0.41.2"
+    }
+  }
+}

@@ -36,6 +36,19 @@ if (!(aqerUatApplicationId ==~ /com\.aqer\.yemen\.uat(?:\.[a-z][a-z0-9]*)*/)) {
     throw new GradleException('The UAT preview must retain its isolated UAT namespace.')
 }
 def aqerBuildingProduction = gradle.startParameter.taskNames.any { it.toLowerCase().contains('production') }
+// Keep only ABIs for which this Flutter release actually supplies an engine and
+// application. Plugins may otherwise add orphan x86 libraries to a fat APK.
+def aqerFlutterReleaseAbis = [
+    'android-arm': 'armeabi-v7a', 'android-arm64': 'arm64-v8a', 'android-x64': 'x86_64'
+]
+def aqerRequestedReleaseTargets = (project.findProperty('target-platform') ?: 'android-arm,android-arm64,android-x64').toString().split(',')
+if (aqerBuildingRelease && aqerRequestedReleaseTargets.any { !aqerFlutterReleaseAbis.containsKey(it) }) {
+    throw new GradleException('Unsupported Flutter release target; native ABI packaging must match the compiled app.')
+}
+def aqerCompressUatNatives = (project.findProperty('AQER_UAT_COMPRESS_NATIVE_LIBS') ?: 'false').toString().toBoolean()
+if (aqerCompressUatNatives && (aqerBuildingProduction || !aqerBuildingRelease)) {
+    throw new GradleException('The measured native-compression comparison is restricted to a UAT release build.')
+}
 if (aqerBuildingProduction && (!aqerProductionApplicationId || !aqerHasReleaseSigning)) {
     throw new GradleException('Production requires its approved application ID and release signing. UAT credentials cannot replace them.')
 }
@@ -115,6 +128,9 @@ android {
     productFlavors {
         uat {
             dimension 'environment'
+            if (aqerBuildingRelease) {
+                ndk { abiFilters.addAll(aqerRequestedReleaseTargets.collect { aqerFlutterReleaseAbis[it] }) }
+            }
             applicationId aqerUatApplicationId
             resValue 'string', 'aqer_app_name', project.findProperty('AQER_UAT_APP_NAME') ?: 'عقار UAT'
             buildConfigField 'boolean', 'AQER_PUSH_ENABLED', aqerUatClientEnabled.toString()
@@ -145,6 +161,13 @@ android {
                 )
             }
         }
+    }
+
+    // Explicit UAT comparison profile only. The normal packaging default and
+    // Production are preserved; the delivery verifier checks the actual APK
+    // compression and extractNativeLibs manifest value before accepting it.
+    if (aqerCompressUatNatives) {
+        packagingOptions { jniLibs { useLegacyPackaging true } }
     }
 }
 

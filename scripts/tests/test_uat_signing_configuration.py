@@ -59,6 +59,17 @@ class SigningConfigurationTests(unittest.TestCase):
                 with self.assertRaises(signing.SigningError):
                     signing.guard({**env, field: value})
 
+    def test_apk_cleanup_uses_the_same_explicit_uat_import_boundary(self):
+        env = dict(self.env, GITHUB_REF=signing.APK_CLEANUP_BRANCH)
+        signing.guard(env)
+        for field, value in [('GITHUB_EVENT_NAME', 'pull_request'),
+                             ('GITHUB_REPOSITORY', 'other/repository'),
+                             ('AQER_SIGNING_ENVIRONMENT', 'production'),
+                             ('GITHUB_REF', 'refs/heads/main')]:
+            with self.subTest(field=field):
+                with self.assertRaises(signing.SigningError):
+                    signing.guard({**env, field: value})
+
     def test_optional_absence_does_not_open_paths_or_change_files(self):
         absent = {key: value for key, value in self.env.items() if key not in signing.INPUTS}
         with mock.patch.object(signing, 'open_runner_paths', side_effect=AssertionError):
