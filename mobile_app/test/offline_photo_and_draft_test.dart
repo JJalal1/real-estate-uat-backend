@@ -65,6 +65,54 @@ void main() {
     await root.delete(recursive: true);
   });
   test(
+      'a detail-only visit leaves an inline offline preview, while fullscreen remains blocked',
+      () async {
+    final root = await Directory.systemTemp.createTemp('aqer-detail-preview-');
+    final connection = OfflineConnectionController()..online();
+    final disk = PublicPhotoDiskCache(
+        origin: Uri.parse('https://fixture.invalid'),
+        directory: () async => root);
+    var calls = 0;
+    final dio = Dio()
+      ..interceptors.add(InterceptorsWrapper(onRequest: (r, h) {
+        calls++;
+        h.resolve(Response<List<int>>(
+            requestOptions: r,
+            data: [1, 2, 3],
+            statusCode: 200,
+            headers: Headers.fromMap({
+              'cache-control': ['public, max-age=86400'],
+              'content-type': ['image/jpeg'],
+              'etag': ['"detail-one"']
+            })));
+      }));
+    const detail =
+        'https://fixture.invalid/api/property-media/7?variant=detail&v=one';
+    final loader = PublicPhotoLoader(dio, disk, connection: connection);
+    await loader.load(detail, cancelToken: CancelToken());
+    // No idle wait: returning visible bytes itself guarantees the disk checkpoint.
+    expect(await disk.read(detail), isNotNull);
+    connection.offline();
+    final restored = PublicPhotoLoader(
+        dio,
+        PublicPhotoDiskCache(
+            origin: Uri.parse('https://fixture.invalid'),
+            directory: () async => root),
+        connection: connection);
+    expect(
+        (await restored.load(
+                detail.replaceAll('variant=detail', 'variant=card'),
+                cancelToken: CancelToken()))
+            .bytes,
+        [1, 2, 3]);
+    await expectLater(
+        restored.load(detail, cancelToken: CancelToken()), throwsStateError);
+    expect(calls, 1);
+    dio.close();
+    connection.dispose();
+    await root.delete(recursive: true);
+  });
+  test(
       'device draft fields and copied photos survive a new store and remain actor scoped',
       () async {
     final root = await Directory.systemTemp.createTemp('aqer-device-draft-');

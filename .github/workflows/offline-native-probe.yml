@@ -2,7 +2,7 @@ name: Offline native restart acceptance
 on:
   push:
     branches: [work/offline-unified-20261117]
-    paths: ['scripts/offline_unified_native_main.dart', 'scripts/run_offline_unified_native.py', '.github/workflows/offline-native-probe.yml']
+    paths: ['scripts/offline_unified_native_main.dart', 'scripts/run_offline_unified_native.py', '.github/workflows/offline-native-probe.yml', 'mobile_app/lib/core/offline/**', 'mobile_app/lib/features/properties/data/public_photo_loader.dart', 'mobile_app/lib/features/messages/data/message_outbox.dart', 'mobile_app/android/app/src/main/kotlin/com/example/real_estate_mobile/MainActivity.kt']
 permissions:
   contents: read
 concurrency:

@@ -33,7 +33,7 @@ class PublicPhotoLoader {
     var cached = await disk.read(url, allowStale: small || offline).timeout(const Duration(milliseconds: 300), onTimeout: () => null);
     if (cancelToken.isCancelled) throw cancelToken.cancelError!;
     if (offline && cached == null && small) {
-      for (final variant in const ['card', 'thumb', 'preview']) {
+      for (final variant in const ['card', 'thumb', 'preview', 'detail', 'gallery']) {
         cached = await disk.read(AdaptiveImagePolicy.variantUrl(url, variant),
             allowStale: true);
         if (cached != null) break;
@@ -87,7 +87,9 @@ class PublicPhotoLoader {
     }
     final bytes = Uint8List.fromList(response.data ?? const []);
     if (bytes.isEmpty || bytes.lengthInBytes > 8 * 1024 * 1024) throw StateError('Invalid display image size');
-    unawaited(disk.put(url, bytes, response.headers, expectedEpoch: epoch));
+    // Persist a cacheable visible derivative before acknowledging it to the
+    // widget, so an immediate process stop cannot lose a just-shown preview.
+    await disk.put(url, bytes, response.headers, expectedEpoch: epoch);
     return PublicPhotoTransfer(bytes, downloadedBytes: bytes.lengthInBytes);
   }
 }

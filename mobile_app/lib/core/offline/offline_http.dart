@@ -175,10 +175,14 @@ class OfflineHttpInterceptor extends Interceptor {
     if (_current(r) && offlineTransportFailure(err)) connection.offline();
     if (eligible(r) && _current(r)) {
       if (const [401, 403, 404, 410].contains(err.response?.statusCode)) {
-        await store.forget(space(r), identity(r));
-        if (r.uri.path.endsWith('/auth/me') &&
-            const [401, 403].contains(err.response?.statusCode)) {
-          await store.clear('http_snapshots');
+        try {
+          await store.forget(space(r), identity(r));
+          if (r.uri.path.endsWith('/auth/me') &&
+              const [401, 403].contains(err.response?.statusCode)) {
+            await store.clear('http_snapshots');
+          }
+        } catch (_) {
+          /* Disk failure cannot hide an authoritative API failure. */
         }
       } else if (offlineTransportFailure(err)) {
         connection.offline();
