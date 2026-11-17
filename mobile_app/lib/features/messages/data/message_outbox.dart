@@ -18,18 +18,20 @@ class PendingMessage {
       required this.createdAt,
       this.status = 'queued',
       this.threadId,
+      this.label,
       this.error});
   final String id, target, body, status;
   final int targetId;
   final int? threadId;
   final DateTime createdAt;
-  final String? error;
+  final String? error, label;
   PendingMessage copy({String? status, int? threadId, String? error}) =>
       PendingMessage(
           id: id,
           target: target,
           targetId: targetId,
           body: body,
+          label: label,
           createdAt: createdAt,
           status: status ?? this.status,
           threadId: threadId ?? this.threadId,
@@ -39,6 +41,7 @@ class PendingMessage {
         'target': target,
         'target_id': targetId,
         'body': body,
+        'label': label,
         'created_at': createdAt.toIso8601String(),
         'status': status == 'sending' ? 'queued' : status,
         'thread_id': threadId,
@@ -49,6 +52,7 @@ class PendingMessage {
       target: r['target'] as String,
       targetId: r['target_id'] as int,
       body: r['body'] as String,
+      label: r['label'] as String?,
       createdAt: DateTime.parse(r['created_at'] as String),
       status: const ['failed', 'sent'].contains(r['status'])
           ? r['status'] as String
@@ -78,9 +82,14 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
   Future<void> _tail = Future.value();
   Future<void>? _initializing, _sending;
   bool _disposed = false;
-  Future<void> initialize() => _initializing ??= _initialize();
+  Future<void> initialize() => _initializing ??=
+          _initialize().catchError((Object error, StackTrace stack) {
+        _initializing = null;
+        Error.throwWithStackTrace(error, stack);
+      });
   Future<void> _initialize() async {
-    final saved = await store.read('outbox', 'actor:$actor', private: true, strict: true);
+    final saved =
+        await store.read('outbox', 'actor:$actor', private: true, strict: true);
     if (_disposed || !current()) return;
     state = (saved?['messages'] as List? ?? const [])
         .whereType<Map>()
@@ -108,15 +117,19 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
     return operation;
   }
 
-  Future<void> enqueue(String target, int id, String body) async {
+  Future<void> enqueue(String target, int id, String body,
+      {String? label}) async {
     await initialize();
     final text = body.trim();
     if (!const ['thread', 'property', 'broker'].contains(target) ||
         id <= 0 ||
         text.isEmpty ||
-        text.length > 2000) { throw ArgumentError('Invalid pending message'); }
-    if (state.where((row) => row.status != 'sent').length >= 100)
-      { throw StateError('لديك 100 رسالة معلقة. أعد الاتصال أو احذف بعضها.'); }
+        text.length > 2000) {
+      throw ArgumentError('Invalid pending message');
+    }
+    if (state.where((row) => row.status != 'sent').length >= 100) {
+      throw StateError('لديك 100 رسالة معلقة. أعد الاتصال أو احذف بعضها.');
+    }
     final random = Random.secure();
     final key =
         'offline-${DateTime.now().microsecondsSinceEpoch}-${List.generate(12, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
@@ -125,10 +138,12 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
         target: target,
         targetId: id,
         body: text,
+        label: label,
         createdAt: DateTime.now(),
         threadId: target == 'thread' ? id : null);
     await _edit((rows) {
-      if (rows.where((row) => row.status != 'sent').length >= 100) throw StateError('لديك 100 رسالة معلقة.');
+      if (rows.where((row) => row.status != 'sent').length >= 100)
+        throw StateError('لديك 100 رسالة معلقة.');
       return [...rows, message];
     });
     if (connected()) unawaited(flush().catchError((Object _) {}));
@@ -136,9 +151,10 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
 
   Future<void> reconcile(int thread, Set<String> deliveredIds) async {
     await initialize();
-    if (!state
-        .any((row) => row.threadId == thread && deliveredIds.contains(row.id)))
-      { return; }
+    if (!state.any(
+        (row) => row.threadId == thread && deliveredIds.contains(row.id))) {
+      return;
+    }
     await _edit((rows) => rows
         .where(
             (row) => row.threadId != thread || !deliveredIds.contains(row.id))
@@ -146,8 +162,9 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
   }
 
   Future<void> cancel(String id) => _edit((rows) {
-        if (rows.any((x) => x.id == id && x.status == 'sending'))
-          { throw StateError('الرسالة قيد الإرسال.'); }
+        if (rows.any((x) => x.id == id && x.status == 'sending')) {
+          throw StateError('الرسالة قيد الإرسال.');
+        }
         return rows.where((x) => x.id != id).toList();
       });
   Future<void> retry(String id) async {
@@ -177,12 +194,13 @@ class MessageOutbox extends StateNotifier<List<PendingMessage>> {
         final thread =
             item.threadId ?? await resolveThread(item.target, item.targetId);
         if (_disposed || !current() || !connected()) {
-          if (!_disposed && current())
-            { await _edit((rows) => rows
+          if (!_disposed && current()) {
+            await _edit((rows) => rows
                 .map((x) => x.id == item.id
                     ? x.copy(status: 'queued', threadId: thread)
                     : x)
-                .toList()); }
+                .toList());
+          }
           return;
         }
         // Persist the resolved destination before sending the original client ID.
@@ -251,7 +269,9 @@ final messageOutboxProvider = StateNotifierProvider.autoDispose
           ref.read(messageDataRevisionProvider.notifier).state++);
   unawaited(box.initialize().then((_) {
     if (ref.read(offlineConnectionProvider) == OfflineConnection.online &&
-        scope.isCurrent) { unawaited(box.flush().catchError((Object _) {})); }
+        scope.isCurrent) {
+      unawaited(box.flush().catchError((Object _) {}));
+    }
   }).catchError((Object _) {}));
   return box;
 });

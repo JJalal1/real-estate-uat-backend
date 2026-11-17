@@ -43,7 +43,7 @@ class _OfflineMessageComposerState
     try {
       await ref
           .read(messageOutboxProvider(_actor).notifier)
-          .enqueue(widget.target, widget.targetId, _text.text);
+          .enqueue(widget.target, widget.targetId, _text.text, label: widget.title);
       if (mounted) _text.clear();
     } catch (_) {
       if (mounted)

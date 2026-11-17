@@ -34,7 +34,7 @@ jobs:
         run: python3 ../scripts/check_v3_analysis.py
       - name: New offline contracts and affected regressions
         working-directory: mobile_app
-        run: flutter test test/offline_http_storage_test.dart test/offline_message_outbox_test.dart test/offline_photo_and_draft_test.dart test/wave1_public_photo_cache_test.dart test/adaptive_image_quality_test.dart test/private_listing_card_photo_test.dart test/message_inbox_pagination_test.dart test/session_lifecycle_race_test.dart test/phase23_draft_network_recovery_test.dart test/phase04_ranked_search_test.dart test/phase04_governorates_test.dart test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart --reporter expanded --timeout 2m
+        run: flutter test test/offline_http_storage_test.dart test/offline_message_outbox_test.dart test/offline_photo_and_draft_test.dart test/offline_search_restore_test.dart test/wave1_public_photo_cache_test.dart test/adaptive_image_quality_test.dart test/private_listing_card_photo_test.dart test/message_inbox_pagination_test.dart test/session_lifecycle_race_test.dart test/phase23_draft_network_recovery_test.dart test/phase04_ranked_search_test.dart test/phase04_governorates_test.dart test/property_marker_cluster_test.dart test/map_dynamic_filters_1430_test.dart test/smart_search_pagination_recovery_test.dart test/public_discovery_cancellation_test.dart --reporter expanded --timeout 2m
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

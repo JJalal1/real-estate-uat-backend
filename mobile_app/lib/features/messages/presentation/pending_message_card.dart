@@ -28,9 +28,10 @@ class PendingMessageCard extends ConsumerWidget {
           await box.cancel(message.id);
         }
       } catch (_) {
-        if (context.mounted)
-          { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('تعذر تحديث الرسالة المحفوظة. أعد المحاولة.'))); }
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('تعذر تحديث الرسالة المحفوظة. أعد المحاولة.')));
+        }
       }
     }
 
@@ -45,10 +46,7 @@ class PendingMessageCard extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (showTarget)
-                        Text(
-                            message.threadId != null
-                                ? 'المحادثة ${message.threadId}'
-                                : 'العقار ${message.targetId}',
+                        Text(message.label ?? 'رسالة للمعلن',
                             style: Theme.of(context).textTheme.labelSmall),
                       Text(message.body),
                       const SizedBox(height: 4),

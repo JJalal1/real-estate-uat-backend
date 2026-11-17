@@ -39,6 +39,7 @@ class PublicPhotoDiskCache {
     if (at != null && _clock().difference(at) < const Duration(minutes: 5))
       { return false; }
     _validated[url] = _clock();
+    while (_validated.length > maxEntries) { _validated.remove(_validated.keys.first); }
     return true;
   }
 
@@ -138,6 +139,7 @@ class PublicPhotoDiskCache {
         'bytes': bytes.lengthInBytes, 'expires_at': _clock().add(lifetime).toIso8601String(),
         'stored_at': _clock().toIso8601String()}), flush: true);
       await stagedMetadata.rename(metadata.path);
+      await metadata.setLastModified(_clock());
       writes++;
       _knownCount = _knownCount! + (replacing ? 0 : 1);
       _knownBytes = _knownBytes! + bytes.lengthInBytes - oldBytes;

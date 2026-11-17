@@ -246,6 +246,50 @@ void main() {
   });
 
   test(
+      'last feed restores a default reopen but never an uncached governorate or GPS area',
+      () async {
+    wire.response = (_) => ResponseBody.fromString(
+            jsonEncode({
+              'data': {
+                'context': {'governorate': 'ذمار', 'governorate_code': 'YE-DH'}
+              }
+            }),
+            200,
+            headers: {
+              'content-type': ['application/json']
+            });
+    await dio.get<dynamic>('/marketplace',
+        queryParameters: {'latitude': 14.54, 'longitude': 44.40});
+    connection.offline();
+    expect(
+        (await dio.get<dynamic>('/marketplace')).data['data']['context']
+            ['governorate'],
+        'ذمار');
+    await expectLater(
+        dio.get<dynamic>('/marketplace',
+            queryParameters: {'governorate_code': 'YE-IB'}),
+        throwsA(isA<DioException>()));
+    await expectLater(
+        dio.get<dynamic>('/marketplace',
+            queryParameters: {'latitude': 13.96, 'longitude': 44.18}),
+        throwsA(isA<DioException>()));
+  });
+  test('authoritative auth revocation removes private HTTP snapshots',
+      () async {
+    final auth = Options(headers: {'Authorization': 'Bearer actor-one'});
+    await dio.get<dynamic>('/auth/me', options: auth);
+    await dio.get<dynamic>('/messages/threads/9', options: auth);
+    wire.response = (_) => ResponseBody.fromString('{}', 401, headers: {
+          'content-type': ['application/json']
+        });
+    await expectLater(dio.get<dynamic>('/auth/me', options: auth),
+        throwsA(isA<DioException>()));
+    connection.offline();
+    await expectLater(dio.get<dynamic>('/messages/threads/9', options: auth),
+        throwsA(isA<DioException>()));
+  });
+
+  test(
       'native encryption failure has no plaintext fallback and queue remains usable',
       () async {
     final broken = OfflineStore(

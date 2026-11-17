@@ -154,7 +154,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     setState(() => _sending = true);
     try {
       await ref.read(messageOutboxProvider(actor).notifier)
-          .enqueue('thread', widget.threadId, text);
+          .enqueue('thread', widget.threadId, text, label: _details?.thread.otherUserName);
       if (!mounted || !_scope.isCurrent) return;
       _controller.clear();
     } catch (error) {

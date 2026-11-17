@@ -170,16 +170,17 @@ void main() {
     expect(sent, isEmpty);
   });
   test('concurrent reconnect signals coalesce into one send', () async {
-    final reply = Completer<void>();
+    final reply = Completer<void>(), started = Completer<void>();
     var calls = 0;
     final first = box(send: (_, body, key) async {
       calls++;
+      started.complete();
       await reply.future;
     });
     await first.enqueue('thread', 9, 'واحدة');
     online = true;
     final a = first.flush(), b = first.flush();
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await started.future.timeout(const Duration(seconds: 5));
     expect(calls, 1);
     reply.complete();
     await Future.wait([a, b]);

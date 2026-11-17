@@ -11,7 +11,9 @@ class OfflineHttpInterceptor extends Interceptor {
   bool eligible(RequestOptions r) {
     if (r.method != 'GET' ||
         r.responseType == ResponseType.bytes ||
-        r.uri.origin != Uri.parse(r.baseUrl).origin) { return false; }
+        r.uri.origin != Uri.parse(r.baseUrl).origin) {
+      return false;
+    }
     final path = r.uri.path.replaceFirst(Uri.parse(r.baseUrl).path, '');
     return const [
           '/marketplace',
@@ -69,15 +71,24 @@ class OfflineHttpInterceptor extends Interceptor {
     final latest =
         await store.read(space(r), 'latest_marketplace', private: true);
     if (latest == null ||
-        jsonEncode(latest['semantics']) != jsonEncode(_semantics(r)))
-      { return null; }
+        jsonEncode(latest['semantics']) != jsonEncode(_semantics(r))) {
+      return null;
+    }
+    final savedLocation = latest['request_location'] as Map? ?? const {};
+    for (final key in const ['latitude', 'longitude']) {
+      if (r.queryParameters.containsKey(key) &&
+          r.queryParameters[key] != savedLocation[key]) {
+        return null;
+      }
+    }
     final context =
         ((latest['body'] as Map?)?['data'] as Map?)?['context'] as Map?;
     final code = r.queryParameters['governorate_code'],
         name = r.queryParameters['governorate'];
     if (code != null && context?['governorate_code'] != code) return null;
-    if (code == null && name != null && context?['governorate'] != name)
-      { return null; }
+    if (code == null && name != null && context?['governorate'] != name) {
+      return null;
+    }
     return latest;
   }
 
@@ -138,16 +149,21 @@ class OfflineHttpInterceptor extends Interceptor {
         'body': body,
         'headers': headers,
         'at': DateTime.now().toIso8601String(),
-        'semantics': _semantics(r)
+        'semantics': _semantics(r),
+        'request_location': {
+          for (final key in const ['latitude', 'longitude'])
+            if (r.queryParameters.containsKey(key)) key: r.queryParameters[key]
+        }
       };
       // Complete the atomic checkpoint before exposing the response to the UI.
       // Cache/storage failure still cannot turn a successful API read into an error.
       try {
         await store.write(space(r), identity(r), record,
             private: true, current: () => _current(r));
-        if (r.uri.path.endsWith('/marketplace') && !private(r))
-          { await store.write(space(r), 'latest_marketplace', record,
-              private: true, current: () => _current(r)); }
+        if (r.uri.path.endsWith('/marketplace') && !private(r)) {
+          await store.write(space(r), 'latest_marketplace', record,
+              private: true, current: () => _current(r));
+        }
       } catch (_) {}
     }
     handler.next(response);
@@ -161,8 +177,9 @@ class OfflineHttpInterceptor extends Interceptor {
       if (const [401, 403, 404, 410].contains(err.response?.statusCode)) {
         await store.forget(space(r), identity(r));
         if (r.uri.path.endsWith('/auth/me') &&
-            const [401, 403].contains(err.response?.statusCode))
-          { await store.clear('http_snapshots'); }
+            const [401, 403].contains(err.response?.statusCode)) {
+          await store.clear('http_snapshots');
+        }
       } else if (offlineTransportFailure(err)) {
         connection.offline();
         final row = await _cached(r);

@@ -81,9 +81,10 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
       final filters =
           SmartSearchFilters.fromMap(Map<String, dynamic>.from(raw));
       await session.replaceManually(filters);
+      if (current?.call() == false || !mounted || !session.mounted) { return; }
       final pages = (saved['${key}_pages'] as num? ?? 1).toInt().clamp(1, 8);
       for (var page = 1;
-          page < pages &&
+          page < pages && current?.call() != false && session.mounted &&
               session.snapshot.more &&
               session.snapshot.resultsError == null &&
               session.snapshot.filters.sameAs(filters) &&

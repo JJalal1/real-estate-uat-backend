@@ -27,8 +27,9 @@ class OfflineStore {
   Future<void> _tail = Future.value();
   Future<void> get idle => _tail;
   Future<Directory> _root(String space) async {
-    if (!RegExp(r'^[a-z_]+$').hasMatch(space))
-      { throw ArgumentError('Invalid offline space'); }
+    if (!RegExp(r'^[a-z_]+$').hasMatch(space)) {
+      throw ArgumentError('Invalid offline space');
+    }
     final support =
         await (_directory?.call() ?? getApplicationSupportDirectory());
     final base = _directory == null && Platform.isAndroid
@@ -43,7 +44,7 @@ class OfflineStore {
       a = ((a ^ c) * 0x01000193) & 0xffffffff;
       b = ((b ^ c) * 0x85ebca6b) & 0xffffffff;
     }
-    return '${a.toRadixString(16)}${b.toRadixString(16)}';
+    return '${a.toRadixString(16).padLeft(8, '0')}${b.toRadixString(16).padLeft(8, '0')}';
   }
 
   Future<T> _serial<T>(Future<T> Function() action) {
@@ -57,13 +58,21 @@ class OfflineStore {
       _serial(() async {
         try {
           final f = File('${(await _root(space)).path}/${_key(identity)}.json');
-          if (!await f.exists() || await f.length() > 2 * 1024 * 1024)
-            { return null; }
+          if (!await f.exists()) {
+            return null;
+          }
+          if (await f.length() > 2 * 1024 * 1024) {
+            if (strict) {
+              throw StateError('Invalid sealed state size');
+            }
+            return null;
+          }
           var text = await f.readAsString();
-          if (private)
-            { text = await (open?.call(text) ??
+          if (private) {
+            text = await (open?.call(text) ??
                 _channel.invokeMethod<String>(
-                    'openOfflineState', {'value': text}).then((v) => v!)); }
+                    'openOfflineState', {'value': text}).then((v) => v!));
+          }
           final row = jsonDecode(text);
           if (row is! Map ||
               row['identity'] != identity ||
@@ -73,7 +82,9 @@ class OfflineStore {
           }
           if (space != 'outbox' &&
               _clock().difference(DateTime.parse(row['at'] as String)) >
-                  const Duration(days: 30)) { return null; }
+                  const Duration(days: 30)) {
+            return null;
+          }
           return Map<String, dynamic>.from(row['data'] as Map);
         } catch (_) {
           if (strict) rethrow;
@@ -89,12 +100,14 @@ class OfflineStore {
           'at': _clock().toIso8601String(),
           'data': data
         });
-        if (utf8.encode(text).length > 768 * 1024)
-          { throw StateError('Offline snapshot exceeds its bound'); }
-        if (private)
-          { text = await (seal?.call(text) ??
+        if (utf8.encode(text).length > 768 * 1024) {
+          throw StateError('Offline snapshot exceeds its bound');
+        }
+        if (private) {
+          text = await (seal?.call(text) ??
               _channel.invokeMethod<String>(
-                  'sealOfflineState', {'value': text}).then((v) => v!)); }
+                  'sealOfflineState', {'value': text}).then((v) => v!));
+        }
         if (current?.call() == false) return;
         final root = await _root(space);
         await root.create(recursive: true);

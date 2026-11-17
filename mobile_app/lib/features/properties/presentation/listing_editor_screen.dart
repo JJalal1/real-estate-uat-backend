@@ -169,8 +169,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   late String _draftKey;
   int _draftRevision = 0;
   bool _draftSavedExplicitly = false, _offlinePrepared = false;
-  bool get _offline =>
-      ref.read(offlineConnectionProvider) == OfflineConnection.offline;
+  bool _offlineState = false;
+  bool get _offline => _offlineState;
   bool get _localOnly => _offline || (_offlinePrepared && !_persistStarting);
   bool _accountSaved = false, _accountSyncing = false, _accountConflict = false;
   String? _accountError, _descriptionError;
@@ -1021,8 +1021,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   @override
   void initState() {
     super.initState();
+    _offlineState = ref.read(offlineConnectionProvider) == OfflineConnection.offline;
     _offlinePrepared = _offline;
     ref.listenManual(offlineConnectionProvider, (_, next) {
+      _offlineState = next == OfflineConnection.offline;
       if (next == OfflineConnection.offline && mounted && _sessionValid) {
         _offlinePrepared = true;
         _pendingAccount = null;
