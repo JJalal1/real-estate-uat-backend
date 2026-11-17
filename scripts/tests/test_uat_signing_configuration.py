@@ -48,6 +48,17 @@ class SigningConfigurationTests(unittest.TestCase):
         self.assertEqual(self.envfile.read_text(), 'EXISTING=unchanged\n')
         self.assertFalse((self.root / signing.STAGING_DIRECTORY).exists())
 
+    def test_current_connectivity_fix_keeps_explicit_uat_scope(self):
+        env = dict(self.env, GITHUB_REF=signing.CONNECTIVITY_FIX_BRANCH)
+        signing.guard(env)
+        for field, value in [('GITHUB_EVENT_NAME', 'pull_request'),
+                             ('GITHUB_REPOSITORY', 'other/repository'),
+                             ('AQER_SIGNING_ENVIRONMENT', 'production'),
+                             ('GITHUB_REF', 'refs/heads/main')]:
+            with self.subTest(field=field):
+                with self.assertRaises(signing.SigningError):
+                    signing.guard({**env, field: value})
+
     def test_optional_absence_does_not_open_paths_or_change_files(self):
         absent = {key: value for key, value in self.env.items() if key not in signing.INPUTS}
         with mock.patch.object(signing, 'open_runner_paths', side_effect=AssertionError):

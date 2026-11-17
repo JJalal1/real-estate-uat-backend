@@ -1,0 +1,159 @@
+name: Durable UAT update without reinstalling
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        required: true
+        type: string
+      expected_pin:
+        required: true
+        type: string
+      baseline_artifact:
+        required: true
+        type: string
+      upgrade_artifact:
+        required: true
+        type: string
+    outputs:
+      artifact_name:
+        description: Public verification receipt from the disposable emulator
+        value: ${{ jobs.upgrade.outputs.artifact_name }}
+permissions:
+  contents: read
+jobs:
+  upgrade:
+    name: Replace 1816 with 1817 and retain private synthetic files
+    if: github.event.repository.private
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      artifact_name: ${{ steps.context.outputs.artifact_name }}
+    env:
+      AQER_DURABLE_UAT_UPGRADE: 'true'
+      UPGRADE_SOURCE_SHA: ${{ inputs.source_sha }}
+      UPGRADE_EXPECTED_PIN: ${{ inputs.expected_pin }}
+      BASELINE_ARTIFACT: ${{ inputs.baseline_artifact }}
+      UPGRADE_ARTIFACT: ${{ inputs.upgrade_artifact }}
+    steps:
+      # The caller must not use secrets: inherit. This job consumes installers
+      # and public receipts only; it never builds, imports or receives a key.
+      - name: Require the explicit private UAT source and public inputs
+        id: context
+        run: |
+          python3 -B - <<'PY'
+          import os, re
+          if (os.environ.get('GITHUB_ACTIONS') != 'true' or
+              os.environ.get('GITHUB_REPOSITORY') != 'JJalal1/real-estate-uat-backend' or
+              os.environ.get('GITHUB_REF') != 'refs/heads/work/fix-connectivity-1815-20261117' or
+              os.environ.get('GITHUB_EVENT_NAME') != 'push'):
+              raise RuntimeError('explicit_private_uat_upgrade_context_required')
+          source = os.environ['UPGRADE_SOURCE_SHA']
+          if not re.fullmatch(r'[a-f0-9]{40}', source) or source != os.environ['GITHUB_SHA']:
+              raise RuntimeError('upgrade_source_mismatch')
+          if not re.fullmatch(r'[a-f0-9]{64}', os.environ['UPGRADE_EXPECTED_PIN']):
+              raise RuntimeError('public_certificate_pin_required')
+          if (os.environ['BASELINE_ARTIFACT'] != 'connectivity-fix-1816-' + source or
+              os.environ['UPGRADE_ARTIFACT'] != 'connectivity-fix-1817-' + source):
+              raise RuntimeError('exact_current_run_installer_artifacts_required')
+          forbidden = ('AQER_UAT_KEYSTORE_BASE64', 'AQER_RELEASE_STORE_FILE',
+                       'AQER_RELEASE_STORE_PASSWORD', 'AQER_RELEASE_KEY_ALIAS',
+                       'AQER_RELEASE_KEY_PASSWORD')
+          if any(os.environ.get(name) for name in forbidden):
+              raise RuntimeError('signing_material_forbidden_in_upgrade_probe')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+              stream.write('artifact_name=durable-uat-upgrade-proof-' + source + '\n')
+          print('AQER_DURABLE_UPGRADE_PUBLIC_CONTEXT_VERIFIED')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download the verified 1816 baseline from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.baseline_artifact }}
+          path: durable-upgrade-input/baseline
+      - name: Download the separately signed 1817 update from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.upgrade_artifact }}
+          path: durable-upgrade-input/upgrade
+      - name: Reject unexpected artifact contents before starting Android
+        run: |
+          python3 -B - <<'PY'
+          from pathlib import Path
+          expected = {
+              'baseline': {'AQER-UAT-1816-Connectivity-Fix.apk', 'APK_VERIFICATION.json'},
+              'upgrade': {'AQER-UAT-1817-Durable-Update.apk', 'APK_VERIFICATION.json'},
+          }
+          for name, filenames in expected.items():
+              root = Path('durable-upgrade-input') / name
+              entries = list(root.iterdir())
+              if ({path.name for path in entries} != filenames or
+                  any(path.is_symlink() or not path.is_file() for path in entries)):
+                  raise RuntimeError('only_verified_installer_and_public_receipt_allowed')
+          print('AQER_DURABLE_UPGRADE_ARTIFACT_CONTENTS_VERIFIED')
+          PY
+      - name: Reclaim unused SDK space on the disposable runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Boot an empty disposable API36 emulator
+        run: |
+          test -c /dev/kvm
+          sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/durable-upgrade-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          avdmanager create avd --force --name aqer-durable-upgrade --device pixel --path "$ANDROID_AVD_HOME/aqer-durable-upgrade.avd" --package 'system-images;android-36;google_apis;x86_64'
+          python3 - "$ANDROID_AVD_HOME/aqer-durable-upgrade.avd/config.ini" <<'PYCONF'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          values = {'hw.lcd.width': '540', 'hw.lcd.height': '960', 'hw.lcd.density': '210',
+                    'showDeviceFrame': 'no', 'hw.camera.back': 'none', 'hw.camera.front': 'none',
+                    'disk.dataPartition.size': '2048M'}
+          lines = [line for line in path.read_text().splitlines() if line.split('=', 1)[0].strip() not in values]
+          path.write_text('\n'.join(lines + [key + '=' + value for key, value in values.items()]) + '\n')
+          PYCONF
+          export QT_QPA_PLATFORM=offscreen
+          printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd aqer-durable-upgrade -port 5554 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on -memory 2048 -cores 2 > "$RUNNER_TEMP/durable-upgrade-emulator.log" 2>&1 &
+          emulator_pid=$!
+          deadline=$((SECONDS+250))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then cat "$RUNNER_TEMP/durable-upgrade-emulator.log"; exit 1; fi
+            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
+            sleep 2
+          done
+          if [ "$SECONDS" -ge "$deadline" ]; then cat "$RUNNER_TEMP/durable-upgrade-emulator.log"; adb -s emulator-5554 shell getprop sys.boot_completed || true; exit 1; fi
+      - name: Install then update without uninstalling or clearing app data
+        run: >-
+          python3 -B scripts/probe_durable_uat_upgrade.py
+          --baseline-apk durable-upgrade-input/baseline/AQER-UAT-1816-Connectivity-Fix.apk
+          --baseline-receipt durable-upgrade-input/baseline/APK_VERIFICATION.json
+          --upgrade-apk durable-upgrade-input/upgrade/AQER-UAT-1817-Durable-Update.apk
+          --upgrade-receipt durable-upgrade-input/upgrade/APK_VERIFICATION.json
+          --source "$UPGRADE_SOURCE_SHA" --certificate "$UPGRADE_EXPECTED_PIN"
+          --serial emulator-5554 --output durable-upgrade-proof
+      - name: Preserve only the public update verification receipt
+        uses: actions/upload-artifact@v4
+        if: always() && steps.context.outcome == 'success' && github.event.repository.private
+        with:
+          name: ${{ steps.context.outputs.artifact_name }}
+          path: durable-upgrade-proof/ANDROID_DURABLE_UPGRADE_VERIFICATION.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Stop the disposable emulator
+        if: always()
+        run: adb -s emulator-5554 emu kill || true

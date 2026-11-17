@@ -22,6 +22,8 @@ import sys
 
 REPOSITORY = 'JJalal1/real-estate-uat-backend'
 BRANCH = 'refs/heads/work/phase23-acceptance-20261111'
+CONNECTIVITY_FIX_BRANCH = 'refs/heads/work/fix-connectivity-1815-20261117'
+ALLOWED_BRANCHES = {BRANCH, CONNECTIVITY_FIX_BRANCH}
 INPUTS = (
     'AQER_UAT_KEYSTORE_BASE64', 'AQER_RELEASE_STORE_PASSWORD',
     'AQER_RELEASE_KEY_ALIAS', 'AQER_RELEASE_KEY_PASSWORD',
@@ -75,7 +77,7 @@ def read_configuration(env, required=False):
 def guard(env):
     if not (env.get('GITHUB_ACTIONS') == 'true' and
             env.get('GITHUB_REPOSITORY') == REPOSITORY and
-            env.get('GITHUB_REF') == BRANCH and
+            env.get('GITHUB_REF') in ALLOWED_BRANCHES and
             env.get('GITHUB_EVENT_NAME') == 'push' and
             env.get('AQER_SIGNING_ENVIRONMENT') == 'uat'):
         raise SigningError('explicit_phase23_uat_ci_context_required')

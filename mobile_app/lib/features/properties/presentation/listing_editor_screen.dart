@@ -169,6 +169,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   late String _draftKey;
   int _draftRevision = 0;
   bool _draftSavedExplicitly = false, _offlinePrepared = false;
+  // Both a lost route and unavailable service require local preparation.
+  // This does not change the application's distinct connectivity banners.
   bool _offlineState = false;
   bool get _offline => _offlineState;
   bool get _localOnly => _offline || (_offlinePrepared && !_persistStarting);
@@ -291,7 +293,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             } on DioException catch (error) { if (error.response?.statusCode != 404 || _draftRevision != 0) rethrow; }
             _needsReconcile=false;
           }
-          if (!pending.$3 && !_autoSaveEligible()) continue accountLoop;
+          if (_localOnly || !pending.$3 && !_autoSaveEligible()) continue accountLoop;
           final signature=jsonEncode(pending.$1);
           if (_checkpointSignature != signature) { _checkpointSignature=signature;_checkpointKey=newListingDraftKey(); }
           final payload={...pending.$1,'checkpoint_key':_checkpointKey};
@@ -369,14 +371,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<ListingAccountDraft?> _draftOperation(Future<ListingAccountDraft> Function() operation, {required bool manual}) async {
-    if (!manual && !_autoSaveEligible()) return null;
+    if (_localOnly || !manual && !_autoSaveEligible()) return null;
     try { return await operation().timeout(const Duration(minutes:2)); }
     on DioException catch (error) {
       if (error.response?.statusCode != 409 || error.response?.data is! Map || error.response?.data['code'] != 'draft_revision_conflict') rethrow;
       final latest=await _accountRepository.get(_draftKey).timeout(const Duration(seconds:30));
       if (_disposed || !_sessionValid || latest.payload['checkpoint_key'] != _checkpointKey) rethrow;
       _adoptAccountDraft(latest);
-      if (!manual && !_autoSaveEligible()) return null;
+      if (_localOnly || !manual && !_autoSaveEligible()) return null;
       return operation().timeout(const Duration(minutes:2));
     }
   }
@@ -747,7 +749,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _exitDialogOpen=true;
     final choice=await AppDialog.show<String>(context,title:'لديك تعديلات غير محفوظة',
       content:Text(_localOnly
-            ? 'يمكنك حفظ المدخلات والصور على هذا الجهاز وإكمالها لاحقًا. لا تُرفع تلقائيًا عند عودة الاتصال.'
+            ? 'يمكنك حفظ المدخلات والصور على هذا الجهاز وإكمالها لاحقًا. لا تُرفع تلقائيًا عند عودة الخدمة.'
             : 'يمكنك متابعة التعديل أو حفظ المسودة قبل الخروج. التجاهل يترك آخر حفظ مؤكد على الحساب.'),
       actions:[
         TextButton(key:const ValueKey('listing-exit-continue'),onPressed:()=>Navigator.pop(context,'continue'),child:const Text('متابعة التعديل')),
@@ -804,7 +806,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final data = useLocal ? local : widget.accountDraft?.payload;
     if (!mounted) return;
     if (data != null) {
-      _offlinePrepared = data['offline_prepared'] == true || _offline;
+      _offlinePrepared = _offlinePrepared || data['offline_prepared'] == true || _offline;
       _draftSavedExplicitly = _draftSavedExplicitly || !isAutomaticListingRecovery(data) || widget.accountDraft?.propertyId != null;
       if (widget.accountDraft == null && data['draft_key'] is String) _draftKey = data['draft_key'] as String;
       if (widget.accountDraft == null && data['server_revision'] is int) _draftRevision = data['server_revision'] as int;
@@ -1024,11 +1026,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   @override
   void initState() {
     super.initState();
-    _offlineState = ref.read(offlineConnectionProvider) == OfflineConnection.offline;
+    _offlineState = const [OfflineConnection.offline, OfflineConnection.unavailable]
+        .contains(ref.read(offlineConnectionProvider));
     _offlinePrepared = _offline;
     ref.listenManual(offlineConnectionProvider, (_, next) {
-      _offlineState = next == OfflineConnection.offline;
-      if (next == OfflineConnection.offline && mounted && _sessionValid) {
+      _offlineState = const [OfflineConnection.offline, OfflineConnection.unavailable].contains(next);
+      if (_offline && mounted && _sessionValid) {
         _offlinePrepared = true;
         _pendingAccount = null;
         if (_draftRevision > 0) _needsReconcile = true;
@@ -1231,8 +1234,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               if (_recoveryUserId != null) Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 0), child: Text(
                 _recoveryFailed ? 'تعذر حفظ نسخة الجهاز. مدخلاتك باقية هنا؛ أعد المحاولة قبل الخروج.' : _accountConflict ? 'تغيرت المسودة على جهاز آخر. افتح أحدث نسخة قبل المتابعة.' : _localOnly
                                                     ? (_recoverySaved
-                                                        ? 'مدخلاتك وصورك محفوظة على الجهاز. رفعها ينتظر اتصالك وضغط الحفظ أو الإرسال.'
-                                                        : 'تُحفظ المدخلات على الجهاز؛ الرفع يتطلب اتصالًا وضغطة منك.')
+                                                        ? 'مدخلاتك وصورك محفوظة على الجهاز. عند توفر الخدمة اضغط الحفظ أو الإرسال لرفعها.'
+                                                        : 'تُحفظ المدخلات على الجهاز؛ الرفع يتطلب توفر الخدمة وضغطة منك.')
                                                     : _accountError != null ? 'تعذر الحفظ على الحساب. ${_recoverySaved ? 'تقدمك محفوظ على الجهاز.' : ''} أعد المحاولة.' : _accountSyncing ? 'جارٍ حفظ تقدمك على حسابك…' : _accountSaved ? 'حُفظ تقدمك وصورك على حسابك' : 'يُحفظ تقدمك تلقائيًا على حسابك',
                 style: Theme.of(context).textTheme.bodySmall)),
               if (_accountError != null && !_accountConflict) TextButton(onPressed: _busy || _accountSyncing ? null : ()=>_saveRecovery(retryFailed:true,manual:true), child: const Text('إعادة محاولة الحفظ')),
@@ -2266,7 +2269,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final saved = await _writeLocalRecovery(manual: true);
       if (mounted && _sessionValid)
         { _message(saved
-            ? 'حُفظت البيانات والصور على الجهاز. أعد الاتصال ثم اضغط الحفظ أو الإرسال للمراجعة لرفعها.'
+            ? 'حُفظت البيانات والصور على الجهاز. عند توفر الخدمة اضغط الحفظ أو الإرسال للمراجعة لرفعها.'
             : 'تعذر الحفظ على الجهاز. بياناتك باقية هنا؛ أعد المحاولة.'); }
       return;
     }

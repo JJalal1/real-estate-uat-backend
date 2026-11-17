@@ -1,0 +1,80 @@
+{
+  "reported_issue": "UAT1815 shows offline banner on working WiFi; saved-only mode prevents uncached browsing",
+  "recorded_at_yemen": "2026-11-17T13:41:15+03:00",
+  "baseline_apk_source": "30ff9e8d6a50f2db9f164b7270e16f8e899ebe5f",
+  "baseline_apk_sha256": "d2ef77c5eb0027fa7318e508dc0780a15b982a6ca42eb124523481b7df5651b5",
+  "user_image": {
+    "filename": "sc.jpeg",
+    "sha256": "255b81abc42d3981de5952bde9b80425d8b1a1f7f4a943f2fa8fcf539d3b79dc",
+    "bytes": 67370
+  },
+  "observed_read_only_http": [
+    {
+      "path": "/api/health",
+      "status": 200,
+      "elapsed_ms": 8508,
+      "body": {
+        "status": "ok",
+        "database": true,
+        "postgis": true
+      }
+    },
+    {
+      "path": "/api/marketplace/locations",
+      "status": 200,
+      "elapsed_ms": 7350,
+      "summary": "valid JSON location catalogue"
+    }
+  ],
+  "measurements_scope": "Two cloud requests during diagnosis, not handset timings, historical before/after or a latency cause analysis",
+  "deployed_backend": {
+    "deploy": "dep-dbtpbo88v5cc73av6o20",
+    "source": "5a5d96dfa4f6c6fe3e523f2f72e4c9a56f5f4f19",
+    "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+    "redeployed": false
+  },
+  "confirmed_code_causes": [
+    "NET_CAPABILITY_VALIDATED=false treated as definitive no route; early return prevents checking working application API",
+    "probe 3-second connect/receive,4-second overall cutoff shorter than observed successful health8.5s and UAT75/45timebudgets",
+    "globaloffline blocks ordinaryrequests,photos,mapvendor,outbox and thus ordinaryAPI cannot disprove falseoffline",
+    "unfenced older probe/request failure can override newer realAPI receipt"
+  ],
+  "repair_contract": [
+    "native networkAvailable separated from advisory validated/connected",
+    "only confirmed absent route produces hardoffline; unavailable service distinct from noInternet",
+    "probes reuse ordinaryAPI timebudgets; real API responses prove reachability; cached data doesnot",
+    "pending health/native/transport failures fenced against newer positive evidence and confirmed route loss",
+    "unknown/unavailable uncachedrequests continue; cachedstartup rechecksstate afterdiskread",
+    "noautoupload after localdraft prepared underoffline orserviceunavailable",
+    "no new delivery package or disposable signing;1816 delivery requires same1815package+verifiedmatchingkeystore"
+  ],
+  "signing_delivery": {
+    "target_package": "com.aqer.yemen.uat.offline",
+    "target_version_code": 1816,
+    "required_previous_signer_sha256": "a157c63cd37090cebac83d2a2786e1e3342a8b09f17daeea30e93a5cbd65796f",
+    "key_presence_currently": {
+      "apk_built": false,
+      "compatible": false,
+      "duplicate_apk_created": false,
+      "installed_certificate_pin_matches": false,
+      "installed_device_upgrade_tested": false,
+      "present": {
+        "certificate_pin": false,
+        "key_alias": false,
+        "key_password": false,
+        "keystore": false,
+        "store_password": false
+      },
+      "signing_material_verified": false,
+      "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
+      "status": "blocked_missing_or_mismatched_installed_signer"
+    },
+    "apk_delivered": false,
+    "upgrade_on_device_verified": false,
+    "status": "BLOCKED_MATCHING_PRIVATE_KEY_NOT_CONFIGURED"
+  },
+  "prior_acceptance": "28/32;27owner-deferred;11technicalhold;3/21excluded; unchanged",
+  "physical_phone_after_fix_tested": false,
+  "test_outcome": "221Flutter+23Python+strictanalysis passed; synthetic Android3process restart passed",
+  "source_commit": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45"
+}

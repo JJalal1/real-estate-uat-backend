@@ -31,14 +31,22 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final monitor = ref.read(offlineConnectionProvider.notifier);
-    monitor.configure(ref.read(dioProvider).options.baseUrl);
+    final options = ref.read(dioProvider).options;
+    monitor.configure(options.baseUrl,
+        connectTimeout: options.connectTimeout ?? const Duration(seconds: 15),
+        receiveTimeout: options.receiveTimeout ?? const Duration(seconds: 15));
     ref.listenManual(offlineConnectionProvider, (previous, next) {
       unawaited(maps
           .setOffline(next == OfflineConnection.offline)
           .catchError((Object _) => null));
-      if (next == OfflineConnection.offline) unawaited(_restoreDiscovery());
+      if (next == OfflineConnection.offline ||
+          next == OfflineConnection.unavailable) {
+        unawaited(_restoreDiscovery());
+      }
       if (next == OfflineConnection.online && previous != next) {
-        if (previous == OfflineConnection.offline || monitor.usedSnapshot) {
+        if (previous == OfflineConnection.offline ||
+            previous == OfflineConnection.unavailable ||
+            monitor.usedSnapshot) {
           ref.read(offlineResumeRevisionProvider.notifier).state++;
           final search = ref.read(marketplaceSearchControllerProvider.notifier);
           if (search.active) unawaited(search.refresh());
@@ -145,7 +153,9 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
   Future<void> _restoreDiscovery() async {
     if (!mounted ||
         _restoring ||
-        ref.read(offlineConnectionProvider) != OfflineConnection.offline ||
+        (ref.read(offlineConnectionProvider) != OfflineConnection.offline &&
+            ref.read(offlineConnectionProvider) !=
+                OfflineConnection.unavailable) ||
         ref.read(authControllerProvider).isLoading) {
       return;
     }
@@ -158,7 +168,9 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
         mounted &&
         key == _actorKey &&
         epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
-        ref.read(offlineConnectionProvider) == OfflineConnection.offline;
+        (ref.read(offlineConnectionProvider) == OfflineConnection.offline ||
+            ref.read(offlineConnectionProvider) ==
+                OfflineConnection.unavailable);
     try {
       final saved = await ref
           .read(offlineStoreProvider)
@@ -269,7 +281,9 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     if (actor != null) ref.watch(messageOutboxProvider(actor));
     return Column(children: [
-      if (connection == OfflineConnection.offline)
+      if (connection == OfflineConnection.offline ||
+          connection == OfflineConnection.unavailable ||
+          connection == OfflineConnection.unknown)
         Material(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: SafeArea(
@@ -280,10 +294,14 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
                     child: Row(children: [
                       const Icon(Icons.cloud_off_outlined, size: 18),
                       const SizedBox(width: 8),
-                      const Expanded(
+                      Expanded(
                           child: Text(
-                              'غير متصل — آخر بيانات محفوظة. الرسائل المعلّقة تنتظر الاتصال.',
-                              style: TextStyle(fontSize: 12))),
+                              connection == OfflineConnection.offline
+                                  ? 'غير متصل — آخر بيانات محفوظة. الرسائل المعلّقة تنتظر الاتصال.'
+                                  : connection == OfflineConnection.unavailable
+                                      ? 'تعذر الوصول للخادم — نعرض البيانات المحفوظة المتاحة. أعد المحاولة.'
+                                      : 'جارٍ التحقق من الاتصال — قد تظهر آخر بيانات محفوظة.',
+                              style: const TextStyle(fontSize: 12))),
                       IconButton(
                           tooltip: 'إعادة الاتصال',
                           onPressed: () => ref

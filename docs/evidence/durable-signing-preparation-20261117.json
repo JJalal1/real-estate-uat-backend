@@ -1,0 +1,62 @@
+{
+  "date": "2026-11-17",
+  "branch": "work/fix-connectivity-1815-20261117",
+  "functional_source": "73acc7e08a6d5cb71ea89dcd29ab983ca559ce45",
+  "public_certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+  "package": "com.aqer.yemen.uat.offline",
+  "local_data_owner_reply": "No local drafts or unsent messages",
+  "signing_key_generated_privately": true,
+  "github_secret_storage_verified": true,
+  "specific_secret_storage_confirmation": "owner explicitly approved in chat",
+  "private_material_transmitted_to_github": true,
+  "apk_built": true,
+  "upgrade_emulator_run": true,
+  "local_public_identity_tests": {
+    "passed": 12,
+    "failed": 0
+  },
+  "local_upgrade_guard_mock_tests": {
+    "passed": 13,
+    "failed": 0
+  },
+  "local_existing_importer_tests": {
+    "passed": 22,
+    "skipped_ci_runner_only": 1,
+    "failed": 0
+  },
+  "historical_ci_tests": {
+    "flutter": 221,
+    "python_importer": 23,
+    "strict_analysis": "passed"
+  },
+  "prepared_pipeline": "Fresh1816 and1817 CI jobs independently import same GitHub configured key; keyless reusable Android replace install proof",
+  "prepared_pipeline_remote_published": true,
+  "approval_page": "https://github.com/JJalal1/real-estate-uat-backend/settings/secrets/actions/new",
+  "remaining": [
+    "Physical owner-handset verification of the reported WiFi case and actual install.",
+    "Weak-network timing, map tile availability, real finger gestures and known-building GPS accuracy remain unmeasured.",
+    "No acceptance claim for migration of old1815 local data, signed-in session or Keystore keys."
+  ],
+  "secret_storage_verification_scope": "GitHub storage confirmed; actual private-key validation and public pin checks passed independently in both fresh1816/1817 CI jobs.",
+  "browser_screenshots_in_repository": false,
+  "storage_evidence": "GitHub success confirmation and five expected names visible; screenshots excluded from repository",
+  "shipping_source": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+  "upgrade_emulator_passed": true,
+  "deliveryfilesavailable": true,
+  "delivered_version": 1817,
+  "baseline_1816_internal_only": true,
+  "ci_run": 44081151224,
+  "current_ci_tests": {
+    "flutter": 221,
+    "python_importer": 23,
+    "python_identity": 12,
+    "python_upgrade_guards": 14,
+    "python_total": 49,
+    "strict_analysis": "passed"
+  },
+  "current_shipping_receipt": "1817/AQER-UAT-1817-Connectivity-Receipt.json",
+  "actual_emulator_upgrade_receipt": "1817/ANDROID_DURABLE_UPGRADE_VERIFICATION.json",
+  "physical_phone_acceptance": false,
+  "real_user_data_or_keystore_or_session_migration_tested": false,
+  "one_time_1815_clean_install_required": true
+}

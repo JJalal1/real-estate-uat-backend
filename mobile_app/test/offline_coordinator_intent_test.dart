@@ -35,7 +35,7 @@ void main() {
       (tester) async {
     const channel = MethodChannel('real_estate/network');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, (_) async => {'connected': false});
+        .setMockMethodCallHandler(channel, (_) async => {'networkAvailable': false, 'connected': false});
     addTearDown(() => TestDefaultBinaryMessengerBinding
         .instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null));

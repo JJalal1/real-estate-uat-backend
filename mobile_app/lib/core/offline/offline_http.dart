@@ -110,17 +110,23 @@ class OfflineHttpInterceptor extends Interceptor {
       RequestOptions options, RequestInterceptorHandler handler) async {
     options.extra['offline_epoch'] =
         Stage6SecureSessionStore.instance.sessionEpoch;
+    options.extra['offline_connection_revision'] = connection.revision;
     if (eligible(options) &&
-        connection.current != OfflineConnection.online &&
+        (connection.current == OfflineConnection.offline ||
+            connection.current == OfflineConnection.unknown) &&
         options.extra['offline_bypass'] != true) {
       final row = await _cached(options);
-      if (_current(options) && row != null) {
+      if (_current(options) &&
+          row != null &&
+          (connection.current == OfflineConnection.offline ||
+              connection.current == OfflineConnection.unknown)) {
         handler.resolve(_response(options, row));
         return;
       }
     }
     if (connection.current == OfflineConnection.offline &&
         options.extra['offline_bypass'] != true) {
+      options.extra['offline_rejected'] = true;
       handler.reject(DioException(
           requestOptions: options,
           type: DioExceptionType.connectionError,
@@ -134,12 +140,19 @@ class OfflineHttpInterceptor extends Interceptor {
   void onResponse(
       Response<dynamic> response, ResponseInterceptorHandler handler) async {
     final r = response.requestOptions;
+    if (_current(r) &&
+        response.extra['offline_snapshot'] != true &&
+        response.extra['http_memory_cache'] != true &&
+        r.uri.origin == Uri.parse(r.baseUrl).origin) {
+      connection.reachable(r.extra['offline_connection_revision'] as int? ??
+          connection.revision);
+    }
     if (response.extra['offline_snapshot'] != true &&
+        response.extra['http_memory_cache'] != true &&
         response.statusCode == 200 &&
         eligible(r) &&
         response.data is Map &&
         _current(r)) {
-      connection.online();
       final headers = <String, List<String>>{
         for (final e in response.headers.map.entries)
           if (e.key.toLowerCase().startsWith('x-aqer-')) e.key: e.value
@@ -173,7 +186,17 @@ class OfflineHttpInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     final r = err.requestOptions;
-    if (_current(r) && offlineTransportFailure(err)) connection.offline();
+    if (_current(r) &&
+        r.extra['offline_rejected'] != true &&
+        r.uri.origin == Uri.parse(r.baseUrl).origin) {
+      final started =
+          r.extra['offline_connection_revision'] as int? ?? connection.revision;
+      if (err.response != null && r.uri.origin == Uri.parse(r.baseUrl).origin) {
+        connection.reachable(started);
+      } else if (offlineTransportFailure(err)) {
+        connection.transportFailure(started);
+      }
+    }
     if (eligible(r) && _current(r)) {
       if (const [401, 403, 404, 410].contains(err.response?.statusCode)) {
         try {
@@ -186,7 +209,6 @@ class OfflineHttpInterceptor extends Interceptor {
           /* Disk failure cannot hide an authoritative API failure. */
         }
       } else if (offlineTransportFailure(err)) {
-        connection.offline();
         final row = await _cached(r);
         if (_current(r) && row != null) {
           handler.resolve(_response(r, row));

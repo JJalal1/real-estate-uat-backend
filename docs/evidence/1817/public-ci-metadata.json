@@ -1,0 +1,85 @@
+{
+  "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+  "ci_run_id": 44081151224,
+  "tests": {
+    "job_id": 134031928111,
+    "conclusion": "success",
+    "strict_analysis": "passed",
+    "flutter_passed": 221,
+    "python_importer_passed": 23,
+    "python_policy_passed": 12,
+    "python_upgrade_guard_passed": 14
+  },
+  "jobs": {
+    "build_1816": {
+      "job_id": 134033156108,
+      "conclusion": "success"
+    },
+    "build_1817": {
+      "job_id": 134038356405,
+      "conclusion": "success"
+    },
+    "durable_upgrade": {
+      "job_id": 134042866377,
+      "conclusion": "success"
+    }
+  },
+  "artifacts": {
+    "1816": {
+      "id": 14326894103,
+      "archive_sha256": "87eb788c594d2cfb4cf4792b542a08bfbebc9f3663bbc104e71a43ab90f835c6"
+    },
+    "1817": {
+      "id": 14328756670,
+      "archive_sha256": "ad711d6e9471d0cd0e8540a69aa4da7f41468df6d3ba83513a5aad605d443b34"
+    },
+    "durable_upgrade": {
+      "id": 14328672618,
+      "archive_sha256": "fff984dc729204e9bc2a7a381b60d61170c901eac49c02c7bbfe3f54699dd087"
+    }
+  },
+  "readiness": {
+    "present": {
+      "keystore": true,
+      "store_password": true,
+      "key_alias": true,
+      "key_password": true,
+      "certificate_pin": true
+    },
+    "approved_certificate_pin_matches": true,
+    "approved_for_delivery": true,
+    "github_secret_storage_verified": true,
+    "certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+    "package": "com.aqer.yemen.uat.offline",
+    "compatible": true,
+    "status": "configuration_present_pending_private_key_validation",
+    "signing_material_verified": false,
+    "apk_built": false,
+    "transition_from_1815": "one_time_clean_install_required",
+    "upgrade_from_1815_compatible": false,
+    "installed_device_upgrade_tested": false,
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1"
+  },
+  "render": {
+    "deployment_id": "dep-dbtpbo88v5cc73av6o20",
+    "backend_component": "bc0e96b8266f062b7fde166ba0451148ec2402f1",
+    "api": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+    "read_only_verified": true,
+    "redeployed_for_this_followup": false,
+    "checked_at": "2026-11-17T15:41:30.271019+03:00",
+    "source_commit": "5a5d96dfa4f6c6fe3e523f2f72e4c9a56f5f4f19"
+  },
+  "owner_confirmation": {
+    "no_local_drafts_or_pending_messages": true,
+    "one_time_clean_install_approved": true,
+    "github_signing_storage_approved": true
+  },
+  "broad_validation": {
+    "run_id": 44081159225,
+    "source_commit": "e91927e9d14994c9101d6f11b8886e666bb930d1",
+    "conclusion": "success",
+    "flutter_tests": 96,
+    "laravel_tests": 11,
+    "laravel_assertions": 101
+  }
+}

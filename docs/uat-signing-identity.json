@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "package": "com.aqer.yemen.uat.offline",
+  "certificate_sha256": "8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3",
+  "key_algorithm": "RSA4096",
+  "signature_algorithm": "SHA256withRSA",
+  "first_durable_version": 1816,
+  "previous_1815_certificate_sha256": "a157c63cd37090cebac83d2a2786e1e3342a8b09f17daeea30e93a5cbd65796f",
+  "transition_from_1815": "one_time_clean_install_required",
+  "local_data_owner_statement": "No unsent messages or local drafts per owner reply",
+  "github_secret_storage_verified": true,
+  "first_install_device_verified": false,
+  "future_update_pair_verified": false,
+  "private_key_disclosed_in_artifacts": false,
+  "application_name": "عقار أوفلاين اختبار",
+  "approved_for_delivery": true
+}
