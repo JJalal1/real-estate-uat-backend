@@ -109,7 +109,7 @@ Future<void> _networkIs(bool connected) async {
   for (var attempt = 0; attempt < 40; attempt++) {
     final state =
         await _network.invokeMapMethod<String, dynamic>('imageNetworkState');
-    if (state?['connected'] == connected) {
+    if (state?['networkAvailable'] == connected) {
       return;
     }
     await Future<void>.delayed(const Duration(milliseconds: 500));

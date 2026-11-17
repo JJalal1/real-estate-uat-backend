@@ -124,6 +124,7 @@ class _NearbyRequestCacheInterceptor extends Interceptor {
           data: cached.data,
           statusCode: cached.statusCode,
           statusMessage: 'OK (nearby cache)',
+          extra: {'http_memory_cache': true},
         ),
       );
       return;

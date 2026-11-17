@@ -82,8 +82,10 @@ class MainActivity : FlutterActivity() {
                         capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "cellular"
                         else -> "other"
                     }
+                    val validated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
                     result.success(mapOf("metered" to manager.isActiveNetworkMetered,
-                        "dataSaver" to saver, "connected" to (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true), "networkKey" to (network?.toString() ?: "none"),
+                        "dataSaver" to saver, "networkAvailable" to (network != null),
+                        "validated" to validated, "connected" to validated, "networkKey" to (network?.toString() ?: "none"),
                         "transport" to transport))
                 }
             }

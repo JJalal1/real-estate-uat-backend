@@ -25,7 +25,8 @@ class PersonalListingCreationGate extends ConsumerWidget {
     // Local preparation grants no server publishing permission. The normal
     // authoritative personal-property limit is checked again on upload.
     if (user != null &&
-        ref.watch(offlineConnectionProvider) == OfflineConnection.offline)
+        const [OfflineConnection.offline, OfflineConnection.unavailable]
+            .contains(ref.watch(offlineConnectionProvider)))
       { return child; }
     if (user == null || !user.isOwner || !user.hasVerifiedPublishingProfile) return child;
     final listings = ref.watch(myListingsProvider);

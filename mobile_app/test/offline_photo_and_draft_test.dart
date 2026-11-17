@@ -158,35 +158,48 @@ void main() {
     expect(find.byType(PageView), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
-  testWidgets(
-      'manual edits save locally offline, survive reopening and never auto-upload on reconnect',
-      (tester) async {
-    final drafts = Wave6Drafts(),
-        recovery = Wave6Recovery({
-          ...editorSnapshot(),
-          'draft_key': 'fc0d4f08-f575-4ed5-aa57-75184a8ef648',
-          'entry_method': 'manual',
-          'offline_prepared': true
-        });
-    final connection = OfflineConnectionController()..offline();
-    Widget editor() => ProviderScope(overrides: [
-          offlineConnectionProvider.overrideWith((ref) => connection)
-        ], child: const ListingEditorScreen());
-    await pumpWave6(tester, editor(), drafts: drafts, recovery: recovery);
-    await tester.ensureVisible(textField('وصف العقار'));
-    await tester.enterText(textField('وصف العقار'), 'تفاصيل كتبت دون إنترنت');
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
-    expect((recovery.snapshot!['fields'] as Map)['description'],
-        'تفاصيل كتبت دون إنترنت');
-    expect(recovery.snapshot!['offline_prepared'], true);
-    expect(drafts.saves, isEmpty);
-    connection.online();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
-    expect(drafts.saves, isEmpty);
-    expect(find.textContaining('محفوظة على الجهاز'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await finishWave6(tester);
-  });
+  for (final initial in [
+    OfflineConnection.offline,
+    OfflineConnection.unavailable
+  ]) {
+    testWidgets(
+        'manual edits save locally in ${initial.name} and never auto-upload on reconnect',
+        (tester) async {
+      final drafts = Wave6Drafts(),
+          recovery = Wave6Recovery({
+            ...editorSnapshot(),
+            'draft_key': 'fc0d4f08-f575-4ed5-aa57-75184a8ef648',
+            'entry_method': 'manual',
+            // Establish the latch from current connectivity, not a prior flag.
+            'offline_prepared': false
+          });
+      final connection = OfflineConnectionController(
+          networkSnapshot: () async => {'networkAvailable': true});
+      if (initial == OfflineConnection.offline) {
+        connection.offline();
+      } else {
+        connection.transportFailure(connection.revision);
+      }
+      expect(connection.current, initial);
+      Widget editor() => ProviderScope(overrides: [
+            offlineConnectionProvider.overrideWith((ref) => connection)
+          ], child: const ListingEditorScreen());
+      await pumpWave6(tester, editor(), drafts: drafts, recovery: recovery);
+      await tester.ensureVisible(textField('وصف العقار'));
+      await tester.enterText(textField('وصف العقار'), 'تفاصيل كتبت دون إنترنت');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect((recovery.snapshot!['fields'] as Map)['description'],
+          'تفاصيل كتبت دون إنترنت');
+      expect(recovery.snapshot!['offline_prepared'], true);
+      expect(drafts.saves, isEmpty);
+      connection.online();
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(drafts.saves, isEmpty);
+      expect(find.textContaining('محفوظة على الجهاز'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await finishWave6(tester);
+    });
+  }
 }

@@ -140,7 +140,7 @@ void main() {
         requestOptions: r, type: DioExceptionType.connectionError);
     expect((await dio.get<dynamic>('/properties/7')).extra['offline_snapshot'],
         true);
-    expect(connection.current, OfflineConnection.offline);
+    expect(connection.current, OfflineConnection.unavailable);
     connection.online();
     wire.response = (_) =>
         ResponseBody.fromString('{"message":"unavailable"}', 503, headers: {

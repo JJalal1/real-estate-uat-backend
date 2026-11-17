@@ -75,7 +75,8 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       ]);
       if (!_current || request != _request) return;
       _local = device[0] as Map<String, dynamic>?; _savedLocal = device[1] as List<Map<String, dynamic>>;
-      if (ref.read(offlineConnectionProvider) == OfflineConnection.offline) {
+      if (const [OfflineConnection.offline, OfflineConnection.unavailable]
+          .contains(ref.read(offlineConnectionProvider))) {
         if (widget.existingProperty != null) {
           _property = widget.existingProperty;
           _open = true;
@@ -162,7 +163,8 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   }
   Future<void> _startNew() async {
     final offline =
-        ref.read(offlineConnectionProvider) == OfflineConnection.offline;
+        const [OfflineConnection.offline, OfflineConnection.unavailable]
+            .contains(ref.read(offlineConnectionProvider));
     if (_working || _loading || (!_sourcesComplete && !offline) || !_current) return;
     setState(() { _working = true; _error = null; });
     try {
@@ -236,7 +238,8 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   @override
   Widget build(BuildContext context) {
     final offline =
-        ref.watch(offlineConnectionProvider) == OfflineConnection.offline;
+        const [OfflineConnection.offline, OfflineConnection.unavailable]
+            .contains(ref.watch(offlineConnectionProvider));
     if (_open) {
       final editor = ListingEditorScreen(existingProperty: _property, accountDraft: _selected, localRecovery: _editorLocal,
         startFresh: _fresh, startWithAssistant: _assistant);
