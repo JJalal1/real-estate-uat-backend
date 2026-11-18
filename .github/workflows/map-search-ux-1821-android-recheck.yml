@@ -9,7 +9,7 @@ permissions:
 jobs:
   upgrade:
     name: Replace signed 1820 with 1821 and verify the reported Android journeys
-    if: ${{ needs.build.result == 'success' && github.event.repository.private }}
+    if: ${{ github.event.repository.private }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
