@@ -40,13 +40,13 @@ Map<String, dynamic> _row(int id, {bool nearby = false, int? misses, int? metres
     'distance_m':nearby?80:null,'distance_reference':nearby?'drawn_boundary':null,
     'criteria_misses':misses ?? (nearby ? 1 : 0),'rank_distance_m':metres ?? (nearby ? 80 : 0)},
 };
-ResponseBody _body(List<Map<String,dynamic>> rows, {int page=1,int last=1,bool acknowledge=true, (int, int)? totals}) {
+ResponseBody _body(List<Map<String,dynamic>> rows, {int page=1,int last=1,bool acknowledge=true, String contract = '1', (int, int)? totals}) {
   final exact = totals?.$1 ?? (last > 1 ? 20 : rows.where((row) => (row['discovery_match'] as Map)['kind'] == 'exact').length);
   final alternatives = totals?.$2 ?? (last > 1 ? 1 : rows.length - exact);
   return ResponseBody.fromString(jsonEncode({'data': rows, 'meta': {
     'current_page': page, 'last_page': last, 'total': exact + alternatives, 'exact_total': exact, 'alternative_total': alternatives,
   }}), 200, headers: {
-    'content-type': ['application/json'], 'x-aqer-filter-contract': ['2'], if (acknowledge) 'x-aqer-ranked-contract': ['1'],
+    'content-type': ['application/json'], 'x-aqer-filter-contract': ['2'], if (acknowledge) 'x-aqer-ranked-contract': [contract],
   });
 }
 
@@ -62,6 +62,10 @@ void main() {
     expect(match.distanceReference,'drawn_boundary');
     expect(match.criteriaMisses,1);
     expect(match.rankDistanceMetres,80);
+    final geographyOnly = DiscoveryMatch.fromJson(_row(3, nearby: true, misses: 0)['discovery_match'])!;
+    expect(geographyOnly.nearby, isTrue);
+    expect(geographyOnly.criteriaMisses, 0);
+    expect(geographyOnly.reasons, ['خارج المنطقة المرسومة']);
     final old=DiscoveryMatch.fromJson({'kind':'exact','reasons':[]})!;
     expect(old.criteriaMisses,isNull);
     expect(old.rankDistanceMetres,isNull);
@@ -69,6 +73,7 @@ void main() {
     expect(()=>DiscoveryMatch.fromJson({'kind':'nearby','reasons':[]}),throwsFormatException);
     expect(()=>DiscoveryMatch.fromJson({'kind':'exact','reasons':[],'distance_m':-1}),throwsFormatException);
     expect(()=>DiscoveryMatch.fromJson({'kind':'exact','reasons':[],'criteria_misses':1}),throwsFormatException);
+    expect(()=>DiscoveryMatch.fromJson(_row(4, nearby: true, misses: -1)['discovery_match']), throwsFormatException);
     expect(()=>DiscoveryMatch.fromJson({'kind':'exact','reasons':[],'rank_distance_m':double.nan}),throwsFormatException);
   });
 
@@ -106,7 +111,7 @@ void main() {
     expect(clusters.single.items.map((p)=>p.id).toSet(),rows.map((p)=>p.id).toSet());
   });
 
-  test('ranked repository carries identical filters through pages and rejects an old server', () async {
+  test('ranked repository requests v2 on every page, accepts v1 and requires a ranked response', () async {
     final requests=<RequestOptions>[];
     final dio=Dio(BaseOptions(baseUrl:'https://example.invalid/api'));
     dio.httpClientAdapter=_Adapter((q) async {requests.add(q);return _body([_row(q.queryParameters['page'] as int,nearby:q.queryParameters['page']==2)],page:q.queryParameters['page'] as int,last:2);});
@@ -117,6 +122,7 @@ void main() {
     expect(next.$1.single.discoveryMatch!.nearby,isTrue);
     for(final request in requests) {
       expect(request.queryParameters['ranked_search'],1);
+      expect(request.queryParameters['ranking_version'],2);
       for(final entry in filters.entries) {expect(request.queryParameters[entry.key],entry.value);}
     }
     dio.httpClientAdapter=_Adapter((_) async => _body([],acknowledge:false));
@@ -153,8 +159,8 @@ void main() {
   for (final startInMap in [false, true]) {
     testWidgets('ranked pages load on scroll and the list and drawer share their order (map=$startInMap)', (tester) async {
       final pages = [
-        [_row(44, metres: 200), _row(12, metres: 400), _row(41, metres: 800), _row(2, metres: 2000)],
-        [_row(20, nearby: true, metres: 100), _row(9, nearby: true, metres: 900), _row(99, nearby: true, metres: 1100)],
+        [_row(44, metres: 200), _row(12, metres: 400), _row(41, metres: 800), _row(2, nearby: true, misses: 0, metres: 900)],
+        [_row(20, metres: 2000), _row(9, nearby: true, metres: 100), _row(99, nearby: true, metres: 1100)],
         [_row(80, nearby: true, misses: 2, metres: 50)],
       ];
       final requests = <Map<String, dynamic>>[];
@@ -164,7 +170,7 @@ void main() {
         final query = Map<String, dynamic>.of(request.queryParameters);
         requests.add(query);
         final page = query['page'] as int;
-        return _body(pages[page - 1], page: page, last: pages.length, totals: (4, 4));
+        return _body(pages[page - 1], page: page, last: pages.length, totals: (4, 4), contract: '2');
       });
       final scope = uxContainer(extra: [
         propertyRepositoryProvider.overrideWithValue(PropertyRepository(dio, AuthRepository(dio), rankedDiscovery: true)),
@@ -199,12 +205,13 @@ void main() {
       }
       const order = [44, 12, 41, 2, 20, 9, 99, 80];
       expect(requests, [for (var page = 1; page <= 3; page++)
-        {...filters, 'page': page, 'per_page': 20, 'sort': 'latest', 'ranked_search': 1},
+        {...filters, 'page': page, 'per_page': 20, 'sort': 'latest', 'ranked_search': 1, 'ranking_version': 2},
       ]);
       if (!startInMap) await openDrawer();
       final drawer = tester.widget<PropertyMapResultsSheet>(find.byType(PropertyMapResultsSheet));
       expect(drawer.items.map((row) => row.id), order);
-      expect(drawer.items.map((row) => row.discoveryMatch!.criteriaMisses), [0, 0, 0, 0, 1, 1, 1, 2]);
+      expect(drawer.items.map((row) => row.discoveryMatch!.criteriaMisses), [0, 0, 0, 0, 0, 1, 1, 2]);
+      expect(drawer.items.map((row) => row.discoveryMatch!.nearby), [false, false, false, true, false, true, true, true]);
       expect(drawer.items.last.discoveryMatch!.reasons, ['خارج المنطقة المرسومة']);
       await tester.scrollUntilVisible(find.byKey(const ValueKey('map-result-80')), 260,
         scrollable: find.descendant(of: find.byKey(const ValueKey('map-results-list')), matching: find.byType(Scrollable)).first);

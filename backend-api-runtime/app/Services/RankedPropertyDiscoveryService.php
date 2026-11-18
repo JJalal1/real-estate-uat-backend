@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Models\GeoCell;
+use App\Models\Property;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-/** One ranked stream for list and map, with exact results at degree zero. */
+/** Ranked public discovery shared by list and map. */
 class RankedPropertyDiscoveryService
 {
     public const ALTERNATIVE_LIMIT = 12;
@@ -25,7 +27,7 @@ class RankedPropertyDiscoveryService
 
     public function __construct(private readonly PropertyDiscoveryFilterService $filters, private readonly DiscoveryPlaceResolver $places) {}
 
-    public function page(array $input, int $page, int $perPage, string $sort = 'latest'): array
+    public function page(array $input, int $page, int $perPage, string $sort, int $version): array
     {
         if (isset($input['min_monthly_rent']) || isset($input['max_monthly_rent'])) {
             if (isset($input['purpose']) && $input['purpose'] !== 'rent') {
@@ -49,16 +51,37 @@ class RankedPropertyDiscoveryService
         if ($approximate) {
             $exact->whereRaw('1=0');
         }
-        $exactTotal = (clone $exact)->count();
-        $nearby = $this->alternatives($input, $place, $exact, $area, $rankReference);
-        $total = $exactTotal + count($nearby);
         $offset = ($page - 1) * $perPage;
+        $bySpecifications = $version === 2;
+        $alternatives = $this->alternatives($input, $place, $exact, $area, $rankReference, $bySpecifications, $sort);
+        if ($bySpecifications) {
+            [$properties, $total, $exactTotal] = $this->specificationPage($exact, $alternatives, $rankReference, $drawn, $offset, $perPage, $sort);
+            $rows = $properties->map(fn (Property $property) => $property->discovery_nearby
+                ? $this->alternativeRow($property, $input, $place, $area)
+                : $this->exactRow($property))->all();
+        } else {
+            $exactTotal = (clone $exact)->count();
+            $nearby = $alternatives?->get()->all() ?? [];
+            $total = $exactTotal + count($nearby);
+            $rows = $this->legacyPage($exact, $nearby, $input, $place, $area, $rankReference, $drawn, $exactTotal, $offset, $perPage, $sort);
+        }
+
+        return ['rows' => $rows, 'meta' => ['current_page' => $page, 'last_page' => max(1, (int) ceil($total / $perPage)),
+            'per_page' => $perPage, 'total' => $total, 'exact_total' => $exactTotal, 'alternative_total' => $total - $exactTotal,
+            'alternative_limit' => self::ALTERNATIVE_LIMIT,
+            'ranking' => $bySpecifications ? 'specification_misses,distance_when_known,tiebreakers,id' : 'fewest_changes,distance_when_known,tiebreakers,id',
+            'ranking_distance_reference' => $rankReference === null ? null : ($drawn ? 'drawn_area' : ($point ? 'point' : 'recorded_area'))]];
+    }
+
+    private function legacyPage(Builder $exact, array $nearby, array $input, ?array $place, ?array $area, ?array $reference,
+        bool $drawn, int $exactTotal, int $offset, int $perPage, string $sort): array
+    {
         $rows = [];
         if ($offset < $exactTotal) {
-            if ($rankReference !== null && ! $drawn) {
-                [$distance, $bindings] = $this->distanceSql($rankReference);
-                $exact->select('properties.*')->selectRaw("{$distance} AS discovery_rank_distance_m", $bindings)
-                    ->orderByRaw('discovery_rank_distance_m ASC NULLS LAST');
+            $exact->select('properties.*');
+            $this->selectDistance($exact, $reference, 'discovery_rank_distance_m', $drawn);
+            if ($reference !== null && ! $drawn) {
+                $exact->orderByRaw('discovery_rank_distance_m ASC NULLS LAST');
             }
             $this->filters->applySearchOrdering($exact, $input, $sort);
             match ($sort) {
@@ -67,19 +90,62 @@ class RankedPropertyDiscoveryService
                 default => $exact->orderByDesc('id'),
             };
             foreach ($exact->offset($offset)->limit($perPage)->get() as $property) {
-                $rows[] = ['property' => $property, 'match' => ['kind' => 'exact', 'reasons' => [], 'distance_m' => null,
-                    'criteria_misses' => 0, 'rank_distance_m' => $drawn ? 0.0
-                        : ($rankReference === null ? null : $this->metres($property->discovery_rank_distance_m))]];
+                $rows[] = $this->exactRow($property);
             }
         }
-        if (count($rows) < $perPage) {
-            $rows = array_merge($rows, array_slice($nearby, max(0, $offset - $exactTotal), $perPage - count($rows)));
+        foreach (array_slice($nearby, max(0, $offset - $exactTotal), $perPage - count($rows)) as $property) {
+            $rows[] = $this->alternativeRow($property, $input, $place, $area);
         }
 
-        return ['rows' => $rows, 'meta' => ['current_page' => $page, 'last_page' => max(1, (int) ceil($total / $perPage)),
-            'per_page' => $perPage, 'total' => $total, 'exact_total' => $exactTotal, 'alternative_total' => count($nearby),
-            'alternative_limit' => self::ALTERNATIVE_LIMIT, 'ranking' => 'fewest_changes,distance_when_known,tiebreakers,id',
-            'ranking_distance_reference' => $rankReference === null ? null : ($drawn ? 'drawn_area' : ($point ? 'point' : 'recorded_area'))]];
+        return $rows;
+    }
+
+    private function specificationPage(Builder $exact, ?Builder $alternatives, ?array $reference, bool $drawn,
+        int $offset, int $perPage, string $sort): array
+    {
+        $exact->select('properties.id as property_id', 'properties.price')
+            ->selectRaw('0 AS discovery_nearby, 0 AS discovery_criteria_misses, 0 AS discovery_location_difference,
+                CAST(NULL AS DOUBLE PRECISION) AS discovery_area_distance_m');
+        $this->selectDistance($exact, $reference, 'discovery_rank_distance_m', $drawn);
+        $eligible = $exact->toBase();
+        if ($alternatives !== null) {
+            // The alternative limit is applied to its own ranked candidates.
+            // The combined stream is ranked again before any page is cut.
+            $eligible->unionAll(DB::query()->fromSub($alternatives->toBase(), 'kept_alternatives'));
+        }
+        $ranks = DB::query()->fromSub($eligible, 'eligible');
+        $page = (clone $ranks)->select('eligible.*')
+            ->selectRaw('COUNT(*) OVER () AS discovery_total,
+                COUNT(CASE WHEN discovery_nearby = 0 THEN 1 END) OVER () AS discovery_exact_total');
+        $this->orderBySpecifications($page, $sort);
+        $properties = Property::query()->with('images')
+            ->joinSub($page->offset($offset)->limit($perPage), 'ranked', 'ranked.property_id', '=', 'properties.id')
+            ->select('properties.*', 'ranked.discovery_nearby', 'ranked.discovery_criteria_misses',
+                'ranked.discovery_location_difference', 'ranked.discovery_area_distance_m', 'ranked.discovery_rank_distance_m',
+                'ranked.discovery_total', 'ranked.discovery_exact_total');
+        $this->orderBySpecifications($properties, $sort, 'ranked.');
+        $rows = $properties->get();
+        // An empty/out-of-range page still returns totals for the same stream.
+        $counts = $rows->first() ?? $ranks->selectRaw('COUNT(*) AS discovery_total,
+            COUNT(CASE WHEN discovery_nearby = 0 THEN 1 END) AS discovery_exact_total')->first();
+
+        return [$rows, (int) $counts->discovery_total, (int) $counts->discovery_exact_total];
+    }
+
+    private function orderBySpecifications(Builder|QueryBuilder $query, string $sort, string $prefix = ''): void
+    {
+        $query->orderBy($prefix.'discovery_criteria_misses')
+            ->orderByRaw($prefix.'discovery_rank_distance_m ASC NULLS LAST');
+        if (in_array($sort, ['price_asc', 'price_desc'], true)) {
+            $query->orderBy($prefix.'price', $sort === 'price_asc' ? 'asc' : 'desc');
+        }
+        $query->orderByDesc($prefix.'property_id');
+    }
+
+    private function exactRow(Property $property): array
+    {
+        return ['property' => $property, 'match' => ['kind' => 'exact', 'reasons' => [], 'distance_m' => null,
+            'criteria_misses' => 0, 'rank_distance_m' => $this->metres($property->discovery_rank_distance_m)]];
     }
 
     private function query(array $input, ?array $place, bool $geometry = true): Builder
@@ -118,12 +184,13 @@ class RankedPropertyDiscoveryService
         });
     }
 
-    private function alternatives(array $input, ?array $place, Builder $exact, ?array $area, ?array $rankReference): array
+    private function alternatives(array $input, ?array $place, Builder $exact, ?array $area, ?array $rankReference,
+        bool $bySpecifications, string $sort): ?Builder
     {
         $soft = array_intersect_key($input, self::NUMERIC);
         $approximate = (bool) ($place['approximate'] ?? false);
         if ($soft === [] && $area === null && ! $approximate) {
-            return [];
+            return null;
         }
         $hard = array_diff_key($input, self::NUMERIC, array_flip(self::GEOMETRY));
         // A place may expand only with real recorded geometry. Unknown text
@@ -160,33 +227,40 @@ class RankedPropertyDiscoveryService
         $location = $this->query(array_diff_key($input, self::NUMERIC), $place)->select('properties.id');
         $locationSql = 'CASE WHEN properties.id IN ('.$location->toSql().') THEN 0 ELSE 1 END';
         $locationBindings = $location->getBindings();
-        $parts = [$locationSql];
-        $bindings = $locationBindings;
+        $parts = [];
+        $specificationBindings = [];
         foreach ($groups as $group) {
             $parts[] = 'CASE WHEN ('.implode(' OR ', $group['sql']).') THEN 1 ELSE 0 END';
-            array_push($bindings, ...$group['bindings']);
+            array_push($specificationBindings, ...$group['bindings']);
         }
-        if ($approximate) {
-            $parts[] = '1';
+        $specificationSql = $parts === [] ? '0' : '('.implode(' + ', $parts).')';
+        // Geography and approximate place text retain their eligibility cost.
+        // Only missed property specifications contribute to the new rank.
+        $differenceSql = "({$locationSql} + {$specificationSql}".($approximate ? ' + 1' : '').')';
+        $differenceBindings = [...$locationBindings, ...$specificationBindings];
+        if ($bySpecifications) {
+            $query->select('properties.id as property_id', 'properties.price')->selectRaw('1 AS discovery_nearby')
+                ->selectRaw("{$specificationSql} AS discovery_criteria_misses", $specificationBindings);
+        } else {
+            $query->select('properties.*')->selectRaw("{$differenceSql} AS discovery_criteria_misses", $differenceBindings);
         }
-        $differenceSql = '('.implode(' + ', $parts).')';
-        $query->select('properties.*')->selectRaw("{$differenceSql} AS discovery_criteria_misses", $bindings)
-            ->selectRaw("{$locationSql} AS discovery_location_difference", $locationBindings)
-            ->whereRaw("{$differenceSql} BETWEEN 1 AND 2", $bindings)
-            ->orderBy('discovery_criteria_misses');
+        $query->selectRaw("{$locationSql} AS discovery_location_difference", $locationBindings)
+            ->whereRaw("{$differenceSql} BETWEEN 1 AND 2", $differenceBindings);
+        $this->selectDistance($query, $area, 'discovery_area_distance_m');
         if ($area !== null) {
             [$areaDistance, $areaBindings] = $this->distanceSql($area);
             $this->constrainNearby($query, $area, $areaDistance, $areaBindings);
-            $query->selectRaw("{$areaDistance} AS discovery_area_distance_m", $areaBindings);
         }
-        $rankColumn = 'discovery_area_distance_m';
+        $this->selectDistance($query, $rankReference, 'discovery_rank_distance_m');
+        if ($bySpecifications) {
+            $this->orderBySpecifications($query, $sort);
+
+            return $query->limit(self::ALTERNATIVE_LIMIT);
+        }
+
+        $query->orderBy('discovery_criteria_misses');
         if ($rankReference !== null) {
-            if ($rankReference !== $area) {
-                [$rankDistance, $rankBindings] = $this->distanceSql($rankReference);
-                $rankColumn = 'discovery_rank_distance_m';
-                $query->selectRaw("{$rankDistance} AS {$rankColumn}", $rankBindings);
-            }
-            $query->orderByRaw("{$rankColumn} ASC NULLS LAST");
+            $query->orderByRaw('discovery_rank_distance_m ASC NULLS LAST');
         }
         if ($overParts !== []) {
             $query->orderByRaw('CASE WHEN ('.implode(' OR ', $overParts).') THEN 1 ELSE 0 END ASC', $overBindings);
@@ -194,39 +268,52 @@ class RankedPropertyDiscoveryService
         if ($gapParts !== []) {
             $query->orderByRaw('('.implode(' + ', $gapParts).') ASC', $gapBindings);
         }
-        $result = [];
-        foreach ($query->orderBy('properties.id')->limit(self::ALTERNATIVE_LIMIT)->get() as $property) {
-            $reasons = [];
-            if ($approximate) {
-                $reasons[] = ['field' => 'search', 'message' => 'كتابة قريبة من بحثك: '.$place['name']];
+        return $query->orderBy('properties.id')->limit(self::ALTERNATIVE_LIMIT);
+    }
+
+    private function alternativeRow(Property $property, array $input, ?array $place, ?array $area): array
+    {
+        $reasons = [];
+        if ($place['approximate'] ?? false) {
+            $reasons[] = ['field' => 'search', 'message' => 'كتابة قريبة من بحثك: '.$place['name']];
+        }
+        $fromArea = $property->discovery_area_distance_m;
+        $distance = $fromArea === null ? null : round(max(0, (float) $fromArea - ($area['radius_m'] ?? 0)), 1);
+        if ((int) $property->discovery_location_difference !== 0) {
+            $reasons[] = ['field' => 'location', 'message' => isset($input['area_polygon']) ? 'خارج المنطقة المرسومة' : 'قريب من النطاق المطلوب',
+                'distance_m' => $distance];
+        }
+        foreach (array_intersect_key($input, self::NUMERIC) as $key => $value) {
+            [$column, $operator, $group] = self::NUMERIC[$key];
+            $actual = (float) $property->{$column};
+            if ($operator === '>=' ? $actual >= $value : $actual <= $value) {
+                continue;
             }
-            $fromArea = $area === null ? null : $property->discovery_area_distance_m;
-            $distance = $fromArea === null ? null : round(max(0, (float) $fromArea - ($area['radius_m'] ?? 0)), 1);
-            if ((int) $property->discovery_location_difference !== 0) {
-                $reasons[] = ['field' => 'location', 'message' => isset($input['area_polygon']) ? 'خارج المنطقة المرسومة' : 'قريب من النطاق المطلوب',
-                    'distance_m' => $distance];
-            }
-            foreach ($soft as $key => $value) {
-                [$column, $operator, $group] = self::NUMERIC[$key];
-                $actual = (float) $property->{$column};
-                if ($operator === '>=' ? $actual >= $value : $actual <= $value) {
-                    continue;
-                }
-                $difference = abs($actual - (float) $value);
-                $label = match ($group) {
-                    'budget' => $operator === '<=' ? 'أعلى من سقف السعر بـ' : 'أقل من الحد الأدنى للسعر بـ',
-                    'bedrooms' => 'غرف أقل من المطلوب بـ', 'bathrooms' => 'حمامات أقل من المطلوب بـ', default => 'فرق المساحة م²: '
-                };
-                $reasons[] = ['field' => $key, 'message' => $label.$this->number($difference).($group === 'budget' ? ' '.$property->currency : ''),
-                    'expected' => (float) $value, 'actual' => $actual, 'difference' => $difference];
-            }
-            $result[] = ['property' => $property, 'match' => ['kind' => 'nearby', 'reasons' => $reasons, 'distance_m' => $distance,
-                'distance_reference' => isset($input['area_polygon']) ? 'drawn_boundary' : ($area === null ? 'text_only' : 'requested_area'),
-                'criteria_misses' => (int) $property->discovery_criteria_misses,
-                'rank_distance_m' => $rankReference === null ? null : $this->metres($property->{$rankColumn})]];
+            $difference = abs($actual - (float) $value);
+            $label = match ($group) {
+                'budget' => $operator === '<=' ? 'أعلى من سقف السعر بـ' : 'أقل من الحد الأدنى للسعر بـ',
+                'bedrooms' => 'غرف أقل من المطلوب بـ', 'bathrooms' => 'حمامات أقل من المطلوب بـ', default => 'فرق المساحة م²: '
+            };
+            $reasons[] = ['field' => $key, 'message' => $label.$this->number($difference).($group === 'budget' ? ' '.$property->currency : ''),
+                'expected' => (float) $value, 'actual' => $actual, 'difference' => $difference];
         }
 
-        return $result;
+        return ['property' => $property, 'match' => ['kind' => 'nearby', 'reasons' => $reasons, 'distance_m' => $distance,
+            'distance_reference' => isset($input['area_polygon']) ? 'drawn_boundary' : ($area === null ? 'text_only' : 'requested_area'),
+            'criteria_misses' => (int) $property->discovery_criteria_misses,
+            'rank_distance_m' => $this->metres($property->discovery_rank_distance_m)]];
+    }
+
+    private function selectDistance(Builder $query, ?array $reference, string $alias, bool $zero = false): void
+    {
+        if ($reference === null || $zero) {
+            $constant = $zero ? '0' : 'NULL';
+            $query->selectRaw("CAST({$constant} AS DOUBLE PRECISION) AS {$alias}");
+
+            return;
+        }
+        [$distance, $bindings] = $this->distanceSql($reference);
+        $query->selectRaw("{$distance} AS {$alias}", $bindings);
     }
 
     private function number(float $value): string

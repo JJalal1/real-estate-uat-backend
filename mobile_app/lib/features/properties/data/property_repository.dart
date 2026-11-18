@@ -232,12 +232,13 @@ class PropertyRepository {
 
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
-    final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest', if (rankedDiscovery) 'ranked_search': 1};
+    final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest',
+      if (rankedDiscovery) ...{'ranked_search': 1, 'ranking_version': 2}};
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
       final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken,
         options: Options(listFormat: ListFormat.multiCompatible));
       ensurePropertyFilterContract(response, params);
-      if (rankedDiscovery && response.headers.value('x-aqer-ranked-contract') != '1') {
+      if (rankedDiscovery && !const ['1', '2'].contains(response.headers.value('x-aqer-ranked-contract'))) {
         throw StateError('تعذّر تطبيق ترتيب البحث حاليًا. أعد المحاولة لاحقًا.');
       }
       final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()

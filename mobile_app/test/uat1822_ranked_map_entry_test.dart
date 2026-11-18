@@ -229,7 +229,8 @@ void main() {
             'page': page,
             'per_page': 20,
             'sort': 'latest',
-            'ranked_search': 1
+            'ranked_search': 1,
+            'ranking_version': 2,
           };
       final listRequests = [
         for (var page = 1; page <= pages.length; page++) query(page)

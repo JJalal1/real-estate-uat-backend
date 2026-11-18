@@ -1,6 +1,6 @@
-# Owner-approved ranking contract under review — November18
+# UAT1824 specification-first ranking — November18
 
-PR193 changes ranked discovery to order by the number of missed criteria groups, then distance inside each degree. Ranking uses an explicit search point, drawn area, or uniquely recorded text location. A camera viewport is a search scope and supplies no distance origin. Flutter keeps the ordered rows and internal classification, removes the explanatory paragraphs and continues paging on scroll. The UAT1823 evidence is historical for that exact signed APK. Case 13 is cancelled and excluded from the pass count. See [the rollout plan](RANKED_SEARCH_SIMILARITY_ROLLOUT_AR.md) for the server and APK review gates.
+PR193 separates specification misses from geographic eligibility and classification. Ranked contract 2 orders all selected candidates together before pagination, including zero-miss geographic alternatives. Version 1 remains available to existing APKs. The 1 km radius regression reproduces the previous 100 m two-bedroom result before the 2 km three-bedroom alternative and asserts the opposite under contract 2, with the same eligible candidates. Map/list ordering, drawing boundaries and automatic paging are covered. The UAT1823 evidence remains scoped to its tested build. Case 13 was cancelled. See [the UAT update and rollback plan](RANKED_SEARCH_SIMILARITY_ROLLOUT_AR.md).
 
 # UAT1823 Smart Search map and broker navigation — November18
 

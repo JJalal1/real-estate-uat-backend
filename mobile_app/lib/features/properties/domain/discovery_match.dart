@@ -26,7 +26,7 @@ class DiscoveryMatch {
       throw const FormatException('Inconsistent discovery explanation.');
     }
     final misses = value['criteria_misses'];
-    if (misses != null && (misses is! int || (nearby ? misses < 1 : misses != 0))) {
+    if (misses != null && (misses is! int || misses < 0 || !nearby && misses != 0)) {
       throw const FormatException('Invalid discovery match degree.');
     }
     return DiscoveryMatch(nearby: nearby, reasons: List.unmodifiable(reasons),

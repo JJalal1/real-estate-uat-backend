@@ -68,7 +68,7 @@ class Phase04RankedDiscoveryTest extends TestCase
         $this->listing(['latitude' => 15.3701, 'purpose' => 'sale']);
         $this->listing(['latitude' => 15.3701, 'type' => 'office']);
         $this->listing(['latitude' => 15.3701, 'currency' => 'USD']);
-        $filters = ['ranked_search' => 1, 'purpose' => 'rent', 'type' => 'house', 'currency' => 'YER',
+        $filters = ['ranked_search' => 1, 'ranking_version' => 2, 'purpose' => 'rent', 'type' => 'house', 'currency' => 'YER',
             'latitude' => 15.37, 'longitude' => 44.19, 'radius_km' => 3, 'max_price' => 100000, 'min_bedrooms' => 3, 'per_page' => 2];
 
         foreach ([[], ['south' => 15.35, 'west' => 44.15, 'north' => 15.42, 'east' => 44.23]] as $viewport) {
@@ -96,17 +96,78 @@ class Phase04RankedDiscoveryTest extends TestCase
         }
     }
 
+    public function test_a_specification_match_two_km_away_precedes_a_two_bedroom_home_at_100m_with_one_km_radius(): void
+    {
+        $a = $this->listing(['latitude' => 15.388]);
+        $b = $this->listing(['latitude' => 15.3709, 'bedrooms' => 2]);
+        $this->listing(['latitude' => 15.3704, 'currency' => 'USD']);
+        $this->listing(['latitude' => 15.4400]); // Outside the allowed geographic expansion.
+        $filters = ['ranked_search' => 1, 'purpose' => 'rent', 'type' => 'house', 'currency' => 'YER',
+            'latitude' => 15.37, 'longitude' => 44.19, 'radius_km' => 1, 'min_bedrooms' => 3];
+
+        // Reproduce the reviewed ranking and protect its response for older APKs.
+        $legacy = $this->getJson('/api/properties?'.http_build_query($filters))->assertOk()
+            ->assertHeader('X-Aqer-Ranked-Contract', '1')->json('data');
+        $this->assertSame([$b->id, $a->id], array_column($legacy, 'id'));
+        $this->assertSame([1, 1], array_column(array_column($legacy, 'discovery_match'), 'criteria_misses'));
+
+        $rows = [];
+        foreach ([1, 2] as $page) {
+            $query = http_build_query($filters + ['ranking_version' => 2, 'per_page' => 1, 'page' => $page]);
+            $list = $this->getJson('/api/properties?'.$query)->assertOk()
+                ->assertHeader('X-Aqer-Ranked-Contract', '2')->assertJsonPath('meta.last_page', 2)
+                ->assertJsonPath('meta.total', 2)->assertJsonPath('meta.exact_total', 0)->assertJsonPath('meta.alternative_total', 2)
+                ->assertJsonCount(1, 'data')->json();
+            $this->assertSame($list, $this->getJson('/api/properties/nearby?'.$query)->assertOk()->json());
+            $rows[] = $list['data'][0];
+        }
+        $this->assertSame([$a->id, $b->id], array_column($rows, 'id'));
+        [$aMatch, $bMatch] = array_column($rows, 'discovery_match');
+        $this->assertSame(['nearby', 'nearby'], [$aMatch['kind'], $bMatch['kind']]);
+        $this->assertSame([0, 1], [$aMatch['criteria_misses'], $bMatch['criteria_misses']]);
+        $this->assertSame(['location'], array_column($aMatch['reasons'], 'field'));
+        $this->assertSame(['min_bedrooms'], array_column($bMatch['reasons'], 'field'));
+        $this->assertEqualsWithDelta(2000, $aMatch['rank_distance_m'], 25);
+        $this->assertEqualsWithDelta(1000, $aMatch['distance_m'], 25);
+        $this->assertEqualsWithDelta(100, $bMatch['rank_distance_m'], 3);
+        $this->assertEquals(0, $bMatch['distance_m']);
+    }
+
+    public function test_geographic_alternative_and_exact_result_are_interleaved_before_pagination(): void
+    {
+        $closerOutside = $this->listing(['latitude' => 15.3709]);
+        $exact = $this->listing(['latitude' => 15.377]);
+        $lowerGrade = $this->listing(['latitude' => 15.375, 'bedrooms' => 2]);
+        $filters = ['ranked_search' => 1, 'ranking_version' => 2, 'min_bedrooms' => 3,
+            'latitude' => 15.37, 'longitude' => 44.19, 'radius_km' => 3,
+            'south' => 15.374, 'west' => 44.17, 'north' => 15.4, 'east' => 44.21, 'per_page' => 1];
+        foreach ([$closerOutside, $exact, $lowerGrade] as $index => $property) {
+            $query = http_build_query($filters + ['page' => $index + 1]);
+            $list = $this->getJson('/api/properties?'.$query)->assertOk()
+                ->assertJsonPath('meta.total', 3)->assertJsonPath('meta.exact_total', 1)
+                ->assertJsonPath('data.0.id', $property->id)
+                ->assertJsonPath('data.0.discovery_match.kind', $index === 1 ? 'exact' : 'nearby')
+                ->assertJsonPath('data.0.discovery_match.criteria_misses', $index === 2 ? 1 : 0)->json();
+            $this->assertSame($list, $this->getJson('/api/properties/nearby?'.$query)->assertOk()->json());
+        }
+        $this->getJson('/api/properties?'.http_build_query($filters + ['page' => 4]))->assertOk()
+            ->assertJsonPath('meta.total', 3)->assertJsonPath('meta.last_page', 3)->assertJsonCount(0, 'data');
+    }
+
     public function test_alternative_limit_is_applied_after_match_degree_and_distance(): void
     {
-        $preferred = $this->listing(['latitude' => 15.39, 'bedrooms' => 2]);
+        $preferred = $this->listing(['latitude' => 15.388]);
+        $nearer = null;
         for ($i = 0; $i < 12; $i++) {
-            $this->listing(['latitude' => 15.3705 + $i / 100000, 'bedrooms' => 2, 'price' => 110000]);
+            $listing = $this->listing(['latitude' => 15.3705 + $i / 100000, 'bedrooms' => 2]);
+            $nearer ??= $listing;
         }
-        $query = http_build_query(['ranked_search' => 1, 'latitude' => 15.37, 'longitude' => 44.19,
-            'radius_km' => 3, 'max_price' => 100000, 'min_bedrooms' => 3]);
+        $query = http_build_query(['ranked_search' => 1, 'ranking_version' => 2, 'latitude' => 15.37, 'longitude' => 44.19,
+            'radius_km' => 1, 'max_price' => 100000, 'min_bedrooms' => 3]);
         $this->getJson('/api/properties?'.$query)->assertOk()->assertJsonPath('meta.alternative_total', 12)
-            ->assertJsonPath('data.0.id', $preferred->id)->assertJsonPath('data.0.discovery_match.criteria_misses', 1)
-            ->assertJsonPath('data.11.discovery_match.criteria_misses', 2);
+            ->assertJsonPath('data.0.id', $preferred->id)->assertJsonPath('data.0.discovery_match.criteria_misses', 0)
+            ->assertJsonPath('data.1.id', $nearer->id)->assertJsonPath('data.11.discovery_match.criteria_misses', 1)
+            ->assertJsonMissing(['id' => $listing->id]);
     }
 
     public function test_camera_or_unresolved_text_does_not_assume_a_position(): void
@@ -114,7 +175,7 @@ class Phase04RankedDiscoveryTest extends TestCase
         $nearCenter = $this->listing(['latitude' => 15.37, 'title' => 'مجمع الياسمين الجديد']);
         $newer = $this->listing(['latitude' => 15.38, 'title' => 'مجمع الياسمين الجديد']);
         $this->listing(['title' => 'مبنى آخر']);
-        $filters = ['ranked_search' => 1, 'search' => 'مجمع الياسمين الجديد', 'south' => 15.35,
+        $filters = ['ranked_search' => 1, 'ranking_version' => 2, 'search' => 'مجمع الياسمين الجديد', 'south' => 15.35,
             'west' => 44.17, 'north' => 15.39, 'east' => 44.21];
         $rows = $this->getJson('/api/properties?'.http_build_query($filters))->assertOk()
             ->assertJsonPath('meta.ranking_distance_reference', null)->assertJsonPath('data.0.discovery_match.rank_distance_m', null)->json('data');
@@ -151,7 +212,7 @@ class Phase04RankedDiscoveryTest extends TestCase
         $near = $this->listing(['latitude' => 15.37, 'longitude' => 44.5005]);
         $further = $this->listing(['latitude' => 15.382, 'longitude' => 44.25]);
         $this->listing(['latitude' => 15.37, 'longitude' => 45.0]);
-        $q = ['ranked_search' => 1, 'purpose' => 'rent', 'area_polygon' => json_encode($ring)];
+        $q = ['ranked_search' => 1, 'ranking_version' => 2, 'purpose' => 'rent', 'area_polygon' => json_encode($ring)];
         $before = DB::table('properties')->orderBy('id')->get()->toJson();
         $data = $this->getJson('/api/properties?'.http_build_query($q))->assertOk()->assertJsonPath('meta.exact_total', 2)->json('data');
         $this->assertEqualsCanonicalizing([$inside->id, $boundary->id], array_column(array_slice($data, 0, 2), 'id'));
@@ -165,8 +226,8 @@ class Phase04RankedDiscoveryTest extends TestCase
         $data = $this->getJson('/api/properties?'.http_build_query($q + ['max_price' => 100000]))
             ->assertOk()->json('data');
         $this->assertSame([$further->id, $near->id], array_column(array_slice($data, 2), 'id'));
-        $this->assertSame(1, $data[2]['discovery_match']['criteria_misses']);
-        $this->assertSame(2, $data[3]['discovery_match']['criteria_misses']);
+        $this->assertSame(0, $data[2]['discovery_match']['criteria_misses']);
+        $this->assertSame(1, $data[3]['discovery_match']['criteria_misses']);
         $this->assertCount(2, $data[3]['discovery_match']['reasons']);
         $this->assertEquals(0, $data[0]['discovery_match']['rank_distance_m']);
         $this->assertEquals(0, $data[1]['discovery_match']['rank_distance_m']);
