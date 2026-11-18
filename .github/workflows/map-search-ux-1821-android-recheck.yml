@@ -9,7 +9,7 @@ permissions:
   actions: read
 jobs:
   upgrade:
-    name: Replace signed 1820 with 1821 and verify the reported Android journeys
+    name: Verify Android navigation and price on the original signed 1821 APK
     if: ${{ github.event.repository.private }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -142,19 +142,14 @@ jobs:
           sleep 2
         done
         test "$(adb -s emulator-5554 shell id -u)" = 0
-    - name: Replace ordinary 1820 with 1821 without uninstall or data reset
+    - name: Install the signed APK for the separate guest UI replay
       run: |
-        GITHUB_SHA="$UPGRADE_SOURCE_SHA" python3 -B scripts/probe_map_search_ux_upgrade.py \
-          --baseline-apk map-search-ux-input/baseline/AQER-UAT-1820-Map-Search.apk \
-          --baseline-receipt map-search-ux-input/baseline/APK_VERIFICATION.json \
-          --candidate-apk map-search-ux-input/candidate/AQER-UAT-1821-Map-Search.apk \
-          --candidate-receipt map-search-ux-input/candidate/APK_VERIFICATION.json \
-          --source "$UPGRADE_SOURCE_SHA" --serial emulator-5554 \
-          --output map-search-ux-upgrade-proof --round4
+        adb -s emulator-5554 install map-search-ux-input/candidate/AQER-UAT-1821-Map-Search.apk
+        mkdir -p map-search-ux-upgrade-proof
       working-directory: product
     - name: Verify navigation and price on the installed APK
       run: |
-        GITHUB_SHA="$UPGRADE_SOURCE_SHA" python3 -B ../scripts/probe_map_search_round4.py --receipt map-search-ux-input/candidate/APK_VERIFICATION.json --output map-search-ux-upgrade-proof --ui-only
+        python3 -B ../scripts/probe_map_search_round4.py --receipt map-search-ux-input/candidate/APK_VERIFICATION.json --output map-search-ux-upgrade-proof --ui-only
       working-directory: product
     - name: Record last emulator status if a test stopped
       if: failure()

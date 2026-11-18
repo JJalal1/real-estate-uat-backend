@@ -299,7 +299,13 @@ def main():
     args = parser.parse_args()
     source = command('git', 'rev-parse', 'HEAD')
     serial = 'emulator-5554'
-    guard(os.environ, source, serial)
+    if args.ui_only:
+        if os.environ.get('UPGRADE_SOURCE_SHA') != source:
+            raise UpgradeError('installed_ui_source_mismatch')
+        harness_source = command('git', '-C', Path(__file__).resolve().parent.parent, 'rev-parse', 'HEAD')
+        guard(os.environ, harness_source, serial)
+    else:
+        guard(os.environ, source, serial)
     device = UxDevice(serial)
     device.verify_disposable_root()
     receipt = read_receipt(Path(args.receipt))
