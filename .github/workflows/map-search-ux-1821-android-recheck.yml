@@ -1,0 +1,177 @@
+name: Android recheck on the original signed UAT1821
+'on':
+  push:
+    branches: [work/map-search-ux-1820-20261117]
+    paths: [.github/workflows/map-search-ux-1821-android-recheck.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  upgrade:
+    name: Replace signed 1820 with 1821 and verify the reported Android journeys
+    if: ${{ needs.build.result == 'success' && github.event.repository.private }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      AQER_MAP_SEARCH_UX_UPGRADE: 'true'
+      UPGRADE_SOURCE_SHA: d406026d20943d1bb6209da264cb23d6d722ca16
+    steps:
+    - name: Require the private map UX push context without signing or account inputs
+      id: context
+      run: |
+        python3 -B - <<'PYGUARD'
+        import os, re
+        if (os.environ.get('GITHUB_ACTIONS') != 'true' or
+            os.environ.get('GITHUB_REPOSITORY') != 'JJalal1/real-estate-uat-backend' or
+            os.environ.get('GITHUB_REF') != 'refs/heads/work/map-search-ux-1820-20261117' or
+            os.environ.get('GITHUB_EVENT_NAME') != 'push' or
+            os.environ.get('AQER_MAP_SEARCH_UX_UPGRADE') != 'true'):
+            raise RuntimeError('explicit_private_map_search_ux_context_required')
+        source = os.environ['UPGRADE_SOURCE_SHA']
+        if not re.fullmatch(r'[a-f0-9]{40}', source):
+            raise RuntimeError('map_search_ux_source_mismatch')
+        forbidden = ('AQER_UAT_KEYSTORE_BASE64', 'AQER_RELEASE_STORE_FILE',
+                     'AQER_RELEASE_STORE_PASSWORD', 'AQER_RELEASE_KEY_ALIAS',
+                     'AQER_RELEASE_KEY_PASSWORD', 'AQER_UAT_GOOGLE_SERVICES_JSON_BASE64',
+                     'AQER_PHASE1_TEST_ACCESS_JSON', 'SUPABASE_SERVICE_ROLE_KEY', 'DATABASE_URL')
+        if any(os.environ.get(name) for name in forbidden):
+            raise RuntimeError('signing_or_account_material_forbidden_in_ux_probe')
+        print('AQER_MAP_SEARCH_UX_PUBLIC_CONTEXT_VERIFIED')
+        PYGUARD
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Verify APK source ancestry and isolate the Android harness
+      run: |
+        git merge-base --is-ancestor "$UPGRADE_SOURCE_SHA" HEAD
+        git diff --exit-code "$UPGRADE_SOURCE_SHA" HEAD -- mobile_app backend-api-runtime
+        git worktree add --detach product "$UPGRADE_SOURCE_SHA"
+        git diff --name-only "$UPGRADE_SOURCE_SHA" HEAD
+    - name: Download the immutable verified 1820 baseline artifact
+      uses: actions/download-artifact@v4
+      with:
+        artifact-ids: '14372604952'
+        run-id: '44183138283'
+        repository: ${{ github.repository }}
+        github-token: ${{ github.token }}
+        merge-multiple: true
+        path: product/map-search-ux-input/baseline
+    - name: Download the original verified signed 1821 APK
+      uses: actions/download-artifact@v4
+      with:
+        artifact-ids: '14386283320'
+        run-id: '44210971779'
+        repository: ${{ github.repository }}
+        github-token: ${{ github.token }}
+        merge-multiple: true
+        path: product/map-search-ux-input/candidate
+    - name: Reject unexpected artifact files before starting Android
+      run: |
+        python3 -B - <<'PYFILES'
+        from pathlib import Path
+        expected = {
+            'baseline': {'AQER-UAT-1820-Map-Search.apk', 'APK_VERIFICATION.json'},
+            'candidate': {'AQER-UAT-1821-Map-Search.apk', 'APK_VERIFICATION.json'},
+        }
+        for name, filenames in expected.items():
+            root = Path('map-search-ux-input') / name
+            entries = list(root.iterdir())
+            if (root.is_symlink() or {path.name for path in entries} != filenames or
+                any(path.is_symlink() or not path.is_file() for path in entries)):
+                raise RuntimeError('only_verified_1820_1821_apk_and_public_receipt_allowed')
+        print('AQER_MAP_SEARCH_UX_ARTIFACT_CONTENTS_VERIFIED')
+        PYFILES
+      working-directory: product
+    - name: Reclaim unused SDK space on the disposable runner
+      run: |
+        sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+        df -h /
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: android-actions/setup-android@v3
+      with:
+        packages: platform-tools platforms;android-36 build-tools;36.0.0
+    - name: Boot an empty disposable map UX API36 emulator
+      run: |
+        test -c /dev/kvm
+        sdkmanager --install 'emulator' 'system-images;android-36;google_apis;x86_64'
+        export ANDROID_USER_HOME="$RUNNER_TEMP/map-search-ux-android"
+        export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+        export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+        mkdir -p "$ANDROID_AVD_HOME"
+        avdmanager create avd --force --name aqer-map-search-ux-upgrade --device pixel --path "$ANDROID_AVD_HOME/aqer-map-search-ux-upgrade.avd" --package 'system-images;android-36;google_apis;x86_64'
+        python3 - "$ANDROID_AVD_HOME/aqer-map-search-ux-upgrade.avd/config.ini" <<'PYCONF'
+        from pathlib import Path
+        import sys
+        path = Path(sys.argv[1])
+        values = {'hw.lcd.width': '540', 'hw.lcd.height': '960', 'hw.lcd.density': '210',
+                  'showDeviceFrame': 'no', 'hw.camera.back': 'none', 'hw.camera.front': 'none',
+                  'disk.dataPartition.size': '2048M'}
+        lines = [line for line in path.read_text().splitlines() if line.split('=', 1)[0].strip() not in values]
+        path.write_text('\n'.join(lines + [key + '=' + value for key, value in values.items()]) + '\n')
+        PYCONF
+        export QT_QPA_PLATFORM=offscreen
+        printf 'ANDROID_USER_HOME=%s\nANDROID_EMULATOR_HOME=%s\nANDROID_AVD_HOME=%s\n' "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME" "$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+        sudo chmod 666 /dev/kvm
+        "$ANDROID_HOME/emulator/emulator" -avd aqer-map-search-ux-upgrade -port 5554 -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader -accel on -memory 2048 -cores 2 > "$RUNNER_TEMP/map-search-ux-emulator.log" 2>&1 &
+        emulator_pid=$!
+        printf 'AQER_EMULATOR_LOG=%s\n' "$RUNNER_TEMP/map-search-ux-emulator.log" >> "$GITHUB_ENV"
+        deadline=$((SECONDS+250))
+        while [ "$SECONDS" -lt "$deadline" ]; do
+          if ! kill -0 "$emulator_pid" 2>/dev/null; then cat "$RUNNER_TEMP/map-search-ux-emulator.log"; exit 1; fi
+          if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null || true)" = 1 ] && [ "$(adb -s emulator-5554 shell getprop sys.user.0.ce_available 2>/dev/null || true)" = true ]; then break; fi
+          sleep 2
+        done
+        if [ "$SECONDS" -ge "$deadline" ]; then cat "$RUNNER_TEMP/map-search-ux-emulator.log"; adb -s emulator-5554 shell getprop sys.boot_completed || true; exit 1; fi
+    - name: Prepare and verify the dedicated Android guest
+      run: |
+        adb devices -l
+        adb -s emulator-5554 emu avd name
+        adb -s emulator-5554 shell getprop ro.kernel.qemu
+        adb -s emulator-5554 shell getprop ro.build.version.sdk
+        adb -s emulator-5554 shell getprop ro.product.cpu.abi
+        for retry in 1 2 3; do
+          adb -s emulator-5554 root || true
+          timeout 30 adb -s emulator-5554 wait-for-device || true
+          if [ "$(adb -s emulator-5554 shell id -u 2>/dev/null || true)" = 0 ]; then break; fi
+          sleep 2
+        done
+        test "$(adb -s emulator-5554 shell id -u)" = 0
+    - name: Replace ordinary 1820 with 1821 without uninstall or data reset
+      run: |
+        GITHUB_SHA="$UPGRADE_SOURCE_SHA" python3 -B scripts/probe_map_search_ux_upgrade.py \
+          --baseline-apk map-search-ux-input/baseline/AQER-UAT-1820-Map-Search.apk \
+          --baseline-receipt map-search-ux-input/baseline/APK_VERIFICATION.json \
+          --candidate-apk map-search-ux-input/candidate/AQER-UAT-1821-Map-Search.apk \
+          --candidate-receipt map-search-ux-input/candidate/APK_VERIFICATION.json \
+          --source "$UPGRADE_SOURCE_SHA" --serial emulator-5554 \
+          --output map-search-ux-upgrade-proof --round4
+      working-directory: product
+    - name: Replay round-four cases on the same installed signed APK
+      run: |
+        GITHUB_SHA="$UPGRADE_SOURCE_SHA" python3 -B scripts/probe_map_search_round4.py --receipt map-search-ux-input/candidate/APK_VERIFICATION.json --output map-search-ux-upgrade-proof
+      working-directory: product
+    - name: Record last emulator status if a test stopped
+      if: failure()
+      run: |
+        adb -s emulator-5554 shell getprop sys.boot_completed || true
+        adb -s emulator-5554 shell id -u || true
+        tail -50 "$AQER_EMULATOR_LOG" || true
+    - name: Preserve update, Android UI and network evidence
+      uses: actions/upload-artifact@v4
+      if: always() && steps.context.outcome == 'success' && github.event.repository.private
+      with:
+        name: map-search-ux-1821-android-${{ github.run_attempt }}
+        path: |
+          product/map-search-ux-upgrade-proof/ANDROID_MAP_SEARCH_UX_UPGRADE.json
+          product/map-search-ux-upgrade-proof/ANDROID_ROUND4.json
+          product/map-search-ux-upgrade-proof/*.png
+        retention-days: 14
+        if-no-files-found: warn
+    - name: Stop the disposable emulator
+      if: always()
+      run: adb -s emulator-5554 emu kill || true
