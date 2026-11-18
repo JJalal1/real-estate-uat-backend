@@ -1,12 +1,10 @@
 import '../features/discovery/presentation/marketplace_search_panel.dart';
 import '../features/discovery/presentation/marketplace_search_screen.dart';
-import '../features/discovery/data/marketplace_search_session.dart';
 import 'package:flutter/material.dart';
 import '../features/discovery/presentation/assisted_search_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/account/data/auth_controller.dart';
 import '../features/account/presentation/access_control_screen.dart';
 import '../features/account/presentation/account_safety_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';
@@ -72,23 +70,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             summary: state.extra is PropertySummary ? state.extra as PropertySummary : null);
         }),
       ]),
-      GoRoute(path: '/smart-search', builder: (context, state) {
-        final current = ref.read(marketplaceSearchControllerProvider);
-        final actor = ref.read(authControllerProvider).asData?.value?.id;
-        final journey = ref.read(marketplaceSearchControllerProvider.notifier);
-        final entry = SmartSearchFilters.fromMap({...current.criteria.values,
-          if (current.submittedQuery.isNotEmpty) 'search': current.submittedQuery,
-          if (state.extra is SmartSearchFilters) ...(state.extra as SmartSearchFilters).values});
-        return AssistedSearchScreen(
-          savedSearch: state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null,
-          entryFilters: state.extra is SavedPropertySearch || entry.values.isEmpty ? null : entry,
-          onExitFilters: (filters) {
-            if (ref.read(authControllerProvider).asData?.value?.id != actor ||
-                !identical(journey, ref.read(marketplaceSearchControllerProvider.notifier))) { return; }
-            ref.read(marketplaceSearchControllerProvider.notifier).adoptMapSearch(filters,
-              applyMap: ref.read(marketplaceSearchControllerProvider).mapOpen);
-          });
-      }),
+      GoRoute(path: '/smart-search', builder: (context, state) => AssistedSearchScreen(
+        savedSearch: state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null,
+        // Only an explicit caller copy (for example a temporary map journey)
+        // seeds AI. Opening AI from Home never inherits its old text/filters.
+        entryFilters: state.extra is SmartSearchFilters
+          ? SmartSearchFilters.fromMap(Map<String, dynamic>.from((state.extra as SmartSearchFilters).values)) : null)),
       GoRoute(path: '/marketplace-search', builder: (context, state) => MarketplaceSearchScreen(
         openFilters: state.uri.queryParameters['filters'] == '1')),
       GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(

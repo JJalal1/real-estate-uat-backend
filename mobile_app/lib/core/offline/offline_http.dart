@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../local/stage6_secure_session_store.dart';
+import '../platform/uat_network_trace.dart';
 import 'offline_connection.dart';
 import 'offline_store.dart';
 
@@ -133,6 +134,7 @@ class OfflineHttpInterceptor extends Interceptor {
           message: 'لا يوجد اتصال. البيانات غير المحفوظة تحتاج إلى الإنترنت.'));
       return;
     }
+    UatMapRequestTiming.of(options.cancelToken)?.mark(UatMapPhase.httpStarted);
     handler.next(options);
   }
 
@@ -140,6 +142,8 @@ class OfflineHttpInterceptor extends Interceptor {
   void onResponse(
       Response<dynamic> response, ResponseInterceptorHandler handler) async {
     final r = response.requestOptions;
+    UatMapRequestTiming.of(r.cancelToken)?.mark(UatMapPhase.httpDecoded,
+      status: response.statusCode ?? 0);
     if (_current(r) &&
         response.extra['offline_snapshot'] != true &&
         response.extra['http_memory_cache'] != true &&
@@ -186,6 +190,9 @@ class OfflineHttpInterceptor extends Interceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     final r = err.requestOptions;
+    if (err.response != null) {
+      UatMapRequestTiming.of(r.cancelToken)?.mark(UatMapPhase.httpDecoded, status: err.response!.statusCode ?? 0);
+    }
     if (_current(r) &&
         r.extra['offline_rejected'] != true &&
         r.uri.origin == Uri.parse(r.baseUrl).origin) {

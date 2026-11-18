@@ -60,11 +60,12 @@ class PropertyController extends Controller
         $perPage = max(1, min((int) ($request->input('per_page', 20)), 50));
 
         if ($request->boolean('ranked_search')) {
+            $version = (int) ($request->validate(['ranking_version' => ['sometimes', 'integer', 'in:1,2']])['ranking_version'] ?? 1);
             $page = app(\App\Services\RankedPropertyDiscoveryService::class)->page($validated,
-                max(1, (int) $request->input('page', 1)), $perPage, (string) $request->input('sort', 'latest'));
+                max(1, (int) $request->input('page', 1)), $perPage, (string) $request->input('sort', 'latest'), $version);
             return response()->json(['data' => array_map(fn ($row) => array_merge(
                 $this->summaryData($row['property'], $request), ['discovery_match' => $row['match']]), $page['rows']),
-                'meta' => $page['meta']])->header('X-Aqer-Filter-Contract', '2')->header('X-Aqer-Ranked-Contract', '1');
+                'meta' => $page['meta']])->header('X-Aqer-Filter-Contract', '2')->header('X-Aqer-Ranked-Contract', (string) $version);
         }
 
         $query = $this->publicQuery();

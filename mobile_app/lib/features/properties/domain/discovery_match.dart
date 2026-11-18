@@ -1,10 +1,13 @@
-/// Public server explanation, shared by cards, map pins and map results.
+/// Server classification and ranking data, retained across the list and map.
 class DiscoveryMatch {
-  const DiscoveryMatch({required this.nearby, this.reasons = const [], this.distanceMetres, this.distanceReference});
+  const DiscoveryMatch({required this.nearby, this.reasons = const [], this.distanceMetres, this.distanceReference,
+    this.criteriaMisses, this.rankDistanceMetres});
   final bool nearby;
   final List<String> reasons;
   final double? distanceMetres;
   final String? distanceReference;
+  final int? criteriaMisses;
+  final double? rankDistanceMetres;
 
   static DiscoveryMatch? fromJson(dynamic value) {
     if (value == null) return null; // Legacy exact-only discovery.
@@ -18,23 +21,24 @@ class DiscoveryMatch {
       }
       reasons.add(reason['message'] as String);
     }
-    final distance = value['distance_m'];
-    if (distance != null && (distance is! num || !distance.isFinite || distance < 0)) {
-      throw const FormatException('Invalid discovery distance.');
-    }
     final nearby = value['kind'] == 'nearby';
     if (nearby && reasons.isEmpty || !nearby && reasons.isNotEmpty) {
       throw const FormatException('Inconsistent discovery explanation.');
     }
+    final misses = value['criteria_misses'];
+    if (misses != null && (misses is! int || misses < 0 || !nearby && misses != 0)) {
+      throw const FormatException('Invalid discovery match degree.');
+    }
     return DiscoveryMatch(nearby: nearby, reasons: List.unmodifiable(reasons),
-      distanceMetres: (distance as num?)?.toDouble(), distanceReference: value['distance_reference'] as String?);
+      distanceMetres: _distance(value['distance_m']), distanceReference: value['distance_reference'] as String?,
+      criteriaMisses: misses as int?, rankDistanceMetres: _distance(value['rank_distance_m']));
   }
 
-  String get explanation {
-    final distance = distanceMetres;
-    final label = distance == null || distance <= 0 ? null : distance < 1000
-      ? '${distance < 1 ? 'أقل من متر' : '${distance.round()} مترًا'} عن ${distanceReference == 'drawn_boundary' ? 'حدود الرسم' : 'النطاق المطلوب'}'
-      : '${(distance / 1000).toStringAsFixed(1)} كم عن ${distanceReference == 'drawn_boundary' ? 'حدود الرسم' : 'النطاق المطلوب'}';
-    return [...reasons, if (label != null) label].join(' · ');
+  static double? _distance(dynamic value) {
+    if (value == null) return null;
+    if (value is! num || !value.isFinite || value < 0) {
+      throw const FormatException('Invalid discovery distance.');
+    }
+    return value.toDouble();
   }
 }

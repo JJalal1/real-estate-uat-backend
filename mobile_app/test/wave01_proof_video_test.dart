@@ -88,7 +88,7 @@ void main() {
       await tap('floating-map-search'); await tester.pumpAndSettle();
       chapters['map_panel'] = frame;
       await capture(8);
-      await tap('map-filter-panel-toggle'); await tester.pumpAndSettle();
+      await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, 500)); await tester.pumpAndSettle();
       chapters['collapsed_panel'] = frame;
       await capture(8);
       final start = tester.getCenter(find.byKey(const ValueKey('map-results-handle')));

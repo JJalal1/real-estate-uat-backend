@@ -87,7 +87,7 @@ void main() {
     expect((await repository.searchListings({'type': 'apartment'})).$1, isEmpty);
   });
 
-  test('T07 T08 map and list keep multi types and budget across repeated entry without duplicate reloads', () async {
+  test('T07 T08 map copies matching Home results, multi types and budget without a duplicate request', () async {
     final properties = Wave3PropertiesFake(), scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties)]);
     await scope.read(authControllerProvider.future);
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
@@ -99,15 +99,18 @@ void main() {
     scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south: 15, west: 44, north: 16, east: 45);
     await Future<void>.delayed(Duration.zero);
     final before = properties.queries.length;
-    controller.leaveMap(); controller.enterMap(); controller.enterMap();
+    controller.leaveMap(); final token = controller.enterMap();
+    expect(controller.enterMap(), token);
     await Future<void>.delayed(Duration.zero);
     expect(properties.queries.length, before);
+    expect(scope.read(marketplaceMapResultsProvider).rows, scope.read(homeSearchResultsProvider).rows);
     expect(scope.read(marketplaceMapResultsProvider).filters.selectedTypes, ['apartment', 'villa']);
     expect(scope.read(marketplaceMapResultsProvider).filters.apiFilters['max_monthly_rent'], 250000);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'), isFalse);
-    controller.toggleType('apartment');
+    expect(scope.read(marketplaceMapResultsProvider).filters.hasMapArea, isFalse);
+    controller.toggleType('apartment', onMap: true);
     await Future<void>.delayed(Duration.zero);
-    expect(scope.read(homeSearchResultsProvider).filters.selectedTypes, ['villa']);
+    expect(scope.read(homeSearchResultsProvider).filters.selectedTypes, ['apartment', 'villa']);
     expect(scope.read(marketplaceMapResultsProvider).filters.selectedTypes, ['villa']);
   });
 

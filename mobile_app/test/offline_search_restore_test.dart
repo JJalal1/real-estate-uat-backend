@@ -34,7 +34,7 @@ void main() {
     'map_pages': 1,
   };
   test(
-      'restart restores saved search pages and independent map bounds without replacing shared criteria',
+      'restart restores Home pages while historical map drafts remain an ended child scope',
       () async {
     final repo = Wave3PropertiesFake();
     repo.onSearch = (filters, page) async => ([wave3Property(page)], page == 1);
@@ -51,15 +51,25 @@ void main() {
     await controller.restoreOfflineSession(saved, current: () => true);
     expect(home.snapshot.rows.map((r) => r.id), [1, 2]);
     expect(home.snapshot.page, 2);
-    expect(map.snapshot.rows.map((r) => r.id), [1]);
-    expect(map.snapshot.filters.values['south'], 14.0);
+    expect(map.snapshot.rows, isEmpty);
+    expect(map.snapshot.started, isFalse);
     expect(controller.active, true);
     expect(controller.suggestionFilters().values['purpose'], 'rent');
     expect(controller.suggestionFilters().values['min_bedrooms'], 3);
-    controller.enterMap();
+    final token = controller.enterMap();
+    await Future<void>.delayed(Duration.zero);
     expect(home.snapshot.page, 2);
     expect(home.snapshot.rows.map((r) => r.id), [1, 2]);
-    expect(map.snapshot.filters.values['south'], 14.0);
+    expect(map.snapshot.filters.hasMapArea, isFalse);
+    expect(map.snapshot.filters.values['governorate_code'], 'YE-DH');
+    expect(map.snapshot.rows.map((r) => r.id), [1, 2]);
+    expect(map.snapshot.page, 2);
+    expect(repo.queries.map((query) => query.page), [1, 2]);
+    controller.leaveMap(token);
+    await Future<void>.delayed(Duration.zero);
+    expect(map.snapshot.rows, isEmpty);
+    expect(home.snapshot.rows.map((r) => r.id), [1, 2]);
+    expect(home.snapshot.page, 2);
     controller.dispose();
     home.dispose();
     map.dispose();

@@ -23,6 +23,9 @@ CLEANUP_BASELINE_SHA = "76c3ef76b396e35dfa5659c1aa2158faecb94b78"
 CLEANUP_REPOSITORY = "JJalal1/real-estate-uat-backend"
 CLEANUP_BRANCH = "work/apk-cleanup-1817-20261117"
 CLEANUP_PR_BASE = "work/fix-connectivity-1815-20261117"
+# Inherit the audited finite cleanup on this explicitly authorized UX branch.
+UX1820_BRANCH = "work/map-search-ux-1820-20261117"
+UX1820_PR_BASE = CLEANUP_BRANCH
 CLEANUP_REMOVALS = frozenset({
     "charcode", "cli_util", "drift", "drift_dev", "recase", "sqlite3",
     "sqlite3_flutter_libs", "sqlparser",
@@ -103,12 +106,12 @@ def cleanup_context(env):
     common = (env.get("GITHUB_ACTIONS") == "true" and
               env.get("GITHUB_REPOSITORY") == CLEANUP_REPOSITORY)
     push = (env.get("GITHUB_EVENT_NAME") == "push" and
-            env.get("GITHUB_REF") == "refs/heads/" + CLEANUP_BRANCH)
+            env.get("GITHUB_REF") in {"refs/heads/" + CLEANUP_BRANCH, "refs/heads/" + UX1820_BRANCH})
     internal_pr = (
         env.get("GITHUB_EVENT_NAME") == "pull_request" and
         re.fullmatch(r"refs/pull/[1-9][0-9]*/merge", env.get("GITHUB_REF", "")) and
-        env.get("GITHUB_HEAD_REF") == CLEANUP_BRANCH and
-        env.get("GITHUB_BASE_REF") == CLEANUP_PR_BASE and
+        (env.get("GITHUB_HEAD_REF"), env.get("GITHUB_BASE_REF")) in {
+            (CLEANUP_BRANCH, CLEANUP_PR_BASE), (UX1820_BRANCH, UX1820_PR_BASE)} and
         env.get("AQER_CLEANUP_PR_HEAD_REPO") == CLEANUP_REPOSITORY
     )
     if not (common and (push or internal_pr)):

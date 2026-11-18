@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/network/api_error_message.dart';
+import '../../../core/platform/uat_network_trace.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
@@ -21,6 +22,8 @@ class SmartSearchState {
   final bool more, interpreting, loading, started;
   final String message, lastRequest, draftText;
   final String? aiError, resultsError;
+  bool get canLoadMore => more && !loading && resultsError == null;
+  bool get hasRankedResults => rows.isNotEmpty && rows.first.discoveryMatch != null;
 
   SmartSearchState copyWith({SmartSearchFilters? filters, List<PropertySummary>? rows, int? revision, int? page,
     bool? more, bool? interpreting, bool? loading, bool? started, String? message, String? lastRequest, String? draftText, String? aiError,
@@ -33,26 +36,50 @@ class SmartSearchState {
 }
 
 class SmartSearchSession extends StateNotifier<SmartSearchState> {
-  SmartSearchSession(this._ai, this._properties, {this.defaultLocation}) : super(const SmartSearchState());
+  SmartSearchSession(this._ai, this._properties, {this.defaultLocation,
+    this.traceMapResults = false, this.retainMapRowsOnUnknownFailure = false})
+    : super(const SmartSearchState());
   final AiRepository _ai;
   final PropertyRepository _properties;
   SmartSearchState get snapshot => state;
   final SmartSearchFilters Function()? defaultLocation;
+  final bool traceMapResults;
+  final bool retainMapRowsOnUnknownFailure;
   Map<String, dynamic> _defaultContext = {};
   bool _usingDefaultLocation = false;
   int _inference = 0, _results = 0;
   CancelToken? _resultTransfer;
+  UatMapRequestTiming? get resultTiming => UatMapRequestTiming.of(_resultTransfer);
   bool _failedMore = false;
   bool get isLoadingMore => _failedMore;
 
   int _journey = 0;
-  int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters}) {
+  bool _journeyActive = false;
+  bool isCurrentJourney(int token) => mounted && _journeyActive && token == _journey;
+  int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters,
+    SmartSearchState? initialResults}) {
     final token = ++_journey;
+    _journeyActive = true;
     reset(useLocation: true);
-    if (savedFilters != null || entryFilters != null) replaceManually(savedFilters ?? entryFilters!);
+    final filters = savedFilters ?? entryFilters;
+    if (filters == null) return token;
+    if (initialResults != null && initialResults.started && !initialResults.loading &&
+        initialResults.resultsError == null && initialResults.page > 0 && initialResults.filters.sameAs(filters)) {
+      _usingDefaultLocation = false;
+      state = SmartSearchState(filters: filters, rows: initialResults.rows, page: initialResults.page,
+        more: initialResults.more, started: true, revision: state.revision);
+    } else {
+      replaceManually(filters);
+    }
     return token;
   }
   void endJourney(int token) {
+    if (!isCurrentJourney(token)) return;
+    _journeyActive = false;
+    // Route pop precedes Widget disposal and its transition animation. Reject
+    // deliveries now; defer only the observable state reset to a safe frame.
+    _inference++; _results++;
+    _resultTransfer?.cancel('Search journey ended');
     scheduleMicrotask(() { if (mounted && token == _journey) reset(); });
   }
   void setDraftText(String value) {
@@ -133,6 +160,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   void reset({bool useLocation = false}) {
     _inference++; _results++;
     _resultTransfer?.cancel('Search journey ended');
+    _resultTransfer = null;
     _defaultContext = useLocation ? Map.of(defaultLocation?.call().values ?? const <String,dynamic>{}) : {};
     _usingDefaultLocation = _defaultContext.isNotEmpty;
     state = SmartSearchState(revision: state.revision + 1, filters: SmartSearchFilters.fromMap(_defaultContext));
@@ -147,25 +175,28 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     final filters = state.filters;
     _resultTransfer?.cancel('Search superseded');
     final transfer = _resultTransfer = CancelToken();
+    final timing = traceMapResults ? UatMapRequestTiming.start(transfer, page) : null;
     _failedMore = more;
     state = state.copyWith(loading: true, started: true, clearResultsError: true);
     try {
       final result = await _properties.searchListings(filters.apiFilters, page: page, cancelToken: transfer, refresh: !more && state.page > 0);
       if (!_acceptResultsDelivery(request, revision, epoch)) return;
       final rows = more ? List<PropertySummary>.of(state.rows) : <PropertySummary>[];
-      var seenNearby = rows.any((row) => row.discoveryMatch?.nearby == true);
-      for (final row in result.$1) {
-        if (row.discoveryMatch?.nearby == true) { seenNearby = true; }
-        else if (row.discoveryMatch != null && seenNearby) {
-          throw const FormatException('An exact result followed the nearby section.');
-        }
-      }
+      // Keep the server's order across pages regardless of classification.
       final ids = rows.map((row) => row.id).toSet();
       rows.addAll(result.$1.where((row) => ids.add(row.id)));
       state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
+      timing?.mark(UatMapPhase.resultsApplied);
     } catch (error) {
       if (_acceptResultsDelivery(request, revision, epoch)) {
-        state = state.copyWith(loading: false, rows: isTransientApiFailure(error) ? null : const [], resultsError: friendlyApiError(error));
+        // A public map can keep the rows already restricted to the current
+        // viewport when Dio fails before producing a response.
+        final retainRows = isTransientApiFailure(error) ||
+            (retainMapRowsOnUnknownFailure && error is DioException &&
+              error.type == DioExceptionType.unknown && error.response == null);
+        state = state.copyWith(loading: false, rows: retainRows ? null : const [],
+          resultsError: friendlyApiError(error));
+        timing?.mark(UatMapPhase.resultsFailed);
       }
     }
   }
@@ -177,6 +208,11 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     // has a different request/revision and must keep its loading indicator.
     state = state.copyWith(loading: false);
     return false;
+  }
+
+  Future<void> loadNextPage(SmartSearchState expected) async {
+    if (!mounted || !state.canLoadMore || state.revision != expected.revision || state.page != expected.page) return;
+    await search(more: true);
   }
 
   Future<void> retryResults() => state.loading ? Future.value() : search(more: _failedMore);

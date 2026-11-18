@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../properties/domain/saved_property_search.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../data/marketplace_search_session.dart';
 import '../domain/smart_search_filters.dart';
@@ -39,7 +40,7 @@ final assistantHintStoreProvider = Provider<AssistantHintStore>((ref) => Assista
 /// Physical left placement is intentional for the Arabic product reference.
 class SmartSearchAssistantLayer extends ConsumerStatefulWidget {
   const SmartSearchAssistantLayer({required this.child, this.onPressed, this.bottom = 20, this.enabled = true,
-    this.showComparisonTray = true, this.showMapButton = true, this.onOpenMap, this.mapFilters, super.key});
+    this.showComparisonTray = true, this.showMapButton = true, this.onOpenMap, this.mapFilters, this.savedSearch, super.key});
   final Widget child;
   final VoidCallback? onPressed;
   final double bottom;
@@ -47,6 +48,7 @@ class SmartSearchAssistantLayer extends ConsumerStatefulWidget {
   final bool showMapButton;
   final Future<void> Function()? onOpenMap;
   final SmartSearchFilters? mapFilters;
+  final SavedPropertySearch? savedSearch;
 
   @override
   ConsumerState<SmartSearchAssistantLayer> createState() => _AssistantLayerState();
@@ -61,7 +63,13 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
     if (_openingAction) return;
     ref.read(brokerAssistantMenuProvider.notifier).state = false;
     _openingAction = true;
-    try { await context.push(search ? '/smart-search' : '/add-property?assistant=1'); } finally { _openingAction = false; }
+    try {
+      if (search) {
+        await context.push('/smart-search', extra: widget.savedSearch);
+      } else {
+        await context.push('/add-property?assistant=1');
+      }
+    } finally { _openingAction = false; }
   }
 
   Future<void> _openMap() async {
@@ -132,7 +140,7 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
           ), child: Material(
             color: scheme.surface, elevation: 5, shadowColor: scheme.primary.withValues(alpha: .24), shape: const CircleBorder(),
             child: InkWell(key: const ValueKey('floating-smart-search'), customBorder: const CircleBorder(),
-              onTap: () { _dismissHint(); if (broker) { ref.read(brokerAssistantMenuProvider.notifier).state = !menuOpen; return; } if (widget.onPressed != null) { widget.onPressed!(); } else { context.push('/smart-search'); } },
+              onTap: () { _dismissHint(); if (broker) { ref.read(brokerAssistantMenuProvider.notifier).state = !menuOpen; return; } if (widget.onPressed != null) { widget.onPressed!(); } else { context.push('/smart-search', extra: widget.savedSearch); } },
               child: Tooltip(message: menuOpen ? 'إغلاق المساعد' : broker ? 'مساعد العقار' : 'بحث ذكي', child: Semantics(button: true, label: menuOpen ? 'إغلاق المساعد' : broker ? 'فتح مساعد العقار' : 'فتح مساعد البحث الذكي',
                 child: Padding(padding: const EdgeInsets.all(10), child: menuOpen ? Icon(Icons.close, size: 38, color: scheme.primary) : const SmartSearchRobotIcon(size: 38)))),
             ),

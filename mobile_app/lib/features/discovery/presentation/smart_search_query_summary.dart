@@ -111,14 +111,14 @@ class SmartSearchQuerySummary extends StatelessWidget {
               ),
             )),
           )),
-          IconButton(
+          Semantics(identifier: 'smart-chip-remove-$key', child: IconButton(
             key: ValueKey('smart-chip-remove-$key'),
             onPressed: interpreting ? null : () => onRemove(key),
             tooltip: 'إزالة $label',
             icon: const Icon(Icons.close, size: 15),
             padding: const EdgeInsets.all(5),
             constraints: const BoxConstraints(minWidth: 30, minHeight: 44),
-          ),
+          )),
         ]),
       ),
     );

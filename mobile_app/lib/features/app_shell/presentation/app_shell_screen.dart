@@ -121,7 +121,10 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       shell.pages.length,
       (pageIndex) => _visitedIndices.contains(pageIndex)
           ? TickerMode(enabled: pageIndex == _index,
-              child: KeyedSubtree(key: ValueKey('$accountScope:$pageIndex'), child: shell.pages[pageIndex]))
+              child: KeyedSubtree(key: ValueKey('$accountScope:$pageIndex'),
+                child: shell.pages[pageIndex] is MarketplaceSearchMapScreen
+                  ? MarketplaceSearchMapScreen(embedded: true, active: pageIndex == _index)
+                  : shell.pages[pageIndex]))
           : const SizedBox.shrink(),
       growable: false,
     );

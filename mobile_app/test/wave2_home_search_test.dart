@@ -95,20 +95,21 @@ void main() {
     expect(scope.read(homeSearchResultsProvider).filters.values['governorate'], 'صنعاء');
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'), isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['south'], 14);
-    controller.setChoice('purpose', 'rent'); await Future<void>.delayed(Duration.zero);
-    expect(scope.read(homeSearchResultsProvider).filters.values['purpose'], 'rent');
+    controller.setChoice('purpose', 'rent', onMap: true); await Future<void>.delayed(Duration.zero);
+    expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('purpose'), isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['purpose'], 'rent');
     expect(scope.read(marketplaceMapResultsProvider).filters.values['south'], 14);
     expect(scope.read(homeSearchResultsProvider).filters.values['governorate'], 'صنعاء');
     final callsBeforeReturn = properties.calls.length;
     controller.leaveMap(); controller.enterMap(); await Future<void>.delayed(Duration.zero);
-    expect(scope.read(marketplaceMapResultsProvider).filters.values['south'], 14);
-    expect(scope.read(marketplaceMapResultsProvider).filters.values['west'], 43);
+    expect(scope.read(marketplaceMapResultsProvider).filters.hasMapArea, isFalse);
+    expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('purpose'), isFalse);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'), isFalse);
     expect(properties.calls, hasLength(callsBeforeReturn));
+    expect(scope.read(marketplaceMapResultsProvider).rows, scope.read(homeSearchResultsProvider).rows);
   });
 
-  test('S10 S14 S20 entering map applies edited text to both existing result snapshots once', () async {
+  test('S10 S14 S20 entering map copies an unsent draft without replacing Home results', () async {
     final properties = Listings()..respond = (filters, _) async => ([
       row(filters['search'] == 'ش' ? 1 : 2, title: filters['search'].toString()),
     ], false);
@@ -116,15 +117,15 @@ void main() {
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
     controller.edit('ش'); await controller.submit();
     controller.edit('ج'); controller.enterMap(); await Future<void>.delayed(Duration.zero);
-    expect(properties.calls, hasLength(3));
-    expect(properties.calls.skip(1).every((call) => call['search'] == 'ج'), isTrue);
-    expect(scope.read(homeSearchResultsProvider).filters.values['search'], 'ج');
-    expect(scope.read(homeSearchResultsProvider).rows.single.id, 2);
+    expect(properties.calls, hasLength(2));
+    expect(properties.calls.last['search'], 'ج');
+    expect(scope.read(homeSearchResultsProvider).filters.values['search'], 'ش');
+    expect(scope.read(homeSearchResultsProvider).rows.single.id, 1);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['search'], 'ج');
     expect(scope.read(marketplaceMapResultsProvider).rows.single.id, 2);
     controller.leaveMap();
     expect(scope.read(marketplaceSearchControllerProvider).draftQuery, 'ج');
-    expect(scope.read(marketplaceSearchControllerProvider).submittedQuery, 'ج');
+    expect(scope.read(marketplaceSearchControllerProvider).submittedQuery, 'ش');
   });
 
   test('S13 land removes housing criteria and declared-use keyword remains visible and reversible', () async {
@@ -247,7 +248,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('published-search-submit'))); await tester.pumpAndSettle();
     final homeScroll=tester.widget<CustomScrollView>(find.byKey(const PageStorageKey('home-search-results'))).controller!;
     final open=tester.widget<TextButton>(find.byKey(const ValueKey('home-search-map'))).onPressed!;
+    final parentSnapshot = scope.read(homeSearchResultsProvider);
+    expect(parentSnapshot.rows, hasLength(12));
+    expect(scope.read(marketplaceSearchControllerProvider).editing, isFalse);
+    expect(homeScroll.position.maxScrollExtent, greaterThanOrEqualTo(150));
     homeScroll.jumpTo(150); await tester.pump();
+    expect(homeScroll.offset, 150);
     // The entry lives at the top of the result sliver. Invoke its real callback
     // without altering the saved scroll position to make the restoration check exact.
     open(); await tester.pumpAndSettle();
@@ -257,7 +263,7 @@ void main() {
     expect(find.byKey(const ValueKey('published-suggestion-1')),findsOneWidget);
     await uxPreview(tester,boundary,'w2-C-map-suggestions');
     await tester.testTextInput.receiveAction(TextInputAction.search); await tester.pumpAndSettle();
-    expect(scope.read(homeSearchResultsProvider).filters.values['search'],'شقة');
+    expect(scope.read(homeSearchResultsProvider).filters.values['search'],'ش');
     expect(pins,scope.read(marketplaceMapResultsProvider).rows.map((r)=>r.id));
     await uxPreview(tester,boundary,'w2-D-map-results');
     select(5); await tester.pumpAndSettle();
@@ -266,7 +272,7 @@ void main() {
     expect(tester.element(find.byKey(const ValueKey('w2-native-canvas'))),same(element));
     final sheet=tester.widget<DraggableScrollableSheet>(find.byKey(const ValueKey('map-results-sheet')));
     expect(sheet.controller!.size,greaterThan(.5));
-    final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
+    final toolbar = tester.getRect(find.byKey(const ValueKey('map-top-search-region')));
     final sheetBounds = tester.getRect(find.byKey(const ValueKey('map-results-list')));
     final surface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
     final canvasBounds = tester.getRect(find.byKey(const ValueKey('w2-native-canvas')));
@@ -274,13 +280,19 @@ void main() {
     expect(sheetBounds.top, greaterThan(surface.top));
     expect(toolbar.left, greaterThanOrEqualTo(surface.left));
     expect(toolbar.right, lessThanOrEqualTo(surface.right));
+    expect(toolbar.bottom, lessThanOrEqualTo(canvasBounds.top + 1));
     await uxPreview(tester,boundary,'w2-E-map-expanded');
     pan(15,44,16,45); await tester.pumpAndSettle();
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'),isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['south'],15);
     navigation.pop(); await tester.pumpAndSettle();
+    expect(identical(scope.read(homeSearchResultsProvider), parentSnapshot), isTrue);
+    expect(scope.read(marketplaceSearchControllerProvider).editing, isFalse);
+    expect(homeScroll.position.maxScrollExtent, greaterThanOrEqualTo(150));
     expect(homeScroll.offset,150);
-    expect(tester.widget<TextField>(find.byKey(const ValueKey('home-search'))).controller!.text,'شقة');
+    final restoredQuery = tester.widget<TextField>(find.byKey(const ValueKey('home-search')));
+    expect(restoredQuery.controller!.text, 'ش');
+    expect(restoredQuery.focusNode!.hasFocus, isFalse);
     expect(tester.takeException(),isNull); await closeUx(tester);
   });
 
@@ -315,7 +327,7 @@ void main() {
       await tester.pumpAndSettle();
       final canvas = tester.element(find.byKey(const ValueKey('small-map-canvas')));
       await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0,-500)); await tester.pumpAndSettle();
-      final toolbar = tester.getRect(find.byKey(const ValueKey('marketplace-search-toolbar')));
+      final toolbar = tester.getRect(find.byKey(const ValueKey('map-top-search-region')));
       final list = tester.getRect(find.byKey(const ValueKey('map-results-list')));
       final surface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
       final canvasBounds = tester.getRect(find.byKey(const ValueKey('small-map-canvas')));
@@ -323,6 +335,7 @@ void main() {
       expect(list.top, greaterThan(surface.top));
       expect(toolbar.left, greaterThanOrEqualTo(surface.left));
       expect(toolbar.right, lessThanOrEqualTo(surface.right));
+      expect(toolbar.bottom, lessThanOrEqualTo(canvasBounds.top + 1));
       expect(tester.element(find.byKey(const ValueKey('small-map-canvas'))), same(canvas));
       expect(tester.takeException(), isNull); await closeUx(tester);
     });
