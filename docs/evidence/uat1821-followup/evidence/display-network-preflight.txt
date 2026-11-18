@@ -1,0 +1,22 @@
+normal host=2026-11-18T05:32:45.6072712+03:00 serial=emulator-5556
+Physical size: 1080x1920
+Physical density: 420
+1.0
+Current network status:
+
+  download speed:          0 bits/s (0.0 KB/s)
+
+  upload speed:            0 bits/s (0.0 KB/s)
+
+  minimum latency:  0 ms
+
+  maximum latency:  0 ms
+
+OK
+
+small host=2026-11-18T05:34:09.0017948+03:00 serial=emulator-5556
+Physical size: 1080x1920
+Override size: 720x1280
+Physical density: 420
+Override density: 360
+1.8

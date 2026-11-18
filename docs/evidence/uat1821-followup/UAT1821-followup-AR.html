@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>عقار اليمن | متابعة UAT1821</title>
+<style>
+:root{color-scheme:light;--ink:#172e42;--muted:#52677b;--line:#dce4e9;--paper:#fff;--bg:#f2f6f8;--teal:#006c6c;--pass:#14673a;--fail:#a22e32;--blocked:#775700}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 "Segoe UI",Tahoma,Arial,sans-serif}a{color:var(--teal);text-underline-offset:3px}.wrap{max-width:1100px;margin:auto;padding:clamp(14px,4vw,44px)}header{border-top:6px solid var(--teal);background:var(--paper);padding:clamp(18px,5vw,38px);border-radius:12px}h1,h2,h3{line-height:1.35;margin:0 0 .55em}h1{font-size:clamp(1.7rem,4vw,2.8rem)}h2{font-size:1.5rem}h3{font-size:1.12rem}p{margin:.5em 0 1em}section{background:var(--paper);border:1px solid var(--line);border-radius:12px;margin-top:18px;padding:clamp(16px,4vw,28px)}article{border-top:1px solid var(--line);padding:16px 0 8px}article:first-of-type{border-top:0}dl{display:grid;grid-template-columns:8rem minmax(0,1fr);gap:6px 12px;margin:.7em 0}dt{font-weight:650;color:var(--muted)}dd{margin:0;min-width:0}.status{font-weight:700;display:inline-block;padding:1px 10px;border-radius:5px;border:1px solid currentColor;font-size:.9rem}.pass{color:var(--pass)}.fail{color:var(--fail)}.blocked{color:var(--blocked)}code{direction:ltr;unicode-bidi:isolate;overflow-wrap:anywhere;font:0.91em Consolas,monospace}.table{overflow-x:auto}table{border-collapse:collapse;width:100%;text-align:right}th,td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f2f6f8;white-space:nowrap}.small{color:var(--muted);font-size:.92rem}.evidence{margin-top:.7em}figure{margin:0;max-width:340px}img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px}figcaption{font-size:.9rem;color:var(--muted)}.links a{margin-inline-end:12px}footer{padding:22px 0 4px;color:var(--muted)}@media(max-width:540px){dl{display:block}dd{margin-bottom:.55em}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<header>
+<p class="small">بيئة قبول المستخدم · حساب اثنين · 18 نوفمبر 2026 · توقيت آسيا/عدن UTC+03:00</p>
+<h1>متابعة إصلاحات عقار اليمن<br><bdi>UAT1821</bdi></h1>
+<p>اختبار ملف التسليم عبر واجهة Android. أدلة 1820 في حزمة الجولة الرابعة المستقلة، وتظل نتائج المرحلتين 2 و3 المقبولة أساسًا لهذه المتابعة.</p>
+<p class="small">نسخة المراجعة على GitHub تشمل لقطات Android الأصلية المختارة وثلاثة فيديوهات مشاهدة مضغوطة بالتسلسل الكامل. الأصول محفوظة في حزمة الجولة المحلية. <a href="evidence/original-video-sha256.txt">بصمات التسجيلات الأصلية ونسخ المشاهدة</a></p>
+<nav class="links" aria-label="أقسام التقرير"><a href="#build">هوية البناء</a><a href="#navigation">الرجوع والسعر</a><a href="#network">الخريطة والشبكة</a><a href="#upgrade">ترقية الحساب</a><a href="#fixtures">العينات</a><a href="#remaining">قرار القبول</a></nav>
+</header>
+<section id="build">
+<h2>هوية APK والأجهزة</h2>
+<dl>
+<dt>البناء والحزمة</dt><dd><code>1821 · com.aqer.yemen.uat.offline</code>، الاسم الظاهر للإصدار <code>0.1.0</code>، والحد الأدنى API 23 والهدف API 36.</dd>
+<dt>مصدر APK</dt><dd><code>d406026d20943d1bb6209da264cb23d6d722ca16</code></dd>
+<dt>الحجم والبصمة</dt><dd><bdi>45,242,744</bdi> بايت. <code>4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b</code></dd>
+<dt>شهادة التوقيع</dt><dd><code>8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3</code></dd>
+<dt>ADB</dt><dd><code>D:\DevTools\AndroidSdk\platform-tools\adb.exe</code>، الخادم <code>localhost:5037</code> والجهاز معيّن عبر <code>-s</code>.</dd>
+</dl>
+<div class="table"><table><thead><tr><th scope="col">الجهاز</th><th scope="col">بيئة Android</th><th scope="col">البناء واستخدامه</th><th scope="col">الدليل</th></tr></thead><tbody>
+<tr><td><code>emulator-5556</code></td><td><code>AQER-UAT1820-API36</code>، Android 16، API 36</td><td>ترقية ضيف من 1820 إلى 1821 في 04:58. تطابق <code>base.apk</code> وظل وقت التثبيت الأول ومعرّف التطبيق ثابتين. بقيت المنطقة المحفوظة ظاهرة أول مرة.</td><td><a href="evidence/00-build-installed-proof.txt">بصمة الملف وأوامر الجهاز</a> · <a href="evidence/02-guest-home-retained.png">الشاشة بعد الترقية</a></td></tr>
+<tr><td><code>emulator-5558</code></td><td><code>AQER-UAT1819-Upgrade-API36</code>، Android 16، API 36</td><td>1819 لتجهيز حساب 28 ثم 1821 عبر تثبيت فوقه أثناء انقطاع الاتصال في 05:47. بقي اسم AVD كما هو.</td><td><a href="evidence/registered-upgrade-timeline.txt">إثبات الحالة والتوقيت والبصمة</a></td></tr>
+<tr><td><code>emulator-5560</code></td><td><code>AQER-UAT1821-Receiver-API36</code>، Android 16، API 36</td><td>1821 في محاكي مستقل دون نافذة لحساب 26.</td><td><a href="evidence/receiver-installed-proof.txt">هوية جهاز الاستقبال</a></td></tr>
+</tbody></table></div>
+</section>
+<section id="navigation">
+<h2>الرجوع من البحث الذكي والسعر</h2>
+<article>
+<h3>01 · الرجوع بزر Android <span class="status pass">ناجح</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821</code></dd>
+<dt>الخطوات</dt><dd>من نتائج «20» مع «إيجار» في ذمار افتح الخريطة ثم مساعد البحث. احذف «للإيجار» وافتح خريطة المساعد ووسّع قائمة النتائج. افتح العمارة التجريبية 20، الإعلان 147. اضغط رجوع Android عند التفاصيل، ثم الخريطة، ثم المساعد.</dd>
+<dt>المتوقع</dt><dd>إغلاق التفاصيل يعيد خريطة المساعد، ثم يرجع إلى البحث الذكي بشروطه المعدّلة، ثم إلى الخريطة الأصلية بشروط الإيجار.</dd>
+<dt>الفعلي</dt><dd>ظهر 147 في تفاصيل خريطة المساعد. عاد المسار إلى خريطته ثم ظهر «20» و«نطاق محدد على الخريطة» في البحث الذكي بعد حذف الإيجار. بعد الخروج عادت شارة الإيجار و10 عقارات في النطاق على الخريطة الأصلية.</dd></dl>
+<p class="evidence"><a href="evidence/smart-android-journey-review.mp4">نسخة مشاهدة لرجوع Android</a> · <a href="evidence/24-android-listing147-detail.png">تفاصيل 147</a> · <a href="evidence/25-android-after-detail.png">الخريطة بعد التفاصيل</a> · <a href="evidence/26-android-back-step2.png">المساعد بعد الرجوع</a> · <a href="evidence/27-android-back-step3.png">الخريطة الأصلية</a></p>
+</article>
+<article>
+<h3>02 · الرجوع بسهم التطبيق <span class="status pass">ناجح</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821</code></dd><dt>الخطوات</dt><dd>كرّر جلسة ذمار نفسها حتى تفاصيل 147، ثم استخدم السهم داخل التطبيق لإغلاق التفاصيل والخريطة والمساعد.</dd><dt>المتوقع</dt><dd>نفس تسلسل الرجوع وحفظ الشروط والحالة الأصلية.</dd><dt>الفعلي</dt><dd>عادت خريطة المساعد بعد التفاصيل. أظهرت شاشة البحث الذكي «20» والنطاق المحفوظ بعد حذف الإيجار. أعاد السهم خريطة الإيجار الأصلية بنتائجها العشر.</dd></dl>
+<p class="evidence"><a href="evidence/smart-app-arrow-journey-review.mp4">نسخة مشاهدة لرجوع سهم التطبيق</a> · <a href="evidence/37-arrow-listing147-detail.png">التفاصيل</a> · <a href="evidence/38-arrow-after-detail.png">خريطة المساعد</a> · <a href="evidence/39-arrow-after-child-map.png">الشروط المعدلة</a> · <a href="evidence/40-arrow-after-smart.png">الخريطة الأصلية</a></p>
+</article>
+<article>
+<h3>03 · السعر في المقاس العادي <span class="status pass">ناجح</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821 · 1080×1920 · 420 dpi · font 1.0</code></dd>
+<dt>الخطوات</dt><dd>في خريطة «20» للإيجار في ذمار أدخل <bdi>1,000,000–100,000</bdi> ريال واضغط علامة التطبيق بلوحة الأرقام ظاهرة. أغلقها ومرّر لوحة الفلاتر قليلًا لقراءة الرسالة مجددًا. عدّل الأعلى إلى <bdi>1,100,000</bdi> واضغط تطبيق.</dd>
+<dt>المتوقع</dt><dd>رفض القيم المقلوبة برسالة كاملة وإبقاء القيم قابلة للتصحيح، ثم قبول النطاق الصحيح.</dd>
+<dt>الفعلي</dt><dd>ظهرت رسالة «الحد الأدنى يجب ألا يتجاوز الحد الأعلى.» مع القيم والكيبورد. بعد إغلاقه انتقل موضع الرسالة أسفل الجزء الظاهر، ووصلت إليها بتمرير لوحة الفلاتر. ظهرت القيم الجديدة، اختفت رسالة الرفض، وتغير العدد من 10 إلى 2.</dd></dl>
+<p class="evidence"><a href="evidence/45-normal-price-rejection-ime.png">الرفض مع الكيبورد</a> · <a href="evidence/46-normal-price-rejection-closed.png">موضع اللوحة بعد الإغلاق مباشرة</a> · <a href="evidence/104-normal-inverted-rechecked-closed.png">الرسالة كاملة بعد التمرير</a> · <a href="evidence/105-normal-valid-applied.png">النطاق المصحّح بعد التطبيق</a></p>
+</article>
+<article>
+<h3>04 · السعر في المقاس الصغير بخط كبير <span class="status pass">ناجح</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821 · 720×1280 · 360 dpi · font 1.8</code></dd>
+<dt>الخطوات</dt><dd>مرّر لوحة الفلاتر إلى السعر. أدخل <bdi>177,000–100,000</bdi>، جرّب تطبيقه مع لوحة الأرقام، ثم أغلقها ومرّر إلى رسالة الخطأ. عدّل الأعلى إلى <bdi>240,000</bdi> وطبّق.</dd>
+<dt>المتوقع</dt><dd>ظهور القيم والرسالة وإمكانية الوصول إلى زر التطبيق وتصحيح القيم.</dd>
+<dt>الفعلي</dt><dd>ظهر الحدان ورسالة الرفض كاملة على أكثر من سطر مع الكيبورد وبعد إغلاقه والتمرير. زر التطبيق أعلى حقلي السعر في هذا المقاس. قُبل النطاق الصحيح وعرضت الخريطة عقارين. نُفِّذت إعادة القياس بمدخلات رقمية لاتينية واستُعيد إعداد العرض الأصلي.</dd></dl>
+<p class="evidence"><a href="evidence/display-network-preflight.txt">إعدادات المقاسين</a> · <a href="evidence/58-small-rejection-ime.png">الرفض مع الكيبورد</a> · <a href="evidence/59-small-rejection-closed-initial.png">بعد الإغلاق مباشرة</a> · <a href="evidence/60-small-rejection-closed-scrolled.png">القيم والرسالة بعد التمرير</a> · <a href="evidence/68-small-valid-settled.png">النطاق الصحيح</a></p>
+</article>
+</section>
+<section id="network">
+<h2>نتائج الرئيسية وتحديث الخريطة</h2>
+<article>
+<h3>05 · عرض نتائج الرئيسية أثناء التحديث <span class="status pass">ناجح</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821</code></dd>
+<dt>الخطوات</dt><dd>استقر على نتائج الرئيسية «20» للإيجار في ذمار ومرّرها قليلًا. افتح الخريطة ووسّع درج النتائج خلال التحميل، ثم راقب وصول الرد وارْجع للرئيسية.</dd>
+<dt>المتوقع</dt><dd>استمرار ظهور النتائج المطابقة أثناء التحديث، ثم اكتمال الطلب واستعادة شروط الرئيسية والموضع عند الرجوع.</dd>
+<dt>الفعلي</dt><dd>أظهر الدرج 10 عقارات وبطاقة 147 مع «جارٍ تحديث النطاق… النتائج الظاهرة من آخر تحميل متاح». عند الرجوع من اختبار الفلاتر بقي عنوان النتائج وإيجار ذمار، وبقيت الحافة العليا لبطاقة 147 عند <bdi>y=901</bdi> في اللقطتين.</dd></dl>
+<p class="evidence"><a href="evidence/91-race-home-before.png">الرئيسية قبل الدخول</a> · <a href="evidence/93-race-loading-drawer-cards.png">البطاقة أثناء التحميل</a> · <a href="evidence/100-race-home-restored.png">الرئيسية بعد الرجوع</a> · <a href="evidence/net-normal-1-settled.png">الخريطة بعد الاستقرار</a></p>
+</article>
+<article>
+<h3>06 · تغيير الفلتر والنطاق أثناء الطلب <span class="status pass">ناجح</span></h3>
+<dl><dt>الخطوات</dt><dd>على الشبكة الضعيفة افتح الخريطة من النتائج نفسها. اضغط «بيع»، ثم «إيجار»، وحرّك نطاق الخريطة أثناء الطلب. انتظر استقرار القائمة وافتحها.</dd>
+<dt>المتوقع</dt><dd>تتوافق النتائج والتصنيف مع آخر غرض ونطاق. لا يحل رد الطلب السابق محل الحالة الحديثة.</dd>
+<dt>الفعلي</dt><dd>تغيّرت شارة الغرض إلى البيع ثم الإيجار. بعد تحريك النطاق أُلغيت الطلبات 11 و12 و13. استقر الطلب 14 برمز HTTP 200 عند 5.086 ثانية، واعتمدت القائمة عند 5.814 ثانية والعلامات عند 5.937 ثانية. ظهرت 10 نتائج للإيجار، منها 147 و145 و142 و140، وحافظت الرئيسية على موضعها.</dd></dl>
+<p class="evidence"><a href="evidence/latest-map-selection-review.mp4">نسخة مشاهدة لتبديل الفلتر والنطاق</a> · <a href="evidence/94-race-sale-pending.png">البيع أثناء التحديث</a> · <a href="evidence/96-race-area-changed.png">النطاق بعد التحريك</a> · <a href="evidence/99-race-latest-list.png">قائمة الإيجار المستقرة</a> · <a href="evidence/latest-selection-traces.txt">مراحل الطلب والإلغاءات</a></p>
+</article>
+<article>
+<h3>07 · شبكة ضعيفة وإعادة المحاولة <span class="status fail">فاشل في محاولة من ثلاث</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821</code></dd>
+<dt>الخطوات</dt><dd>افتح «20» للإيجار في ذمار من نتائج الرئيسية. قِس دورة على Wi-Fi ثم ثلاث دورات على الشبكة الخلوية مع تعطيل Wi-Fi، رفع <bdi>96 kbit/s</bdi> وتنزيل <bdi>256 kbit/s</bdi> وزمن تأخير <bdi>350–550 ms</bdi>. راقب وصول الرد أو الفشل. أعد فتح الخريطة للمحاولة التالية، ثم أعد Wi-Fi وإعدادات الشبكة الطبيعية وقِس التعافي.</dd>
+<dt>المتوقع</dt><dd>عرض نتائج متوافقة خلال التحميل ثم اعتماد الرد الجديد. عند الفشل تظهر حالة اتصال واضحة وتنجح إعادة المحاولة عند توفر الخدمة.</dd>
+<dt>الفعلي</dt><dd>عرضت المحاولة الضعيفة الأولى 5 نتائج مبكرة لنطاق الكاميرا ثم انتهت بصفر مع «حدثت مشكلة في الاتصال. حاول مرة أخرى.» عند فشل الطلب بعد 18.361 ثانية، دون أثر لفك استجابة HTTP لهذا الطلب. إعادة فتح الخريطة مرتين بالإعدادات الضعيفة نفسها أعادت 10 نتائج ورد 200 في المرتين. عادت 10 نتائج عند إزالة التقييد وإعادة Wi-Fi. سبب فشل المحاولة الأولى لم يُحسم من سجلات العميل.</dd></dl>
+<div class="table"><table><caption class="small">الأوقات بالثانية. توقيت اللقطة من لمسة فتح الخريطة، ومراحل الطلب من ساعة الطلب داخل التطبيق.</caption>
+<thead><tr><th scope="col">الدورة</th><th scope="col">أول لقطة بعدد سابق</th><th scope="col">أول اعتماد للعلامات</th><th scope="col">فك الرد الجديد</th><th scope="col">اعتماد النتائج / أول إطار</th></tr></thead><tbody>
+<tr><td>عادية · 5</td><td>10 خلال 0.638–1.579</td><td>1.208</td><td>2.284 · 200</td><td>2.994 / 3.081</td></tr>
+<tr><td>ضعيفة 1 · 6 ثم 7</td><td>5 خلال 0.659–1.689</td><td>لم يُسجَّل في الدورة</td><td>فشل بعد 18.361</td><td>إطار التعذر 18.408</td></tr>
+<tr><td>ضعيفة 2 · 8</td><td>10 خلال 0.687–1.686</td><td>1.125</td><td>4.717 · 200</td><td>5.474 / 5.529</td></tr>
+<tr><td>ضعيفة 3 · 9</td><td>10 خلال 0.658–1.785</td><td>1.612</td><td>4.943 · 200</td><td>5.672 / 5.747</td></tr>
+<tr><td>أثناء العودة إلى Wi-Fi · 10</td><td>10 خلال 0.634–2.056</td><td>1.695</td><td>2.431 · 200</td><td>4.489 / 4.540</td></tr>
+</tbody></table></div>
+<p class="small">المرحلة 8 تقيس أول اعتماد للعلامات في الطلب. عندما تسبق وصول الرد قد تكون علامات البيانات السابقة. تُظهر اللقطات المستقرة القائمة والعلامات بعد الرد.</p>
+<p class="evidence"><a href="evidence/network-profiles-device.txt">إعدادات الشبكة الفعلية</a> · <a href="evidence/map-measurement-captures.tsv">توقيت اللقطات</a> · <a href="evidence/map-network-traces.txt">أثر الطلبات الأصلي</a> · <a href="evidence/net-weak-1-p650.png">نتائج التحميل الأولى</a> · <a href="evidence/net-weak-1-p22000.png">رسالة التعذر</a> · <a href="evidence/net-weak-2-settled.png">إعادة المحاولة</a> · <a href="evidence/net-weak-3-settled.png">المحاولة الثالثة</a> · <a href="evidence/net-recovery-settled.png">استعادة الشبكة</a></p>
+</article>
+</section>
+<section id="upgrade">
+<h2>ترقية الحساب المسجّل</h2>
+<article>
+<h3>08 · الجلسة والمسودة والصورة <span class="status pass">ناجح</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5558 · 1819 → 1821</code>، الحساب 28.</dd>
+<dt>الخطوات</dt><dd>سجّل دخول دلال الاختبار على 1819. أنشئ مسودة يدوية بعنوان <bdi>UAT1821 Migration Draft 28</bdi>، واختر صورة اختبار واحدة، واحفظها من حوار الخروج. جهّز الرسالة المعلقة وانقطع عن الشبكة. ثبّت 1821 فوق 1819 وافتح التطبيق والجلسة والمسودة قبل إعادة الاتصال.</dd>
+<dt>المتوقع</dt><dd>تبقى الجلسة ونص المسودة والصورة من دون حذف بيانات. بعد الاتصال يظل الإعلان مسودة إلى أن يختار المستخدم الإجراء المناسب.</dd>
+<dt>الفعلي</dt><dd>بقي الحساب مسجّلًا وهو غير متصل. استُعيد العنوان وفتح المعالج على الخطوة 3 من 4، وظهر <bdi>1/12</bdi> وصورة الاختبار. ظلت المسودة قابلة للمتابعة بعد الاتصال من شاشة «لديك إعلان غير مكتمل».</dd></dl>
+<p class="evidence"><a href="evidence/65-draft-with-photo-1819.png">الصورة قبل الترقية</a> · <a href="evidence/82-upgraded-offline-session-28.png">الحساب بعد الترقية</a> · <a href="evidence/83-upgraded-draft-choice-offline.png">العنوان المستعاد</a> · <a href="evidence/86-upgraded-draft-photo-offline.png">الصورة المستعادة</a> · <a href="evidence/107-draft-still-draft-after-reconnect.png">بدء التحقق بعد الاتصال</a> · <a href="evidence/107-draft-after-reconnect-ui.txt">نص نافذة المسودة بعد اكتمال التحقق</a></p>
+</article>
+<article>
+<h3>09 · ترحيل الرسالة وإقرارها مرة واحدة <span class="status pass">ناجح</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd>المرسِل <code>5558 · 1819 → 1821</code> والحساب 28. المستقبِل <code>5560 · 1821</code> والحساب 26.</dd>
+<dt>الخطوات</dt><dd>افتح من حساب 28 محادثة 57 للإعلان 93 بعنوان «اختبار المالك — مراجعة الصور». اقطع الاتصال واضغط إرسال رسالة ذات معرّف فريد. ثبّت 1821 على المرسِل وهو غير متصل. افتح تبويب «المحادثات» قبل الاتصال وبعده، ثم افتح المحادثة عند الطرفين وأعد فتحها عند المرسِل.</dd>
+<dt>المتوقع</dt><dd>تبقى الرسالة معلّقة دون اتصال، وبعده تتحول لرسالة مرسلة واحدة وتظهر مرة واحدة لدى حساب الاستقبال المستقل.</dd>
+<dt>الفعلي</dt><dd>ظهرت «معلّقة — تُرسل عند عودة الاتصال» على 1819 وعلى 1821 دون اتصال. بعد استعادة الشبكة في 05:58 ظهرت الرسالة مرة واحدة لدى المرسِل مع طابع وقت ومن دون حالة انتظار، ومرة واحدة لدى المستقبِل. بقي عدد مرات ظهورها واحدًا بعد إعادة فتح المحادثة عند المرسِل.</dd></dl>
+<p class="evidence"><a href="evidence/78-sender-pending-1819.png">الرسالة المعلّقة على 1819</a> · <a href="evidence/89-upgraded-chat-tab-offline.png">المعلّقة على 1821</a> · <a href="evidence/101-sender-chat57-acknowledged.png">المرسِل بعد الاتصال</a> · <a href="evidence/102-receiver-chat57-delivery.png">المستقبِل المستقل</a> · <a href="evidence/106-sender-chat57-reopen-no-duplicate.png">إعادة فتح محادثة المرسِل</a> · <a href="evidence/receiver-delivery-count.txt">عدد مرات الظهور لدى المستقبِل</a></p>
+</article>
+</section>
+<section id="fixtures">
+<h2>عينات تقرير الأثر</h2>
+<p>يضم هذا المجلد مستخلص العينات ونتائجها المرجعية من تقرير الأثر الذي سلّمه المالك. المعرّفات في هذه الحالات مأخوذة من العينات المرجعية ومربوطة بأسماء البطاقات الظاهرة في التطبيق. <a href="evidence/reference-fixtures.json">العينات المرجعية والإحداثيات</a></p>
+<article>
+<h3>10 · ترتيب المطابقات عبر الصفحات <span class="status blocked">متعذّر</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821</code></dd>
+<dt>الخطوات</dt><dd>جهّز بحثًا بلا غرض أو نوع أو نص. استخدم في الخريطة المضلع المرجعي من <code>[44.1,14.4]</code> إلى <code>[44.4075,15.55]</code>، ثم مرّر النتائج بين الصفحات.</dd>
+<dt>المتوقع</dt><dd>36 مطابقًا قبل 6 بدائل على ثلاث صفحات. تبدأ البدائل بعد 106 في الصفحة الثانية وتنتهي بـ132 و137 في الثالثة.</dd>
+<dt>الفعلي</dt><dd>وصل التصغير داخل التطبيق إلى مؤشر «20+» بلا نص أو غرض أو نوع. الرسم التقريبي ضمن المساحة الظاهرة أعاد 20 نتيجة وبدائل من إب، ولم ينتج مجموعة ذمار وصنعاء المرجعية. ملف الأثر يسجل ترتيب الصفحات الثلاث للعينة الدقيقة. يلزم ضبط حدود الرسم ومطابقتها قبل الحكم على ترتيب تلك المجموعة داخل التطبيق.</dd></dl>
+<p class="evidence"><a href="evidence/138-wide-map-three-pinches.png">أكثر من 20 نتيجة في الخريطة</a> · <a href="evidence/144-multipage-manual-polygon.png">محاولة الرسم التقريبي</a> · <a href="evidence/146-multipage-first-list-bottom.png">بطاقات الرسم وشرح البديل</a> · <a href="evidence/reference-fixtures.json">استجابات الصفحات المرجعية ومعرّفاتها</a></p>
+</article>
+<article>
+<h3>11 · التصنيف داخل الرسم وعلى حده <span class="status blocked">متعذّر للحدّ الدقيق</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821</code></dd>
+<dt>الخطوات</dt><dd>ارسم نطاقًا في خريطة إيجارات ذمار. قارن ظهور المطابق والبديل. في الحالة الدقيقة اجعل الإعلان 145 عند <code>14.552,44.400</code> على الحد الشرقي، ثم حرّك هذا الحد إلى <code>44.3999</code>.</dd>
+<dt>المتوقع</dt><dd>145 مطابق على الحد ويصير نتيجة قريبة عندما يقع خارجه. يبقى الرسم ظاهرًا مع البدائل.</dd>
+<dt>الفعلي</dt><dd>في الرسم اليدوي لبحث «20»، بقي المضلع ظاهرًا وظهر تجمع مختلط <bdi>1 + ≈1</bdi> إلى جوار تجمع 8. طلب تقرير الأثر الدقيق يصنف 145 مطابقًا على الحد وقريبًا بعد إزاحته. لم تعرض واجهة الرسم الإحداثيات الفعلية للبكسلات، فتعذّر اعتماد الحدّ الدقيق من هذه اللقطة.</dd></dl>
+<p class="evidence"><a href="evidence/110-drawn-area-1821.png">الرسم والتجمع المختلط</a> · <a href="evidence/111-drawn-area-cards-1821.png">الدرج بعد الرسم</a> · <a href="evidence/reference-fixtures.json">عينتا الحد</a></p>
+</article>
+<article>
+<h3>12 · الاسم المسجّل والسياق الجغرافي <span class="status pass">ناجح</span></h3>
+<dl><dt>الجهاز والبناء</dt><dd><code>5556 · 1821</code></dd>
+<dt>الخطوات</dt><dd>من بحث الإيجار اختر أمانة العاصمة واكتب «حارة الميثاق» ثم «الميثاق» بكيبورد Android العربي. أعد بحث الاسم الكامل بعد اختيار محافظة صنعاء. قارن «منطقة تجريبية 4» بين صنعاء وذمار مع شرط الإيجار نفسه.</dd>
+<dt>المتوقع</dt><dd>تعيد صيغتا الاسم 106 و107 في الأمانة، ويظهر الفراغ بمحافظة صنعاء. يُرجع اسم المنطقة المشترك نتائج المحافظة المختارة.</dd>
+<dt>الفعلي</dt><dd>ظهرت شقتا النور 106 و107 في أمانة العاصمة بالاسم الكامل والمختصر، وظهرت حالة الفراغ في صنعاء. في بحث «منطقة تجريبية 4» ظهرت في صنعاء بطاقات الفيلا التجريبية 19 والشقة 17 والمكتب 16، وفي ذمار ظهرت العمارة التجريبية 20 والمنزل 18، الموافقان للإعلانين 147 و145.</dd></dl>
+<p class="evidence"><a href="evidence/118-capital-registered-name.png">الاسم الكامل في الأمانة</a> · <a href="evidence/119-capital-short-name.png">الصيغة المختصرة</a> · <a href="evidence/123-sanaa-registered-name-empty.png">الفراغ في محافظة صنعاء</a> · <a href="evidence/125-sanaa-same-area-more.png">اسم المنطقة في صنعاء</a> · <a href="evidence/132-dhamar-same-name-scrolled.png">اسم المنطقة في ذمار</a></p>
+</article>
+<article>
+<h3>13 · المرادف المحلي في سجل الأماكن <span class="status blocked">متعذّر</span></h3>
+<dl><dt>الخطوات</dt><dd>راجع عينات تقرير الأثر لاختيار اسم محلي موثّق للحي والبحث عنه في المحافظة الصحيحة.</dd>
+<dt>المتوقع</dt><dd>الاسم المسجّل والمرادف المحلي يعيدان الإعلان المحدد داخل خلية الحي الموثّقة.</dd>
+<dt>الفعلي</dt><dd>توفرت صيغة مختصرة للاسم. المرادف المحلي المختلف وخلية الحي النشطة والإعلان المرجعي داخلها ما زالت مطلوبة. يلزم لحيَّين رسميين متشابهين في محافظتين خلية ثانية وعينة إعلان فيها.</dd></dl>
+<p class="evidence"><a href="evidence/reference-fixtures.json">بيانات سجل الأحياء المطلوبة في تقرير الأثر</a></p>
+</article>
+</section>
+<section id="remaining">
+<h2>حكم المتابعة والمتبقي</h2>
+<p>نجح إصلاح الرجوع بالطريقتين، والتحقق من السعر بالمقاسين، وحفظ نتائج الرئيسية، واعتماد آخر نطاق وفلتر، وترقية الحساب والرسالة، والبحث باسم الحي ضمن المحافظة المحددة.</p>
+<p><strong>قبول الشبكة الضعيفة مفتوح.</strong> تكرر الاختبار بالإعدادات الموضحة ونجحت محاولتان، بينما أخفقت الأولى بعد نحو 18 ثانية. أثرها على المستخدم هو انقطاع تحديث الخريطة واضطراره إلى إعادة المحاولة. ينبغي مطابقة أوقات طلب الفشل بسجل Frankfurt UAT عند مراجعة السبب.</p>
+<p><strong>العينات المعلقة.</strong> مطابقة إحداثيات مضلع الصفحات وحدّ الإعلان 145 تتطلب دليلًا دقيقًا لمسار الرسم أو أداة تضبط الحدود في نسخة الاختبار. اختبار المرادف يحتاج اسمًا محليًا معتمدًا وخلية حي نشطة وإعلانًا مرجعيًا.</p>
+<p><strong>المتبقي على هاتف فعلي.</strong> قياس دقة GPS عند مبنى مرجعي، وبقاء الدبوس بعد تعديل العنوان، وأداء الهاتف وتحميل البلاطات تحت شبكة ضعيفة، واستجابة السحب والتكبير والدوران والميل.</p>
+<p><strong>الأدوات.</strong> أُعيدت المحاولة بعد ظهور لوحة إشعارات Android. تعذر بدء أداة Windows بخطأ ملفات التشغيل، واستُكمل الرسم واللمس المتعدد والتقاط صور Android عبر ADB. <a href="evidence/test-tool-events.txt">سجل عوائق الأدوات</a></p>
+<p><strong>حالة الأجهزة.</strong> بقي محاكي الضيف ومحاكي المرسِل وبيئة الاستقبال قيد التشغيل ببياناتها. أُزيل تقييد الشبكة واستُعيد مقاس 5556 وكثافته وخطه وإعداد الكيبورد. <a href="evidence/device-runtime-final.txt">كشف الأجهزة في نهاية الجولة</a> · <a href="evidence/156-guest-final-verified-device-screen.png">لقطة Android النهائية من 5556</a></p>
+</section>
+<footer>لتصفح التقرير محليًا، افتحه مع الحفاظ على مجلد <code>evidence</code>. توقيت الهاتف في أشرطة Android بالـUTC، وأوقات العمل في التقرير بتوقيت آسيا/عدن.</footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,36 @@
+TRIAL net-normal-1 host=2026-11-18T05:46:27.8761065+03:00 device=2026-11-18T02:46:25+0000 tap=262,845
+11-18 02:46:27.107 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":5,"elapsedMs":0,"status":0}
+11-18 02:46:27.206 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":5,"elapsedMs":124,"status":0}
+11-18 02:46:28.304 11497 11497 I AQER_NET: {"phase":8,"resource":3,"page":1,"seq":5,"elapsedMs":1208,"status":0}
+11-18 02:46:29.385 11497 11497 I AQER_NET: {"phase":3,"resource":3,"page":1,"seq":5,"elapsedMs":2284,"status":200}
+11-18 02:46:30.067 11497 11497 I AQER_NET: {"phase":4,"resource":3,"page":1,"seq":5,"elapsedMs":2994,"status":0}
+11-18 02:46:30.155 11497 11497 I AQER_NET: {"phase":5,"resource":3,"page":1,"seq":5,"elapsedMs":3081,"status":0}
+TRIAL net-weak-1 host=2026-11-18T05:55:06.8138931+03:00 device=2026-11-18T02:55:04+0000 tap=262,838
+11-18 02:55:06.207 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":6,"elapsedMs":0,"status":0}
+11-18 02:55:06.214 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":6,"elapsedMs":17,"status":0}
+11-18 02:55:07.068 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":7,"elapsedMs":0,"status":0}
+11-18 02:55:07.081 11497 11497 I AQER_NET: {"phase":7,"resource":3,"page":1,"seq":6,"elapsedMs":884,"status":0}
+11-18 02:55:07.146 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":7,"elapsedMs":68,"status":0}
+11-18 02:55:25.434 11497 11497 I AQER_NET: {"phase":6,"resource":3,"page":1,"seq":7,"elapsedMs":18361,"status":0}
+11-18 02:55:25.481 11497 11497 I AQER_NET: {"phase":5,"resource":3,"page":1,"seq":7,"elapsedMs":18408,"status":0}
+TRIAL net-weak-2 host=2026-11-18T05:55:42.4459807+03:00 device=2026-11-18T02:55:40+0000 tap=262,838
+11-18 02:55:42.216 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":8,"elapsedMs":0,"status":0}
+11-18 02:55:42.783 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":8,"elapsedMs":581,"status":0}
+11-18 02:55:43.328 11497 11497 I AQER_NET: {"phase":8,"resource":3,"page":1,"seq":8,"elapsedMs":1125,"status":0}
+11-18 02:55:46.918 11497 11497 I AQER_NET: {"phase":3,"resource":3,"page":1,"seq":8,"elapsedMs":4717,"status":200}
+11-18 02:55:47.707 11497 11497 I AQER_NET: {"phase":4,"resource":3,"page":1,"seq":8,"elapsedMs":5474,"status":0}
+11-18 02:55:47.751 11497 11497 I AQER_NET: {"phase":5,"resource":3,"page":1,"seq":8,"elapsedMs":5529,"status":0}
+TRIAL net-weak-3 host=2026-11-18T05:56:19.1206565+03:00 device=2026-11-18T02:56:17+0000 tap=262,838
+11-18 02:56:18.549 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":9,"elapsedMs":0,"status":0}
+11-18 02:56:18.776 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":9,"elapsedMs":152,"status":0}
+11-18 02:56:20.160 11497 11497 I AQER_NET: {"phase":8,"resource":3,"page":1,"seq":9,"elapsedMs":1612,"status":0}
+11-18 02:56:23.482 11497 11497 I AQER_NET: {"phase":3,"resource":3,"page":1,"seq":9,"elapsedMs":4943,"status":200}
+11-18 02:56:24.198 11497 11497 I AQER_NET: {"phase":4,"resource":3,"page":1,"seq":9,"elapsedMs":5672,"status":0}
+11-18 02:56:24.271 11497 11497 I AQER_NET: {"phase":5,"resource":3,"page":1,"seq":9,"elapsedMs":5747,"status":0}
+TRIAL net-recovery host=2026-11-18T05:56:56.9993393+03:00 device=2026-11-18T02:56:54+0000 tap=262,838
+11-18 02:56:57.495 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":10,"elapsedMs":6,"status":0}
+11-18 02:56:57.786 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":10,"elapsedMs":235,"status":0}
+11-18 02:56:59.179 11497 11497 I AQER_NET: {"phase":8,"resource":3,"page":1,"seq":10,"elapsedMs":1695,"status":0}
+11-18 02:56:59.916 11497 11497 I AQER_NET: {"phase":3,"resource":3,"page":1,"seq":10,"elapsedMs":2431,"status":200}
+11-18 02:57:01.972 11497 11497 I AQER_NET: {"phase":4,"resource":3,"page":1,"seq":10,"elapsedMs":4489,"status":0}
+11-18 02:57:02.026 11497 11497 I AQER_NET: {"phase":5,"resource":3,"page":1,"seq":10,"elapsedMs":4540,"status":0}

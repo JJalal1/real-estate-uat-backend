@@ -1,0 +1,33 @@
+before offline 2026-11-18T05:45:12.1564507+03:00 emulator-5558
+    versionCode=1819 minSdk=23 targetSdk=36
+      firstInstallTime=2026-11-17 23:13:34
+Active default network: 101
+pending offline before upgrade host=2026-11-18T05:47:07.5069718+03:00 serial=emulator-5558
+
+Active default network: none
+candidate sha256=4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b bytes=45242744
+install -r starts 2026-11-18T05:47:07.8168774+03:00
+Performing Streamed Install
+Success
+install -r ends 2026-11-18T05:47:14.0707672+03:00
+AQER-UAT1819-Upgrade-API36
+
+OK
+
+16
+36
+    appId=10217
+    versionCode=1821 minSdk=23 targetSdk=36
+    versionName=0.1.0
+    lastUpdateTime=2026-11-18 02:47:08
+      firstInstallTime=2026-11-17 23:13:34
+4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b  /data/app/~~vC59re73pkm6Yjot2Tb7mA==/com.aqer.yemen.uat.offline-z_9Rsu-bGPexoBnOx4lOaw==/base.apk
+Active default network: none
+
+pending verified offline 2026-11-18T05:58:09.6530039+03:00
+Active default network: none
+reconnect requested 2026-11-18T05:58:09.9656553+03:00
+connected 2026-11-18T05:58:21.6810024+03:00
+Active default network: 106
+sender visible message count=1 time=2026-11-18T06:01:09.2033378+03:00
+sender after reopen message count=1 time=2026-11-18T06:05:31.0920827+03:00

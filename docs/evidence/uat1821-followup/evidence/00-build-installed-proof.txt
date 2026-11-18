@@ -1,0 +1,50 @@
+2026-11-18T04:58:23.6802146+03:00
+Owner-supplied source=d406026d20943d1bb6209da264cb23d6d722ca16
+List of devices attached
+emulator-5556          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:7
+emulator-5558          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:8
+
+Original APK bytes=45242744
+Original APK SHA-256=4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b
+
+Verified using v1 scheme (JAR signing): true
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): false
+Verified using v3.1 scheme (APK Signature Scheme v3.1): false
+Verified using v4 scheme (APK Signature Scheme v4): false
+Signer #1 certificate SHA-256 digest: 8d878aa972d1b101025b2f1b6b8c60c0783f5f80d901e1e57de97b718f6726f3
+package: name='com.aqer.yemen.uat.offline' versionCode='1821' versionName='0.1.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'
+sdkVersion:'23'
+targetSdkVersion:'36'
+AQER-UAT1820-API36
+
+OK
+
+Android=16; API=36
+Before upgrade, guest emulator-5556:
+    appId=10217
+    versionCode=1820 minSdk=23 targetSdk=36
+    versionName=0.1.0
+    lastUpdateTime=2026-11-17 22:44:13
+      firstInstallTime=2026-11-17 22:44:13
+61ef6c5a1598666ab91e74c4552b1cc450cad55548585330bd35bffa517c4b18  /data/app/~~GI411YpIWVJzA_66OLc-NQ==/com.aqer.yemen.uat.offline-LLi8K32wSEmk1Yh234ylEw==/base.apk
+Baseline emulator-5558, read only:
+    appId=10217
+    versionCode=1819 minSdk=23 targetSdk=36
+    versionName=0.1.0
+    lastUpdateTime=2026-11-17 23:13:34
+      firstInstallTime=2026-11-17 23:13:34
+13af0b61df2266735030718d8f2354e332ae4d7a2e1f67acfef1b222c3644fdb  /data/app/~~4TISZmRB_TsIX4eK10P3kw==/com.aqer.yemen.uat.offline-LVhq8REtxhbnK_lTTZXNrw==/base.apk
+2026-11-18T04:58:27.2326022+03:00
+Performing Streamed Install
+Success
+After upgrade, guest emulator-5556:
+    appId=10217
+    versionCode=1821 minSdk=23 targetSdk=36
+    versionName=0.1.0
+    lastUpdateTime=2026-11-18 01:58:27
+      firstInstallTime=2026-11-17 22:44:13
+4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b  /data/app/~~p0Ym2S_fBwlGKP3dWIchtg==/com.aqer.yemen.uat.offline-4mwg9rJpx7pezavXC5PtfQ==/base.apk
+2026-11-18T04:58:31.4185947+03:00
+Starting: Intent { cmp=com.aqer.yemen.uat.offline/com.example.real_estate_mobile.MainActivity }
+

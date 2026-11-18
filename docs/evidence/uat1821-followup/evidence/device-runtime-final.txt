@@ -1,0 +1,58 @@
+Final host timestamp 2026-11-18T07:05:19.4325572+03:00 UTC+03:00
+List of devices attached
+emulator-5556          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:7
+emulator-5558          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:8
+emulator-5560          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:12
+
+serial=emulator-5556
+AQER-UAT1820-API36
+
+OK
+
+16
+36
+    versionCode=1821 minSdk=23 targetSdk=36
+    versionName=0.1.0
+      firstInstallTime=2026-11-17 22:44:13
+4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b  /data/app/~~p0Ym2S_fBwlGKP3dWIchtg==/com.aqer.yemen.uat.offline-4mwg9rJpx7pezavXC5PtfQ==/base.apk
+serial=emulator-5558
+AQER-UAT1819-Upgrade-API36
+
+OK
+
+16
+36
+    versionCode=1821 minSdk=23 targetSdk=36
+    versionName=0.1.0
+      firstInstallTime=2026-11-17 23:13:34
+4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b  /data/app/~~vC59re73pkm6Yjot2Tb7mA==/com.aqer.yemen.uat.offline-z_9Rsu-bGPexoBnOx4lOaw==/base.apk
+serial=emulator-5560
+AQER-UAT1821-Receiver-API36
+
+OK
+
+16
+36
+    versionCode=1821 minSdk=23 targetSdk=36
+    versionName=0.1.0
+      firstInstallTime=2026-11-18 02:32:51
+4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b  /data/app/~~SWAZp0HgUIJtsjHIf30R1w==/com.aqer.yemen.uat.offline-CY2V5hF6fz1Iu4Kie20GpQ==/base.apk
+Guest restored display and profile:
+Physical size: 1080x1920
+Physical density: 420
+1.0
+0
+Current network status:
+
+  download speed:          0 bits/s (0.0 KB/s)
+
+  upload speed:            0 bits/s (0.0 KB/s)
+
+  minimum latency:  0 ms
+
+  maximum latency:  0 ms
+
+OK
+
+Android Emulator - AQER-UAT1820-API36:5556
+Android Emulator - AQER-UAT1819-Upgrade-API36:5558

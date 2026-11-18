@@ -1,0 +1,2 @@
+2026-11-18T05:46:17.1336896+03:00 normal trial setup intercepted by Android notification shade. Collapsed status bar before retry (74-home-results-before-refresh.png).
+2026-11-18T06:40:24.7444449+03:00 Windows Computer Use helper (node_repl) returned 'failed to write kernel assets: The system cannot find the path specified. (os error 3)' on initialization and retry. Continued with Android ADB.

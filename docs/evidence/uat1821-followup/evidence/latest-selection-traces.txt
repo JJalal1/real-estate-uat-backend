@@ -1,0 +1,15 @@
+11-18 02:59:34.679 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":11,"elapsedMs":0,"status":0}
+11-18 02:59:35.036 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":11,"elapsedMs":357,"status":0}
+11-18 02:59:35.999 11497 11497 I AQER_NET: {"phase":8,"resource":3,"page":1,"seq":11,"elapsedMs":1334,"status":0}
+11-18 02:59:42.079 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":12,"elapsedMs":0,"status":0}
+11-18 02:59:42.080 11497 11497 I AQER_NET: {"phase":7,"resource":3,"page":1,"seq":11,"elapsedMs":7423,"status":0}
+11-18 02:59:42.191 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":13,"elapsedMs":0,"status":0}
+11-18 02:59:42.203 11497 11497 I AQER_NET: {"phase":7,"resource":3,"page":1,"seq":12,"elapsedMs":128,"status":0}
+11-18 02:59:42.243 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":13,"elapsedMs":50,"status":0}
+11-18 02:59:44.500 11497 11497 I AQER_NET: {"phase":1,"resource":3,"page":1,"seq":14,"elapsedMs":0,"status":0}
+11-18 02:59:44.541 11497 11497 I AQER_NET: {"phase":7,"resource":3,"page":1,"seq":13,"elapsedMs":2325,"status":0}
+11-18 02:59:44.600 11497 11497 I AQER_NET: {"phase":2,"resource":3,"page":1,"seq":14,"elapsedMs":98,"status":0}
+11-18 02:59:49.611 11497 11497 I AQER_NET: {"phase":3,"resource":3,"page":1,"seq":14,"elapsedMs":5086,"status":200}
+11-18 02:59:50.345 11497 11497 I AQER_NET: {"phase":4,"resource":3,"page":1,"seq":14,"elapsedMs":5814,"status":0}
+11-18 02:59:50.371 11497 11497 I AQER_NET: {"phase":5,"resource":3,"page":1,"seq":14,"elapsedMs":5840,"status":0}
+11-18 02:59:50.498 11497 11497 I AQER_NET: {"phase":8,"resource":3,"page":1,"seq":14,"elapsedMs":5937,"status":0}

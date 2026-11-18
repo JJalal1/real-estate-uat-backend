@@ -1,0 +1,7 @@
+UAT1821 · emulator-5558 · account 28
+UI text from 107-draft-still-draft-after-reconnect.xml after the loading dialog settled.
+
+لديك إعلان غير مكتمل
+UAT1821 Migration Draft 28
+متابعة الإعلان
+مسوداتي

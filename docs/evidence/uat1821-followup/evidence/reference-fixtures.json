@@ -1,0 +1,520 @@
+{
+  "source": "AQER-UAT-1821-Round4-Evidence.json and AQER-UAT-1821-Round4-AR-1.html (owner handoff)",
+  "kind": "Review extract of the reference UAT API fixture checks. The device observations and verdicts are in the HTML report.",
+  "polygon_coordinates": "longitude, latitude",
+  "pagination": {
+    "filters": {
+      "purpose": null,
+      "property_type": null,
+      "query": null,
+      "governorate": null
+    },
+    "area_polygon": [
+      [
+        44.1,
+        14.4
+      ],
+      [
+        44.4075,
+        14.4
+      ],
+      [
+        44.4075,
+        15.55
+      ],
+      [
+        44.1,
+        15.55
+      ],
+      [
+        44.1,
+        14.4
+      ]
+    ],
+    "expected_exact": 36,
+    "expected_nearby": 6,
+    "expected_page_size": 20,
+    "pages": [
+      {
+        "case": "multipage-1",
+        "meta": {
+          "current_page": 1,
+          "last_page": 3,
+          "per_page": 20,
+          "total": 42,
+          "exact_total": 36,
+          "alternative_total": 6,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        },
+        "rows": [
+          [
+            145,
+            "exact"
+          ],
+          [
+            144,
+            "exact"
+          ],
+          [
+            143,
+            "exact"
+          ],
+          [
+            140,
+            "exact"
+          ],
+          [
+            139,
+            "exact"
+          ],
+          [
+            138,
+            "exact"
+          ],
+          [
+            136,
+            "exact"
+          ],
+          [
+            135,
+            "exact"
+          ],
+          [
+            134,
+            "exact"
+          ],
+          [
+            133,
+            "exact"
+          ],
+          [
+            131,
+            "exact"
+          ],
+          [
+            130,
+            "exact"
+          ],
+          [
+            129,
+            "exact"
+          ],
+          [
+            128,
+            "exact"
+          ],
+          [
+            127,
+            "exact"
+          ],
+          [
+            126,
+            "exact"
+          ],
+          [
+            125,
+            "exact"
+          ],
+          [
+            124,
+            "exact"
+          ],
+          [
+            123,
+            "exact"
+          ],
+          [
+            122,
+            "exact"
+          ]
+        ]
+      },
+      {
+        "case": "multipage-2",
+        "meta": {
+          "current_page": 2,
+          "last_page": 3,
+          "per_page": 20,
+          "total": 42,
+          "exact_total": 36,
+          "alternative_total": 6,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        },
+        "rows": [
+          [
+            121,
+            "exact"
+          ],
+          [
+            120,
+            "exact"
+          ],
+          [
+            119,
+            "exact"
+          ],
+          [
+            118,
+            "exact"
+          ],
+          [
+            117,
+            "exact"
+          ],
+          [
+            116,
+            "exact"
+          ],
+          [
+            115,
+            "exact"
+          ],
+          [
+            114,
+            "exact"
+          ],
+          [
+            113,
+            "exact"
+          ],
+          [
+            112,
+            "exact"
+          ],
+          [
+            111,
+            "exact"
+          ],
+          [
+            110,
+            "exact"
+          ],
+          [
+            109,
+            "exact"
+          ],
+          [
+            108,
+            "exact"
+          ],
+          [
+            107,
+            "exact"
+          ],
+          [
+            106,
+            "exact"
+          ],
+          [
+            142,
+            "nearby"
+          ],
+          [
+            147,
+            "nearby"
+          ],
+          [
+            141,
+            "nearby"
+          ],
+          [
+            146,
+            "nearby"
+          ]
+        ]
+      },
+      {
+        "case": "multipage-3",
+        "meta": {
+          "current_page": 3,
+          "last_page": 3,
+          "per_page": 20,
+          "total": 42,
+          "exact_total": 36,
+          "alternative_total": 6,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        },
+        "rows": [
+          [
+            132,
+            "nearby"
+          ],
+          [
+            137,
+            "nearby"
+          ]
+        ]
+      }
+    ]
+  },
+  "boundary": {
+    "filters": {
+      "purpose": "rent",
+      "governorate_code": "DHAMAR"
+    },
+    "listing": {
+      "id": 145,
+      "latitude": 14.552,
+      "longitude": 44.4
+    },
+    "on_boundary": {
+      "area_polygon": [
+        [
+          44.399,
+          14.551
+        ],
+        [
+          44.4,
+          14.551
+        ],
+        [
+          44.4,
+          14.553
+        ],
+        [
+          44.399,
+          14.553
+        ],
+        [
+          44.399,
+          14.551
+        ]
+      ],
+      "response": {
+        "case": "edge-on",
+        "meta": {
+          "current_page": 1,
+          "last_page": 1,
+          "per_page": 20,
+          "total": 10,
+          "exact_total": 1,
+          "alternative_total": 9,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        },
+        "rows": [
+          [
+            145,
+            "exact"
+          ],
+          [
+            140,
+            "nearby"
+          ],
+          [
+            133,
+            "nearby"
+          ],
+          [
+            138,
+            "nearby"
+          ],
+          [
+            135,
+            "nearby"
+          ],
+          [
+            147,
+            "nearby"
+          ],
+          [
+            131,
+            "nearby"
+          ],
+          [
+            142,
+            "nearby"
+          ],
+          [
+            136,
+            "nearby"
+          ],
+          [
+            129,
+            "nearby"
+          ]
+        ]
+      }
+    },
+    "outside_boundary": {
+      "area_polygon": [
+        [
+          44.399,
+          14.551
+        ],
+        [
+          44.3999,
+          14.551
+        ],
+        [
+          44.3999,
+          14.553
+        ],
+        [
+          44.399,
+          14.553
+        ],
+        [
+          44.399,
+          14.551
+        ]
+      ],
+      "response": {
+        "case": "edge-out",
+        "meta": {
+          "current_page": 1,
+          "last_page": 1,
+          "per_page": 20,
+          "total": 10,
+          "exact_total": 0,
+          "alternative_total": 10,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        },
+        "rows": [
+          [
+            145,
+            "nearby"
+          ],
+          [
+            140,
+            "nearby"
+          ],
+          [
+            133,
+            "nearby"
+          ],
+          [
+            138,
+            "nearby"
+          ],
+          [
+            135,
+            "nearby"
+          ],
+          [
+            147,
+            "nearby"
+          ],
+          [
+            131,
+            "nearby"
+          ],
+          [
+            142,
+            "nearby"
+          ],
+          [
+            136,
+            "nearby"
+          ],
+          [
+            129,
+            "nearby"
+          ]
+        ]
+      }
+    }
+  },
+  "neighborhood": {
+    "registered": {
+      "query": "حارة الميثاق",
+      "governorate": "أمانة العاصمة",
+      "response": {
+        "case": "registered-neighborhood",
+        "meta": {
+          "current_page": 1,
+          "last_page": 1,
+          "per_page": 20,
+          "total": 2,
+          "exact_total": 2,
+          "alternative_total": 0,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        },
+        "rows": [
+          [
+            107,
+            "exact"
+          ],
+          [
+            106,
+            "exact"
+          ]
+        ]
+      }
+    },
+    "control": {
+      "query": "حارة الميثاق",
+      "governorate": "صنعاء",
+      "response": {
+        "case": "similar-neighborhood-control",
+        "meta": {
+          "current_page": 1,
+          "last_page": 1,
+          "per_page": 20,
+          "total": 0,
+          "exact_total": 0,
+          "alternative_total": 0,
+          "alternative_limit": 12,
+          "ranking": "distance_when_known,fewest_changes,budget,filter_gap,id"
+        },
+        "rows": []
+      }
+    },
+    "abbreviated_query": {
+      "query": "الميثاق",
+      "governorate": "أمانة العاصمة",
+      "expected_ids": [
+        107,
+        106
+      ]
+    },
+    "homonym_text_context": [
+      {
+        "query": "منطقة تجريبية 4",
+        "governorate": "ذمار",
+        "expected_ids": [
+          147,
+          146,
+          145,
+          144,
+          143,
+          141,
+          136,
+          131
+        ]
+      },
+      {
+        "query": "منطقة تجريبية 4",
+        "governorate": "صنعاء",
+        "expected_ids": [
+          127,
+          126,
+          125,
+          124,
+          123,
+          121,
+          116,
+          111
+        ]
+      }
+    ],
+    "missing_alias_fixture": {
+      "status": "متعذّر",
+      "required": [
+        "مرادف محلي موثّق مختلف عن النص المسجّل",
+        "معرّف خلية حي نشطة ومضلّعها ومحافظتها",
+        "معرّف إعلان موجود داخل الخلية"
+      ],
+      "candidate_listings_after_confirmed_link": [
+        106,
+        107
+      ],
+      "capital_cells_returned": 0
+    }
+  }
+}

@@ -1,0 +1,10 @@
+verified 2026-11-18T05:36:31.9333172+03:00 emulator-5560
+AQER-UAT1821-Receiver-API36
+
+OK
+
+16
+36
+    versionCode=1821 minSdk=23 targetSdk=36
+    versionName=0.1.0
+4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b  /data/app/~~SWAZp0HgUIJtsjHIf30R1w==/com.aqer.yemen.uat.offline-CY2V5hF6fz1Iu4Kie20GpQ==/base.apk

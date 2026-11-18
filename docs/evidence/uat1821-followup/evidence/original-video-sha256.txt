@@ -1,0 +1,13 @@
+UAT1821 — Original and review recording SHA-256
+The WebM originals are retained unchanged in the local UAT1821-followup-report-evidence.zip.
+Review MP4 copies preserve the complete timeline at 810×1440, 15 fps, H.264. The original recordings have no narration.
+Original bundle SHA-256: 885314c3bbcc1c2148587131d3dbc24166b3281907915a4c6cc1fd73097f48d4
+
+392c70859bbac9c281df6fd01dfc1f9c3ff40bd228fafd1f16c6b9eadf3c3bb3  smart-android-journey.webm  (72244260 bytes; 67.05 s)
+d4fbe6b1acca114864b2202c2a588d7d8bd34e2cf31a0d57388c98607124b05e  smart-android-journey-review.mp4  (1219749 bytes; 67.07 s)
+
+0e1b56e3dc8118f9da61875da776d61dfb2f850388ff61fa7672f96016be7268  smart-app-arrow-journey.webm  (52122648 bytes; 49.08 s)
+4a314441d2cfe41d732cc9f7946165dcadfb5df4c61395c025c63a52df7fcd9d  smart-app-arrow-journey-review.mp4  (1131349 bytes; 49.07 s)
+
+d373c7f28d285bca0e9c3a46195e78c48a3197c472aa559333d6accd323d678e  latest-map-selection.webm  (82331490 bytes; 93.82 s)
+e9d88b121ef68f7c9afe81904826898d14038337e5de0ece88d538d1f12d122c  latest-map-selection-review.mp4  (988728 bytes; 93.80 s)
