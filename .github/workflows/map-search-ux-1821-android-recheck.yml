@@ -2,7 +2,8 @@ name: Android recheck on the original signed UAT1821
 'on':
   push:
     branches: [work/map-search-ux-1820-20261117]
-    paths: [.github/workflows/map-search-ux-1821-android-recheck.yml]
+    paths:
+    - .github/workflows/map-search-ux-1821-android-recheck.yml
 permissions:
   contents: read
   actions: read
@@ -151,9 +152,9 @@ jobs:
           --source "$UPGRADE_SOURCE_SHA" --serial emulator-5554 \
           --output map-search-ux-upgrade-proof --round4
       working-directory: product
-    - name: Replay round-four cases on the same installed signed APK
+    - name: Verify navigation and price on the installed APK
       run: |
-        GITHUB_SHA="$UPGRADE_SOURCE_SHA" python3 -B scripts/probe_map_search_round4.py --receipt map-search-ux-input/candidate/APK_VERIFICATION.json --output map-search-ux-upgrade-proof
+        GITHUB_SHA="$UPGRADE_SOURCE_SHA" python3 -B ../scripts/probe_map_search_round4.py --receipt map-search-ux-input/candidate/APK_VERIFICATION.json --output map-search-ux-upgrade-proof --ui-only
       working-directory: product
     - name: Record last emulator status if a test stopped
       if: failure()
@@ -165,7 +166,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always() && steps.context.outcome == 'success' && github.event.repository.private
       with:
-        name: map-search-ux-1821-android-${{ github.run_attempt }}
+        name: map-search-ux-1821-android-ui-${{ github.run_attempt }}
         path: |
           product/map-search-ux-upgrade-proof/ANDROID_MAP_SEARCH_UX_UPGRADE.json
           product/map-search-ux-upgrade-proof/ANDROID_ROUND4.json

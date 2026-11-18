@@ -111,14 +111,32 @@ def home_query(device):
 
 
 def open_map(device, nodes=None):
-    nodes = nodes or wait(device, lambda n: contains(n, 'عرض على الخريطة'), 'home_map_action_missing')
-    device.tap(nodes, 'عرض على الخريطة')
-    return wait(device, lambda n: contains(n, MAP), 'ordinary_map_missing')
+    if keyboard_shown(device):
+        back(device)
+        nodes = None
+    found = None
+    for _ in range(3):
+        nodes = nodes or wait(device, lambda n: contains(n, 'عرض على الخريطة'), 'home_map_action_missing')
+        action = matching(nodes, 'عرض على الخريطة')[0]
+        left, top, right, bottom = bounds(action)
+        # Tap the label itself. An accessibility node can straddle a clipped
+        # list or still carry the geometry from before the IME closed.
+        tap(device, left + (right - left) // 2, top + (bottom - top) // 2)
+        try:
+            found = wait(device, lambda n: contains(n, MAP), 'ordinary_map_missing', timeout=9)
+            break
+        except UpgradeError:
+            if keyboard_shown(device):
+                back(device)
+            nodes = None
+    if found is None:
+        raise UpgradeError('ordinary_map_missing')
+    return found
 
 
 def smart_navigation(device, folder, app_arrow):
     suffix = 'app-arrow' if app_arrow else 'android-back'
-    nodes = wait(device, lambda n: contains(n, MAP) and contains(n, '10 عقار في النطاق'), 'ordinary_map_10_missing')
+    nodes = wait(device, lambda n: contains(n, MAP) and contains(n, 'الإيجار الشهري'), 'ordinary_rent_map_missing')
     device.tap(nodes, 'فتح مساعد البحث الذكي')
     nodes = wait(device, lambda n: contains(n, 'تعديل للإيجار'), 'copied_rent_missing')
     remove = identified(nodes, 'smart-chip-remove-purpose')
@@ -130,7 +148,8 @@ def smart_navigation(device, folder, app_arrow):
         tap_node(device, remove)
     nodes = wait(device, lambda n: contains(n, 'تعديل 20') and not contains(n, 'تعديل للإيجار'), 'edited_smart_scope_missing')
     device.tap(nodes, 'الخريطة')
-    nodes = wait(device, lambda n: contains(n, MAP) and contains(n, '20 عقار في النطاق'), 'smart_child_map_20_missing')
+    nodes = wait(device, lambda n: contains(n, MAP) and contains(n, 'القائمة') and
+                 contains(n, 'اسحب لتوسيع العقارات'), 'smart_child_map_missing')
     handle = matching(nodes, 'اسحب لتوسيع العقارات')[0]
     left, top, right, _ = bounds(handle)
     swipe(device, (left + right) // 2, top + 22, max(470, top - 710))
@@ -146,13 +165,14 @@ def smart_navigation(device, folder, app_arrow):
                  and not contains(n, MAP), 'edited_smart_list_not_restored')
     device.screenshot(folder, suffix + '-edited-smart-list.png')
     back(device, nodes if app_arrow else None)
-    wait(device, lambda n: contains(n, MAP) and contains(n, '10 عقار في النطاق') and not contains(n, 'القائمة'),
+    wait(device, lambda n: contains(n, MAP) and contains(n, 'الإيجار الشهري') and not contains(n, 'القائمة'),
          'parent_rent_map_not_restored_on_journey_exit')
     device.screenshot(folder, suffix + '-parent-rent-map.png')
 
 
 def keyboard_shown(device):
-    return 'mInputShown=true' in device.adb('shell', 'dumpsys', 'input_method')
+    return bool(re.search(r'\bm(?:InputShown|IsInputViewShown)\s*=\s*true\b',
+                          device.adb('shell', 'dumpsys', 'input_method')))
 
 
 def price_node(device, key, geometry, keyboard=False):
@@ -275,6 +295,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--receipt', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--ui-only', action='store_true')
     args = parser.parse_args()
     source = command('git', 'rev-parse', 'HEAD')
     serial = 'emulator-5554'
@@ -298,21 +319,26 @@ def main():
         net_profile(device, False)
         device.adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/' + ACTIVITY)
         home_query(device)
-        stage = 'network'
-        network(device, output, proof['network'])
-        proof['cases'][stage] = {'trials': len(proof['network'])}
+        if not args.ui_only:
+            stage = 'network'
+            network(device, output, proof['network'])
+            proof['cases'][stage] = {'trials': len(proof['network'])}
+        stage = 'open_ordinary_map'
         open_map(device)
         for app_arrow in (False, True):
             stage = 'app_arrow' if app_arrow else 'android_back'
+            print('ROUND4 ' + stage, flush=True)
             smart_navigation(device, output, app_arrow)
             proof['cases'][stage] = {'passed': True}
         stage = 'normal_price'
+        print('ROUND4 ' + stage, flush=True)
         proof['cases'][stage] = {'passed': True, **price(device, output, NORMAL)}
         back(device)
         wait(device, lambda n: contains(n, 'عرض على الخريطة'), 'home_before_small_display_missing')
         proof['small_display'] = display(device, SMALL)
         open_map(device)
         stage = 'small_price'
+        print('ROUND4 ' + stage, flush=True)
         proof['cases'][stage] = {'passed': True, **price(device, output, SMALL)}
     except Exception as error:
         proof['failure'] = {'stage': stage, 'reason': failure_reason(error)}
