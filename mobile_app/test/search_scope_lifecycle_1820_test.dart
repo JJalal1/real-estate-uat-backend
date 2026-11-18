@@ -13,6 +13,39 @@ const _place = HomeLocation(governorate: 'ذمار', governorateCode: 'YE-DH', l
 Future<void> _settle() => Future<void>.delayed(Duration.zero);
 
 void main() {
+  test('the map starts with matching settled Home pages and still queries its actual viewport', () async {
+    final viewport = Completer<(List<PropertySummary>, bool)>();
+    final repo = Wave3PropertiesFake()..onSearch = (filters, page) async =>
+        filters.containsKey('south') ? viewport.future : ([wave3Property(146 + page)], page == 1);
+    final home = SmartSearchSession(Wave3AiFake(), repo), map = SmartSearchSession(Wave3AiFake(), repo);
+    final owner = MarketplaceSearchController(home, map, () => _place);
+    addTearDown(() { owner.dispose(); home.dispose(); map.dispose(); });
+    owner.edit('20');
+    owner.applyFilters(SmartSearchFilters.fromMap({'purpose': 'rent'}));
+    await _settle();
+    await home.search(more: true);
+    final before = home.snapshot;
+    expect(repo.queries, hasLength(2));
+
+    owner.enterMap();
+    expect(repo.queries, hasLength(2));
+    expect(map.snapshot.rows.map((row) => row.id), [147, 148]);
+    expect(map.snapshot.page, 2);
+    expect(map.snapshot.loading, isFalse);
+
+    map.updateViewport(south: 15, west: 44, north: 16, east: 45);
+    expect(repo.queries, hasLength(3));
+    expect(map.snapshot.loading, isTrue);
+    expect(map.snapshot.rows.map((row) => row.id), [147, 148]);
+    expect(repo.queries.last.page, 1);
+    expect(repo.queries.last.filters, containsPair('purpose', 'rent'));
+    viewport.complete(([wave3Property(147)], false));
+    await _settle();
+    expect(map.snapshot.loading, isFalse);
+    expect(map.snapshot.rows.single.id, 147);
+    expect(home.snapshot, same(before));
+  });
+
   test('temporary map edits preserve the exact Home UI, pages and rows on return', () async {
     final repo = Wave3PropertiesFake()..onSearch = (filters, page) async =>
         ([wave3Property(filters['search'] == 'بحث الخريطة' ? 90 : page)], page == 1);

@@ -87,7 +87,7 @@ void main() {
     expect((await repository.searchListings({'type': 'apartment'})).$1, isEmpty);
   });
 
-  test('T07 T08 map copies multi types and budget once per owner entry without mutating Home', () async {
+  test('T07 T08 map copies matching Home results, multi types and budget without a duplicate request', () async {
     final properties = Wave3PropertiesFake(), scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties)]);
     await scope.read(authControllerProvider.future);
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
@@ -102,7 +102,8 @@ void main() {
     controller.leaveMap(); final token = controller.enterMap();
     expect(controller.enterMap(), token);
     await Future<void>.delayed(Duration.zero);
-    expect(properties.queries.length, before + 1);
+    expect(properties.queries.length, before);
+    expect(scope.read(marketplaceMapResultsProvider).rows, scope.read(homeSearchResultsProvider).rows);
     expect(scope.read(marketplaceMapResultsProvider).filters.selectedTypes, ['apartment', 'villa']);
     expect(scope.read(marketplaceMapResultsProvider).filters.apiFilters['max_monthly_rent'], 250000);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'), isFalse);

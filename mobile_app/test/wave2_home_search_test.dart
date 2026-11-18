@@ -105,7 +105,8 @@ void main() {
     expect(scope.read(marketplaceMapResultsProvider).filters.hasMapArea, isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('purpose'), isFalse);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('south'), isFalse);
-    expect(properties.calls, hasLength(callsBeforeReturn + 1));
+    expect(properties.calls, hasLength(callsBeforeReturn));
+    expect(scope.read(marketplaceMapResultsProvider).rows, scope.read(homeSearchResultsProvider).rows);
   });
 
   test('S10 S14 S20 entering map copies an unsent draft without replacing Home results', () async {

@@ -1,4 +1,4 @@
-name: Map and search UX 1820 with preserved compressed identity
+name: UAT round four fixes and signed APK
 'on':
   push:
     branches:
@@ -158,7 +158,7 @@ jobs:
         printf 'Behavioral test: %s\n' "${unique[@]}"
         flutter test "${unique[@]}" --reporter expanded --timeout 2m
   build:
-    name: Build the single compressed 1820 with the established durable UAT signer
+    name: Build the single compressed 1821 with the established durable UAT signer
     needs:
     - tests
     - signing_readiness
@@ -175,11 +175,11 @@ jobs:
       with:
         fetch-depth: 0
         persist-credentials: false
-    - name: Download the immutable verified 1819 baseline
+    - name: Download the immutable verified 1820 baseline
       uses: actions/download-artifact@v4
       with:
-        artifact-ids: '14362467229'
-        run-id: '44156549567'
+        artifact-ids: '14372604952'
+        run-id: '44183138283'
         repository: ${{ github.repository }}
         github-token: ${{ github.token }}
         merge-multiple: true
@@ -223,22 +223,22 @@ jobs:
       run: python3 -B scripts/import_ci_uat_signing.py --required
     - name: Require the imported certificate to match the approved public identity
       run: python3 -B scripts/uat_signing_identity.py --require-delivery-approval --verify-imported-environment
-    - name: Build 1820 with the retained compressed native profile and all three ABIs
+    - name: Build 1821 with the retained compressed native profile and all three ABIs
       working-directory: mobile_app
       env:
         AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
         AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
         AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
         ORG_GRADLE_PROJECT_AQER_UAT_COMPRESS_NATIVE_LIBS: 'true'
-      run: flutter build apk --flavor uat --release --no-pub --build-number=1820 --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1820 --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com --dart-define=AQER_RANKED_DISCOVERY=true
-    - name: Verify actual 1820 identity, baseline assets and native packaging
-      run: python3 -B scripts/verify_map_search_ux_apk.py --baseline-apk map-search-ux-baseline/AQER-UAT-1819-Clean.apk --baseline-receipt map-search-ux-baseline/APK_VERIFICATION.json
+      run: flutter build apk --flavor uat --release --no-pub --build-number=1821 --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1821 --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com --dart-define=AQER_RANKED_DISCOVERY=true --dart-define=AQER_MAP_SEARCH_TRACE=true
+    - name: Verify actual 1821 identity, baseline assets and native packaging
+      run: python3 -B scripts/verify_map_search_ux_apk.py --baseline-apk map-search-ux-baseline/AQER-UAT-1820-Map-Search.apk --baseline-receipt map-search-ux-baseline/APK_VERIFICATION.json --round4
     - uses: actions/upload-artifact@v4
       if: success() && github.event.repository.private
       with:
-        name: map-search-ux-1820-${{ github.sha }}
+        name: map-search-ux-1821-${{ github.sha }}
         path: |-
-          mobile_app/map-search-ux-proof/AQER-UAT-1820-Map-Search.apk
+          mobile_app/map-search-ux-proof/AQER-UAT-1821-Map-Search.apk
           mobile_app/map-search-ux-proof/APK_VERIFICATION.json
         retention-days: 14
         if-no-files-found: error
@@ -257,7 +257,7 @@ jobs:
         print('AQER_UAT_SIGNING_MATERIAL_REMOVED')
         PY
   upgrade:
-    name: Update ordinary 1819 to 1820 without deleting synthetic private data
+    name: Replace signed 1820 with 1821 and verify the reported Android journeys
     if: ${{ needs.build.result == 'success' && github.event.repository.private }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -292,34 +292,34 @@ jobs:
         ref: ${{ github.sha }}
         fetch-depth: 0
         persist-credentials: false
-    - name: Download the immutable verified 1819 baseline artifact
+    - name: Download the immutable verified 1820 baseline artifact
       uses: actions/download-artifact@v4
       with:
-        artifact-ids: '14362467229'
-        run-id: '44156549567'
+        artifact-ids: '14372604952'
+        run-id: '44183138283'
         repository: ${{ github.repository }}
         github-token: ${{ github.token }}
         merge-multiple: true
         path: map-search-ux-input/baseline
-    - name: Download the single verified 1820 candidate from the current run
+    - name: Download the single verified 1821 candidate from the current run
       uses: actions/download-artifact@v4
       with:
-        name: map-search-ux-1820-${{ github.sha }}
+        name: map-search-ux-1821-${{ github.sha }}
         path: map-search-ux-input/candidate
     - name: Reject unexpected artifact files before starting Android
       run: |
         python3 -B - <<'PYFILES'
         from pathlib import Path
         expected = {
-            'baseline': {'AQER-UAT-1819-Clean.apk', 'APK_VERIFICATION.json'},
-            'candidate': {'AQER-UAT-1820-Map-Search.apk', 'APK_VERIFICATION.json'},
+            'baseline': {'AQER-UAT-1820-Map-Search.apk', 'APK_VERIFICATION.json'},
+            'candidate': {'AQER-UAT-1821-Map-Search.apk', 'APK_VERIFICATION.json'},
         }
         for name, filenames in expected.items():
             root = Path('map-search-ux-input') / name
             entries = list(root.iterdir())
             if (root.is_symlink() or {path.name for path in entries} != filenames or
                 any(path.is_symlink() or not path.is_file() for path in entries)):
-                raise RuntimeError('only_verified_1819_1820_apk_and_public_receipt_allowed')
+                raise RuntimeError('only_verified_1820_1821_apk_and_public_receipt_allowed')
         print('AQER_MAP_SEARCH_UX_ARTIFACT_CONTENTS_VERIFIED')
         PYFILES
     - name: Reclaim unused SDK space on the disposable runner
@@ -346,7 +346,7 @@ jobs:
         from pathlib import Path
         import sys
         path = Path(sys.argv[1])
-        values = {'hw.lcd.width': '540', 'hw.lcd.height': '960', 'hw.lcd.density': '210',
+        values = {'hw.lcd.width': '1080', 'hw.lcd.height': '1920', 'hw.lcd.density': '420',
                   'showDeviceFrame': 'no', 'hw.camera.back': 'none', 'hw.camera.front': 'none',
                   'disk.dataPartition.size': '2048M'}
         lines = [line for line in path.read_text().splitlines() if line.split('=', 1)[0].strip() not in values]
@@ -364,22 +364,25 @@ jobs:
           sleep 2
         done
         if [ "$SECONDS" -ge "$deadline" ]; then cat "$RUNNER_TEMP/map-search-ux-emulator.log"; adb -s emulator-5554 shell getprop sys.boot_completed || true; exit 1; fi
-    - name: Replace ordinary 1819 with 1820 without uninstall or data reset
+    - name: Replace ordinary 1820 with 1821 without uninstall or data reset
       run: |
         python3 -B scripts/probe_map_search_ux_upgrade.py \
-          --baseline-apk map-search-ux-input/baseline/AQER-UAT-1819-Clean.apk \
+          --baseline-apk map-search-ux-input/baseline/AQER-UAT-1820-Map-Search.apk \
           --baseline-receipt map-search-ux-input/baseline/APK_VERIFICATION.json \
-          --candidate-apk map-search-ux-input/candidate/AQER-UAT-1820-Map-Search.apk \
+          --candidate-apk map-search-ux-input/candidate/AQER-UAT-1821-Map-Search.apk \
           --candidate-receipt map-search-ux-input/candidate/APK_VERIFICATION.json \
           --source "$UPGRADE_SOURCE_SHA" --serial emulator-5554 \
-          --output map-search-ux-upgrade-proof
-    - name: Preserve public update receipt and synthetic guest UI screenshots
+          --output map-search-ux-upgrade-proof --round4
+    - name: Replay round-four cases on the same installed signed APK
+      run: python3 -B scripts/probe_map_search_round4.py --receipt map-search-ux-input/candidate/APK_VERIFICATION.json --output map-search-ux-upgrade-proof
+    - name: Preserve update, Android UI and network evidence
       uses: actions/upload-artifact@v4
       if: always() && steps.context.outcome == 'success' && github.event.repository.private
       with:
         name: map-search-ux-upgrade-${{ github.sha }}
         path: |
           map-search-ux-upgrade-proof/ANDROID_MAP_SEARCH_UX_UPGRADE.json
+          map-search-ux-upgrade-proof/ANDROID_ROUND4.json
           map-search-ux-upgrade-proof/*.png
         retention-days: 14
         if-no-files-found: warn

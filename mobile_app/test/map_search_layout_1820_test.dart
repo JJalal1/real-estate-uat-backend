@@ -135,6 +135,67 @@ void main() {
     await closeUx(tester);
   });
 
+  for (final (resolution, density, scale, keyboard) in [
+    (const Size(1080, 1920), 420, 1.0, 0.0),
+    (const Size(720, 1280), 360, 1.8, 496.0),
+  ]) {
+    testWidgets('rejected price remains readable with both values at ${resolution.width.toInt()}px density $density', (tester) async {
+      final properties = Listings();
+      final scope = uxContainer(extra: [
+        propertyRepositoryProvider.overrideWithValue(properties),
+        sharedSearchMapBuilderProvider.overrideWithValue((_, __, ___, ____) => const ColoredBox(color: Colors.teal)),
+      ]);
+      final owner = scope.read(marketplaceSearchControllerProvider.notifier);
+      owner.applyFilters(SmartSearchFilters.fromMap({'purpose': 'rent', 'min_price': keyboard > 0 ? 177000 : 1000000}));
+      final pixelRatio = density / 160;
+      tester.view.padding = FakeViewPadding(top: 24 * pixelRatio);
+      addTearDown(tester.view.resetPadding);
+      await pumpUx(tester, scope, const MarketplaceSearchMapScreen(),
+        size: resolution / pixelRatio, devicePixelRatio: pixelRatio, scale: scale);
+      await tester.pumpAndSettle();
+
+      final minimum = find.byKey(const ValueKey('published-filter-min-price'));
+      final maximum = find.byKey(const ValueKey('published-filter-max-price'));
+      await tester.ensureVisible(maximum);
+      await tester.tap(maximum);
+      tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
+      await tester.enterText(maximum, '100000');
+      if (keyboard == 0) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+      }
+      final previous = scope.read(marketplaceMapResultsProvider);
+      final requests = properties.calls.length;
+      await _tap(tester, 'published-price-apply');
+      expect(scope.read(marketplaceMapResultsProvider), same(previous));
+      expect(properties.calls.length, requests);
+
+      final error = find.text('الحد الأدنى يجب ألا يتجاوز الحد الأعلى.');
+      final controls = tester.getRect(find.byKey(const ValueKey('map-top-search-region')));
+      for (final widget in [minimum, maximum, error]) {
+        final rect = tester.getRect(widget);
+        expect(rect.top, greaterThanOrEqualTo(controls.top - 1));
+        expect(rect.bottom, lessThanOrEqualTo(controls.bottom + 1));
+      }
+      for (final field in [minimum, maximum]) {
+        final text = find.descendant(of: field, matching: find.byType(EditableText));
+        final editor = tester.state<EditableTextState>(text);
+        final painter = TextPainter(text: editor.renderEditable.text, textDirection: TextDirection.ltr,
+          textScaler: editor.renderEditable.textScaler, maxLines: 1)..layout();
+        expect(painter.width + 2, lessThanOrEqualTo(editor.renderEditable.size.width));
+        painter.dispose();
+      }
+      await tester.enterText(maximum, '١٠٠٠٠٠٠');
+      await _tap(tester, 'published-price-apply');
+      expect(error, findsNothing);
+      expect(owner.uiFor(onMap: true).criteria.values['max_price'], 1000000);
+      expect(tester.takeException(), isNull);
+      await closeUx(tester);
+    });
+  }
+
   for (final dark in [false, true]) {
     testWidgets('360px map keeps the top price editor usable with keyboard and preserves the dragged results extent dark=$dark', (tester) async {
       final properties = Listings();

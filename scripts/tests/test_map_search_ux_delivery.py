@@ -85,6 +85,21 @@ class ContextGuards(unittest.TestCase):
 
 
 class InstallerAndSourceGuards(unittest.TestCase):
+    def test_round_four_requires_the_exact_signed_1820_predecessor(self):
+        absolute = {**receipt(1820), 'source_commit': build.ROUND4_BASE_SOURCE,
+                    'bytes': build.ROUND4_BASE_BYTES, 'sha256': build.ROUND4_BASE_SHA256}
+        candidate = receipt(build.ROUND4_VERSION)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'receipt.json'
+            path.write_text(json.dumps(absolute))
+            self.assertEqual(build.baseline_receipt(path, round4=True), absolute)
+            upgrade.validate_receipts([absolute, candidate], SOURCE, round4=True)
+            path.write_text(json.dumps({**absolute, 'sha256': 'c' * 64}))
+            with self.assertRaises(build.CleanupError):
+                build.baseline_receipt(path, round4=True)
+            with self.assertRaises(upgrade.UpgradeError):
+                upgrade.validate_receipts([receipt(1819), candidate], SOURCE, round4=True)
+
     def test_baseline_public_receipt_is_immutable_and_duplicate_keys_fail(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'receipt.json'

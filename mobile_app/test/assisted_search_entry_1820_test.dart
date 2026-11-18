@@ -8,6 +8,7 @@ import 'package:real_estate_mobile/features/discovery/data/marketplace_search_se
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/home_ai_search_entry.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/router/app_router.dart';
@@ -166,4 +167,79 @@ void main() {
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });
+
+  for (final androidBack in [true, false]) {
+    testWidgets('Dhamar search 20 returns from 147 and the child map by ${androidBack ? 'Android Back' : 'the app arrow'}', (tester) async {
+      final properties = Wave3PropertiesFake()..onSearch = (filters, _) async =>
+        ([
+          wave3Property(147),
+          if (filters['purpose'] != 'rent') wave3Property(146),
+        ], false);
+      final scope = uxContainer(extra: [
+        propertyRepositoryProvider.overrideWithValue(properties),
+        homeLocationProvider.overrideWith((ref) => _dhamar),
+        homeLocationsProvider.overrideWith((ref) async => const [_dhamar]),
+        sharedSearchMapBuilderProvider.overrideWithValue((_, __, ___, ____) => const ColoredBox(color: Colors.teal)),
+      ]);
+      final owner = scope.read(marketplaceSearchControllerProvider.notifier);
+      owner.edit('20');
+      owner.applyFilters(SmartSearchFilters.fromMap({'purpose': 'rent'}));
+      final navigation = GoRouter(routes: [
+        GoRoute(path: '/', builder: (_, __) => const MarketplaceSearchMapScreen()),
+        GoRoute(path: '/properties/:id', builder: (_, state) => Scaffold(
+          appBar: AppBar(title: Text('عقار ${state.pathParameters['id']}')))),
+      ]);
+      addTearDown(navigation.dispose);
+      await pumpUx(tester, scope, const SizedBox(), router: navigation);
+      await tester.pumpAndSettle();
+      final parent = scope.read(marketplaceMapResultsProvider);
+      expect(parent.filters.values, containsPair('search', '20'));
+      expect(parent.filters.values, containsPair('purpose', 'rent'));
+
+      Future<void> back() async {
+        if (androidBack) {
+          await tester.binding.handlePopRoute();
+        } else {
+          await tester.tap(find.byType(BackButton));
+        }
+        await tester.pumpAndSettle();
+      }
+
+      await tester.tap(find.byKey(const ValueKey('map-smart-search')));
+      await tester.pumpAndSettle();
+      expect(scope.read(smartSearchSessionProvider).filters.sameAs(parent.filters), isTrue);
+      await tester.tap(find.byKey(const ValueKey('smart-chip-remove-purpose')));
+      await tester.pumpAndSettle();
+      final edited = scope.read(smartSearchSessionProvider);
+      expect(edited.filters.values.containsKey('purpose'), isFalse);
+      expect(edited.rows.map((row) => row.id), [147, 146]);
+
+      final mapButton = find.byKey(const ValueKey('smart-search-map'));
+      await tester.ensureVisible(mapButton);
+      await tester.tap(mapButton);
+      await tester.pumpAndSettle();
+      await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -260));
+      await tester.pumpAndSettle();
+      final card = find.byKey(const ValueKey('map-result-147'));
+      await tester.ensureVisible(card);
+      await tester.tap(find.descendant(of: card, matching: find.text('عقار تجريبي 147')));
+      await tester.pumpAndSettle();
+      expect(find.text('عقار 147'), findsOneWidget);
+      await back();
+      expect(find.byKey(const ValueKey('smart-search-list')), findsOneWidget);
+      expect(scope.read(smartSearchSessionProvider), same(edited));
+      await back();
+      expect(find.text('البحث الذكي'), findsOneWidget);
+      expect(find.byKey(const ValueKey('smart-chip-remove-purpose')), findsNothing);
+      expect(scope.read(smartSearchSessionProvider), same(edited));
+      expect(scope.read(marketplaceMapResultsProvider), same(parent));
+
+      await back();
+      expect(find.text('البحث على الخريطة'), findsOneWidget);
+      expect(scope.read(marketplaceMapResultsProvider), same(parent));
+      expect(scope.read(smartSearchSessionProvider).started, isFalse);
+      expect(tester.takeException(), isNull);
+      await closeUx(tester);
+    });
+  }
 }

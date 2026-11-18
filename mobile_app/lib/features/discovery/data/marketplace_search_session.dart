@@ -8,13 +8,15 @@ import 'ai_repository.dart';
 import 'marketplace_repository.dart';
 import 'smart_search_session.dart';
 
-SmartSearchSession _results(Ref ref) {
+SmartSearchSession _results(Ref ref, {bool traceMapResults = false}) {
   ref.watch(authControllerProvider.select((value) =>
     (value.asData?.value?.id, Stage6SecureSessionStore.instance.sessionEpoch)));
-  return SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider));
+  return SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
+    traceMapResults: traceMapResults);
 }
 final homeSearchResultsProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>(_results);
-final marketplaceMapResultsProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>(_results);
+final marketplaceMapResultsProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>(
+  (ref) => _results(ref, traceMapResults: true));
 
 /// Home owns these fields. The optional map editor is a temporary child copy,
 /// never an alternative value for Home's query, criteria, or offline snapshot.
@@ -250,7 +252,10 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
             ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || key == 'search')));
     state = state.copyWith(mapOpen: true, mapEditor: editor);
     _lastMapSubmit = initial.signature;
-    _mapResultsJourney = map.beginJourney(entryFilters: initial);
+    // A settled Home result with exactly these criteria is already the first
+    // map snapshot. A native camera change will still fetch its actual bounds.
+    _mapResultsJourney = map.beginJourney(entryFilters: initial,
+      initialResults: filters == null ? home.snapshot : null);
     return token;
   }
   void leaveMap([int? token]) {

@@ -7,14 +7,16 @@ import 'package:flutter/services.dart';
 /// search text, headers, tokens, response bodies or account identifiers.
 abstract final class UatNetworkTrace {
   static const requested = bool.fromEnvironment('AQER_NATIVE_NETWORK_TRACE');
-  static bool get enabled => requested &&
-      const String.fromEnvironment('APP_ENVIRONMENT').trim().toLowerCase() == 'uat';
+  static const _mapRequested = bool.fromEnvironment('AQER_MAP_SEARCH_TRACE');
+  static bool get _isUat => const String.fromEnvironment('APP_ENVIRONMENT').trim().toLowerCase() == 'uat';
+  static bool get enabled => requested && _isUat;
+  static bool get mapEnabled => _mapRequested && _isUat;
   static const _channel = MethodChannel('real_estate/network');
   static const variants = {'thumb', 'card', 'preview', 'detail', 'gallery', 'zoom'};
   static int _nextImageSequence = 0;
 
   static void emit(Map<String, Object> measurement) {
-    if (!enabled) return;
+    if (!enabled && !(mapEnabled && measurement['resource'] == 3)) return;
     unawaited(_channel.invokeMethod<void>('uatNetworkTrace', measurement)
         .catchError((Object _) {}));
   }
@@ -58,6 +60,45 @@ abstract final class UatNetworkTrace {
     return {'resource': 2, 'phase': 2, 'media': int.parse(uri.pathSegments.last),
       'variant': uri.queryParameters['variant']!, 'bytes': bytes,
       'elapsedMs': elapsedMs, 'status': status};
+  }
+}
+
+enum UatMapPhase {
+  searchStarted, httpStarted, httpDecoded, resultsApplied, frameRendered,
+  resultsFailed, cancelled, markersCommitted,
+}
+
+/// One clock follows a public map query through HTTP, the offline checkpoint
+/// and the first frame. Only numeric timings and status leave the app.
+class UatMapRequestTiming {
+  UatMapRequestTiming._(this._page) : _sequence = ++_nextSequence;
+  static final _transfers = Expando<UatMapRequestTiming>();
+  static int _nextSequence = 0;
+  final int _page, _sequence;
+  final _clock = Stopwatch()..start();
+  final _recorded = <UatMapPhase>{};
+
+  static UatMapRequestTiming? start(CancelToken token, int page) {
+    if (!UatNetworkTrace.mapEnabled) return null;
+    final timing = _transfers[token] = UatMapRequestTiming._(page);
+    timing.mark(UatMapPhase.searchStarted);
+    unawaited(token.whenCancel.then((_) {
+      if (!timing._recorded.contains(UatMapPhase.resultsApplied) &&
+          !timing._recorded.contains(UatMapPhase.resultsFailed)) {
+        timing.mark(UatMapPhase.cancelled);
+      }
+    }));
+    return timing;
+  }
+
+  static UatMapRequestTiming? of(CancelToken? token) =>
+    UatNetworkTrace.mapEnabled && token != null ? _transfers[token] : null;
+
+  void mark(UatMapPhase phase, {int status = 0}) {
+    if (phase == UatMapPhase.httpDecoded && !_recorded.contains(UatMapPhase.httpStarted)) return;
+    if (!_recorded.add(phase)) return;
+    UatNetworkTrace.emit({'resource': 3, 'seq': _sequence, 'page': _page,
+      'phase': phase.index + 1, 'elapsedMs': _clock.elapsedMilliseconds, 'status': status});
   }
 }
 

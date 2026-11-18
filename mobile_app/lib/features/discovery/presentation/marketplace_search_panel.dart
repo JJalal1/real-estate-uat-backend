@@ -31,6 +31,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
   final _text = TextEditingController();
   final _focus = FocusNode();
   final _minPrice = TextEditingController(), _maxPrice = TextEditingController();
+  final _priceFields = GlobalKey();
   String? _priceSignature, _priceError;
   bool _priceDirty = false;
   @override
@@ -197,8 +198,12 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
     final signature = '${filters.values['min_price']}:${filters.values['max_price']}:${filters.values['currency']}';
     if (_priceSignature == signature) return;
     _priceSignature = signature;
-    _minPrice.text = filters.values['min_price']?.toString() ?? '';
-    _maxPrice.text = filters.values['max_price']?.toString() ?? '';
+    String priceText(Object? value) {
+      if (value is double && value == value.truncateToDouble()) return value.toStringAsFixed(0);
+      return value?.toString() ?? '';
+    }
+    _minPrice.text = priceText(filters.values['min_price']);
+    _maxPrice.text = priceText(filters.values['max_price']);
     _priceDirty = false;
     _priceError = null;
   }
@@ -217,14 +222,14 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
       if (field.value.text.trim().isEmpty) { next.remove(field.key); continue; }
       final amount = double.tryParse(_budgetDigits(field.value.text));
       if (amount == null || !amount.isFinite || amount < 0 || amount > 1000000000000) {
-        setState(() => _priceError = 'أدخل أرقامًا صحيحة للغرف والمساحة والميزانية.');
+        _showPriceError('أدخل أرقامًا صحيحة للسعر.');
         return null;
       }
       next[field.key] = amount;
     }
     if (next['min_price'] is num && next['max_price'] is num &&
         (next['min_price'] as num) > (next['max_price'] as num)) {
-      setState(() => _priceError = 'الحد الأدنى يجب ألا يتجاوز الحد الأعلى.');
+      _showPriceError('الحد الأدنى يجب ألا يتجاوز الحد الأعلى.');
       return null;
     }
     return next;
@@ -240,28 +245,59 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
     return true;
   }
 
+  void _showPriceError(String message) {
+    setState(() => _priceError = message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final fields = _priceFields.currentContext;
+      if (fields != null && mounted && _priceError == message) {
+        unawaited(Scrollable.ensureVisible(fields, alignment: 1));
+      }
+    });
+  }
+
   Widget _priceRange(SmartSearchFilters filters) {
-    Widget input(String name, TextEditingController text, String label) => Expanded(child: TextField(
+    final theme = Theme.of(context);
+    final valueStyle = theme.textTheme.bodyLarge;
+    Widget input(String name, TextEditingController text, String label) => Semantics(
+      identifier: 'published-filter-$name', child: TextField(
       key: ValueKey('published-filter-$name'), controller: text,
       maxLines: 1, maxLength: 24, textInputAction: TextInputAction.done,
+      style: valueStyle, textDirection: TextDirection.ltr, textAlign: TextAlign.right,
+      scrollPadding: const EdgeInsets.symmetric(vertical: 8),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: (_) => setState(() { _priceDirty = true; _priceError = null; }),
       onSubmitted: (_) { if (_applyPriceRange()) FocusScope.of(context).unfocus(); },
-      decoration: InputDecoration(labelText: label, counterText: '', isDense: true)));
-    return Padding(padding: const EdgeInsets.only(top: 4), child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        Align(alignment: AlignmentDirectional.centerStart, child: TextButton(
-          key: const ValueKey('published-filter-currency'), onPressed: () => _editFilters('budget'),
-          child: Text('${filters.values['purpose'] == 'rent' ? 'الإيجار الشهري' : 'السعر'} · ${filters.currencyLabel}'))),
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          input('min-price', _minPrice, 'من'), const SizedBox(width: 8),
-          input('max-price', _maxPrice, 'إلى'), const SizedBox(width: 4),
-          IconButton(key: const ValueKey('published-price-apply'), tooltip: 'تطبيق نطاق السعر',
-            onPressed: () { if (_applyPriceRange()) FocusScope.of(context).unfocus(); }, icon: const Icon(Icons.check)),
+      decoration: InputDecoration(labelText: label, counterText: '', isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12))));
+    return Padding(padding: const EdgeInsets.only(top: 4), child: LayoutBuilder(builder: (context, constraints) {
+      final sample = TextPainter(text: TextSpan(text: '1000000', style: valueStyle),
+        textDirection: TextDirection.ltr, textScaler: MediaQuery.textScalerOf(context))..layout();
+      final pairWidth = (sample.width + 18) * 2 + 8;
+      sample.dispose();
+      final sideBySide = constraints.maxWidth >= pairWidth;
+      final inlineApply = constraints.maxWidth >= pairWidth + 52;
+      final minimum = input('min-price', _minPrice, 'من');
+      final maximum = input('max-price', _maxPrice, 'إلى');
+      final apply = Semantics(identifier: 'published-price-apply', child: IconButton(
+        key: const ValueKey('published-price-apply'), tooltip: 'تطبيق نطاق السعر',
+        onPressed: () { if (_applyPriceRange()) FocusScope.of(context).unfocus(); }, icon: const Icon(Icons.check)));
+      final currency = Align(alignment: AlignmentDirectional.centerStart, child: TextButton(
+        key: const ValueKey('published-filter-currency'), onPressed: () => _editFilters('budget'),
+        child: Text('${filters.values['purpose'] == 'rent' ? 'الإيجار الشهري' : 'السعر'} · ${filters.currencyLabel}')));
+      final fields = sideBySide
+        ? Row(children: [Expanded(child: minimum), const SizedBox(width: 8), Expanded(child: maximum)])
+        : Column(children: [minimum, const SizedBox(height: 8), maximum]);
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (inlineApply) currency else Row(children: [Expanded(child: currency), apply]),
+        Column(key: _priceFields, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (inlineApply) Row(children: [Expanded(child: fields), const SizedBox(width: 4), apply]) else fields,
+          if (_priceError case final message?)
+            Padding(padding: const EdgeInsets.only(top: 6), child: Semantics(liveRegion: true,
+              child: Text(message, key: const ValueKey('published-price-error'),
+                style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error)))),
         ]),
-        if (_priceError != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_priceError!,
-          key: const ValueKey('published-price-error'), style: TextStyle(color: Theme.of(context).colorScheme.error))),
-      ]));
+      ]);
+    }));
   }
 
 }

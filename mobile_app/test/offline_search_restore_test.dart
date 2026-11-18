@@ -62,7 +62,9 @@ void main() {
     expect(home.snapshot.rows.map((r) => r.id), [1, 2]);
     expect(map.snapshot.filters.hasMapArea, isFalse);
     expect(map.snapshot.filters.values['governorate_code'], 'YE-DH');
-    expect(map.snapshot.rows.map((r) => r.id), [1]);
+    expect(map.snapshot.rows.map((r) => r.id), [1, 2]);
+    expect(map.snapshot.page, 2);
+    expect(repo.queries.map((query) => query.page), [1, 2]);
     controller.leaveMap(token);
     await Future<void>.delayed(Duration.zero);
     expect(map.snapshot.rows, isEmpty);

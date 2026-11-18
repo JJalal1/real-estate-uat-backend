@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify one 1820 UAT installer against the immutable compressed 1819 baseline.
+"""Verify a map UX UAT installer against its pinned compressed predecessor.
 
 UI Dart changes are expected. Assets, Android source/build configuration,
 dependencies and backend remain pinned. Never creates/exports a signing key.
@@ -25,6 +25,10 @@ BASE_SOURCE = 'c0629a48c2431748b5d5ac1b5d6edb9318946fa8'
 BASE_SHA256 = '13af0b61df2266735030718d8f2354e332ae4d7a2e1f67acfef1b222c3644fdb'
 BASE_BYTES = 45190809
 VERSION = 1820
+ROUND4_VERSION = 1821
+ROUND4_BASE_SOURCE = '8cdcc2b6de2146a0eca8390c7db82ae511c5113e'
+ROUND4_BASE_SHA256 = '61ef6c5a1598666ab91e74c4552b1cc450cad55548585330bd35bffa517c4b18'
+ROUND4_BASE_BYTES = 45222939
 GENERATED_ICON_SUBSET = 'assets/flutter_assets/fonts/MaterialIcons-Regular.otf'
 PROTECTED = ('mobile_app/assets', 'mobile_app/android', 'mobile_app/pubspec.yaml',
              'mobile_app/pubspec.lock', 'backend-api-runtime', 'docs/uat-signing-identity.json')
@@ -41,8 +45,8 @@ def guard(env, source, identity):
     verify_imported_environment(identity, env)
 
 
-def baseline_receipt(path):
-    require(path.stat().st_size <= 128 * 1024, 'oversized_1819_public_receipt')
+def baseline_receipt(path, *, round4=False):
+    require(path.stat().st_size <= 128 * 1024, 'oversized_public_baseline_receipt')
     def unique(pairs):
         out = {}
         for key, value in pairs:
@@ -50,15 +54,17 @@ def baseline_receipt(path):
             out[key] = value
         return out
     value = json.loads(path.read_text(), object_pairs_hook=unique)
-    expected = {'source_commit': BASE_SOURCE, 'version_code': 1819, 'package': PACKAGE,
+    expected = {'source_commit': ROUND4_BASE_SOURCE if round4 else BASE_SOURCE,
+                'version_code': VERSION if round4 else 1819, 'package': PACKAGE,
                 'api': API, 'application_name': APP_NAME,
-                'signer_certificate_sha256': CERTIFICATE, 'sha256': BASE_SHA256,
-                'bytes': BASE_BYTES, 'native_library_compression': 'deflated',
+                'signer_certificate_sha256': CERTIFICATE,
+                'sha256': ROUND4_BASE_SHA256 if round4 else BASE_SHA256,
+                'bytes': ROUND4_BASE_BYTES if round4 else BASE_BYTES, 'native_library_compression': 'deflated',
                 'extract_native_libs': True, 'approved_for_delivery': True,
                 'github_secret_storage_verified': True, 'debug_signing_allowed': False}
     require(isinstance(value, dict) and all(value.get(k) == v and type(value.get(k)) is type(v)
                                           for k, v in expected.items()),
-            'exact_verified_1819_baseline_receipt_required')
+            'exact_verified_baseline_receipt_required')
     return value
 
 
@@ -81,10 +87,10 @@ def compare_runtime_resources(before, after):
                        'scope': 'Generated SDK icon subset may follow authorized UI glyph changes. Source assets/fonts remain pinned; no original photo/font replacement.'}
 
 
-def source_guards(source):
+def source_guards(source, *, baseline_source=BASE_SOURCE):
     protected = {}
     for path in PROTECTED:
-        old = call('git', 'rev-parse', f'{BASE_SOURCE}:{path}').strip()
+        old = call('git', 'rev-parse', f'{baseline_source}:{path}').strip()
         current = call('git', 'rev-parse', f'{source}:{path}').strip()
         require(old == current and re.fullmatch(r'[a-f0-9]{40}', old),
                 'ux1820_protected_assets_android_dependencies_or_backend_changed')
@@ -100,21 +106,23 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline-apk', required=True)
     parser.add_argument('--baseline-receipt', required=True)
+    parser.add_argument('--round4', action='store_true')
     args = parser.parse_args(argv)
     identity = load_public_identity(require_approval=True)
     source = call('git', 'rev-parse', 'HEAD').strip()
     guard(os.environ, source, identity)
-    protected = source_guards(source)
+    version = ROUND4_VERSION if args.round4 else VERSION
+    protected = source_guards(source, baseline_source=ROUND4_BASE_SOURCE if args.round4 else BASE_SOURCE)
     baseline = regular_input(args.baseline_apk, '.apk')
-    metadata = baseline_receipt(regular_input(args.baseline_receipt, '.json'))
-    require(baseline.stat().st_size == BASE_BYTES and digest(baseline) == BASE_SHA256,
-            'ux1820_baseline_apk_size_or_digest_mismatch')
+    metadata = baseline_receipt(regular_input(args.baseline_receipt, '.json'), round4=args.round4)
+    require(baseline.stat().st_size == metadata['bytes'] and digest(baseline) == metadata['sha256'],
+            'baseline_apk_size_or_digest_mismatch')
     candidate = regular_input(ROOT / 'mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk', '.apk')
     lock = ROOT / 'mobile_app/pubspec.lock'
     call(sys.executable, ROOT / 'scripts/verify_v3_dependency_lock.py', '--resolved', lock, '--cleanup1818')
     tools = android_tools(Path(os.environ['ANDROID_HOME']))
-    for apk, version in ((baseline, 1819), (candidate, VERSION)):
-        verify_android_identity(apk, tools, version)
+    for apk, code in ((baseline, metadata['version_code']), (candidate, version)):
+        verify_android_identity(apk, tools, code)
         manifest = call(tools / 'aapt', 'dump', 'xmltree', apk, 'AndroidManifest.xml')
         require(extract_native_libs(manifest), 'ux1820_compressed_native_extraction_required')
     # This existing helper's candidate_version parameter selects packaging mode;
@@ -125,9 +133,9 @@ def main(argv=None):
     output = ROOT / 'mobile_app/map-search-ux-proof'
     output.mkdir(mode=0o700)
     try:
-        apk = output / 'AQER-UAT-1820-Map-Search.apk'
+        apk = output / f'AQER-UAT-{version}-Map-Search.apk'
         shutil.copy2(candidate, apk)
-        record = {'schema': 1, 'source_commit': source, 'version_code': VERSION,
+        record = {'schema': 1, 'source_commit': source, 'version_code': version,
                   'mobile_component': call('git', 'rev-parse', f'{source}:mobile_app').strip(),
                   'backend_component': protected['backend-api-runtime'],
                   'package': PACKAGE, 'application_name': APP_NAME, 'sha256': digest(apk),
@@ -144,7 +152,8 @@ def main(argv=None):
                   'retained_flutter_maplibre_datastore_sha256': preserved,
                   'generated_material_icon_subset': icon_subset,
                   'dependency_lock_guard_verified': True, 'resolved_dependency_lock_sha256': digest(lock),
-                  'intended_change_scope': 'Owner-authorized map/search layout, source-scoped sessions, regional hints and removal of automatic location introduction. Dart/AOT changes expected.',
+                  'intended_change_scope': ('Round four back navigation, inline price validation and map response timing.'
+                                            if args.round4 else 'Owner-authorized map/search layout, source-scoped sessions and regional hints.'),
                   'installed_device_upgrade_tested': False,
                   'physical_phone_acceptance': False, 'backend_deployed': False,
                   'private_signing_material_in_artifacts': False,

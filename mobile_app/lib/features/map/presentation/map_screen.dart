@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/platform/uat_network_trace.dart';
 import '../../../core/theme/app_theme.dart';
 import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
@@ -921,6 +922,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (controller == null || !_styleLoaded) return;
 
     final generation = _annotationGeneration, style = _styleGeneration;
+    final session = UatNetworkTrace.mapEnabled && widget.sharedSearchJourney
+      ? ref.read(_searchSession.notifier) : null;
+    final timing = session?.resultTiming;
     final visible = propertyMarkersForAnnotations(items);
     final zoom = controller.cameraPosition?.zoom ?? 13.5;
     final clusters = clusterPropertyMarkers(
@@ -1033,6 +1037,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       }
 
       if (!mounted || generation != _annotationGeneration) return;
+      if (_mapSymbols.isNotEmpty && timing != null && identical(session?.resultTiming, timing)) {
+        timing.mark(UatMapPhase.markersCommitted);
+      }
       if (_mapMessage == 'تعذر تحديث أسعار العقارات على الخريطة.') {
         setState(() => _mapMessage = null);
       }
@@ -1684,6 +1691,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _sharedJourney() {
     final state=ref.watch(_searchSession);
+    if (UatNetworkTrace.mapEnabled && !state.loading && state.started) {
+      final session = ref.read(_searchSession.notifier);
+      final timing = session.resultTiming;
+      if (timing != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_journeyCurrent && identical(session.snapshot, state)) {
+            timing.mark(UatMapPhase.frameRendered);
+          }
+        });
+      }
+    }
     ref.listen<SmartSearchState>(_searchSession, (before, after) {
       if (before?.filters.values['area_polygon'] == after.filters.values['area_polygon']) return;
       final encoded = after.filters.values['area_polygon'];
@@ -1768,9 +1786,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ]));
       });
       if (!widget.toolbarAboveMap || toolbar == null) return map;
+      final toolbarHeight = keyboard
+        ? (viewport.maxHeight - 72).clamp(viewport.maxHeight * .42, viewport.maxHeight * .75).toDouble()
+        : viewport.maxHeight * .42;
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         ConstrainedBox(key: const ValueKey('map-top-search-region'),
-          constraints: BoxConstraints(maxHeight: math.min(viewport.maxHeight * .42, 280.0)),
+          constraints: BoxConstraints(maxHeight: math.min(toolbarHeight, keyboard ? 340.0 : 280.0)),
           child: SingleChildScrollView(key: const ValueKey('map-top-search-scroll'),
             padding: const EdgeInsets.fromLTRB(10, 4, 10, 6), child: toolbar)),
         Expanded(child: map),

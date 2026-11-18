@@ -45,7 +45,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   int? _visibleActor;
   int _visibleEpoch = 0;
   int _journey = 0;
-  bool _ready = false, _mapMode = false;
+  bool _ready = false;
+  LocalHistoryEntry? _mapHistory;
   bool _journeyEnded = false;
 
   @override
@@ -55,7 +56,6 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     _entryActor = ref.read(authControllerProvider).asData?.value?.id;
     _visibleActor = _entryActor;
     _entryEpoch = _visibleEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    _mapMode = widget.initialMapMode;
     Future.microtask(() {
       if (!mounted || _journeyEnded) return;
       final sameActor = _entryActor == ref.read(authControllerProvider).asData?.value?.id &&
@@ -64,6 +64,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       _journey = _journeySession.beginJourney(
         savedFilters: !sameActor || widget.savedSearch == null ? null : SmartSearchFilters.fromApiFilters(widget.savedSearch!.filters),
         entryFilters: sameActor ? widget.entryFilters : null);
+      if (widget.initialMapMode) unawaited(_openMap());
       setState(() => _ready = true);
     });
     _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
@@ -78,7 +79,16 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     setState(() {});
   }
   @override
-  void dispose() { _capture.removeListener(_voiceChanged); _endJourney(); _capture.dispose(); _description.dispose(); _scroll.dispose(); _focus.dispose(); super.dispose(); }
+  void dispose() {
+    _capture.removeListener(_voiceChanged);
+    _endJourney();
+    _showList();
+    _capture.dispose();
+    _description.dispose();
+    _scroll.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
 
   void _endJourney() {
     _journeyEnded = true;
@@ -163,16 +173,30 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   }
 
   Future<void> _openMap() async {
-    if (_journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
+    if (_mapHistory != null || _journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
+    final route = ModalRoute.of(context);
+    if (route == null) return;
     if (_capture.active) _cancelVoice();
+    _focus.unfocus();
     _session.setDraftText(_description.text);
-    setState(() => _mapMode = !_mapMode);
+    // Back consumes the inline map first. Details still own their own route,
+    // and MapScreen can cancel an active drawing before this entry is popped.
+    final entry = LocalHistoryEntry(onRemove: () {
+      _mapHistory = null;
+      if (!mounted || _journeyEnded) return;
+      if (_capture.active) _cancelVoice();
+      setState(() {});
+    });
+    setState(() => _mapHistory = entry);
+    route.addLocalHistoryEntry(entry);
   }
+
+  void _showList() => _mapHistory?.remove();
 
   Future<void> _focusAssistant() async {
     if (!mounted || _journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
     if (_capture.active) _cancelVoice();
-    if (_mapMode) setState(() => _mapMode = false);
+    _showList();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _journeyEnded) return;
       if (_scroll.hasClients) _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
@@ -239,15 +263,15 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (ModalRoute.of(context)?.isCurrent == false && _capture.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _capture.active) _cancelVoice(); });
     }
-    if (_mapMode) {
+    if (_mapHistory != null) {
       final mapOwner = _journeySession, mapJourney = _journey;
       final mapActor = _visibleActor, mapEpoch = _visibleEpoch;
       return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
-      appBar:AppAppBar(title:'البحث على الخريطة',actions:[TextButton(key:const ValueKey('smart-search-list'),onPressed:_openMap,child:const Text('القائمة'))]),
+      appBar:AppAppBar(title:'البحث على الخريطة',actions:[TextButton(key:const ValueKey('smart-search-list'),onPressed:_showList,child:const Text('القائمة'))]),
       body:MapScreen(key: ValueKey(('assisted-search-map', mapActor, mapEpoch, mapJourney)),
         sharedSearchJourney:true,toolbarAboveMap:true,
         cameraCenterHint: mapSearchInitialCamera(state.filters, location, regions),
-        searchToolbar:_mapToolbar(state, suggestions.hint),onShowList:_openMap,
+        searchToolbar:_mapToolbar(state, suggestions.hint),onShowList:_showList,
         onSmartSearch:_focusAssistant,
         isJourneyCurrent: () => mounted && !_journeyEnded && mapJourney != 0 &&
           _journey == mapJourney && mapOwner.isCurrentJourney(mapJourney) && _visibleActor == mapActor && _visibleEpoch == mapEpoch &&

@@ -124,8 +124,10 @@ Future<void> uxFrames(WidgetTester tester, [int frames = 10]) async {
 }
 Future<void> pumpUx(WidgetTester tester, ProviderContainer container, Widget child, {
   Size size = const Size(412, 820), double scale = 1, bool dark = false, GlobalKey? boundary, GoRouter? router,
+  double devicePixelRatio = 1,
 }) async {
-  tester.view.devicePixelRatio = 1; tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = devicePixelRatio;
+  tester.view.physicalSize = size * devicePixelRatio;
   addTearDown(tester.view.resetDevicePixelRatio); addTearDown(tester.view.resetPhysicalSize);
   await container.read(authControllerProvider.future);
   Widget builder(BuildContext context, Widget? child) => MediaQuery(

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Keyless ordinary1819->1820 update with synthetic private files and guest UI.
+"""Keyless ordinary map UX update with synthetic private files.
 
-Never launches1819, so1820's first Home launch has no introduction-seen marker.
-No uninstall/reset fallback, real account, permission grant or business network.
+The first launch follows the update. No uninstall/reset fallback, real account,
+permission grant or business network is needed for the update proof.
 """
 import argparse
 import hashlib
@@ -17,7 +17,8 @@ import xml.etree.ElementTree as ET
 from probe_apk_cleanup_upgrade import (Device, UpgradeError, FORBIDDEN_ENV, PACKAGE,
     API, CERTIFICATE, command, digest, failure_reason, read_receipt, regular_input,
     synthetic_fixtures, verify_apk, public_identity, write_fixtures)
-from verify_map_search_ux_apk import BRANCH, BASE_SOURCE, BASE_SHA256, BASE_BYTES, VERSION
+from verify_map_search_ux_apk import (BRANCH, BASE_SOURCE, BASE_SHA256, BASE_BYTES, VERSION,
+    ROUND4_BASE_SOURCE, ROUND4_BASE_SHA256, ROUND4_BASE_BYTES, ROUND4_VERSION)
 
 ROOT = Path(__file__).resolve().parents[1]
 AVD_NAME = 'aqer-map-search-ux-upgrade'
@@ -35,11 +36,13 @@ def guard(env, source, serial):
         raise UpgradeError('signing_or_account_material_forbidden_in_ux_upgrade')
 
 
-def validate_receipts(receipts, source):
+def validate_receipts(receipts, source, *, round4=False):
     if len(receipts) != 2:
         raise UpgradeError('exact_1819_1820_pair_required')
-    for receipt, version in zip(receipts, (1819, VERSION)):
-        expected = BASE_SOURCE if version == 1819 else source
+    versions = (VERSION, ROUND4_VERSION) if round4 else (1819, VERSION)
+    baseline = ROUND4_BASE_SOURCE if round4 else BASE_SOURCE
+    for receipt, version in zip(receipts, versions):
+        expected = baseline if version == versions[0] else source
         if (receipt.get('source_commit') != expected or receipt.get('package') != PACKAGE or
                 type(receipt.get('version_code')) is not int or receipt['version_code'] != version or
                 receipt.get('api') != API or receipt.get('signer_certificate_sha256') != CERTIFICATE or
@@ -49,12 +52,15 @@ def validate_receipts(receipts, source):
                 receipt.get('extract_native_libs') is not True or
                 receipt.get('debug_signing_allowed') is not False):
             raise UpgradeError('exact_baseline_and_same_source_candidate_identity_required')
-    if receipts[0]['sha256'] != BASE_SHA256 or receipts[0]['bytes'] != BASE_BYTES:
-        raise UpgradeError('immutable_1819_installer_required')
+    digest_pin = ROUND4_BASE_SHA256 if round4 else BASE_SHA256
+    bytes_pin = ROUND4_BASE_BYTES if round4 else BASE_BYTES
+    if receipts[0]['sha256'] != digest_pin or receipts[0]['bytes'] != bytes_pin:
+        raise UpgradeError('immutable_baseline_installer_required')
 
 
-def assert_preserved(before, after, hashes, current_hashes):
-    if (before.get('version_code') != 1819 or after.get('version_code') != VERSION or
+def assert_preserved(before, after, hashes, current_hashes, *, round4=False):
+    versions = (VERSION, ROUND4_VERSION) if round4 else (1819, VERSION)
+    if (before.get('version_code') != versions[0] or after.get('version_code') != versions[1] or
             before.get('uid') != after.get('uid') or
             before.get('first_install_time') != after.get('first_install_time') or
             not hashes or hashes != current_hashes):
@@ -190,6 +196,7 @@ def main():
     parser.add_argument('--source', required=True)
     parser.add_argument('--serial', default='emulator-5554')
     parser.add_argument('--output', default='map-search-ux-upgrade-proof')
+    parser.add_argument('--round4', action='store_true')
     args = parser.parse_args()
     guard(os.environ, args.source, args.serial)
     if command('git', 'rev-parse', 'HEAD') != args.source:
@@ -205,9 +212,10 @@ def main():
     device = UxDevice(args.serial)
     rules, cleanup_failures = [], []
     installed = False
+    versions = (VERSION, ROUND4_VERSION) if args.round4 else (1819, VERSION)
     proof = {'passed': False, 'status': 'failed', 'source_commit': args.source,
-             'baseline_source_commit': BASE_SOURCE, 'package': PACKAGE,
-             'signer_certificate_sha256': CERTIFICATE, 'version_chain': [1819, VERSION],
+             'baseline_source_commit': ROUND4_BASE_SOURCE if args.round4 else BASE_SOURCE, 'package': PACKAGE,
+             'signer_certificate_sha256': CERTIFICATE, 'version_chain': list(versions),
              'android_api': 36, 'environment': 'disposable_rooted_x86_64_emulator',
              'real_account_data_used': False, 'live_business_api_used': False,
              'physical_phone_acceptance': False, 'keystore_or_signed_in_session_migration_tested': False,
@@ -216,23 +224,23 @@ def main():
     stage = 'validate_actual_installers'
     try:
         receipts = [read_receipt(path) for path in inputs[1::2]]
-        validate_receipts(receipts, args.source)
+        validate_receipts(receipts, args.source, round4=args.round4)
         tools = Path(os.environ['ANDROID_HOME']) / 'build-tools' / '36.0.0'
         inspected = [verify_apk(path, receipt, tools) for path, receipt in zip(inputs[::2], receipts)]
         for name, value in inspected[1]['native_sha256'].items():
             if not name.endswith('/libapp.so') and value != inspected[0]['native_sha256'].get(name):
                 raise UpgradeError('preserved_native_runtime_changed')
-        proof['installers'] = {str(version): public_identity(receipt) for version, receipt in zip((1819, VERSION), receipts)}
+        proof['installers'] = {str(version): public_identity(receipt) for version, receipt in zip(versions, receipts)}
         stage = 'verify_fresh_disposable_emulator'
         device.verify_disposable_root()
         if device.adb('shell', 'pm', 'list', 'packages', '--user', '0', PACKAGE).strip():
             raise UpgradeError('fresh_owned_package_absence_required')
         proof['package_absent_before_first_install'] = True
-        stage = 'install_unlaunched_1819_baseline'
+        stage = 'install_unlaunched_baseline'
         proof['baseline_install_host_wall_ms'] = device.install(inputs[0])
         installed = True
         before = device.snapshot()
-        if before['version_code'] != 1819 or not 10000 <= before['uid'] <= 99999:
+        if before['version_code'] != versions[0] or not 10000 <= before['uid'] <= 99999:
             raise UpgradeError('owned_baseline_uid_or_version_mismatch')
         stage = 'reject_owned_uid_ipv4_ipv6_network_before_first_launch'
         for family in ('iptables', 'ip6tables'):
@@ -245,15 +253,15 @@ def main():
         write_fixtures(device, before['uid'], fixtures)
         if device.private_hashes(fixtures) != hashes:
             raise UpgradeError('synthetic_private_setup_failed')
-        stage = 'ordinary_replace_install_1820'
+        stage = 'ordinary_replace_install'
         proof['candidate_install_host_wall_ms'] = device.install(inputs[2], replace=True)
-        assert_preserved(before, device.snapshot(), hashes, device.private_hashes(fixtures))
-        stage = 'ordinary_1820_launches'
+        assert_preserved(before, device.snapshot(), hashes, device.private_hashes(fixtures), round4=args.round4)
+        stage = 'ordinary_candidate_launches'
         proof['activity_starts'] = device.cold_launches()
-        assert_preserved(before, device.snapshot(), hashes, device.private_hashes(fixtures))
-        stage = 'bounded_guest_ui_smoke'
-        proof['guest_ui_smoke'] = guest_smoke(device, output)
-        assert_preserved(before, device.snapshot(), hashes, device.private_hashes(fixtures))
+        if not args.round4:
+            stage = 'bounded_guest_ui_smoke'
+            proof['guest_ui_smoke'] = guest_smoke(device, output)
+        assert_preserved(before, device.snapshot(), hashes, device.private_hashes(fixtures), round4=args.round4)
         proof.update({'passed': True, 'status': 'passed', 'baseline_identity': before,
                       'installed_identity': device.snapshot(), 'private_fixture_sha256': hashes,
                       'uid_preserved': True, 'first_install_time_preserved': True,

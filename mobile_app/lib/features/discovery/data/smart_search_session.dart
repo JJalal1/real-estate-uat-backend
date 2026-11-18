@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/network/api_error_message.dart';
+import '../../../core/platform/uat_network_trace.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
@@ -33,26 +34,39 @@ class SmartSearchState {
 }
 
 class SmartSearchSession extends StateNotifier<SmartSearchState> {
-  SmartSearchSession(this._ai, this._properties, {this.defaultLocation}) : super(const SmartSearchState());
+  SmartSearchSession(this._ai, this._properties, {this.defaultLocation, this.traceMapResults = false})
+    : super(const SmartSearchState());
   final AiRepository _ai;
   final PropertyRepository _properties;
   SmartSearchState get snapshot => state;
   final SmartSearchFilters Function()? defaultLocation;
+  final bool traceMapResults;
   Map<String, dynamic> _defaultContext = {};
   bool _usingDefaultLocation = false;
   int _inference = 0, _results = 0;
   CancelToken? _resultTransfer;
+  UatMapRequestTiming? get resultTiming => UatMapRequestTiming.of(_resultTransfer);
   bool _failedMore = false;
   bool get isLoadingMore => _failedMore;
 
   int _journey = 0;
   bool _journeyActive = false;
   bool isCurrentJourney(int token) => mounted && _journeyActive && token == _journey;
-  int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters}) {
+  int beginJourney({SmartSearchFilters? savedFilters, SmartSearchFilters? entryFilters,
+    SmartSearchState? initialResults}) {
     final token = ++_journey;
     _journeyActive = true;
     reset(useLocation: true);
-    if (savedFilters != null || entryFilters != null) replaceManually(savedFilters ?? entryFilters!);
+    final filters = savedFilters ?? entryFilters;
+    if (filters == null) return token;
+    if (initialResults != null && initialResults.started && !initialResults.loading &&
+        initialResults.resultsError == null && initialResults.page > 0 && initialResults.filters.sameAs(filters)) {
+      _usingDefaultLocation = false;
+      state = SmartSearchState(filters: filters, rows: initialResults.rows, page: initialResults.page,
+        more: initialResults.more, started: true, revision: state.revision);
+    } else {
+      replaceManually(filters);
+    }
     return token;
   }
   void endJourney(int token) {
@@ -142,6 +156,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   void reset({bool useLocation = false}) {
     _inference++; _results++;
     _resultTransfer?.cancel('Search journey ended');
+    _resultTransfer = null;
     _defaultContext = useLocation ? Map.of(defaultLocation?.call().values ?? const <String,dynamic>{}) : {};
     _usingDefaultLocation = _defaultContext.isNotEmpty;
     state = SmartSearchState(revision: state.revision + 1, filters: SmartSearchFilters.fromMap(_defaultContext));
@@ -156,6 +171,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     final filters = state.filters;
     _resultTransfer?.cancel('Search superseded');
     final transfer = _resultTransfer = CancelToken();
+    final timing = traceMapResults ? UatMapRequestTiming.start(transfer, page) : null;
     _failedMore = more;
     state = state.copyWith(loading: true, started: true, clearResultsError: true);
     try {
@@ -172,9 +188,11 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       final ids = rows.map((row) => row.id).toSet();
       rows.addAll(result.$1.where((row) => ids.add(row.id)));
       state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
+      timing?.mark(UatMapPhase.resultsApplied);
     } catch (error) {
       if (_acceptResultsDelivery(request, revision, epoch)) {
         state = state.copyWith(loading: false, rows: isTransientApiFailure(error) ? null : const [], resultsError: friendlyApiError(error));
+        timing?.mark(UatMapPhase.resultsFailed);
       }
     }
   }
