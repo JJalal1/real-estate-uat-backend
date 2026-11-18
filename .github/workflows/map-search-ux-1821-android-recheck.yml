@@ -4,6 +4,7 @@ name: Android recheck on the original signed UAT1821
     branches: [work/map-search-ux-1820-20261117]
     paths:
     - .github/workflows/map-search-ux-1821-android-recheck.yml
+    - scripts/probe_map_search_round4.py
 permissions:
   contents: read
   actions: read

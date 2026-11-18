@@ -86,13 +86,20 @@ def display(device, geometry):
 
 
 def home_query(device):
-    nodes = wait(device, lambda n: contains(n, 'تغيير المنطقة'), 'home_missing')
-    device.tap(nodes, 'تغيير المنطقة')
-    try:
-        nodes = wait(device, lambda n: contains(n, 'أين تبحث'), 'governorate_picker_missing', timeout=8)
-    except UpgradeError:
-        tap(device, 795, 137)
-        nodes = wait(device, lambda n: contains(n, 'أين تبحث'), 'governorate_picker_missing')
+    for attempt in range(4):
+        nodes = wait(device, lambda n: contains(n, 'تغيير المنطقة') or contains(n, 'أين تبحث'), 'home_missing')
+        if contains(nodes, 'أين تبحث'):
+            break
+        if attempt < 2:
+            device.tap(nodes, 'تغيير المنطقة')
+        else:
+            tap(device, 795, 137 if attempt == 2 else 348)
+        try:
+            nodes = wait(device, lambda n: contains(n, 'أين تبحث'), 'governorate_picker_missing', timeout=8)
+            break
+        except UpgradeError:
+            if attempt == 3:
+                raise
     for _ in range(4):
         if matching(nodes, 'ذمار'):
             break
@@ -319,14 +326,14 @@ def main():
     installed_digest = device.adb('shell', 'sha256sum', installed).split()[0]
     if receipt['sha256'] != installed_digest:
         raise UpgradeError('installed_signed_candidate_mismatch')
-    output = Path(args.output)
+    output = Path(args.output).resolve()
     proof = {'source_commit': source, 'sha256': installed_digest, 'version': ROUND4_VERSION,
              'actor': 'guest', 'android_api': 36, 'cases': {}, 'network': []}
     stage = 'prepare_guest'
     try:
         proof['normal_display'] = display(device, NORMAL)
         device.adb('shell', 'settings', 'put', 'secure', 'show_ime_with_hard_keyboard', '1')
-        device.adb('shell', 'svc', 'wifi', 'disable')
+        device.adb('shell', 'svc', 'wifi', 'enable' if args.ui_only else 'disable')
         device.adb('shell', 'svc', 'data', 'enable')
         net_profile(device, False)
         device.adb('shell', 'am', 'start', '-W', '-n', PACKAGE + '/' + ACTIVITY)
@@ -354,7 +361,11 @@ def main():
         proof['cases'][stage] = {'passed': True, **price(device, output, SMALL)}
     except Exception as error:
         proof['failure'] = {'stage': stage, 'reason': failure_reason(error)}
-        device.screenshot(output, f'failure-{stage}.png')
+        print('ROUND4 ' + stage + ' ' + proof['failure']['reason'], flush=True)
+        try:
+            device.screenshot(output, f'failure-{stage}.png')
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as capture_error:
+            proof['failure']['capture_reason'] = failure_reason(capture_error)
         raise
     finally:
         (output / 'ANDROID_ROUND4.json').write_text(json.dumps(proof, indent=2) + '\n')
