@@ -85,6 +85,9 @@ jobs:
         print('AQER_MAP_SEARCH_UX_ARTIFACT_CONTENTS_VERIFIED')
         PYFILES
       working-directory: product
+    - name: Verify the two Git revisions before starting the emulator
+      run: python3 -B ../scripts/probe_map_search_round4.py --receipt map-search-ux-input/candidate/APK_VERIFICATION.json --output map-search-ux-upgrade-proof --ui-only --verify-context-only
+      working-directory: product
     - name: Reclaim unused SDK space on the disposable runner
       run: |
         sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL

@@ -296,8 +296,9 @@ def main():
     parser.add_argument('--receipt', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--ui-only', action='store_true')
+    parser.add_argument('--verify-context-only', action='store_true')
     args = parser.parse_args()
-    source = command('git', 'rev-parse', 'HEAD')
+    source = command('git', '-C', Path.cwd(), 'rev-parse', 'HEAD')
     serial = 'emulator-5554'
     if args.ui_only:
         if os.environ.get('UPGRADE_SOURCE_SHA') != source:
@@ -306,12 +307,17 @@ def main():
         guard(os.environ, harness_source, serial)
     else:
         guard(os.environ, source, serial)
+    receipt = read_receipt(Path(args.receipt))
+    if receipt['source_commit'] != source or receipt['version_code'] != ROUND4_VERSION:
+        raise UpgradeError('ui_installer_receipt_source_mismatch')
+    if args.verify_context_only:
+        print('ROUND4 exact product and harness context verified', flush=True)
+        return
     device = UxDevice(serial)
     device.verify_disposable_root()
-    receipt = read_receipt(Path(args.receipt))
     installed = device.adb('shell', 'pm', 'path', PACKAGE).removeprefix('package:')
     installed_digest = device.adb('shell', 'sha256sum', installed).split()[0]
-    if receipt['source_commit'] != source or receipt['version_code'] != ROUND4_VERSION or receipt['sha256'] != installed_digest:
+    if receipt['sha256'] != installed_digest:
         raise UpgradeError('installed_signed_candidate_mismatch')
     output = Path(args.output)
     proof = {'source_commit': source, 'sha256': installed_digest, 'version': ROUND4_VERSION,
