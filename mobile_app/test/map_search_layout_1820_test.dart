@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -61,6 +62,60 @@ void main() {
     await tester.pumpAndSettle();
     expect(properties.calls, hasLength(1));
     expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('a failed map viewport refresh keeps compatible cards and pins until a retry succeeds', (tester) async {
+    PropertySummary listing(int id, double latitude) => PropertySummary(
+      id: id, title: 'إيجار في ذمار $id', type: 'house', purpose: 'rent', price: 230000,
+      currency: 'YER', latitude: latitude, longitude: 44.4);
+    final request = RequestOptions(path: '/properties');
+    final failedRefresh = Completer<PageResult>();
+    final properties = Listings()..respond = (_, __) async => ([listing(145, 14.552), listing(147, 14.6)], false);
+    late void Function(double, double, double, double) viewport;
+    var pins = <int>[];
+    final scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, updateViewport) {
+        viewport = updateViewport;
+        pins = rows.map((row) => row.id).toList();
+        return const ColoredBox(color: Colors.teal);
+      }),
+    ]);
+    scope.read(marketplaceSearchControllerProvider.notifier).applyFilters(SmartSearchFilters.fromMap({'purpose': 'rent'}));
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
+    await tester.pumpAndSettle();
+    expect(pins, [145, 147]);
+
+    properties.respond = (_, __) => failedRefresh.future;
+    viewport(14.5, 44.35, 14.57, 44.45);
+    await tester.pump();
+    expect(pins, [145]);
+    failedRefresh.completeError(DioException(requestOptions: request, type: DioExceptionType.unknown));
+    await tester.pumpAndSettle();
+    expect(pins, [145]);
+    expect(find.text('1 عقار من آخر تحميل'), findsOneWidget);
+
+    await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -230));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('map-result-145')), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-result-147')), findsNothing);
+    properties.respond = (_, __) async => ([listing(146, 14.55)], false);
+    final retry = find.text('إعادة المحاولة');
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    await tester.pumpAndSettle();
+    expect(pins, [146]);
+    expect(find.text('1 عقار في النطاق'), findsOneWidget);
+    expect(properties.calls[properties.calls.length - 2], properties.calls.last);
+
+    properties.respond = (_, __) async => throw DioException(
+      requestOptions: request, type: DioExceptionType.badResponse,
+      response: Response<void>(requestOptions: request, statusCode: 403));
+    await scope.read(marketplaceMapResultsProvider.notifier).search();
+    await tester.pumpAndSettle();
+    expect(pins, isEmpty);
+    expect(find.text('1 عقار من آخر تحميل'), findsNothing);
     await closeUx(tester);
   });
 

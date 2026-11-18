@@ -1770,6 +1770,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             alignment: Alignment.bottomCenter, minHeight: sheetHeight, maxHeight: sheetHeight,
             child: SizedBox(height: sheetHeight, child: PropertyMapResultsSheet(
             items: rows, selectedId: _selected?.id, loading: state.loading,
+            staleResults: state.resultsError != null && rows.isNotEmpty,
             maxExtent: sheetMaximum, collapsed: widget.collapseResults,
             filterPanel: widget.toolbarAboveMap ? null : toolbar,
             error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),

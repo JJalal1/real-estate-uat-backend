@@ -14,13 +14,13 @@ const mapSaleColor = Color(0xff0b8a55);
 /// controller resizes first, then scrolls, without rebuilding the native map.
 class PropertyMapResultsSheet extends StatefulWidget {
   const PropertyMapResultsSheet({required this.items, required this.itemBuilder,
-    this.selectedId, this.loading = false, this.error, this.onRetry, this.onShowList,
+    this.selectedId, this.loading = false, this.staleResults = false, this.error, this.onRetry, this.onShowList,
     this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, this.filterPanel, super.key});
   final Widget? filterPanel;
   final List<PropertyMarker> items;
   final Widget Function(PropertyMarker property) itemBuilder;
   final int? selectedId;
-  final bool loading, more;
+  final bool loading, staleResults, more;
   final bool collapsed;
   final double maxExtent;
   final String? error;
@@ -126,6 +126,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
     final selected = widget.items.where((row) => row.id == widget.selectedId);
     final ranked = widget.items.any((row) => row.discoveryMatch != null);
     final rows = ranked ? widget.items : [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
+    final countLabel = widget.staleResults ? '${rows.length} عقار من آخر تحميل'
+      : '${rows.length}${widget.more ? '+' : ''} عقار في النطاق';
     return DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
       controller: _extent, initialChildSize: _initial, minChildSize: _minimum, maxChildSize: _maximum,
       snap: true, snapSizes: [for (final size in [_initial, widget.filterPanel == null ? .5 : .75]) if (size > _minimum && size < _maximum) size],
@@ -145,9 +147,9 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                   child: SizedBox(key: const ValueKey('map-results-handle'), height: 24, width: double.infinity,
                     child: Center(child: Container(width: 42, height: 4,
                       decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(4)))))),
-                Row(children: [Expanded(child: Text('${rows.length}${widget.more ? '+' : ''} عقار في النطاق',
+                Row(children: [Expanded(child: Semantics(liveRegion: widget.staleResults, child: Text(countLabel,
                   key: const ValueKey('map-results-count'), maxLines: _keyboardVisible ? 1 : 2, overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall)),
+                  style: Theme.of(context).textTheme.titleSmall))),
                   if (widget.loading) const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                   if (widget.onShowList != null) IconButton(tooltip: 'عرض القائمة', onPressed: widget.onShowList, icon: const Icon(Icons.view_list_outlined)),
                   if (widget.filterPanel != null) IconButton(key: const ValueKey('map-filter-panel-toggle'),
@@ -176,7 +178,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                   const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Text('لا توجد عقارات مطابقة في هذا النطاق. حرّك الخريطة أو عدّل الفلاتر.')),
                 const SizedBox(height: 12),
               ]); }
-              if (index > rows.length) { return widget.more ? TextButton(onPressed: widget.loading ? null : widget.onMore,
+              if (index > rows.length) { return widget.more && !widget.staleResults ? TextButton(onPressed: widget.loading ? null : widget.onMore,
                 child: const Text('المزيد من العقارات')) : const SizedBox.shrink(); }
               final row = rows[index - 1];
               return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

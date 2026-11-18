@@ -34,13 +34,15 @@ class SmartSearchState {
 }
 
 class SmartSearchSession extends StateNotifier<SmartSearchState> {
-  SmartSearchSession(this._ai, this._properties, {this.defaultLocation, this.traceMapResults = false})
+  SmartSearchSession(this._ai, this._properties, {this.defaultLocation,
+    this.traceMapResults = false, this.retainMapRowsOnUnknownFailure = false})
     : super(const SmartSearchState());
   final AiRepository _ai;
   final PropertyRepository _properties;
   SmartSearchState get snapshot => state;
   final SmartSearchFilters Function()? defaultLocation;
   final bool traceMapResults;
+  final bool retainMapRowsOnUnknownFailure;
   Map<String, dynamic> _defaultContext = {};
   bool _usingDefaultLocation = false;
   int _inference = 0, _results = 0;
@@ -191,7 +193,13 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       timing?.mark(UatMapPhase.resultsApplied);
     } catch (error) {
       if (_acceptResultsDelivery(request, revision, epoch)) {
-        state = state.copyWith(loading: false, rows: isTransientApiFailure(error) ? null : const [], resultsError: friendlyApiError(error));
+        // A public map can keep the rows already restricted to the current
+        // viewport when Dio fails before producing a response.
+        final retainRows = isTransientApiFailure(error) ||
+            (retainMapRowsOnUnknownFailure && error is DioException &&
+              error.type == DioExceptionType.unknown && error.response == null);
+        state = state.copyWith(loading: false, rows: retainRows ? null : const [],
+          resultsError: friendlyApiError(error));
         timing?.mark(UatMapPhase.resultsFailed);
       }
     }

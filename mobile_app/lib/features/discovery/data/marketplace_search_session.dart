@@ -8,15 +8,15 @@ import 'ai_repository.dart';
 import 'marketplace_repository.dart';
 import 'smart_search_session.dart';
 
-SmartSearchSession _results(Ref ref, {bool traceMapResults = false}) {
+SmartSearchSession _results(Ref ref, {bool forMap = false}) {
   ref.watch(authControllerProvider.select((value) =>
     (value.asData?.value?.id, Stage6SecureSessionStore.instance.sessionEpoch)));
   return SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
-    traceMapResults: traceMapResults);
+    traceMapResults: forMap, retainMapRowsOnUnknownFailure: forMap);
 }
 final homeSearchResultsProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>(_results);
 final marketplaceMapResultsProvider = StateNotifierProvider<SmartSearchSession, SmartSearchState>(
-  (ref) => _results(ref, traceMapResults: true));
+  (ref) => _results(ref, forMap: true));
 
 /// Home owns these fields. The optional map editor is a temporary child copy,
 /// never an alternative value for Home's query, criteria, or offline snapshot.
