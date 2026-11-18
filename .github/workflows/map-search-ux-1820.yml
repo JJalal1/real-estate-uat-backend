@@ -1,6 +1,5 @@
-name: UAT1823 verified signed APK
-# UAT1823 and its signing evidence refer to a single source revision. Later
-# source-only PR193 changes are checked by their own workflow.
+name: UAT1824 verified signed APK
+# A single private push can package the product source already tested in PR193.
 'on':
   push:
     branches: [work/map-search-ux-1820-20261117]
@@ -13,12 +12,12 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: map-search-ux-1823-${{ github.ref }}
+  group: map-search-ux-1824-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   signing_readiness:
     name: Public approval policy and boolean signing presence only
-    if: ${{ github.event_name == 'push' && github.event.repository.private && github.sha == '804512e5e0eb9fa718b2438fec254ab906f3c2fd' }}
+    if: ${{ github.event_name == 'push' && github.event.repository.private && github.event.before == '4e96f7802a185563f97622955c44dd296a3e2f6a' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -64,7 +63,7 @@ jobs:
         if-no-files-found: error
   tests:
     name: Search and map UX contracts with affected offline regressions
-    if: ${{ github.event_name == 'push' && github.event.repository.private && github.sha == '804512e5e0eb9fa718b2438fec254ab906f3c2fd' }}
+    if: ${{ github.event_name == 'push' && github.event.repository.private && github.event.before == '4e96f7802a185563f97622955c44dd296a3e2f6a' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -161,7 +160,7 @@ jobs:
         printf 'Behavioral test: %s\n' "${unique[@]}"
         flutter test "${unique[@]}" --reporter expanded --timeout 2m
   build:
-    name: Build the single compressed 1823 with the established durable UAT signer
+    name: Build the single compressed 1824 with the established durable UAT signer
     needs:
     - tests
     - signing_readiness
@@ -178,15 +177,17 @@ jobs:
       with:
         fetch-depth: 0
         persist-credentials: false
-    - name: Require the exact push source and reviewed 1822 predecessor before signing
+    - name: Require the tested backend and app contents before signing
       run: |
         test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-        git merge-base --is-ancestor 25b568ff93a428cf7397c9f517056cbc61b28fe2 HEAD
-    - name: Download the immutable verified 1822 baseline
+        test "$(git rev-parse HEAD^)" = "4e96f7802a185563f97622955c44dd296a3e2f6a"
+        git diff --exit-code 4e96f7802a185563f97622955c44dd296a3e2f6a HEAD -- mobile_app backend-api-runtime
+        git merge-base --is-ancestor 804512e5e0eb9fa718b2438fec254ab906f3c2fd HEAD
+    - name: Download the immutable verified 1823 baseline
       uses: actions/download-artifact@v4
       with:
-        artifact-ids: '14433072919'
-        run-id: '44316131850'
+        artifact-ids: '14455280403'
+        run-id: '44358871886'
         repository: ${{ github.repository }}
         github-token: ${{ github.token }}
         merge-multiple: true
@@ -230,22 +231,22 @@ jobs:
       run: python3 -B scripts/import_ci_uat_signing.py --required
     - name: Require the imported certificate to match the approved public identity
       run: python3 -B scripts/uat_signing_identity.py --require-delivery-approval --verify-imported-environment
-    - name: Build 1823 with the retained compressed native profile and all three ABIs
+    - name: Build 1824 with the retained compressed native profile and all three ABIs
       working-directory: mobile_app
       env:
         AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
         AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
         AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
         ORG_GRADLE_PROJECT_AQER_UAT_COMPRESS_NATIVE_LIBS: 'true'
-      run: flutter build apk --flavor uat --release --no-pub --build-number=1823 --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1823 --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com --dart-define=AQER_RANKED_DISCOVERY=true --dart-define=AQER_MAP_SEARCH_TRACE=true
-    - name: Verify actual 1823 identity, baseline assets and native packaging
-      run: python3 -B scripts/verify_map_search_ux_apk.py --baseline-apk map-search-ux-baseline/AQER-UAT-1822-Map-Search.apk --baseline-receipt map-search-ux-baseline/APK_VERIFICATION.json --uat1823
+      run: flutter build apk --flavor uat --release --no-pub --build-number=1824 --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1824 --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com --dart-define=AQER_RANKED_DISCOVERY=true --dart-define=AQER_MAP_SEARCH_TRACE=true
+    - name: Verify actual 1824 identity, baseline assets and native packaging
+      run: python3 -B scripts/verify_map_search_ux_apk.py --baseline-apk map-search-ux-baseline/AQER-UAT-1823-Map-Search.apk --baseline-receipt map-search-ux-baseline/APK_VERIFICATION.json --uat1824 --tested-source 4e96f7802a185563f97622955c44dd296a3e2f6a
     - uses: actions/upload-artifact@v4
       if: success() && github.event.repository.private
       with:
-        name: map-search-ux-1823-${{ github.sha }}
+        name: map-search-ux-1824-${{ github.sha }}
         path: |-
-          mobile_app/map-search-ux-proof/AQER-UAT-1823-Map-Search.apk
+          mobile_app/map-search-ux-proof/AQER-UAT-1824-Map-Search.apk
           mobile_app/map-search-ux-proof/APK_VERIFICATION.json
         retention-days: 14
         if-no-files-found: error
@@ -265,7 +266,7 @@ jobs:
         PY
   identify_push_run:
     name: Locate the exact signed push run for PR193
-    if: ${{ github.event_name == 'pull_request' && github.event.repository.private && github.event.number == 193 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/map-search-ux-1820-20261117' && github.event.pull_request.head.sha == '804512e5e0eb9fa718b2438fec254ab906f3c2fd' }}
+    if: ${{ github.event_name == 'pull_request' && github.event.repository.private && github.event.number == 193 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/map-search-ux-1820-20261117' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -279,10 +280,9 @@ jobs:
           run_id="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/map-search-ux-1820.yml/runs" \
             -f "head_sha=$SOURCE_SHA" -f event=push --jq '.workflow_runs[0].id // empty')"
           if [[ "$run_id" =~ ^[0-9]+$ ]]; then
-            printf 'UAT1823_PUSH_RUN=%s\n' "$run_id"
+            printf 'UAT1824_PUSH_RUN=%s\n' "$run_id"
             exit 0
           fi
           sleep 3
         done
-        echo 'UAT1823 push run is not visible yet'
-        exit 1
+        echo 'No signed push workflow for this source-only PR revision'

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Verify a map UX UAT installer against its pinned compressed predecessor.
 
-UI Dart changes are expected. Assets, Android source/build configuration,
-dependencies and backend remain pinned. Never creates/exports a signing key.
+Assets, Android source/build configuration and dependencies remain pinned.
+UAT1824 also verifies its tested backend revision and ranked-search scope.
 """
 import argparse
 import hashlib
@@ -38,6 +38,16 @@ UAT1823_VERSION = 1823
 UAT1823_BASE_SOURCE = '25b568ff93a428cf7397c9f517056cbc61b28fe2'
 UAT1823_BASE_SHA256 = '8542e54e258f98b9bd0858c8d8dbe9afda083372075ca86a0a5aa1219730fd23'
 UAT1823_BASE_BYTES = 45243611
+UAT1824_VERSION = 1824
+UAT1824_BASE_SOURCE = '804512e5e0eb9fa718b2438fec254ab906f3c2fd'
+UAT1824_BASE_SHA256 = 'c5441117a0ab9c0e1acaec7d9a523db146a8be4b939b10f33363fe3887555fc3'
+UAT1824_BASE_BYTES = 45248193
+UAT1824_BACKEND_PATHS = {
+    'backend-api-runtime/app/Http/Controllers/Api/PropertyController.php',
+    'backend-api-runtime/app/Services/DiscoverySearchGeometry.php',
+    'backend-api-runtime/app/Services/RankedPropertyDiscoveryService.php',
+    'backend-api-runtime/tests/Feature/Phase04RankedDiscoveryTest.php',
+}
 GENERATED_ICON_SUBSET = 'assets/flutter_assets/fonts/MaterialIcons-Regular.otf'
 PROTECTED = ('mobile_app/assets', 'mobile_app/android', 'mobile_app/pubspec.yaml',
              'mobile_app/pubspec.lock', 'backend-api-runtime', 'docs/uat-signing-identity.json')
@@ -54,7 +64,7 @@ def guard(env, source, identity):
     verify_imported_environment(identity, env)
 
 
-def baseline_receipt(path, *, round4=False, uat1822=False, uat1823=False):
+def baseline_receipt(path, *, round4=False, uat1822=False, uat1823=False, uat1824=False):
     require(path.stat().st_size <= 128 * 1024, 'oversized_public_baseline_receipt')
     def unique(pairs):
         out = {}
@@ -63,7 +73,9 @@ def baseline_receipt(path, *, round4=False, uat1822=False, uat1823=False):
             out[key] = value
         return out
     value = json.loads(path.read_text(), object_pairs_hook=unique)
-    if uat1823:
+    if uat1824:
+        source, version, sha, size = UAT1824_BASE_SOURCE, UAT1823_VERSION, UAT1824_BASE_SHA256, UAT1824_BASE_BYTES
+    elif uat1823:
         source, version, sha, size = UAT1823_BASE_SOURCE, UAT1822_VERSION, UAT1823_BASE_SHA256, UAT1823_BASE_BYTES
     elif uat1822:
         source, version, sha, size = UAT1822_BASE_SOURCE, ROUND4_VERSION, UAT1822_BASE_SHA256, UAT1822_BASE_BYTES
@@ -102,14 +114,19 @@ def compare_runtime_resources(before, after):
                        'scope': 'Generated SDK icon subset may follow authorized UI glyph changes. Source assets/fonts remain pinned; no original photo/font replacement.'}
 
 
-def source_guards(source, *, baseline_source=BASE_SOURCE):
+def source_guards(source, *, baseline_source=BASE_SOURCE, tested_source=None):
     protected = {}
     for path in PROTECTED:
-        old = call('git', 'rev-parse', f'{baseline_source}:{path}').strip()
+        reference = tested_source if path == 'backend-api-runtime' and tested_source else baseline_source
+        old = call('git', 'rev-parse', f'{reference}:{path}').strip()
         current = call('git', 'rev-parse', f'{source}:{path}').strip()
         require(old == current and re.fullmatch(r'[a-f0-9]{40}', old),
                 'ux1820_protected_assets_android_dependencies_or_backend_changed')
         protected[path] = old
+    if tested_source is not None:
+        call('git', 'diff', '--exit-code', tested_source, source, '--', 'mobile_app', 'backend-api-runtime')
+        backend_paths = call('git', 'diff', '--name-only', baseline_source, source, '--', 'backend-api-runtime').splitlines()
+        require(set(backend_paths) == UAT1824_BACKEND_PATHS, 'uat1824_unexpected_backend_scope')
     call('git', 'diff', '--exit-code', 'HEAD', '--', 'mobile_app/lib', 'mobile_app/assets',
          'mobile_app/android', 'mobile_app/pubspec.yaml', 'backend-api-runtime',
          'docs/uat-signing-identity.json', 'scripts/verify_map_search_ux_apk.py',
@@ -125,11 +142,18 @@ def main(argv=None):
     modes.add_argument('--round4', action='store_true')
     modes.add_argument('--uat1822', action='store_true')
     modes.add_argument('--uat1823', action='store_true')
+    modes.add_argument('--uat1824', action='store_true')
+    parser.add_argument('--tested-source', help='Full tested source revision for UAT1824')
     args = parser.parse_args(argv)
     identity = load_public_identity(require_approval=True)
     source = call('git', 'rev-parse', 'HEAD').strip()
     guard(os.environ, source, identity)
-    if args.uat1823:
+    if args.uat1824:
+        require(re.fullmatch(r'[a-f0-9]{40}', args.tested_source or ''), 'uat1824_tested_source_required')
+        version, baseline_source = UAT1824_VERSION, UAT1824_BASE_SOURCE
+        call('git', 'merge-base', '--is-ancestor', baseline_source, args.tested_source)
+        call('git', 'merge-base', '--is-ancestor', args.tested_source, source)
+    elif args.uat1823:
         version, baseline_source = UAT1823_VERSION, UAT1823_BASE_SOURCE
         call('git', 'merge-base', '--is-ancestor', baseline_source, source)
     elif args.uat1822:
@@ -138,10 +162,10 @@ def main(argv=None):
     else:
         version = ROUND4_VERSION if args.round4 else VERSION
         baseline_source = ROUND4_BASE_SOURCE if args.round4 else BASE_SOURCE
-    protected = source_guards(source, baseline_source=baseline_source)
+    protected = source_guards(source, baseline_source=baseline_source, tested_source=args.tested_source if args.uat1824 else None)
     baseline = regular_input(args.baseline_apk, '.apk')
     metadata = baseline_receipt(regular_input(args.baseline_receipt, '.json'), round4=args.round4,
-                                uat1822=args.uat1822, uat1823=args.uat1823)
+                                uat1822=args.uat1822, uat1823=args.uat1823, uat1824=args.uat1824)
     require(baseline.stat().st_size == metadata['bytes'] and digest(baseline) == metadata['sha256'],
             'baseline_apk_size_or_digest_mismatch')
     candidate = regular_input(ROOT / 'mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk', '.apk')
@@ -175,7 +199,7 @@ def main(argv=None):
                   'extract_native_libs': True, 'native_zip_16kb_alignment_required': False,
                   'zip_elf_16kb': 'verified', 'compiled_api_verified_for_all_abis': True,
                   'source_component_guards': protected,
-                  'original_assets_fonts_android_source_and_backend_unchanged': True,
+                  'original_assets_fonts_android_source_and_backend_unchanged': not args.uat1824,
                   'retained_flutter_maplibre_datastore_sha256': preserved,
                   'generated_material_icon_subset': icon_subset,
                   'dependency_lock_guard_verified': True, 'resolved_dependency_lock_sha256': digest(lock),
@@ -193,6 +217,12 @@ def main(argv=None):
         if args.uat1823:
             record.update(intended_change_scope='Preserve Smart Search ranked pages on map entry and restore broker access to saved searches.',
                           scope='Verified installer and exact source. Android interface acceptance is separate.')
+        if args.uat1824:
+            record.update(tested_application_source=args.tested_source, ranking_contract_requested=2,
+                          original_assets_fonts_and_android_source_unchanged=True,
+                          backend_changed_paths=sorted(UAT1824_BACKEND_PATHS),
+                          intended_change_scope='Rank eligible properties by specifications and distance. Preserve classifications and enable automatic paging with concise results.',
+                          scope='Installer and exact source verified. Android interface acceptance and backend rollout are separate.')
         (output / 'APK_VERIFICATION.json').write_text(json.dumps(record, indent=2) + '\n')
     except Exception:
         shutil.rmtree(output)

@@ -85,6 +85,17 @@ class ContextGuards(unittest.TestCase):
 
 
 class InstallerAndSourceGuards(unittest.TestCase):
+    def test_1824_requires_the_exact_signed_1823_receipt(self):
+        original = {**receipt(build.UAT1823_VERSION), 'source_commit': build.UAT1824_BASE_SOURCE,
+                    'sha256': build.UAT1824_BASE_SHA256, 'bytes': build.UAT1824_BASE_BYTES}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'receipt.json'
+            path.write_text(json.dumps(original))
+            self.assertEqual(build.baseline_receipt(path, uat1824=True), original)
+            path.write_text(json.dumps({**original, 'sha256': build.UAT1823_BASE_SHA256}))
+            with self.assertRaises(build.CleanupError):
+                build.baseline_receipt(path, uat1824=True)
+
     def test_1823_requires_the_exact_signed_1822_receipt(self):
         original = {**receipt(build.UAT1822_VERSION), 'source_commit': build.UAT1823_BASE_SOURCE,
                     'sha256': build.UAT1823_BASE_SHA256, 'bytes': build.UAT1823_BASE_BYTES}
@@ -163,6 +174,28 @@ class InstallerAndSourceGuards(unittest.TestCase):
             return 'c' * 40 if any(str(arg).startswith(SOURCE + ':') for arg in args) else 'b' * 40
         with mock.patch.object(build, 'call', side_effect=mismatch), self.assertRaises(build.CleanupError):
             build.source_guards(SOURCE)
+
+    def test_1824_pins_tested_backend_and_refuses_authentication_changes(self):
+        tested_source = 'd' * 40
+        backend_tree = 'e' * 40
+        paths = sorted(build.UAT1824_BACKEND_PATHS)
+
+        def git(*args):
+            if args[1] == 'rev-parse':
+                if args[2] in (f'{tested_source}:backend-api-runtime', f'{SOURCE}:backend-api-runtime'):
+                    return backend_tree
+                return 'b' * 40
+            if args[2] == '--name-only':
+                return '\n'.join(paths)
+            return ''
+
+        with mock.patch.object(build, 'call', side_effect=git) as call:
+            protected = build.source_guards(SOURCE, baseline_source=build.UAT1824_BASE_SOURCE, tested_source=tested_source)
+            self.assertEqual(protected['backend-api-runtime'], backend_tree)
+            call.assert_any_call('git', 'diff', '--exit-code', tested_source, SOURCE, '--', 'mobile_app', 'backend-api-runtime')
+            paths.append('backend-api-runtime/config/auth.php')
+            with self.assertRaises(build.CleanupError):
+                build.source_guards(SOURCE, baseline_source=build.UAT1824_BASE_SOURCE, tested_source=tested_source)
 
     def test_only_generated_sdk_icon_subset_may_change_but_not_original_fonts_or_natives(self):
         before = {'protected_assets_sha256': {build.GENERATED_ICON_SUBSET: 'a' * 64,
