@@ -12,6 +12,7 @@ import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/search_result_pagination.dart';
 import 'package:real_estate_mobile/features/map/domain/property_marker_cluster.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
@@ -222,6 +223,27 @@ void main() {
       await closeUx(tester);
     });
   }
+
+  testWidgets('momentum can load the next page, and scroll restoration cannot', (tester) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    var loads = 0;
+    await tester.pumpWidget(MaterialApp(home: SearchResultPagination(
+      onLoadMore: () => loads++,
+      child: ListView.builder(controller: controller, itemExtent: 100, itemCount: 20,
+        itemBuilder: (_, index) => Text('عقار $index')),
+    )));
+    final bottom = controller.position.maxScrollExtent;
+    controller.jumpTo(bottom - 100);
+    await tester.pumpAndSettle();
+    expect(loads, 0);
+    controller.jumpTo(bottom - 330);
+    await tester.pumpAndSettle();
+    await tester.fling(find.byType(ListView), const Offset(0, -75), 2400);
+    await tester.pumpAndSettle();
+    expect(loads, greaterThan(0));
+    await tester.pumpWidget(const SizedBox());
+  });
 
   for(final dark in [false,true]) {
     testWidgets('ranked map sheet keeps exact order when a nearby pin is selected, RTL dark=$dark', (tester) async {

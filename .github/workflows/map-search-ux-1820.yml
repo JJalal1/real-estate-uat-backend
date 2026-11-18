@@ -1,4 +1,6 @@
 name: UAT1823 verified signed APK
+# UAT1823 and its signing evidence refer to a single source revision. Later
+# source-only PR193 changes are checked by their own workflow.
 'on':
   push:
     branches: [work/map-search-ux-1820-20261117]
@@ -16,7 +18,7 @@ concurrency:
 jobs:
   signing_readiness:
     name: Public approval policy and boolean signing presence only
-    if: ${{ github.event_name == 'push' && github.event.repository.private }}
+    if: ${{ github.event_name == 'push' && github.event.repository.private && github.sha == '804512e5e0eb9fa718b2438fec254ab906f3c2fd' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -62,7 +64,7 @@ jobs:
         if-no-files-found: error
   tests:
     name: Search and map UX contracts with affected offline regressions
-    if: ${{ github.event_name == 'push' && github.event.repository.private }}
+    if: ${{ github.event_name == 'push' && github.event.repository.private && github.sha == '804512e5e0eb9fa718b2438fec254ab906f3c2fd' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -263,7 +265,7 @@ jobs:
         PY
   identify_push_run:
     name: Locate the exact signed push run for PR193
-    if: ${{ github.event_name == 'pull_request' && github.event.repository.private && github.event.number == 193 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/map-search-ux-1820-20261117' }}
+    if: ${{ github.event_name == 'pull_request' && github.event.repository.private && github.event.number == 193 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'work/map-search-ux-1820-20261117' && github.event.pull_request.head.sha == '804512e5e0eb9fa718b2438fec254ab906f3c2fd' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
