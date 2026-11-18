@@ -6,7 +6,9 @@ from getpass import getpass
 import json
 from urllib.error import HTTPError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener
+
+from phase23_preflight import NoRedirect
 
 
 API = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
@@ -27,7 +29,7 @@ PAGES = (
 )
 
 
-def request(path, *, params=None, body=None, token=None):
+def request(path, *, params=None, body=None, token=None, method=None):
     headers = {'Accept': 'application/json'}
     if token:
         headers['Authorization'] = f'Bearer {token}'
@@ -35,9 +37,10 @@ def request(path, *, params=None, body=None, token=None):
         headers['Content-Type'] = 'application/json'
     url = API + path + ('?' + urlencode(params) if params else '')
     start = datetime.now(timezone.utc).isoformat()
-    req = Request(url, data=json.dumps(body).encode() if body is not None else None, headers=headers)
+    req = Request(url, data=json.dumps(body).encode() if body is not None else None,
+                  headers=headers, method=method)
     try:
-        with urlopen(req, timeout=45) as reply:
+        with build_opener(NoRedirect()).open(req, timeout=45) as reply:
             return json.load(reply), {
                 'started_utc': start, 'http_status': reply.status,
                 'request_id': reply.headers.get('X-Request-ID'),
@@ -93,23 +96,71 @@ def verify():
     }}
 
 
-def create_saved_searches():
-    token = getpass('Bearer token for the signed-in regular UAT test account: ').strip()
-    if not token:
-        raise RuntimeError('A token for the UAT test account is required.')
-    items = []
+class SavedSearchPreparationError(RuntimeError):
+    pass
+
+
+def check_preparation(condition, reason):
+    if not condition:
+        raise SavedSearchPreparationError(reason)
+
+
+def prepare_broker_saved_searches(token, receipt, transport=request):
+    check_preparation(bool(token), 'broker_session_required')
+    body, identity = transport('/auth/me', token=token)
+    user = body.get('data', {}).get('user', {})
+    check_preparation(identity['http_status'] == 200 and type(user.get('id')) is int and user['id'] == 28
+                      and user.get('account_type') == 'broker' and user.get('account_status') == 'active',
+                      'expected_active_test_broker_28_required')
+    receipt.update(actor_id=28, account_type='broker', auth_me_http=200, auth_me_request_id=identity['request_id'])
+
+    def owned_searches():
+        listing, trace = transport('/saved-searches', token=token)
+        check_preparation(trace['http_status'] == 200 and isinstance(listing.get('data'), list),
+                          'owned_saved_search_read_failed')
+        return {row['id']: row for row in listing['data']}, trace['request_id']
+
+    items = receipt['saved_searches'] = []
     for case, filters in FILTERS.items():
-        payload = {'name': f'UAT1821 {case}', 'filters': filters, 'alert_frequency': 'off'}
-        reply, receipt = request('/saved-searches', body=payload, token=token)
+        payload = {'name': f'UAT1822 {case}', 'filters': filters, 'alert_frequency': 'off'}
+        reply, saved_response = transport('/saved-searches', body=payload, token=token)
         saved = reply['data']
-        expect(saved['filters'], filters, f'{case} saved filters')
-        items.append({'case': case, 'id': saved['id'], 'name': saved['name'], 'filters': saved['filters'],
-                      'created': receipt['http_status'] == 201, **receipt})
-    reply, _ = request('/saved-searches', token=token)
-    stored = {row['id']: row['filters'] for row in reply['data']}
+        save_http = saved_response['http_status']
+        check_preparation(save_http in (200, 201) and type(saved.get('id')) is int and saved['id'] > 0
+                          and saved.get('filters') == filters, 'unexpected_saved_search_response')
+        saved_id = saved['id']
+        check_preparation(all(item['id'] != saved_id for item in items), 'saved_search_ids_must_be_distinct')
+        item = {'case': case, 'id': saved_id, 'save_http': save_http, 'created': save_http == 201,
+                'save_request_id': saved_response['request_id']}
+        items.append(item)
+
+        owned, _ = owned_searches()
+        row = owned.get(saved_id, {})
+        check_preparation(row.get('filters') == filters, 'saved_search_not_owned_with_expected_filters')
+        before = row.get('alert_frequency')
+        check_preparation(before in ('instant', 'daily', 'off'), 'unrecognized_saved_search_alert_frequency')
+        item.update(ownership_verified=True, alerts_before=before)
+        if before != 'off':
+            _, updated = transport(f'/saved-searches/{saved_id}', method='PATCH',
+                                   body={'alert_frequency': 'off'}, token=token)
+            item.update(alert_patch_http=updated['http_status'], alert_patch_request_id=updated['request_id'])
+            check_preparation(updated['http_status'] == 200, 'saved_search_alert_update_failed')
+
+    final, readback_id = owned_searches()
     for item in items:
-        expect(stored.get(item['id']), item['filters'], f"case {item['case']} persisted filters")
-    return items
+        row = final.get(item['id'], {})
+        check_preparation(row.get('filters') == FILTERS[item['case']] and row.get('alert_frequency') == 'off',
+                          'saved_search_scope_or_alert_readback_mismatch')
+        item.update(filters=row['filters'], alert_frequency='off', active=row.get('is_active'),
+                    name=row.get('name'), readback_verified=True)
+    receipt['owned_searches_readback_request_id'] = readback_id
+
+
+def create_saved_searches():
+    token = getpass('Bearer token for the signed-in UAT broker account 28: ').strip()
+    receipt = {}
+    prepare_broker_saved_searches(token, receipt)
+    return receipt
 
 
 if __name__ == '__main__':

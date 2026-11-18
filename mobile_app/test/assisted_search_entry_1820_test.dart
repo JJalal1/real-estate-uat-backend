@@ -11,6 +11,8 @@ import 'package:real_estate_mobile/features/discovery/presentation/home_ai_searc
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/saved_property_search.dart';
+import 'package:real_estate_mobile/features/properties/presentation/saved_searches_screen.dart';
 import 'package:real_estate_mobile/router/app_router.dart';
 
 import 'support/owner_ux_fixtures.dart';
@@ -22,6 +24,41 @@ const _description = ValueKey('smart-search-description');
 
 void main() {
   setUpAll(loadUxFixtures);
+
+  testWidgets('verified broker opens the saved polygon through the assistant menu', (tester) async {
+    const filters = {'purpose': 'rent', 'governorate_code': 'DHAMAR',
+      'area_polygon': '[[44.399,14.551],[44.4,14.551],[44.4,14.553],[44.399,14.553],[44.399,14.551]]'};
+    const saved = SavedPropertySearch(id: 1822, name: 'UAT1822 11-on', filters: filters,
+      alertFrequency: 'off', isActive: true, matchingCount: 1);
+    final properties = Wave3PropertiesFake();
+    final scope = uxContainer(user: uxUser(id: 28, type: 'broker'), extra: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, select, viewport) => const ColoredBox(color: Colors.teal)),
+    ]);
+    final production = scope.read(appRouterProvider);
+    addTearDown(production.dispose);
+    final aiRoute = production.configuration.routes.whereType<GoRoute>().firstWhere((route) => route.path == '/smart-search');
+    final navigation = GoRouter(routes: [
+      GoRoute(path: '/', builder: (_, __) => const SavedSearchResultsScreen(search: saved)),
+      GoRoute(path: '/smart-search', builder: aiRoute.builder),
+    ]);
+    addTearDown(navigation.dispose);
+    await pumpUx(tester, scope, const SizedBox(), router: navigation);
+    await tester.tap(find.byKey(const ValueKey('floating-smart-search')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('بحث عن عقار بالذكاء'));
+    await tester.pumpAndSettle();
+    expect(scope.read(smartSearchSessionProvider).filters.values, filters);
+    expect(properties.queries.single.filters, filters);
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));
+    await tester.tap(find.byKey(const ValueKey('smart-search-map')));
+    await tester.pumpAndSettle();
+    expect(find.byType(MapScreen), findsOneWidget);
+    expect(scope.read(smartSearchSessionProvider).filters.values, filters);
+    expect(properties.queries, hasLength(1));
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
 
   testWidgets('wide Home AI entry uses the production route without old Home or AI criteria and preserves typed city', (tester) async {
     final properties = Wave3PropertiesFake(), ai = Wave3AiFake(), voice = Wave3VoiceFake();

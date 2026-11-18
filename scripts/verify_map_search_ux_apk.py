@@ -29,6 +29,11 @@ ROUND4_VERSION = 1821
 ROUND4_BASE_SOURCE = '8cdcc2b6de2146a0eca8390c7db82ae511c5113e'
 ROUND4_BASE_SHA256 = '61ef6c5a1598666ab91e74c4552b1cc450cad55548585330bd35bffa517c4b18'
 ROUND4_BASE_BYTES = 45222939
+UAT1822_VERSION = 1822
+UAT1822_BASE_SOURCE = 'd406026d20943d1bb6209da264cb23d6d722ca16'
+UAT1822_BASE_SHA256 = '4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b'
+UAT1822_BASE_BYTES = 45242744
+UAT1822_FIX_SOURCE = '647edc35f4957fbfc9e4895adf17685d9a6a41eb'
 GENERATED_ICON_SUBSET = 'assets/flutter_assets/fonts/MaterialIcons-Regular.otf'
 PROTECTED = ('mobile_app/assets', 'mobile_app/android', 'mobile_app/pubspec.yaml',
              'mobile_app/pubspec.lock', 'backend-api-runtime', 'docs/uat-signing-identity.json')
@@ -45,7 +50,7 @@ def guard(env, source, identity):
     verify_imported_environment(identity, env)
 
 
-def baseline_receipt(path, *, round4=False):
+def baseline_receipt(path, *, round4=False, uat1822=False):
     require(path.stat().st_size <= 128 * 1024, 'oversized_public_baseline_receipt')
     def unique(pairs):
         out = {}
@@ -54,12 +59,16 @@ def baseline_receipt(path, *, round4=False):
             out[key] = value
         return out
     value = json.loads(path.read_text(), object_pairs_hook=unique)
-    expected = {'source_commit': ROUND4_BASE_SOURCE if round4 else BASE_SOURCE,
-                'version_code': VERSION if round4 else 1819, 'package': PACKAGE,
+    if uat1822:
+        source, version, sha, size = UAT1822_BASE_SOURCE, ROUND4_VERSION, UAT1822_BASE_SHA256, UAT1822_BASE_BYTES
+    elif round4:
+        source, version, sha, size = ROUND4_BASE_SOURCE, VERSION, ROUND4_BASE_SHA256, ROUND4_BASE_BYTES
+    else:
+        source, version, sha, size = BASE_SOURCE, 1819, BASE_SHA256, BASE_BYTES
+    expected = {'source_commit': source, 'version_code': version, 'package': PACKAGE,
                 'api': API, 'application_name': APP_NAME,
                 'signer_certificate_sha256': CERTIFICATE,
-                'sha256': ROUND4_BASE_SHA256 if round4 else BASE_SHA256,
-                'bytes': ROUND4_BASE_BYTES if round4 else BASE_BYTES, 'native_library_compression': 'deflated',
+                'sha256': sha, 'bytes': size, 'native_library_compression': 'deflated',
                 'extract_native_libs': True, 'approved_for_delivery': True,
                 'github_secret_storage_verified': True, 'debug_signing_allowed': False}
     require(isinstance(value, dict) and all(value.get(k) == v and type(value.get(k)) is type(v)
@@ -106,15 +115,22 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline-apk', required=True)
     parser.add_argument('--baseline-receipt', required=True)
-    parser.add_argument('--round4', action='store_true')
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--round4', action='store_true')
+    modes.add_argument('--uat1822', action='store_true')
     args = parser.parse_args(argv)
     identity = load_public_identity(require_approval=True)
     source = call('git', 'rev-parse', 'HEAD').strip()
     guard(os.environ, source, identity)
-    version = ROUND4_VERSION if args.round4 else VERSION
-    protected = source_guards(source, baseline_source=ROUND4_BASE_SOURCE if args.round4 else BASE_SOURCE)
+    if args.uat1822:
+        version, baseline_source = UAT1822_VERSION, UAT1822_BASE_SOURCE
+        call('git', 'merge-base', '--is-ancestor', UAT1822_FIX_SOURCE, source)
+    else:
+        version = ROUND4_VERSION if args.round4 else VERSION
+        baseline_source = ROUND4_BASE_SOURCE if args.round4 else BASE_SOURCE
+    protected = source_guards(source, baseline_source=baseline_source)
     baseline = regular_input(args.baseline_apk, '.apk')
-    metadata = baseline_receipt(regular_input(args.baseline_receipt, '.json'), round4=args.round4)
+    metadata = baseline_receipt(regular_input(args.baseline_receipt, '.json'), round4=args.round4, uat1822=args.uat1822)
     require(baseline.stat().st_size == metadata['bytes'] and digest(baseline) == metadata['sha256'],
             'baseline_apk_size_or_digest_mismatch')
     candidate = regular_input(ROOT / 'mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk', '.apk')
@@ -159,6 +175,10 @@ def main(argv=None):
                   'private_signing_material_in_artifacts': False,
                   'scope': 'Actual installer signature/identity/content/source guards only; separate Android receipt records replace-install and bounded guest UI smoke. No full native journey or phone acceptance.',
                   **after}
+        if args.uat1822:
+            record.update(included_fix_commit=UAT1822_FIX_SOURCE,
+                          intended_change_scope='Retain valid map results after refresh failure and open the broker saved-search filters in Smart Search.',
+                          scope='Verified installer and exact source. Android interface acceptance is assigned to the device tester.')
         (output / 'APK_VERIFICATION.json').write_text(json.dumps(record, indent=2) + '\n')
     except Exception:
         shutil.rmtree(output)
