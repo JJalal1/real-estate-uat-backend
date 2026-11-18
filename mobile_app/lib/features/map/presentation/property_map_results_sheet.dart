@@ -5,7 +5,7 @@ import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
 import '../../properties/presentation/adaptive_property_photo.dart';
 import '../../properties/presentation/property_favorite_status.dart';
-import '../../properties/presentation/discovery_section_heading.dart';
+import '../../discovery/presentation/search_result_pagination.dart';
 
 const mapRentColor = Color(0xff147d92);
 const mapSaleColor = Color(0xff0b8a55);
@@ -127,7 +127,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
     final ranked = widget.items.any((row) => row.discoveryMatch != null);
     final rows = ranked ? widget.items : [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
     final countLabel = widget.staleResults ? '${rows.length} عقار من آخر تحميل'
-      : '${rows.length}${widget.more ? '+' : ''} عقار في النطاق';
+      : '${rows.length}${widget.more ? '+' : ''} ${ranked ? 'نتيجة' : 'عقار في النطاق'}';
     return DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
       controller: _extent, initialChildSize: _initial, minChildSize: _minimum, maxChildSize: _maximum,
       snap: true, snapSizes: [for (final size in [_initial, widget.filterPanel == null ? .5 : .75]) if (size > _minimum && size < _maximum) size],
@@ -157,7 +157,9 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                     icon: Icon(_expanded ? Icons.keyboard_arrow_down : Icons.tune)),
                 ]),
               ]))),
-            Expanded(child: ListView.builder(key: const ValueKey('map-results-list'), controller: scroll,
+            Expanded(child: SearchResultPagination(
+              onLoadMore: ranked && widget.more && !widget.loading && widget.error == null ? widget.onMore : null,
+              child: ListView.builder(key: const ValueKey('map-results-list'), controller: scroll,
               padding: EdgeInsets.fromLTRB(12, 0, 12, 24 + MediaQuery.paddingOf(context).bottom), cacheExtent: 0,
               itemCount: rows.length + 2,
               itemBuilder: (context, index) {
@@ -167,7 +169,6 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                 const Wrap(spacing: 16, runSpacing: 4, children: [
                   _Legend(label: 'للإيجار', color: mapRentColor), _Legend(label: 'للبيع', color: mapSaleColor),
                 ]),
-                if (ranked) const Text('≈ نتيجة قريبة من بحثك. التجمع مثل 2 + ≈1 يعني مطابقين وقريبًا واحدًا؛ التفاصيل في البطاقات.'),
                 if (widget.loading) const Padding(padding: EdgeInsets.only(top: 8),
                   child: Text('جارٍ تحديث النطاق… النتائج الظاهرة من آخر تحميل متاح.')),
                 if (widget.error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Column(
@@ -181,19 +182,14 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
               if (index > rows.length) { return widget.more && !widget.staleResults ? TextButton(onPressed: widget.loading ? null : widget.onMore,
                 child: const Text('المزيد من العقارات')) : const SizedBox.shrink(); }
               final row = rows[index - 1];
-              return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                if (row.discoveryMatch?.nearby == true && (index == 1 || rows[index-2].discoveryMatch?.nearby != true))
-                  DiscoverySectionHeading(hasExact: index > 1),
-                if (row.discoveryMatch?.nearby == true) Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(row.discoveryMatch!.explanation)),
-                Semantics(selected: row.id == widget.selectedId, child: Padding(
+              return Semantics(selected: row.id == widget.selectedId, child: Padding(
                 key: ValueKey('map-result-${row.id}'), padding: const EdgeInsets.only(bottom: 12),
                 child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10),
                   border: Border.all(width: row.id == widget.selectedId ? 2 : 1,
                     color: row.id == widget.selectedId ? Theme.of(context).colorScheme.primary
                       : row.purpose == 'rent' ? mapRentColor : mapSaleColor)),
-                  child: widget.itemBuilder(row)))),
-              ]);
-            })),
+                  child: widget.itemBuilder(row))));
+            }))),
           ]));
       });
   }

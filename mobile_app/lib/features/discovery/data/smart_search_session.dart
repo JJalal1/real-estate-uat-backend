@@ -22,6 +22,8 @@ class SmartSearchState {
   final bool more, interpreting, loading, started;
   final String message, lastRequest, draftText;
   final String? aiError, resultsError;
+  bool get canLoadMore => more && !loading && resultsError == null;
+  bool get hasRankedResults => rows.isNotEmpty && rows.first.discoveryMatch != null;
 
   SmartSearchState copyWith({SmartSearchFilters? filters, List<PropertySummary>? rows, int? revision, int? page,
     bool? more, bool? interpreting, bool? loading, bool? started, String? message, String? lastRequest, String? draftText, String? aiError,
@@ -212,6 +214,11 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     // has a different request/revision and must keep its loading indicator.
     state = state.copyWith(loading: false);
     return false;
+  }
+
+  Future<void> loadNextPage(SmartSearchState expected) async {
+    if (!mounted || !state.canLoadMore || state.revision != expected.revision || state.page != expected.page) return;
+    await search(more: true);
   }
 
   Future<void> retryResults() => state.loading ? Future.value() : search(more: _failedMore);

@@ -272,7 +272,7 @@ void main() {
       expect(
           drawer.items.map((row) => (row.id, row.discoveryMatch!.nearby)), all);
       expect(drawer.more, isFalse);
-      expect(find.text('${all.length} عقار في النطاق'), findsOneWidget);
+      expect(find.text('${all.length} نتيجة'), findsOneWidget);
 
       if (id == 6) {
         // Moving the map itself still commits a viewport for the current search.

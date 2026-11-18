@@ -1,3 +1,7 @@
+# Owner-approved ranking contract under review — November18
+
+PR193 changes ranked discovery to order by the number of missed criteria groups, then distance inside each degree. Ranking uses an explicit search point, drawn area, or uniquely recorded text location. A camera viewport is a search scope and supplies no distance origin. Flutter keeps the ordered rows and internal classification, removes the explanatory paragraphs and continues paging on scroll. The UAT1823 evidence is historical for that exact signed APK. Case 13 is cancelled and excluded from the pass count. See [the rollout plan](RANKED_SEARCH_SIMILARITY_ROLLOUT_AR.md) for the server and APK review gates.
+
 # UAT1823 Smart Search map and broker navigation — November18
 
 PR193 continues from signed UAT1822 source `25b568ff93a428cf7397c9f517056cbc61b28fe2`. An idle event during native map startup could adopt camera bounds as filters and reload page one, replacing the accumulated results of the same Smart Search. The regression drives the native map method channel before and after style load, then verifies the drawer against the accumulated list for saved cases 10 and 11. Smart Search preserves the applied filters and ranked pages on map entry. A deliberate map drag still updates the search viewport. Verified active brokers can reach their saved searches through the existing authenticated Account → Services and Tools route. The Frankfurt service and existing data are reused. Android acceptance independently repeats case 10 and both sides of case 11.

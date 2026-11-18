@@ -9,7 +9,6 @@ import '../../../core/platform/voice_capture_controller.dart';
 import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../properties/presentation/property_summary_card.dart';
-import '../../properties/presentation/discovery_section_heading.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
 import '../data/marketplace_repository.dart';
@@ -18,6 +17,7 @@ import '../domain/smart_search_filters.dart';
 import 'smart_search_filter_editor.dart';
 import 'smart_search_assistant.dart';
 import 'smart_search_query_summary.dart';
+import 'search_result_pagination.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/saved_property_search.dart';
 
@@ -285,7 +285,9 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       ]),
       body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onOpenMap: _openMap, onPressed: () {
         _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut); _focus.requestFocus();
-      }, child: ListView(controller: _scroll, padding: const EdgeInsets.fromLTRB(18, 12, 18, 110), children: [
+      }, child: SearchResultPagination(
+        onLoadMore: state.hasRankedResults && state.canLoadMore ? () => controller.loadNextPage(state) : null,
+        child: ListView(controller: _scroll, padding: const EdgeInsets.fromLTRB(18, 12, 18, 110), children: [
         if (!state.started) ...[
           Text('مكان يناسبك', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 6),
@@ -369,19 +371,17 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
               onRemove: controller.remove,
               onEdit: () => _edit(),
             ),
-          for (var i = 0; i < state.rows.length; i++) ...[
-            if (state.rows[i].discoveryMatch?.nearby == true && (i == 0 || state.rows[i-1].discoveryMatch?.nearby != true))
-              DiscoverySectionHeading(hasExact: i > 0),
+          for (final row in state.rows)
             Padding(padding: const EdgeInsets.only(bottom: 12),
-              child: PropertySummaryCard(key: ValueKey('smart-search-result-${state.rows[i].id}'), property: state.rows[i])),
-          ],
+              child: PropertySummaryCard(key: ValueKey('smart-search-result-${row.id}'), property: row)),
           if (state.rows.isNotEmpty && controller.isLoadingMore &&
               (state.loading || state.resultsError != null))
             AppRefreshStatus(loading: state.loading, error: state.resultsError,
               onRetry: controller.retryResults),
-          if (state.more && state.resultsError == null) TextButton(onPressed: state.loading ? null : () => controller.search(more: true), child: const Text('المزيد من العقارات')),
+          if (state.more && state.resultsError == null) TextButton(onPressed: state.canLoadMore ? () => controller.loadNextPage(state) : null,
+            child: const Text('المزيد من العقارات')),
         ],
-      ])),
+      ]))),
     ));
   }
 }

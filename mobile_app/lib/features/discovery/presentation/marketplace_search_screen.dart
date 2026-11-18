@@ -5,11 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/network/conditional_image_prefetch.dart';
 import '../../properties/presentation/property_summary_card.dart';
-import '../../properties/presentation/discovery_section_heading.dart';
 import '../data/marketplace_search_session.dart';
 import '../data/smart_search_session.dart';
 import '../domain/smart_search_filters.dart';
 import 'marketplace_search_panel.dart';
+import 'search_result_pagination.dart';
 
 /// One pushed page above Home. Its editor/list and the optional map retain
 /// independent scroll/spatial snapshots through the existing search controller.
@@ -71,7 +71,10 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
         toolbarHeight: (56 + (MediaQuery.textScalerOf(context).scale(18) - 18) * 2).clamp(56, 116).toDouble(),
         leading: IconButton(key: const ValueKey('marketplace-search-back'), tooltip: 'العودة للرئيسية',
           onPressed: () => context.pop(), icon: const Icon(Icons.arrow_back, size: 20))),
-      body: RefreshIndicator(onRefresh: controller.refresh, child: CustomScrollView(
+      body: RefreshIndicator(onRefresh: controller.refresh, child: SearchResultPagination(
+        onLoadMore: !ui.editing && search.hasRankedResults && search.canLoadMore
+          ? () => controller.home.loadNextPage(search) : null,
+        child: CustomScrollView(
         key: const PageStorageKey('home-search-results'), controller: _scroll,
         cacheExtent: ConditionalImagePrefetch.enabled ? ConditionalImagePrefetch.extent : 0,
         physics: const AlwaysScrollableScrollPhysics(), slivers: [
@@ -79,7 +82,7 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
           child: MarketplaceSearchPanel(openFilters: widget.openFilters))),
         SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: Wrap(
           alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          if (search.started && !ui.editing) Text(ui.submittedQuery.isEmpty ? 'العقارات المطابقة' : 'نتائج «${ui.submittedQuery}»',
+          if (search.started && !ui.editing) Text(ui.submittedQuery.isEmpty ? 'نتائج البحث' : 'نتائج «${ui.submittedQuery}»',
             key: const ValueKey('published-result-context'), style: Theme.of(context).textTheme.titleSmall),
           TextButton.icon(key: const ValueKey('home-search-map'), onPressed: _openMap,
             icon: const Icon(Icons.map_outlined, size: 18), label: const Text('عرض على الخريطة')),
@@ -92,7 +95,7 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
               : 'الاقتراحات تخص النص الحالي. اضغط «تنفيذ» لعرض نتائجه.')))
         else ..._results(search, controller),
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
-      ])),
+      ]))),
     ));
   }
 
@@ -110,18 +113,17 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
           if (ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'] != null)
             'purpose': ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'],
         }))))
-    else SliverList(delegate: SliverChildBuilderDelegate((context, i) => Padding(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 4), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        if (search.rows[i].discoveryMatch?.nearby == true && (i == 0 || search.rows[i-1].discoveryMatch?.nearby != true))
-          DiscoverySectionHeading(hasExact: i > 0),
-        PropertySummaryCard(key: ValueKey('home-result-${search.rows[i].id}'), property: search.rows[i]),
-      ])), childCount: search.rows.length)),
+    else SliverList(delegate: SliverChildBuilderDelegate((context, i) {
+      final row = search.rows[i];
+      return Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
+        child: PropertySummaryCard(key: ValueKey('home-result-${row.id}'), property: row));
+    }, childCount: search.rows.length)),
     if (search.rows.isNotEmpty && controller.home.isLoadingMore &&
         (search.loading || search.resultsError != null)) SliverToBoxAdapter(child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18), child: AppRefreshStatus(
         loading: search.loading, error: search.resultsError,
         onRetry: () => ref.read(homeSearchResultsProvider.notifier).retryResults()))),
-    if (search.more && search.resultsError == null) SliverToBoxAdapter(child: TextButton(onPressed: search.loading ? null
-      : () => ref.read(homeSearchResultsProvider.notifier).search(more: true), child: const Text('المزيد من العقارات'))),
+    if (search.more && search.resultsError == null) SliverToBoxAdapter(child: TextButton(
+      onPressed: search.canLoadMore ? () => controller.home.loadNextPage(search) : null, child: const Text('المزيد من العقارات'))),
   ];
 }

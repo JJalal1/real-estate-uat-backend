@@ -1713,8 +1713,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _sharedJourney() {
     final state=ref.watch(_searchSession);
+    final session = ref.read(_searchSession.notifier);
     if (UatNetworkTrace.mapEnabled && !state.loading && state.started) {
-      final session = ref.read(_searchSession.notifier);
       final timing = session.resultTiming;
       if (timing != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1800,7 +1800,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             maxExtent: sheetMaximum, collapsed: widget.collapseResults,
             filterPanel: widget.toolbarAboveMap ? null : toolbar,
             error: state.resultsError ?? _mapMessage, onRetry: () => ref.read(_searchSession.notifier).retryResults(),
-            more: state.more, onMore: () => ref.read(_searchSession.notifier).search(more: true),
+            more: state.more, onMore: () {
+              if (_journeyCurrent) unawaited(session.loadNextPage(state));
+            },
             onShowList: widget.onShowList,
             itemBuilder: (row) => PropertyMapResultCard(property: row, compact: widget.enforceViewport,
               favorite: favoriteState?.asData?.value.contains(row.id) ?? false,

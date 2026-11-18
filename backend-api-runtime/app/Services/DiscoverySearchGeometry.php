@@ -8,7 +8,7 @@ class DiscoverySearchGeometry
     public static function distance(float $lat, float $lon, array $reference): float
     {
         if (isset($reference['latitude'])) {
-            return max(0, self::haversine($lat, $lon, $reference['latitude'], $reference['longitude']) - $reference['radius_m']);
+            return self::haversine($lat, $lon, $reference['latitude'], $reference['longitude']);
         }
         $polygons = ($reference['type'] ?? '') === 'Polygon' ? [$reference['coordinates']] : ($reference['coordinates'] ?? []);
         $minimum = INF;
