@@ -34,6 +34,10 @@ UAT1822_BASE_SOURCE = 'd406026d20943d1bb6209da264cb23d6d722ca16'
 UAT1822_BASE_SHA256 = '4a4636934af72d82bcfbd0781f751d35fa7925aed353c07b4b0591b2c81b792b'
 UAT1822_BASE_BYTES = 45242744
 UAT1822_FIX_SOURCE = '647edc35f4957fbfc9e4895adf17685d9a6a41eb'
+UAT1823_VERSION = 1823
+UAT1823_BASE_SOURCE = '25b568ff93a428cf7397c9f517056cbc61b28fe2'
+UAT1823_BASE_SHA256 = '8542e54e258f98b9bd0858c8d8dbe9afda083372075ca86a0a5aa1219730fd23'
+UAT1823_BASE_BYTES = 45243611
 GENERATED_ICON_SUBSET = 'assets/flutter_assets/fonts/MaterialIcons-Regular.otf'
 PROTECTED = ('mobile_app/assets', 'mobile_app/android', 'mobile_app/pubspec.yaml',
              'mobile_app/pubspec.lock', 'backend-api-runtime', 'docs/uat-signing-identity.json')
@@ -50,7 +54,7 @@ def guard(env, source, identity):
     verify_imported_environment(identity, env)
 
 
-def baseline_receipt(path, *, round4=False, uat1822=False):
+def baseline_receipt(path, *, round4=False, uat1822=False, uat1823=False):
     require(path.stat().st_size <= 128 * 1024, 'oversized_public_baseline_receipt')
     def unique(pairs):
         out = {}
@@ -59,7 +63,9 @@ def baseline_receipt(path, *, round4=False, uat1822=False):
             out[key] = value
         return out
     value = json.loads(path.read_text(), object_pairs_hook=unique)
-    if uat1822:
+    if uat1823:
+        source, version, sha, size = UAT1823_BASE_SOURCE, UAT1822_VERSION, UAT1823_BASE_SHA256, UAT1823_BASE_BYTES
+    elif uat1822:
         source, version, sha, size = UAT1822_BASE_SOURCE, ROUND4_VERSION, UAT1822_BASE_SHA256, UAT1822_BASE_BYTES
     elif round4:
         source, version, sha, size = ROUND4_BASE_SOURCE, VERSION, ROUND4_BASE_SHA256, ROUND4_BASE_BYTES
@@ -118,11 +124,15 @@ def main(argv=None):
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--round4', action='store_true')
     modes.add_argument('--uat1822', action='store_true')
+    modes.add_argument('--uat1823', action='store_true')
     args = parser.parse_args(argv)
     identity = load_public_identity(require_approval=True)
     source = call('git', 'rev-parse', 'HEAD').strip()
     guard(os.environ, source, identity)
-    if args.uat1822:
+    if args.uat1823:
+        version, baseline_source = UAT1823_VERSION, UAT1823_BASE_SOURCE
+        call('git', 'merge-base', '--is-ancestor', baseline_source, source)
+    elif args.uat1822:
         version, baseline_source = UAT1822_VERSION, UAT1822_BASE_SOURCE
         call('git', 'merge-base', '--is-ancestor', UAT1822_FIX_SOURCE, source)
     else:
@@ -130,7 +140,8 @@ def main(argv=None):
         baseline_source = ROUND4_BASE_SOURCE if args.round4 else BASE_SOURCE
     protected = source_guards(source, baseline_source=baseline_source)
     baseline = regular_input(args.baseline_apk, '.apk')
-    metadata = baseline_receipt(regular_input(args.baseline_receipt, '.json'), round4=args.round4, uat1822=args.uat1822)
+    metadata = baseline_receipt(regular_input(args.baseline_receipt, '.json'), round4=args.round4,
+                                uat1822=args.uat1822, uat1823=args.uat1823)
     require(baseline.stat().st_size == metadata['bytes'] and digest(baseline) == metadata['sha256'],
             'baseline_apk_size_or_digest_mismatch')
     candidate = regular_input(ROOT / 'mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk', '.apk')
@@ -179,6 +190,9 @@ def main(argv=None):
             record.update(included_fix_commit=UAT1822_FIX_SOURCE,
                           intended_change_scope='Retain valid map results after refresh failure and open the broker saved-search filters in Smart Search.',
                           scope='Verified installer and exact source. Android interface acceptance is assigned to the device tester.')
+        if args.uat1823:
+            record.update(intended_change_scope='Preserve Smart Search ranked pages on map entry and restore broker access to saved searches.',
+                          scope='Verified installer and exact source. Android interface acceptance is separate.')
         (output / 'APK_VERIFICATION.json').write_text(json.dumps(record, indent=2) + '\n')
     except Exception:
         shutil.rmtree(output)

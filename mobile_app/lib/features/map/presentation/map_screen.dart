@@ -413,6 +413,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   MapLibreMapController? _mapController;
   Timer? _styleLoadTimer, _viewportTimer;
   bool _fittingShared = false;
+  bool _mapViewportGesture = false;
   String _lastSharedViewport = '';
   LatLngBounds? _cameraBounds;
   int _viewportGeneration = 0;
@@ -828,6 +829,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (!_journeyCurrent) return;
     if (_selectingArea || _fittingShared|| _restoringCamera) return;
     if (ref.read(offlineConnectionProvider) == OfflineConnection.offline) {
+      _mapViewportGesture = false;
       // Keep cached rows and their original classification, but recluster the
       // local annotations at the camera's new zoom without a network query.
       _queueMarkerSync(_latestMarkerItems);
@@ -1338,6 +1340,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void _beginAreaSelection() {
     _areaSelectionGeneration++;
     _viewportGeneration++;
+    _mapViewportGesture = false;
     widget.onMapInteraction?.call();
     setState(() {
       _convertingArea = false;
@@ -1635,14 +1638,33 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   String _viewportSignature(LatLngBounds bounds) => '${bounds.southwest.latitude.toStringAsFixed(5)}:${bounds.southwest.longitude.toStringAsFixed(5)}:${bounds.northeast.latitude.toStringAsFixed(5)}:${bounds.northeast.longitude.toStringAsFixed(5)}';
 
+  void _onMapViewportGesture(PointerEvent _) {
+    _mapViewportGesture = true;
+  }
+
+  bool get _canApplySharedViewport =>
+      widget.enforceViewport || _mapViewportGesture || !ref.read(_searchSession).started;
+
   Future<void> _sharedViewport([int? generation]) async {
     final controller=_mapController;
     if(controller==null || !_journeyCurrent || (!_initialCameraResolved && !_mapUserTouched) || _fittingShared || _selectingArea||
         _restoringCamera ||
         ref.read(offlineConnectionProvider) == OfflineConnection.offline){ return; }
+    // A native idle also follows initial layout, fitting and style changes.
+    // In an active Smart Search, only a gesture on the map can adopt new
+    // bounds. Keep the current rows and pages while the camera is positioned.
+    if (!_canApplySharedViewport) {
+      _queueMarkerSync(_latestMarkerItems);
+      return;
+    }
+    final revision = ref.read(_searchSession).revision;
     try {
       final bounds=await controller.getVisibleRegion();
-      if(!_journeyCurrent || _fittingShared || (generation != null && generation != _viewportGeneration))return;
+      if (!_journeyCurrent || _fittingShared || (generation != null && generation != _viewportGeneration) ||
+          !_canApplySharedViewport || ref.read(_searchSession).revision != revision) {
+        return;
+      }
+      _mapViewportGesture = false;
       final signature=_viewportSignature(bounds);
       if(signature==_lastSharedViewport)return;
       _lastSharedViewport=signature;
@@ -1703,6 +1725,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       }
     }
     ref.listen<SmartSearchState>(_searchSession, (before, after) {
+      if (before?.revision != after.revision) _mapViewportGesture = false;
       if (before?.filters.values['area_polygon'] == after.filters.values['area_polygon']) return;
       final encoded = after.filters.values['area_polygon'];
       MapAreaGeometry? geometry;
@@ -1761,6 +1784,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           return false;
         }, child: Stack(key: const ValueKey('shared-search-map-viewport'), fit: StackFit.expand, children: [
           Positioned.fill(child: Listener(onPointerDown: (_) { _mapUserTouched = true; widget.onMapInteraction?.call(); },
+            onPointerMove: _onMapViewportGesture,
+            onPointerPanZoomUpdate: _onMapViewportGesture,
+            onPointerSignal: _onMapViewportGesture,
             child: canvas == null ? _buildMap() : canvas(context, rows, select, (south, west, north, east) {
               if (_journeyCurrent && !_selectingArea && ref.read(offlineConnectionProvider) != OfflineConnection.offline) {
                 ref.read(_searchSession.notifier).updateViewport(south: south, west: west, north: north, east: east);

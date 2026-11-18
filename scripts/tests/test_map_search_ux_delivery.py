@@ -85,6 +85,18 @@ class ContextGuards(unittest.TestCase):
 
 
 class InstallerAndSourceGuards(unittest.TestCase):
+    def test_1823_requires_the_exact_signed_1822_receipt(self):
+        original = {**receipt(build.UAT1822_VERSION), 'source_commit': build.UAT1823_BASE_SOURCE,
+                    'sha256': build.UAT1823_BASE_SHA256, 'bytes': build.UAT1823_BASE_BYTES}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'receipt.json'
+            path.write_text(json.dumps(original))
+            self.assertEqual(build.baseline_receipt(path, uat1823=True), original)
+            for key, value in [('version_code', 1821), ('sha256', '1' * 64), ('source_commit', SOURCE)]:
+                with self.subTest(key=key), self.assertRaises(build.CleanupError):
+                    path.write_text(json.dumps({**original, key: value}))
+                    build.baseline_receipt(path, uat1823=True)
+
     def test_1822_requires_the_exact_signed_1821_receipt(self):
         original = {**receipt(build.ROUND4_VERSION), 'source_commit': build.UAT1822_BASE_SOURCE,
                     'sha256': build.UAT1822_BASE_SHA256, 'bytes': build.UAT1822_BASE_BYTES}

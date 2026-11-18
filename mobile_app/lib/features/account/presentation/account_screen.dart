@@ -109,7 +109,8 @@ class AccountScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      if (!administrativeRole && !user.hasVerifiedPublishingProfile)
+                      if (!administrativeRole &&
+                          (!user.hasVerifiedPublishingProfile || (user.isBroker && user.isActive)))
                         _AccountRow(
                           'الخدمات والأدوات',
                           Icons.apps_outlined,
