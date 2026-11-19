@@ -547,7 +547,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       const Text('نقلنا المعلومات التي راجعتها إلى المسودة. أكمل البيانات المطلوبة ثم راجع الإعلان وأرسله.'),
       const SizedBox(height: 12),
       _completedSummary(),
-      choice('type','أكد نوع العقار',_typeConfirmed ? _type : null,_typeLabels,(v) => setState(() { _type = v!; _typeConfirmed = true; _clearHiddenFields(); _completionFields = _missingFields(); })),
+      choice('type','أكد نوع العقار',_typeConfirmed ? _type : null,_typeLabels,(value) async {
+        if (value == null || !await _confirmListingTypeChange(value)) return;
+        setState(() { _applyListingType(value); _clearHiddenFields(); _completionFields = _missingFields(); });
+      }),
       choice('purpose','أكد الغرض',_purposeConfirmed ? _purpose : null,const {'sale':'للبيع','rent':'للإيجار'},(v) => setState(() {
         _purpose = v!; _purposeConfirmed = true; _clearHiddenFields(); _completionFields = _missingFields(); unawaited(_loadSaiPolicy()); })),
       if (_typeConfirmed && _purposeConfirmed) ...[
@@ -1364,9 +1367,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                   selected: _type == entry.key,
                   onTap: _busy
                       ? null
-                      : () => setState(() {
-                            if (_type != entry.key) _wholeFloor = false;
-                            _type = entry.key; _typeConfirmed = true;
+                      : () async {
+                        if (!await _confirmListingTypeChange(entry.key)) return;
+                        setState(() {
+                            _applyListingType(entry.key);
                             if (!_supportsElevator) _elevatorChoice = null;
 
                             if (!_requiresSaleTenure) _tenureType = null;
@@ -1386,7 +1390,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                             if (_type != 'land') {
                               _landBoundaryGeoJson = null;
                             }
-                          }),
+                        });
+                      },
                 ),
               )
               .toList(growable: false),
@@ -2155,10 +2160,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     } finally { _assistantSheetContext = null; }
     final resultData = result;
     if (!_entryActorCurrent || resultData == null || actor != ref.read(authControllerProvider).asData?.value?.id) return;
+    final suggestedType = resultData['type'];
+    if (suggestedType is String && _typeLabels.containsKey(suggestedType) &&
+        !await _confirmListingTypeChange(suggestedType)) {
+      return;
+    }
+    if (!_entryActorCurrent || actor != ref.read(authControllerProvider).asData?.value?.id) return;
     final oldPurpose = _purpose;
     setState(() {
       if (resultData['description'] is String) _description.text = resultData['description'] as String;
-      if (_typeLabels.containsKey(resultData['type'])) { _type = resultData['type'] as String; _typeConfirmed = true; }
+      if (suggestedType is String && _typeLabels.containsKey(suggestedType)) {
+        _applyListingType(suggestedType);
+      }
       if (const ['sale', 'rent'].contains(resultData['purpose'])) { _purpose = resultData['purpose'] as String; _purposeConfirmed = true; }
       for (final entry in <String, TextEditingController>{
         'title': _title, if (!_isRentalApartment) 'area_value': _area, 'governorate': _governorate, 'district': _neighborhood, 'street': _street,
@@ -2558,6 +2571,57 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (selection != null && mounted) {
       setState(() => _landBoundaryGeoJson = selection.geoJson);
     }
+  }
+
+  Future<bool> _confirmListingTypeChange(String type) async {
+    if (!mounted || !_sessionValid || _busy || _persistStarting) return false;
+    final currentType = _type;
+    if (ListingPhotoCheck.usesSamePhotoLabels(currentType, type) || _photoKeys.isEmpty) return true;
+    final confirmed = await AppDialog.show<bool>(
+      context,
+      title: 'تغيير نوع العقار؟',
+      content: const Text('النوع الجديد يحتاج صورًا مناسبة له. عند تغيير النوع ستُزال الصور الحالية من مسودة الإعلان.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+        EbrokerFilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('تغيير النوع وإزالة الصور')),
+      ],
+    );
+    return confirmed == true && mounted && _sessionValid && !_busy &&
+        !_persistStarting && _type == currentType;
+  }
+
+  void _applyListingType(String type) {
+    if (_type != type) {
+      _wholeFloor = false;
+      if (!ListingPhotoCheck.usesSamePhotoLabels(_type, type)) {
+        final photos = _photoKeys;
+        if (photos.isNotEmpty) {
+          for (final key in photos) {
+            _photoCancels[key]?.cancel('Listing type changed');
+            _photoStates.remove(key);
+            _photoErrors.remove(key);
+            _photoProgress.remove(key);
+            _retryPhotoKeys.remove(key);
+          }
+          final paths = List<String>.of(_imagePaths);
+          _removedPhotoKeys.addAll(photos);
+          _replaceImages = true;
+          _photoOrder.clear();
+          _checkedPhotoTypes.clear();
+          _imagePaths.clear();
+          _localPhotoKeys.removeWhere((path, key) => photos.contains(key));
+          unawaited(_discardTemporaryListingPhotos(paths));
+        }
+      }
+    }
+    _type = type;
+    _typeConfirmed = true;
+  }
+
+  Future<void> _discardTemporaryListingPhotos(List<String> paths) async {
+    try {
+      await _mediaPicker.clearTemporaryFiles(paths.where((path) => !ListingRecoveryStore.isSavedMedia(path)));
+    } catch (_) {}
   }
 
   Future<void> _pickImages({String? replacing}) async {

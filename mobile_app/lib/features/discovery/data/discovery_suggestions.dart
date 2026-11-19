@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../broker/domain/broker_models.dart';
+import '../../map/domain/map_area_geometry.dart';
+import '../../properties/domain/property_coordinates.dart';
 import '../domain/smart_search_filters.dart';
 import 'marketplace_repository.dart';
 
@@ -27,11 +31,14 @@ class DiscoverySearchChoice {
 class DiscoverySuggestionsRepository {
   DiscoverySuggestionsRepository(this._dio);
   final Dio _dio;
-  Future<List<DiscoverySuggestion>> areas(String query, {CancelToken? cancelToken}) async {
+  Future<List<Map<String, dynamic>>> _areaRows(String query, CancelToken? cancelToken) async {
     final response = await _dio.get<Map<String, dynamic>>('/regions/cells',
       queryParameters: {'search': query, 'limit': 6}, cancelToken: cancelToken);
-    final rows = response.data?['data'];
-    if (rows is! List) return const [];
+    return brokerRows(response.data?['data']);
+  }
+
+  Future<List<DiscoverySuggestion>> areas(String query, {CancelToken? cancelToken}) async {
+    final rows = await _areaRows(query, cancelToken);
     final normalized = normalizeDiscoveryText(query), result = <DiscoverySuggestion>[];
     for (final row in rows.whereType<Map>()) {
       if (row['is_active'] != true || row['name_ar'] is! String) continue;
@@ -41,6 +48,40 @@ class DiscoverySuggestionsRepository {
       if (result.length == 6) break;
     }
     return result;
+  }
+
+  Future<List<MapAddressMatch>> areasOnMap(String query, CancelToken cancelToken) async {
+    final rows = await _areaRows(query, cancelToken);
+    return rows.map(_registeredArea).whereType<MapAddressMatch>().toList(growable: false);
+  }
+
+  MapAddressMatch? _registeredArea(Map<String, dynamic> row) {
+    final name = row['name_ar'];
+    final boundary = row['boundary'];
+    if (row['is_active'] != true || name is! String || name.trim().isEmpty ||
+        boundary is! Map || boundary['type'] != 'Polygon') {
+      return null;
+    }
+    final rings = boundary['coordinates'];
+    if (rings is! List || rings.isEmpty || rings.first is! List) return null;
+    final points = <LatLng>[];
+    for (final coordinate in rings.first as List) {
+      if (coordinate is! List || coordinate.length < 2) return null;
+      final lon = coordinate[0], lat = coordinate[1];
+      if (lon is! num || lat is! num ||
+          !hasValidPropertyCoordinates(lat.toDouble(), lon.toDouble())) {
+        return null;
+      }
+      points.add(LatLng(lat.toDouble(), lon.toDouble()));
+    }
+    if (points.length < 4) return null;
+    final center = MapAreaGeometry.fromPoints(points).center;
+    final governorate = row['governorate'];
+    final province = governorate is Map ? governorate['name_ar'] : null;
+    return MapAddressMatch(
+      label: province is String && province.isNotEmpty && province != name ? '$name، $province' : name,
+      latitude: center.latitude, longitude: center.longitude, zoom: 14, partial: true,
+    );
   }
 }
 

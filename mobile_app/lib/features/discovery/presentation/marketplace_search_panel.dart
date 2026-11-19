@@ -133,6 +133,10 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
           Row(children: [
             Expanded(child: _ChipRail(children: [...purposeChips, if (widget.onMap) ...typeChips])),
             const SizedBox(width: 6),
+            if (widget.mapActions?.onFindAddress != null)
+              IconButton(key: const ValueKey('marketplace-map-find-address'),
+                tooltip: 'انتقل إلى حي أو عنوان', onPressed: widget.mapActions!.onFindAddress,
+                icon: const Icon(Icons.travel_explore)),
             if (widget.onMap) IconButton.filledTonal(key: const ValueKey('published-map-filters'),
               tooltip: ui.criteria.chips.isEmpty ? 'تصفية' : 'تصفية، ${arabicDigits(ui.criteria.chips.length.toString())} محددة',
               isSelected: ui.criteria.chips.isNotEmpty,

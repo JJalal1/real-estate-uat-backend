@@ -75,6 +75,7 @@ Route::get('/properties', [PropertyController::class, 'index']);
 Route::get('/marketplace', [\App\Http\Controllers\Api\FinancialPropertyController::class, 'marketplace']);
 Route::get('/marketplace/locations', [PropertyController::class, 'marketplaceLocations']);
 Route::get('/marketplace/location-context', [PropertyController::class, 'marketplaceLocationContext'])->middleware('throttle:60,1');
+Route::post('/marketplace/address-search', [PropertyController::class, 'marketplaceAddressSearch'])->middleware('throttle:12,1,marketplace-address-search');
 Route::get('/ai/capabilities', [AiAssistantController::class, 'capabilities']);
 Route::post('/ai/transcribe', [AiAssistantController::class, 'transcribe'])->middleware('throttle:6,1');
 Route::post('/ai/search', [AiAssistantController::class, 'search'])->middleware('throttle:12,1');

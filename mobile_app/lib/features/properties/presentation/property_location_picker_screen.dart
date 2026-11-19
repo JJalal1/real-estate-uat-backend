@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/platform/app_permission_settings.dart';
 import '../../map/domain/map_screen_coordinate_space.dart';
 import '../../map/presentation/aqer_map.dart';
+import '../../map/presentation/map_address_search_sheet.dart';
 import '../domain/property_location_address.dart';
 import '../domain/property_coordinates.dart';
 import '../data/property_repository.dart';
@@ -102,6 +103,7 @@ class _PropertyLocationPickerScreenState
   bool _styleLoaded = false;
   bool _draggingPin = false;
   bool _panningMap = false;
+  bool _previewingAddress = false, _googleAddressUsed = false;
   bool _resolving = false;
   bool _styleFailed = false, _needsSettings = false, _locationDisabled = false, _locating = false;
   int _mapAttempt = 0, _pointVersion = 0;
@@ -141,6 +143,7 @@ class _PropertyLocationPickerScreenState
         _styleLoaded = false;
         _draggingPin = false;
         _panningMap = false;
+        _previewingAddress = false;
       });
       _startMapTimeout();
     }
@@ -161,7 +164,7 @@ class _PropertyLocationPickerScreenState
   Future<void> _syncPinToSelection() async {
     final controller = _controller;
     final box = _mapStackKey.currentContext?.findRenderObject();
-    if (!_styleLoaded || controller == null || box is! RenderBox) return;
+    if (!_styleLoaded || _previewingAddress || controller == null || box is! RenderBox) return;
     try {
       final version = _pointVersion;
       final point = await controller.toScreenLocation(_selection);
@@ -195,6 +198,8 @@ class _PropertyLocationPickerScreenState
     setState(() {
       _selection = camera.target;
       _pinOffset = null;
+      if (_previewingAddress) _message = 'راجع موقع الدبوس ثم أكد النقطة.';
+      _previewingAddress = false;
     });
   }
 
@@ -246,6 +251,7 @@ class _PropertyLocationPickerScreenState
       setState(() {
         _selection = location;
         _draggingPin = false;
+        _previewingAddress = false;
         _message = 'تم نقل الدبوس. يمكنك سحبه مرة أخرى أو تحريك الخريطة.';
       });
     } catch (_) {
@@ -267,6 +273,7 @@ class _PropertyLocationPickerScreenState
       if (!mounted || version != _pointVersion) return;
       setState(() {
         _panningMap = false;
+        _previewingAddress = false;
         _pointMethod = 'gps'; _accuracyMetres = position.accuracyMetres; _reducedAccuracy = position.reducedAccuracy;
         _selection = location;
         _pinOffset = null;
@@ -287,8 +294,35 @@ class _PropertyLocationPickerScreenState
     } finally { if(mounted)setState(()=>_locating=false); }
   }
 
+  Future<void> _findAddress() async {
+    final controller = _controller;
+    if (controller == null || !_styleLoaded || _locating || _resolving || _draggingPin) return;
+    final version = _pointVersion;
+    final address = await showMapAddressSearch(context, useGoogle: controller.usesGoogle);
+    if (address == null || !mounted || _controller != controller || version != _pointVersion) return;
+    setState(() {
+      _previewingAddress = true;
+      _panningMap = false;
+      _pinOffset = null;
+      _googleAddressUsed = _googleAddressUsed || address.google;
+      _message = 'حرّك الدبوس على موقع العقار لتأكيده.';
+    });
+    try {
+      await controller.animateCamera(CameraUpdate.newLatLngZoom(
+        LatLng(address.latitude, address.longitude), address.zoom + 1,
+      ));
+    } catch (_) {
+      if (!mounted || _controller != controller || version != _pointVersion) return;
+      setState(() {
+        _previewingAddress = false;
+        _message = 'تعذّر فتح المكان على الخريطة. حاول مرة أخرى.';
+      });
+      await _syncPinToSelection();
+    }
+  }
+
   Future<void> _confirm() async {
-    if (_resolving || _draggingPin) return;
+    if (_resolving || _draggingPin || _previewingAddress) return;
     final selection = _selection;
     setState(() {
       _resolving = true;
@@ -324,6 +358,14 @@ class _PropertyLocationPickerScreenState
         appBar: AppBar(
           title: Text(widget.title),
           centerTitle: true,
+          actions: [
+            IconButton(
+              key: const ValueKey('listing-map-find-address'),
+              tooltip: 'انتقل إلى حي أو عنوان',
+              onPressed: _styleLoaded && !_resolving && !_locating && !_draggingPin ? _findAddress : null,
+              icon: const Icon(Icons.travel_explore),
+            ),
+          ],
         ),
         body: LayoutBuilder(
           builder: (context, constraints) {
@@ -344,6 +386,7 @@ class _PropertyLocationPickerScreenState
                     onMapCreated: _onMapCreated,
                     onStyleLoadedCallback: _onStyleLoaded,
                     onCameraIdle: _onCameraIdle,
+                    rememberCameraAcrossRenderers: !_googleAddressUsed,
                     minMaxZoomPreference: const MinMaxZoomPreference(3, 19),
                     rotateGesturesEnabled: true,
                     tiltGesturesEnabled: true,
@@ -444,7 +487,7 @@ class _PropertyLocationPickerScreenState
                   child: PropertyLocationPickerControls(
                     maxHeight: (constraints.maxHeight - 36).clamp(0.0, double.infinity).toDouble(),
                     onLocate: _styleLoaded && !_locating ? _moveToCurrentLocation : null,
-                    onConfirm: _styleLoaded && !_resolving && !_locating && !_draggingPin ? _confirm : null,
+                    onConfirm: _styleLoaded && !_resolving && !_locating && !_draggingPin && !_previewingAddress ? _confirm : null,
                     onOpenSettings: _needsSettings ? () => ref.read(appPermissionSettingsProvider)() : null,
                     onEnableLocation: _locationDisabled ? () => ref.read(locationServiceSettingsProvider)() : null,
                     message: _message,

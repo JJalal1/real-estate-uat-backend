@@ -22,6 +22,7 @@ class AqerMap extends ConsumerStatefulWidget {
     this.onMapClick,
     this.minMaxZoomPreference = const MinMaxZoomPreference(3, 19),
     this.padding = EdgeInsets.zero,
+    this.rememberCameraAcrossRenderers = true,
     this.myLocationEnabled = false,
     this.rotateGesturesEnabled = true,
     this.tiltGesturesEnabled = true,
@@ -38,6 +39,7 @@ class AqerMap extends ConsumerStatefulWidget {
   final ValueChanged<LatLng>? onMapClick;
   final MinMaxZoomPreference minMaxZoomPreference;
   final EdgeInsets padding;
+  final bool rememberCameraAcrossRenderers;
   final bool myLocationEnabled,
       rotateGesturesEnabled,
       tiltGesturesEnabled,
@@ -59,7 +61,9 @@ class _AqerMapState extends ConsumerState<AqerMap> {
   }
 
   void _onIdle() {
-    _lastPosition = _controller?.cameraPosition ?? _lastPosition;
+    _lastPosition = widget.rememberCameraAcrossRenderers
+        ? _controller?.cameraPosition ?? _lastPosition
+        : null;
     widget.onCameraIdle?.call();
   }
 
@@ -67,7 +71,9 @@ class _AqerMapState extends ConsumerState<AqerMap> {
   Widget build(BuildContext context) {
     final online =
         ref.watch(offlineConnectionProvider) != OfflineConnection.offline;
-    final initialPosition = _lastPosition ?? widget.initialCameraPosition;
+    final initialPosition =
+        (widget.rememberCameraAcrossRenderers ? _lastPosition : null) ??
+            widget.initialCameraPosition;
     if (const bool.fromEnvironment('AQER_GOOGLE_MAPS_UAT') &&
         ApiEnvironmentConfig.isUat &&
         !kIsWeb &&
@@ -245,6 +251,7 @@ class AqerMapController {
       <(double, double, Color, Color), Future<google.BitmapDescriptor>>{};
 
   CameraPosition? get cameraPosition => _libre?.cameraPosition ?? _position;
+  bool get usesGoogle => _google != null;
 
   void listenForSymbolTaps(ValueChanged<Symbol> callback) {
     _libre?.onSymbolTapped.add(callback);
