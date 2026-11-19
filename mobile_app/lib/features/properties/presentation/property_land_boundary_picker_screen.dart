@@ -1,8 +1,9 @@
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+
+import '../../map/presentation/aqer_map.dart';
 
 class PropertyLandBoundarySelection {
   const PropertyLandBoundarySelection(this.points);
@@ -40,9 +41,10 @@ class PropertyLandBoundaryPickerScreen extends StatefulWidget {
 
 class _PropertyLandBoundaryPickerScreenState
     extends State<PropertyLandBoundaryPickerScreen> {
-  static const _mapStyle = 'https://tiles.openfreemap.org/styles/liberty';
-  MapLibreMapController? _map;
+  AqerMapController? _map;
   bool _styleLoaded = false;
+  Future<void> _drawing = Future<void>.value();
+  int _drawingRevision = 0;
   late final List<LatLng> _points;
 
   @override
@@ -80,27 +82,39 @@ class _PropertyLandBoundaryPickerScreenState
     return points;
   }
 
-  void _onMapCreated(MapLibreMapController controller) => _map = controller;
-
-  Future<void> _onStyleLoaded() async {
-    _styleLoaded = true;
-    await _syncDrawing();
+  void _onMapCreated(AqerMapController controller) {
+    _styleLoaded = false;
+    _map = controller;
   }
 
-  void _onMapClick(math.Point<double> _, LatLng point) {
+  void _onStyleLoaded() {
+    _styleLoaded = true;
+    _syncDrawing();
+  }
+
+  void _onMapClick(LatLng point) {
     if (!_styleLoaded) return;
     setState(() => _points.add(point));
     _syncDrawing();
   }
 
-  Future<void> _syncDrawing() async {
+  void _syncDrawing() {
     final map = _map;
     if (map == null || !_styleLoaded) return;
+    final revision = ++_drawingRevision;
+    final points = List<LatLng>.of(_points);
+    _drawing = _drawing.then((_) async {
+      if (!mounted || _map != map || revision != _drawingRevision) return;
+      await _paintDrawing(map, points);
+    });
+  }
+
+  Future<void> _paintDrawing(AqerMapController map, List<LatLng> points) async {
     try {
       await map.clearFills();
       await map.clearLines();
       await map.clearCircles();
-      for (final point in _points) {
+      for (final point in points) {
         await map.addCircle(CircleOptions(
           geometry: point,
           circleRadius: 6,
@@ -109,19 +123,19 @@ class _PropertyLandBoundaryPickerScreenState
           circleStrokeWidth: 2,
         ));
       }
-      if (_points.length >= 2) {
+      if (points.length >= 2) {
         final line =
-            _points.length >= 3 ? <LatLng>[..._points, _points.first] : _points;
+            points.length >= 3 ? <LatLng>[...points, points.first] : points;
         await map.addLine(LineOptions(
           geometry: line,
           lineColor: '#0B8A55',
           lineWidth: 3,
         ));
       }
-      if (_points.length >= 3) {
+      if (points.length >= 3) {
         await map.addFill(FillOptions(
           geometry: <List<LatLng>>[
-            <LatLng>[..._points, _points.first],
+            <LatLng>[...points, points.first],
           ],
           fillColor: '#95D5B2',
           fillOpacity: 0.30,
@@ -179,8 +193,7 @@ class _PropertyLandBoundaryPickerScreenState
         body: Stack(
           children: [
             Positioned.fill(
-              child: MapLibreMap(
-                styleString: _mapStyle,
+              child: AqerMap(
                 initialCameraPosition: CameraPosition(target: center, zoom: 17),
                 onMapCreated: _onMapCreated,
                 onStyleLoadedCallback: _onStyleLoaded,

@@ -357,8 +357,16 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           if (property.hasValidLocation) ...[
             const SizedBox(height: 24), EbrokerSectionPanel(title: 'الموقع والخريطة', child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (property.address?.isNotEmpty == true) ...[Text(property.address!), const SizedBox(height: 12)],
-              PropertyLocationPreview(latitude: property.latitude, longitude: property.longitude, onOpen: () => context.push(Uri(path: '/property-market',
-                queryParameters: {'lat': '${property.latitude}', 'lon': '${property.longitude}'}).toString())),
+              PropertyLocationPreview(
+                latitude: property.latitude,
+                longitude: property.longitude,
+                onOpen: () => Navigator.of(context).push<void>(MaterialPageRoute(
+                  builder: (_) => PropertyLocationScreen(
+                    latitude: property.latitude,
+                    longitude: property.longitude,
+                  ),
+                )),
+              ),
             ])),
           ] else ...[
             const SizedBox(height: 24),

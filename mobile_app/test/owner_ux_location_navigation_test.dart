@@ -42,7 +42,6 @@ void main() {
     testWidgets('details ${valid ? 'routes the exact saved point' : 'shows no fabricated point'} and removes questions', (tester) async {
       const lat = 13.966723, lon = 44.182451;
       final seen = <(double, double)>[];
-      Uri? opened;
       final scope = uxContainer(extra: [
         propertyDetailsProvider.overrideWith((ref, id) async => PropertyDetails.fromJson({
           'id': id, 'title': 'منزل اختبار في إب', 'type': 'house', 'purpose': 'sale', 'price': 20000000, 'currency': 'YER',
@@ -54,7 +53,6 @@ void main() {
       ]);
       final router = GoRouter(initialLocation: '/property/11', routes: [
         GoRoute(path: '/property/:id', builder: (_, state) => const PropertyDetailsScreen(propertyId: 11)),
-        GoRoute(path: '/property-market', builder: (_, state) { opened = state.uri; return const Scaffold(body: Text('خريطة')); }),
       ]);
       addTearDown(router.dispose);
       await pumpUx(tester, scope, const SizedBox.shrink(), router: router);
@@ -65,7 +63,8 @@ void main() {
         await tester.scrollUntilVisible(open, 300, scrollable: find.byType(Scrollable).first);
         await tester.ensureVisible(open); await tester.pumpAndSettle();
         await tester.tap(open); await uxFrames(tester);
-        expect(opened!.queryParameters['lat'], '$lat'); expect(opened!.queryParameters['lon'], '$lon');
+        final location = tester.widget<PropertyLocationScreen>(find.byType(PropertyLocationScreen));
+        expect((location.latitude, location.longitude), (lat, lon));
       } else {
         expect(seen, isEmpty); expect(find.byType(PropertyLocationPreview), findsNothing);
         final missing = find.byKey(const ValueKey('property-location-unspecified'));

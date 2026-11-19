@@ -27,6 +27,20 @@ CLEANUP_PR_BASE = "work/fix-connectivity-1815-20261117"
 UX1820_BRANCH = "work/map-search-ux-1820-20261117"
 UX1820_PR_BASE = CLEANUP_BRANCH
 LISTING_PHOTO_BRANCH = "work/listing-photo-check-1825-20261119"
+GOOGLE_MAPS_BRANCH = "work/google-maps-uat-1826-20261120"
+GOOGLE_MAPS_BASE_SHA = "2ff278bb27e25fcae8292a88128f58b3da04bc80"
+GOOGLE_MAPS_PACKAGES = {
+    "csslib": "1.0.2",
+    "flutter_plugin_android_lifecycle": "2.0.29",
+    "google_maps": "8.3.0",
+    "google_maps_flutter": "2.12.3",
+    "google_maps_flutter_android": "2.18.1",
+    "google_maps_flutter_ios": "2.15.5",
+    "google_maps_flutter_platform_interface": "2.13.0",
+    "google_maps_flutter_web": "0.5.12+2",
+    "html": "0.15.6",
+    "sanitize_html": "2.2.0",
+}
 CLEANUP_REMOVALS = frozenset({
     "charcode", "cli_util", "drift", "drift_dev", "recase", "sqlite3",
     "sqlite3_flutter_libs", "sqlparser",
@@ -189,14 +203,46 @@ def verify_cleanup(original, resolved, *, policy, baseline_pubspec,
     return verify(expected_committed, resolved)
 
 
+def verify_google_maps_1826(baseline_lock, committed_lock, resolved, baseline_pubspec,
+                           candidate_pubspec, env):
+    if not (env.get("GITHUB_ACTIONS") == "true" and
+            env.get("GITHUB_REPOSITORY") == CLEANUP_REPOSITORY and
+            env.get("GITHUB_EVENT_NAME") == "push" and
+            env.get("GITHUB_REF") == "refs/heads/" + GOOGLE_MAPS_BRANCH):
+        raise ValueError("Google Maps requires the dedicated UAT push")
+    expected = baseline_pubspec.replace(
+        "  maplibre_gl: 0.22.0\n",
+        "  maplibre_gl: 0.22.0\n  google_maps_flutter: 2.12.3\n",
+    )
+    if expected == baseline_pubspec or candidate_pubspec != expected:
+        raise ValueError("Unexpected change to the UAT1825 package declarations")
+    before, baseline_sdks = parse_lock(baseline_lock)
+    after, candidate_sdks = parse_lock(committed_lock)
+    if (candidate_sdks != baseline_sdks or
+            any(after.get(name) != record for name, record in before.items()) or
+            set(after) - set(before) != set(GOOGLE_MAPS_PACKAGES)):
+        raise ValueError("Expected the UAT1825 lock plus the pinned Maps packages")
+    for name, version in GOOGLE_MAPS_PACKAGES.items():
+        record = after[name]
+        if (f"    version: {version}" not in record.splitlines() or
+                not re.search(r"^      sha256: [a-f0-9]{64}$", record, re.MULTILINE) or
+                "      url: https://pub.dev" not in record or "    source: hosted" not in record):
+            raise ValueError("Unapproved Maps dependency record: " + name)
+    return verify(committed_lock, resolved)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--resolved", required=True, type=Path)
-    parser.add_argument("--cleanup1818", action="store_true",
-                        help="opt in to the finite approved cleanup on its exact CI branch")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--cleanup1818", action="store_true",
+                      help="opt in to the finite approved cleanup on its exact CI branch")
+    mode.add_argument("--google-maps1826", action="store_true",
+                      help="verify the pinned Maps dependency set on its exact CI branch")
     args = parser.parse_args()
+    baseline = GOOGLE_MAPS_BASE_SHA if args.google_maps1826 else GOLDEN_SHA
     original = subprocess.check_output(
-        ["git", "show", GOLDEN_SHA + ":mobile_app/pubspec.lock"], text=True,
+        ["git", "show", baseline + ":mobile_app/pubspec.lock"], text=True,
     )
     try:
         if args.cleanup1818:
@@ -216,6 +262,18 @@ def main():
                 current_pubspec=(ROOT / "mobile_app/pubspec.yaml").read_text(encoding="utf-8"),
                 committed_lock=committed_lock, env=os.environ,
             )
+        elif args.google_maps1826:
+            baseline_pubspec = subprocess.check_output(
+                ["git", "show", baseline + ":mobile_app/pubspec.yaml"], text=True,
+            )
+            committed_lock = subprocess.check_output(
+                ["git", "show", "HEAD:mobile_app/pubspec.lock"], text=True,
+            )
+            count = verify_google_maps_1826(
+                original, committed_lock, args.resolved.read_text(encoding="utf-8"),
+                baseline_pubspec, (ROOT / "mobile_app/pubspec.yaml").read_text(encoding="utf-8"),
+                os.environ,
+            )
         else:
             count = verify(original, args.resolved.read_text(encoding="utf-8"))
     except ValueError as error:
@@ -224,6 +282,8 @@ def main():
     if args.cleanup1818:
         print("Cleanup1818 finite package removals verified; all retained records are unchanged.")
         print(f"Original {count} retained locked package records and SDK constraints preserved.")
+    elif args.google_maps1826:
+        print(f"UAT1825 dependency records and SDK constraints preserved with the pinned Maps packages ({count} records).")
     else:
         print(f"Original {count} locked package records and SDK constraints preserved.")
     print("Only original url_launcher completion plus five pinned SVG-renderer packages added.")

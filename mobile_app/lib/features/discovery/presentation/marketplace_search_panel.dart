@@ -133,7 +133,12 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
           Row(children: [
             Expanded(child: _ChipRail(children: [...purposeChips, if (widget.onMap) ...typeChips])),
             const SizedBox(width: 6),
-            if (large || widget.onMap) IconButton.outlined(key: ValueKey(widget.onMap ? 'published-map-filters' : 'published-filter-more'),
+            if (widget.onMap) IconButton.filledTonal(key: const ValueKey('published-map-filters'),
+              tooltip: ui.criteria.chips.isEmpty ? 'تصفية' : 'تصفية، ${arabicDigits(ui.criteria.chips.length.toString())} محددة',
+              isSelected: ui.criteria.chips.isNotEmpty,
+              onPressed: () => _editFilters(), icon: const Icon(Icons.tune),
+              selectedIcon: const Icon(Icons.filter_list_rounded))
+            else if (large) IconButton.outlined(key: const ValueKey('published-filter-more'),
               tooltip: 'تصفية', onPressed: () => _editFilters(), icon: const Icon(Icons.tune))
             else OutlinedButton.icon(key: const ValueKey('published-filter-more'),
               onPressed: () => _editFilters(), icon: const Icon(Icons.tune, size: 18),

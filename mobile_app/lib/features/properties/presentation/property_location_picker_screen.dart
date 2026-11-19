@@ -9,6 +9,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/platform/app_permission_settings.dart';
 import '../../map/domain/map_screen_coordinate_space.dart';
+import '../../map/presentation/aqer_map.dart';
 import '../domain/property_location_address.dart';
 import '../domain/property_coordinates.dart';
 import '../data/property_repository.dart';
@@ -94,14 +95,13 @@ class PropertyLocationPickerScreen extends ConsumerStatefulWidget {
 class _PropertyLocationPickerScreenState
     extends ConsumerState<PropertyLocationPickerScreen> {
   static const _fallback = LatLng(15.3694, 44.1910);
-  static const _mapStyle = 'https://tiles.openfreemap.org/styles/liberty';
-
   final GlobalKey _mapStackKey = GlobalKey();
-  MapLibreMapController? _controller;
+  AqerMapController? _controller;
   late LatLng _selection;
   Offset? _pinOffset;
   bool _styleLoaded = false;
   bool _draggingPin = false;
+  bool _panningMap = false;
   bool _resolving = false;
   bool _styleFailed = false, _needsSettings = false, _locationDisabled = false, _locating = false;
   int _mapAttempt = 0, _pointVersion = 0;
@@ -135,7 +135,15 @@ class _PropertyLocationPickerScreenState
   @override
   void dispose() { _mapTimeout?.cancel();super.dispose(); }
 
-  void _onMapCreated(MapLibreMapController controller) {
+  void _onMapCreated(AqerMapController controller) {
+    if (_controller != null) {
+      setState(() {
+        _styleLoaded = false;
+        _draggingPin = false;
+        _panningMap = false;
+      });
+      _startMapTimeout();
+    }
     _controller = controller;
   }
 
@@ -157,7 +165,7 @@ class _PropertyLocationPickerScreenState
     try {
       final version = _pointVersion;
       final point = await controller.toScreenLocation(_selection);
-      if (!mounted || version != _pointVersion) return;
+      if (!mounted || version != _pointVersion || _controller != controller) return;
       final size = box.size;
       final logicalPoint = MapScreenCoordinateSpace.platformPixelsToLogical(
         point,
@@ -170,13 +178,18 @@ class _PropertyLocationPickerScreenState
         );
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || _controller != controller) return;
       setState(() => _pinOffset = null);
     }
   }
 
   void _onCameraIdle() {
-    if (_draggingPin) return;
+    if (_draggingPin || _resolving || !_styleLoaded) return;
+    if (!_panningMap) {
+      unawaited(_syncPinToSelection());
+      return;
+    }
+    _panningMap = false;
     final camera = _controller?.cameraPosition;
     if (!mounted || camera == null) return;
     setState(() {
@@ -194,6 +207,12 @@ class _PropertyLocationPickerScreenState
     ++_pointVersion;
     if (_pointMethod == 'gps') setState(() => _message = 'عدلت الدبوس يدويًا؛ دقة الهاتف لا تصف موضعه الجديد.');
     _pointMethod = 'manual'; _accuracyMetres = null; _reducedAccuracy = null;
+  }
+
+  void _onMapPan(PointerEvent _) {
+    if (_resolving) return;
+    _panningMap = true;
+    _manualPointInteraction();
   }
 
   void _moveDraggedPin(DragUpdateDetails details, Size size) {
@@ -223,14 +242,14 @@ class _PropertyLocationPickerScreenState
           MediaQuery.devicePixelRatioOf(context),
         ),
       );
-      if (!mounted || version != _pointVersion) return;
+      if (!mounted || version != _pointVersion || _controller != controller) return;
       setState(() {
         _selection = location;
         _draggingPin = false;
         _message = 'تم نقل الدبوس. يمكنك سحبه مرة أخرى أو تحريك الخريطة.';
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || _controller != controller) return;
       setState(() {
         _draggingPin = false;
         _message = 'تعذر تثبيت الدبوس في هذا الموضع. حاول مرة أخرى.';
@@ -239,7 +258,7 @@ class _PropertyLocationPickerScreenState
   }
 
   Future<void> _moveToCurrentLocation() async {
-    if (_locating || _resolving) return;
+    if (_locating || _resolving || _draggingPin) return;
     final version = ++_pointVersion;
     setState(() { _locating=true;_needsSettings=false;_locationDisabled=false; });
     try {
@@ -247,6 +266,7 @@ class _PropertyLocationPickerScreenState
       final location = LatLng(position.latitude, position.longitude);
       if (!mounted || version != _pointVersion) return;
       setState(() {
+        _panningMap = false;
         _pointMethod = 'gps'; _accuracyMetres = position.accuracyMetres; _reducedAccuracy = position.reducedAccuracy;
         _selection = location;
         _pinOffset = null;
@@ -268,7 +288,7 @@ class _PropertyLocationPickerScreenState
   }
 
   Future<void> _confirm() async {
-    if (_resolving) return;
+    if (_resolving || _draggingPin) return;
     final selection = _selection;
     setState(() {
       _resolving = true;
@@ -313,15 +333,17 @@ class _PropertyLocationPickerScreenState
               key: _mapStackKey,
               children: [
                 Positioned.fill(
-                  child: Listener(onPointerDown: (_) => _manualPointInteraction(), child: IgnorePointer(ignoring: _resolving, child: MapLibreMap(
+                  child: Listener(
+                    onPointerMove: _onMapPan,
+                    onPointerPanZoomUpdate: _onMapPan,
+                    onPointerSignal: _onMapPan,
+                    child: IgnorePointer(ignoring: _resolving || _draggingPin, child: AqerMap(
                     key:ValueKey(_mapAttempt),
-                    styleString: _mapStyle,
                     initialCameraPosition:
                         CameraPosition(target: _selection, zoom: 15),
                     onMapCreated: _onMapCreated,
                     onStyleLoadedCallback: _onStyleLoaded,
                     onCameraIdle: _onCameraIdle,
-                    trackCameraPosition: true,
                     minMaxZoomPreference: const MinMaxZoomPreference(3, 19),
                     rotateGesturesEnabled: true,
                     tiltGesturesEnabled: true,
@@ -341,13 +363,12 @@ class _PropertyLocationPickerScreenState
                         ),
                         child: Row(
                           children: [
-                            const EbrokerIcon(Icons.location_on_rounded,
-                                color: AppTheme.brand),
+                            const EbrokerIcon(Icons.pin_drop_outlined, color: AppTheme.brand),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 _styleLoaded
-                                    ? 'اسحب الدبوس إلى العقار، أو حرّك الخريطة ليعود الدبوس إلى المنتصف.'
+                                    ? 'اسحب الدبوس أو حرّك الخريطة حتى يشير إلى موقع العقار.'
                                     : _styleFailed ? 'تعذر تحميل الخريطة. أعد المحاولة عند توفر الشبكة.' : 'جارٍ تحميل الخريطة…',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
@@ -382,9 +403,13 @@ class _PropertyLocationPickerScreenState
                     top: pin.dy - 62,
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onPanStart: (_) => setState(() => _draggingPin = true),
+                      onPanStart: _resolving ? null : (_) => setState(() => _draggingPin = true),
                       onPanUpdate: (details) => _moveDraggedPin(details, size),
                       onPanEnd: (_) => _commitDraggedPin(size),
+                      onPanCancel: () {
+                        setState(() => _draggingPin = false);
+                        unawaited(_syncPinToSelection());
+                      },
                       child: Container(
                         width: 62,
                         height: 68,
@@ -405,7 +430,7 @@ class _PropertyLocationPickerScreenState
                           child: EbrokerIcon(
                             Icons.location_on_rounded,
                             size: 52,
-                            color: Color(0xFFD84332),
+                            color: AppTheme.brand,
                           ),
                         ),
                       ),
@@ -419,7 +444,7 @@ class _PropertyLocationPickerScreenState
                   child: PropertyLocationPickerControls(
                     maxHeight: (constraints.maxHeight - 36).clamp(0.0, double.infinity).toDouble(),
                     onLocate: _styleLoaded && !_locating ? _moveToCurrentLocation : null,
-                    onConfirm: _styleLoaded && !_resolving && !_locating ? _confirm : null,
+                    onConfirm: _styleLoaded && !_resolving && !_locating && !_draggingPin ? _confirm : null,
                     onOpenSettings: _needsSettings ? () => ref.read(appPermissionSettingsProvider)() : null,
                     onEnableLocation: _locationDisabled ? () => ref.read(locationServiceSettingsProvider)() : null,
                     message: _message,

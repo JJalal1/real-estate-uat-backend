@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import '../../map/presentation/aqer_map.dart';
+
 typedef PropertyMapPreviewBuilder = Widget Function(BuildContext context, double latitude, double longitude);
 
 final propertyMapPreviewBuilderProvider = Provider<PropertyMapPreviewBuilder>((ref) => (_, lat, lon) => _PublicPropertyMap(key: ValueKey((lat, lon)), latitude: lat, longitude: lon));
@@ -20,15 +22,42 @@ class PropertyLocationPreview extends ConsumerWidget {
   ]);
 }
 
-class _PublicPropertyMap extends StatefulWidget {
-  const _PublicPropertyMap({required this.latitude, required this.longitude, super.key});
+class PropertyLocationScreen extends StatelessWidget {
+  const PropertyLocationScreen({
+    required this.latitude,
+    required this.longitude,
+    super.key,
+  });
+
   final double latitude, longitude;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('موقع العقار')),
+    body: _PublicPropertyMap(
+      latitude: latitude,
+      longitude: longitude,
+      interactive: true,
+    ),
+  );
+}
+
+class _PublicPropertyMap extends StatefulWidget {
+  const _PublicPropertyMap({
+    required this.latitude,
+    required this.longitude,
+    this.interactive = false,
+    super.key,
+  });
+
+  final double latitude, longitude;
+  final bool interactive;
   @override
   State<_PublicPropertyMap> createState() => _PublicPropertyMapState();
 }
 
 class _PublicPropertyMapState extends State<_PublicPropertyMap> {
-  MapLibreMapController? _controller;
+  AqerMapController? _controller;
   Timer? _timeout;
   int _attempt = 0;
   bool _ready = false, _failed = false;
@@ -60,26 +89,42 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
         geometry: LatLng(widget.latitude, widget.longitude), circleRadius: 8,
         circleColor: '#127C7E', circleStrokeColor: '#FFFFFF', circleStrokeWidth: 3,
       )).timeout(const Duration(seconds: 5));
-      if (mounted && attempt == _attempt) setState(() { _ready = true; _failed = false; });
+      if (mounted && attempt == _attempt && _controller == controller) {
+        setState(() { _ready = true; _failed = false; });
+      }
     } catch (_) {
-      if (mounted && attempt == _attempt) setState(() => _failed = true);
-    } finally { if (attempt == _attempt) _timeout?.cancel(); }
+      if (mounted && attempt == _attempt && _controller == controller) {
+        setState(() => _failed = true);
+      }
+    } finally { if (attempt == _attempt && _controller == controller) _timeout?.cancel(); }
   }
 
   @override
   Widget build(BuildContext context) {
     final attempt = _attempt;
     return Stack(fit: StackFit.expand, children: [
-    MapLibreMap(key: ValueKey(attempt), styleString: 'https://tiles.openfreemap.org/styles/liberty',
-      initialCameraPosition: CameraPosition(target: LatLng(widget.latitude, widget.longitude), zoom: 15),
-      onMapCreated: (controller) { if (mounted && attempt == _attempt) _controller = controller; },
+    AqerMap(key: ValueKey(attempt),
+      initialCameraPosition: CameraPosition(
+        target: LatLng(widget.latitude, widget.longitude),
+        zoom: widget.interactive ? 17 : 15,
+      ),
+      onMapCreated: (controller) {
+        if (!mounted || attempt != _attempt) return;
+        setState(() {
+          _controller = controller;
+          _ready = false;
+          _failed = false;
+        });
+        _startTimeout();
+      },
       onStyleLoadedCallback: () => _styleLoaded(attempt),
-      scrollGesturesEnabled: false, zoomGesturesEnabled: false, rotateGesturesEnabled: false, tiltGesturesEnabled: false,
-      doubleClickZoomEnabled: false, myLocationEnabled: false),
+      scrollGesturesEnabled: widget.interactive, zoomGesturesEnabled: widget.interactive,
+      rotateGesturesEnabled: false, tiltGesturesEnabled: false,
+      doubleClickZoomEnabled: widget.interactive),
     if (_failed) ColoredBox(color: Theme.of(context).colorScheme.surface,
       child: Center(child: Padding(padding: const EdgeInsets.all(12),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('تعذّر عرض الخريطة الآن. يمكنك فتح الموقع أو إعادة المحاولة.', textAlign: TextAlign.center),
+          const Text('تعذّر عرض الخريطة الآن.', textAlign: TextAlign.center),
           TextButton(onPressed: _retry, child: const Text('إعادة تحميل الخريطة')),
         ])))),
     if (!_ready && !_failed) const IgnorePointer(child: Center(child: SizedBox.square(dimension: 22,
