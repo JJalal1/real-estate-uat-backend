@@ -43,11 +43,14 @@ jobs:
           flutter pub get
           python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --cleanup1818
           flutter pub get --enforce-lockfile
-      - name: Strict analysis and focused listing checks
+      - name: Strict analysis
+        timeout-minutes: 3
         working-directory: mobile_app
-        run: |
-          python3 -B ../scripts/check_v3_analysis.py
-          flutter test --no-pub test/listing_photo_check_test.dart test/listing_photo_editor_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart --reporter expanded --timeout 2m
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Focused listing and dictation checks
+        timeout-minutes: 5
+        working-directory: mobile_app
+        run: flutter test --no-pub test/listing_photo_check_test.dart test/listing_photo_editor_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart --reporter expanded --timeout 45s
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -56,6 +59,14 @@ jobs:
         with:
           log-accepted-android-sdk-licenses: false
           packages: platform-tools platforms;android-36 build-tools;36.0.0
+      - name: Restore the reviewed public Gradle cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+          restore-keys: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-
       - name: Import the approved UAT signer
         env:
           AQER_UAT_KEYSTORE_BASE64: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 }}

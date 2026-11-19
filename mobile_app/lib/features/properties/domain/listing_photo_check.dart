@@ -98,7 +98,7 @@ class ListingPhotoCheck {
     final extension = path.split('.').last.toLowerCase();
     try {
       if (!const ['jpg', 'jpeg', 'png', 'webp'].contains(extension) ||
-          await File(path).length() > 8 * 1024 * 1024) {
+          File(path).lengthSync() > 8 * 1024 * 1024) {
         return ListingPhotoIssue.invalidFile;
       }
     } on FileSystemException {

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -50,7 +49,6 @@ void main() {
     ));
     final car = '${directory.path}/car.png';
     var selected = [car, house.path];
-    var cleanup = Completer<void>();
     final checked = <String>[];
     final discarded = <String>[];
     messenger.setMockMethodCallHandler(channel, (call) async {
@@ -63,7 +61,6 @@ void main() {
           return path == car ? {'car': 0.98} : {'building': 0.95};
         case 'clearTemporaryFiles':
           discarded.addAll((call.arguments['paths'] as List).cast<String>());
-          if (!cleanup.isCompleted) cleanup.complete();
           return null;
         default:
           throw MissingPluginException(call.method);
@@ -78,10 +75,8 @@ void main() {
     );
     final add = find.text('إضافة صور');
     await tester.ensureVisible(add);
-    await tester.runAsync(() async {
-      await tester.tap(add);
-      await cleanup.future;
-    });
+    await tester.pumpAndSettle();
+    await tester.tap(add);
     await tester.pumpAndSettle();
     expect(find.text(ListingPhotoIssue.mismatch.message), findsOneWidget);
     expect(find.text('صور الإعلان (1/12)'), findsOneWidget);
@@ -90,15 +85,12 @@ void main() {
     expect(drafts.uploaded, [house.path]);
 
     selected = [car];
-    cleanup = Completer<void>();
     final menu = find.byTooltip('خيارات الصورة');
     await tester.ensureVisible(menu);
+    await tester.pumpAndSettle();
     await tester.tap(menu);
     await tester.pumpAndSettle();
-    await tester.runAsync(() async {
-      await tester.tap(find.text('استبدال الصورة'));
-      await cleanup.future;
-    });
+    await tester.tap(find.text('استبدال الصورة'));
     await tester.pumpAndSettle();
     expect(find.text('صور الإعلان (1/12)'), findsOneWidget);
     expect(drafts.uploaded, [house.path]);
