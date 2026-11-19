@@ -44,6 +44,7 @@ class MainActivity : FlutterActivity() {
     private var pendingCameraFile: File? = null
     private var speechInput: InAppSpeechInput? = null
     private var pushBridge: PushBridge? = null
+    private var listingPhotoLabeler: ListingPhotoLabeler? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -101,6 +102,12 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "pickImages" -> openImagePicker(result)
                     "takePhoto" -> openCamera(result)
+                    "labelListingPhoto" -> {
+                        val labeler = listingPhotoLabeler ?: ListingPhotoLabeler(this).also {
+                            listingPhotoLabeler = it
+                        }
+                        labeler.label(call.argument<String>("path"), result)
+                    }
                     "clearTemporaryFiles" -> clearTemporaryFiles(call.arguments, result)
                     else -> result.notImplemented()
                 }
@@ -336,6 +343,8 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         offlineCrypto.shutdown()
+        listingPhotoLabeler?.dispose()
+        listingPhotoLabeler = null
         pushBridge?.dispose()
         pushBridge = null
         speechInput?.dispose()

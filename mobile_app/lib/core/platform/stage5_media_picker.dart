@@ -19,6 +19,17 @@ class Stage5MediaPicker {
     return path;
   }
 
+  Future<Map<String, double>> labelListingPhoto(String path) async {
+    final labels = await _channel.invokeMapMethod<String, double>(
+      'labelListingPhoto',
+      <String, dynamic>{'path': path},
+    );
+    if (labels == null) {
+      throw PlatformException(code: 'LISTING_PHOTO_CHECK_UNAVAILABLE');
+    }
+    return labels;
+  }
+
   Future<void> clearTemporaryFiles(Iterable<String> paths) async {
     final values = paths
         .where((path) => path.trim().isNotEmpty)

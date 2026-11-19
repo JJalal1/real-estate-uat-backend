@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import '../data/listing_account_draft_repository.dart';
 import '../domain/listing_account_draft.dart';
+import '../domain/listing_photo_check.dart';
 import '../domain/property_schema.dart';
 import 'listing_draft_photo.dart';
 import 'adaptive_property_photo.dart';
@@ -90,6 +91,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   };
 
   final _mediaPicker = const Stage5MediaPicker();
+  final _photoCheck = const ListingPhotoCheck();
+  final _checkedPhotoTypes = <String, String>{};
   final _title = TextEditingController();
   final _description = TextEditingController();
   final _assistantBrief = TextEditingController();
@@ -135,7 +138,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   double? _longitude;
   bool get _hasLocation => hasValidPropertyCoordinates(_latitude, _longitude);
   Map<String, dynamic>? _landBoundaryGeoJson;
-  bool _busy = false;
+  bool _savingListing = false;
+  bool _checkingPhotos = false;
+  bool get _busy => _savingListing || _checkingPhotos;
   bool _resolvingLocation = false, _landmarksBusy = false;
   double? _locationAccuracyMetres;
   bool? _locationReducedAccuracy;
@@ -316,6 +321,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             if (!pending.$3 && !_autoSaveEligible()) continue accountLoop;
             if (_remotePhotos.containsKey(photo.key) || !order.contains(photo.key) || _removedPhotoKeys.contains(photo.key)) continue;
             if (_photoStates[photo.key]=='failed' && !_retryPhotoKeys.remove(photo.key)) continue;
+            // Recovered paths and photos selected under another property type
+            // must pass the same check before any photo bytes leave the device.
+            final type = pending.$1['type'] as String;
+            if (type != _type) continue accountLoop;
+            final issue = await _checkListingPhoto(photo.value, type);
+            if (_disposed || !_sessionValid || _recoveryFinished) return;
+            if (type != _type || (!pending.$3 && !_autoSaveEligible())) continue accountLoop;
+            if (_removedPhotoKeys.contains(photo.key)) continue;
+            if (issue != null) {
+              _photoStates[photo.key] = 'failed';
+              _photoErrors[photo.key] = issue.message;
+              if (mounted) super.setState(() {});
+              continue;
+            }
             var connectionLost=false;
             final token=CancelToken();_photoCancels[photo.key]=token;_photoStates[photo.key]='uploading';_photoErrors.remove(photo.key);
             if (mounted) super.setState(() {});
@@ -1697,7 +1716,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Text('صور الإعلان ($_effectiveImageCount/12)',style:Theme.of(context).textTheme.titleMedium),
       const SizedBox(height:8),
-      AppButton(label:'إضافة صور',icon:Icons.add_photo_alternate_outlined,expand:true,style:AppButtonStyle.tonal,onPressed:_busy?null:_pickImages),
+      AppButton(label:_checkingPhotos ? 'جارٍ فحص الصور…' : 'إضافة صور',icon:Icons.add_photo_alternate_outlined,expand:true,style:AppButtonStyle.tonal,onPressed:_busy?null:_pickImages),
       if (keys.isEmpty) const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Text('لم تضف صورًا بعد. أضف صورة واضحة للعقار لإرساله للمراجعة.')),
       if (keys.isNotEmpty) ...[
         const SizedBox(height:12),SizedBox(height:height,child:ReorderableListView.builder(scrollDirection:Axis.horizontal,
@@ -1753,24 +1772,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
   }
 
-  Future<void> _replacePhoto(String key) async {
-    try {
-      final picked=await _mediaPicker.pickImages();
-      if (!mounted || !_sessionValid) { await _mediaPicker.clearTemporaryFiles(picked);return; }
-      final valid=await _validImagePaths(picked);
-      if (valid.isEmpty) return;
-      await _mediaPicker.clearTemporaryFiles(valid.skip(1));
-      final path=valid.first, next=newListingDraftKey(), order=List<String>.of(_photoKeys), index=order.indexOf(key);
-      _photoCancels[key]?.cancel('Image replaced');
-      setState(() {
-        final old=_localPath(key);if(old!=null)_imagePaths.remove(old);
-        _removedPhotoKeys.add(key);_localPhotoKeys[path]=next;_imagePaths.add(path);_photoStates[next]='queued';
-        if(index>=0) { order[index]=next; } else { order.add(next); }
-        _photoOrder=order;
-      });
-      await _saveRecovery();
-    } catch (_) { if(mounted)_message('تعذر استبدال الصورة. الصورة السابقة باقية حتى اختيار بديل.'); }
-  }
+  Future<void> _replacePhoto(String key) => _pickImages(replacing: key);
 
   Widget _ownershipEvidence() {
     final user = ref.watch(authControllerProvider).asData?.value;
@@ -2300,7 +2302,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (confirmed != true || !mounted || !_sessionValid) return;
     }
 
-    setState(() => _busy = true);
+    setState(() => _savingListing = true);
     _recoveryTimer?.cancel();
     late PropertyDetails draft;
     try {
@@ -2389,7 +2391,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _accountSaved=false;_needsReconcile=true;
       if (mounted) setState(() => _stepError = friendlyApiError(error));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _savingListing = false);
     }
   }
 
@@ -2558,50 +2560,91 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     }
   }
 
-  Future<void> _pickImages() async {
+  Future<void> _pickImages({String? replacing}) async {
+    if (_busy || _persistStarting || !_sessionValid) return;
+    final type = _type;
+    var picked = const <String>[];
+    final kept = <String>{};
+    super.setState(() => _checkingPhotos = true);
     try {
-      final picked = await _mediaPicker.pickImages();
-      if (!mounted || !_sessionValid) { await _mediaPicker.clearTemporaryFiles(picked);return; }
-      if (picked.isEmpty) return;
-      final valid=await _validImagePaths(picked);
-      final available = (12 - _photoKeys.length).clamp(0, 12);
-      final accepted = valid.take(available).toList(growable: false);
-      final discarded = valid.where((path) => !accepted.contains(path));
-      await _mediaPicker.clearTemporaryFiles(discarded);
-      if (!mounted) return;
-      setState(() => _imagePaths = <String>[..._imagePaths, ...accepted]);
-      if (accepted.length < picked.length) {
-        _message('الحد الأقصى للإعلان هو 12 صورة.');
+      picked = await _mediaPicker.pickImages();
+      if (!mounted || !_sessionValid || _type != type || picked.isEmpty) return;
+      final available = replacing == null ? (12 - _photoKeys.length).clamp(0, 12) : 1;
+      final accepted = <String>[];
+      final messages = <String>{};
+      for (final path in picked) {
+        if (accepted.length == available) {
+          if (replacing == null) messages.add('الحد الأقصى للإعلان هو 12 صورة.');
+          break;
+        }
+        final issue = await _checkListingPhoto(path, type);
+        if (!mounted || !_sessionValid || _type != type) return;
+        if (issue == null) {
+          accepted.add(path);
+        } else {
+          messages.add(issue.message);
+        }
       }
+      if (accepted.isNotEmpty) {
+        if (replacing == null) {
+          setState(() => _imagePaths = [..._imagePaths, ...accepted]);
+        } else {
+          final order = List<String>.of(_photoKeys);
+          final index = order.indexOf(replacing);
+          if (index < 0) return;
+          final path = accepted.single;
+          final key = newListingDraftKey();
+          _photoCancels[replacing]?.cancel('Image replaced');
+          setState(() {
+            final old = _localPath(replacing);
+            if (old != null) {
+              _imagePaths.remove(old);
+              _checkedPhotoTypes.remove(old);
+            }
+            _removedPhotoKeys.add(replacing);
+            _localPhotoKeys[path] = key;
+            _imagePaths.add(path);
+            _photoStates[key] = 'queued';
+            order[index] = key;
+            _photoOrder = order;
+          });
+        }
+        kept.addAll(accepted);
+      }
+      if (messages.isNotEmpty) _message(messages.join('\n'));
+      if (replacing != null && kept.isNotEmpty) await _saveRecovery();
     } on PlatformException {
-      _message('تعذر فتح معرض الصور على هذا الجهاز.');
+      if (mounted && _sessionValid) _message('تعذر فتح معرض الصور على هذا الجهاز.');
     } catch (_) {
-      _message('تعذر اختيار الصور.');
+      if (mounted && _sessionValid) _message('تعذر اختيار الصور.');
+    } finally {
+      final discarded = picked.where((path) => !kept.contains(path));
+      _checkedPhotoTypes.removeWhere((path, _) => discarded.contains(path));
+      try {
+        await _mediaPicker.clearTemporaryFiles(discarded);
+      } catch (_) {}
+      if (mounted) super.setState(() => _checkingPhotos = false);
     }
   }
 
   Future<void> _removeDraftPhoto(String key) async {
     _photoCancels[key]?.cancel('Image removed');
     final paths = _localPhotoKeys.entries.where((e)=>e.value==key).map((e)=>e.key).toList();
-    setState(() { _removedPhotoKeys.add(key); _photoOrder.remove(key); _imagePaths.removeWhere(paths.contains); });
+    setState(() {
+      _removedPhotoKeys.add(key);
+      _photoOrder.remove(key);
+      _imagePaths.removeWhere(paths.contains);
+      _checkedPhotoTypes.removeWhere((path, _) => paths.contains(path));
+    });
     await _saveRecovery();
     try { await _mediaPicker.clearTemporaryFiles(paths); } catch (_) {}
   }
 
-  Future<List<String>> _validImagePaths(List<String> paths) async {
-    final accepted=<String>[], rejected=<String>[];
-    for (final path in paths) {
-      final ext=path.split('.').last.toLowerCase();
-      try {
-        if (!const ['jpg','jpeg','png','webp'].contains(ext) || await File(path).length()>8*1024*1024) { rejected.add(path); }
-        else { accepted.add(path); }
-      } catch (_) { rejected.add(path); }
-    }
-    if (rejected.isNotEmpty) {
-      await _mediaPicker.clearTemporaryFiles(rejected);
-      if (mounted) { _message('بعض الصور غير مدعومة أو كبيرة. اختر JPG أو PNG أو WebP حتى 8 ميجابايت للصورة.'); }
-    }
-    return accepted;
+  Future<ListingPhotoIssue?> _checkListingPhoto(String path, String type) async {
+    if (_checkedPhotoTypes[path] == type) return null;
+    final issue = await _photoCheck.validate(path, type);
+    if (!_disposed && issue == null) _checkedPhotoTypes[path] = type;
+    return issue;
   }
 
   Future<void> _pickOwnershipProof() async {

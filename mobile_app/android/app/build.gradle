@@ -187,6 +187,8 @@ flutter {
 dependencies {
     // Pinned to the last Cloud Messaging line that officially supports API 23.
     implementation "com.google.firebase:firebase-messaging:25.0.1"
+    // Bundled for the photo check even on a device without internet access.
+    implementation 'com.google.mlkit:image-labeling:17.0.9'
     // Test-only, pinned official AndroidX runner; no second Firebase SDK.
     androidTestImplementation 'androidx.test:runner:1.7.0'
     androidTestImplementation 'junit:junit:4.13.2'

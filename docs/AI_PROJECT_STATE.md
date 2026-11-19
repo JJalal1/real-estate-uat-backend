@@ -1,3 +1,7 @@
+# Listing preparation step 3 — November19
+
+The current editable Arabic listing draft and Android dictation remain the entry point. The Android listing editor runs the bundled image classifier when adding or replacing gallery photos, before checking file size/format or attaching accepted photos. Queued local draft photos also pass the check before their first upload. The Android build uses the existing UAT package and signer. Emulator acceptance of the new photo check and the owner’s handset dictation check are pending.
+
 # UAT1824 specification-first ranking — November18
 
 PR193 separates specification misses from geographic eligibility and classification. Ranked contract 2 orders all selected candidates together before pagination, including zero-miss geographic alternatives. Version 1 remains available to existing APKs. The 1 km radius regression reproduces the previous 100 m two-bedroom result before the 2 km three-bedroom alternative and asserts the opposite under contract 2, with the same eligible candidates. Map/list ordering, drawing boundaries and automatic paging are covered. The UAT1823 evidence remains scoped to its tested build. Case 13 was cancelled. See [the UAT update and rollback plan](RANKED_SEARCH_SIMILARITY_ROLLOUT_AR.md).
