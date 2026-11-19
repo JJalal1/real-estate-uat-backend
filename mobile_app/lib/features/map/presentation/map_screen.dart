@@ -23,6 +23,7 @@ import '../domain/map_screen_coordinate_space.dart';
 import '../domain/property_marker_cluster.dart';
 import '../data/property_discovery_history_store.dart';
 import 'aqer_map.dart';
+import 'map_address_search_sheet.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
 import '../../properties/data/favorites_repository.dart';
@@ -371,8 +372,9 @@ LatLng? mapSearchInitialCamera(SmartSearchFilters filters, HomeLocation home,
 
 class MapSearchActions {
   const MapSearchActions({required this.onDrawArea, required this.onClearArea,
-    required this.onSmartSearch, required this.hasDrawnArea});
+    required this.onSmartSearch, required this.hasDrawnArea, this.onFindAddress});
   final VoidCallback onDrawArea, onClearArea, onSmartSearch;
+  final VoidCallback? onFindAddress;
   final bool hasDrawnArea;
 }
 
@@ -413,6 +415,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Timer? _styleLoadTimer, _viewportTimer;
   bool _fittingShared = false;
   bool _mapViewportGesture = false;
+  bool _previewingAddress = false, _googleAddressUsed = false;
   String _lastSharedViewport = '';
   LatLngBounds? _cameraBounds;
   int _viewportGeneration = 0;
@@ -522,6 +525,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _saveCamera() {
     if (!_journeyCurrent || _restoringCamera ||
+        _googleAddressUsed ||
         _selectingArea ||
         !_styleLoaded ||
         ref.read(offlineConnectionProvider) != OfflineConnection.online) { return; }
@@ -778,6 +782,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (!_journeyCurrent) return;
     if (_mapController != null) {
       _styleLoaded = false;
+      _previewingAddress = false;
       _annotationGeneration++;
       _areaAnnotationGeneration++;
       _viewportGeneration++;
@@ -1644,11 +1649,48 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   String _viewportSignature(LatLngBounds bounds) => '${bounds.southwest.latitude.toStringAsFixed(5)}:${bounds.southwest.longitude.toStringAsFixed(5)}:${bounds.northeast.latitude.toStringAsFixed(5)}:${bounds.northeast.longitude.toStringAsFixed(5)}';
 
   void _onMapViewportGesture(PointerEvent _) {
+    if (_previewingAddress) setState(() => _previewingAddress = false);
     _mapViewportGesture = true;
   }
 
   bool get _canApplySharedViewport =>
-      _mapViewportGesture || !ref.read(_searchSession).started;
+      !_previewingAddress && (_mapViewportGesture || !ref.read(_searchSession).started);
+
+  Future<void> _findAddress() async {
+    final controller = _mapController;
+    if (!_journeyCurrent || !_styleLoaded || controller == null || _selectingArea) return;
+    final address = await showMapAddressSearch(context, useGoogle: controller.usesGoogle);
+    if (address == null || !_journeyCurrent || _mapController != controller || !_styleLoaded) return;
+    setState(() {
+      _mapUserTouched = true;
+      _mapViewportGesture = false;
+      _previewingAddress = true;
+      _googleAddressUsed = _googleAddressUsed || address.google;
+    });
+    try {
+      await controller.animateCamera(CameraUpdate.newLatLngZoom(
+        LatLng(address.latitude, address.longitude), address.zoom,
+      ));
+    } catch (_) {
+      if (!_journeyCurrent || _mapController != controller) return;
+      setState(() {
+        _previewingAddress = false;
+        _mapMessage = 'تعذّر فتح المكان على الخريطة. حاول مرة أخرى.';
+      });
+    }
+  }
+
+  void _searchAtAddress() {
+    if (!_journeyCurrent || !_previewingAddress ||
+        ref.read(offlineConnectionProvider) == OfflineConnection.offline) {
+      return;
+    }
+    setState(() {
+      _previewingAddress = false;
+      _mapViewportGesture = true;
+    });
+    unawaited(_commitCameraCenter());
+  }
 
   Future<void> _sharedViewport([int? generation]) async {
     final controller=_mapController;
@@ -1756,6 +1798,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       onSmartSearch: _openSmartSearch, hasDrawnArea: state.filters.values.containsKey('area_polygon'))) ?? widget.searchToolbar;
     final actions = MapSearchActions(onDrawArea: _beginAreaSelection,
       onClearArea: _clearSelectedArea, onSmartSearch: _openSmartSearch,
+      onFindAddress: _styleLoaded && !_selectingArea ? _findAddress : null,
       hasDrawnArea: state.filters.values.containsKey('area_polygon'));
     return PopScope(canPop: !_selectingArea, onPopInvokedWithResult: (didPop, _) {
       if (!didPop && _selectingArea) _cancelAreaSelection();
@@ -1799,6 +1842,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ref.read(_searchSession.notifier).updateViewport(south: south, west: west, north: north, east: east);
               }
             }))),
+          if (_previewingAddress && !_selectingArea)
+            PositionedDirectional(
+              top: 8, end: 12,
+              child: FilledButton.tonalIcon(
+                onPressed: _searchAtAddress,
+                icon: const Icon(Icons.search, size: 18),
+                label: const Text('ابحث هنا'),
+              ),
+            ),
           if (!_selectingArea) Offstage(offstage: !showResults, child: OverflowBox(
             alignment: Alignment.bottomCenter, minHeight: sheetHeight, maxHeight: sheetHeight,
             child: SizedBox(height: sheetHeight, child: PropertyMapResultsSheet(
@@ -1877,6 +1929,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       onStyleLoadedCallback: _onStyleLoaded,
       onCameraIdle: _commitCameraCenter,
       padding: EdgeInsets.only(bottom: bottomPadding),
+      rememberCameraAcrossRenderers: !_googleAddressUsed,
       myLocationEnabled: _userLocation != null,
       minMaxZoomPreference: const MinMaxZoomPreference(3, 19),
       rotateGesturesEnabled: !_selectingArea,

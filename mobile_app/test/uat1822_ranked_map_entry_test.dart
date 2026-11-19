@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
+import 'package:real_estate_mobile/features/discovery/data/discovery_suggestions.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
@@ -16,6 +17,7 @@ import 'package:real_estate_mobile/features/map/presentation/property_map_result
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/domain/saved_property_search.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_picker_screen.dart';
 
 import 'support/owner_ux_fixtures.dart';
 import 'wave2_home_search_test.dart' show Listings;
@@ -69,9 +71,13 @@ class _NativeCamera {
   MethodChannel? channel;
   Map<String, double> bounds = _initialBounds;
   int fits = 0;
+  final animations = <Object?>[];
 
   Future<Object?> _onCall(MethodCall call) async {
     switch (call.method) {
+      case 'camera#animate':
+        animations.add((call.arguments as Map)['cameraUpdate']);
+        return true;
       case 'camera#move':
         fits++;
         bounds = _fitBounds;
@@ -94,6 +100,69 @@ class _NativeCamera {
 
 void main() {
   setUpAll(loadUxFixtures);
+
+  testWidgets(
+      'a registered neighborhood locates the picker and requires a separate pin choice',
+      (tester) async {
+    final native = _NativeCamera(tester);
+    final dio = Dio(BaseOptions(baseUrl: 'https://synthetic.example'));
+    addTearDown(() => dio.close(force: true));
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
+      expect(request.path, '/regions/cells');
+      expect(request.queryParameters['search'], 'حدة');
+      handler.resolve(Response(requestOptions: request, statusCode: 200, data: {
+        'data': [
+          {
+            'name_ar': 'حدة',
+            'is_active': true,
+            'governorate': {'name_ar': 'أمانة العاصمة'},
+            'boundary': {
+              'type': 'Polygon',
+              'coordinates': [
+                [
+                  [44.20, 15.30],
+                  [44.22, 15.30],
+                  [44.22, 15.32],
+                  [44.20, 15.32],
+                  [44.20, 15.30],
+                ]
+              ],
+            },
+          }
+        ],
+      }));
+    }));
+    final scope = uxContainer(extra: [
+      homeLocationsProvider.overrideWith((_) async => const <HomeLocation>[]),
+      discoverySuggestionsRepositoryProvider
+          .overrideWithValue(DiscoverySuggestionsRepository(dio)),
+    ]);
+    await pumpUx(tester, scope, const PropertyLocationPickerScreen());
+    await native.emit('map#onStyleLoaded');
+    await tester.pumpAndSettle();
+    final controls = find.byType(PropertyLocationPickerControls);
+    expect(tester.widget<PropertyLocationPickerControls>(controls).onConfirm,
+        isNotNull);
+
+    await tester.tap(find.byKey(const ValueKey('listing-map-find-address')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('map-address-input')), 'حدة');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('map-address-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حدة، أمانة العاصمة'));
+    await tester.pumpAndSettle();
+    final animation = native.animations.single as List;
+    final point = animation[1] as List;
+    expect(point[0], closeTo(15.31, 1e-9));
+    expect(point[1], closeTo(44.21, 1e-9));
+    expect(tester.widget<PropertyLocationPickerControls>(controls).onConfirm,
+        isNull);
+    expect(find.text('حرّك الدبوس على موقع العقار لتأكيده.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   testWidgets(
       'opening the marketplace map keeps the settled 21 listings in Sana’a',

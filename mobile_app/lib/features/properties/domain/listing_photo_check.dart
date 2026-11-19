@@ -44,21 +44,25 @@ class ListingPhotoCheck {
     'pet',
   };
 
+  static bool usesSamePhotoLabels(String currentType, String newType) =>
+      identical(_labelsFor(currentType), _labelsFor(newType));
+
+  static Set<String> _labelsFor(String propertyType) => switch (propertyType) {
+        'land' => _land,
+        'farm' => _farm,
+        'apartment' ||
+        'floor' ||
+        'building' ||
+        'house' ||
+        'villa' ||
+        'shop' ||
+        'office' =>
+          _structure,
+        _ => const <String>{},
+      };
+
   bool matches(Map<String, double> labels, String propertyType) {
-    final typeLabels = switch (propertyType) {
-      'land' => _land,
-      'farm' => _farm,
-      'apartment' ||
-      'floor' ||
-      'building' ||
-      'house' ||
-      'villa' ||
-      'shop' ||
-      'office' =>
-        _structure,
-      _ => const <String>{},
-    };
-    final confidence = _score(labels, typeLabels);
+    final confidence = _score(labels, _labelsFor(propertyType));
     final unrelated = _score(labels, _unrelated);
     final otherScene = switch (propertyType) {
       'land' => _score(labels, _structure),

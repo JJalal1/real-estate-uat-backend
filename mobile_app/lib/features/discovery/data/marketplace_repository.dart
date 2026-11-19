@@ -6,6 +6,7 @@ import '../../../core/offline/offline_connection.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
+import '../../properties/domain/property_coordinates.dart';
 import '../domain/smart_search_filters.dart';
 
 class HomeLocation {
@@ -26,6 +27,37 @@ class HomeLocation {
     latitude: (j['latitude'] as num).toDouble(), longitude: (j['longitude'] as num).toDouble(),
     governorate: j['governorate']?.toString(), governorateCode: j['governorate_code']?.toString(),
     label: j['label']?.toString() ?? 'المنطقة', manual: true);
+}
+
+class MapAddressMatch {
+  const MapAddressMatch({
+    required this.label,
+    required this.latitude,
+    required this.longitude,
+    this.google = false,
+    this.partial = false,
+    this.zoom = 16,
+  });
+
+  final String label;
+  final double latitude, longitude;
+  final double zoom;
+  final bool google, partial;
+
+  static MapAddressMatch? fromGoogle(Map<String, dynamic> json) {
+    final label = json['label'];
+    final latitude = json['latitude'];
+    final longitude = json['longitude'];
+    if (label is! String || label.trim().isEmpty || latitude is! num ||
+        longitude is! num ||
+        !hasValidPropertyCoordinates(latitude.toDouble(), longitude.toDouble())) {
+      return null;
+    }
+    return MapAddressMatch(
+      label: label.trim(), latitude: latitude.toDouble(),
+      longitude: longitude.toDouble(), google: true, partial: json['partial'] == true,
+    );
+  }
 }
 
 class HomeFeedQuery {
@@ -129,6 +161,18 @@ class MarketplaceRepository {
   Future<List<HomeLocation>> locations() async {
     final r = await _dio.get<Map<String, dynamic>>('/marketplace/locations');
     return brokerRows(r.data?['data']).where((row) => row['latitude'] is num && row['longitude'] is num).map(HomeLocation.fromJson).toList(growable: false);
+  }
+
+  Future<List<MapAddressMatch>?> findMapAddress(String address, CancelToken cancelToken) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/marketplace/address-search',
+      data: {'address': address},
+      cancelToken: cancelToken,
+    );
+    final body = response.data;
+    if (body?['available'] != true) return null;
+    return brokerRows(body?['data']).map(MapAddressMatch.fromGoogle)
+        .whereType<MapAddressMatch>().toList(growable: false);
   }
 }
 

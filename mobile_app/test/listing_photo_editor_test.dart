@@ -96,6 +96,29 @@ void main() {
     expect(drafts.uploaded, [house.path]);
     expect(checked, [car, house.path, car]);
     expect(discarded, [car, car]);
+
+    await tester.tap(find.text('السابق'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('السابق'));
+    await tester.pumpAndSettle();
+    final land = find.text('أرض');
+    await tester.ensureVisible(land);
+    await tester.tap(land);
+    await tester.pumpAndSettle();
+    expect(find.text('تغيير نوع العقار؟'), findsOneWidget);
+    await tester.tap(find.text('إلغاء'));
+    await tester.pumpAndSettle();
+    expect(drafts.drafts.values.single.images, hasLength(1));
+
+    await tester.tap(land);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('تغيير النوع وإزالة الصور'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+    expect(drafts.saves.last['type'], 'land');
+    expect(drafts.drafts.values.single.images, isEmpty);
+    expect(drafts.uploaded, [house.path]);
     expect(tester.takeException(), isNull);
     await finishWave6(tester);
   });
