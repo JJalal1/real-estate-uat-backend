@@ -1,0 +1,78 @@
+name: Frankfurt UAT address verification
+'on':
+  push:
+    branches: [work/uat-geocoding-live-20261120]
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath,curl,dom,exif,fileinfo,gd,intl,mbstring,pdo_sqlite,sqlite3
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Test the address contract on the Frankfurt UAT baseline
+        env:
+          APP_ENV: testing
+        run: |
+          printf 'APP_KEY=\n' > .env
+          php artisan key:generate --force
+          php artisan test tests/Feature/MapAddressSearchTest.php --display-warnings --fail-on-warning --fail-on-risky
+
+  live-address:
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check the Frankfurt health and address endpoints
+        run: |
+          set -euo pipefail
+          api='https://real-estate-uat-api-frankfurt.onrender.com/api'
+          deadline=$((SECONDS + 720))
+          while true; do
+            http="$(curl --silent --connect-timeout 10 --max-time 60 --output /dev/null --write-out '%{http_code}' "$api/marketplace/address-search" || true)"
+            if [[ "$http" == 405 ]]; then
+              break
+            fi
+            if (( SECONDS >= deadline )); then
+              echo "Awaiting the Frankfurt UAT address route (last HTTP status ${http:-unknown})."
+              exit 1
+            fi
+            sleep 12
+          done
+
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 60 "$api/health" > "$RUNNER_TEMP/health.json"
+          curl --fail --silent --show-error --connect-timeout 10 --max-time 30 \
+            --header 'Accept: application/json' --header 'Content-Type: application/json' \
+            --data '{"address":"شارع حدة، صنعاء، اليمن"}' \
+            "$api/marketplace/address-search" > "$RUNNER_TEMP/address.json"
+          python3 - "$RUNNER_TEMP/health.json" "$RUNNER_TEMP/address.json" <<'PY'
+          import json
+          import math
+          import sys
+          from pathlib import Path
+
+          health, address = (json.loads(Path(path).read_text()) for path in sys.argv[1:])
+          assert health['status'] == 'ok' and health['database'] is True and health['postgis'] is True
+          assert address['available'] is True, "Address lookup is unavailable on Frankfurt UAT"
+          matches = address['data']
+          assert matches, "The public test address returned no matches"
+          assert all(
+              item.get('label') and math.isfinite(item['latitude']) and math.isfinite(item['longitude'])
+              for item in matches
+          )
+          print(f"Frankfurt UAT health is OK and address search returned {len(matches)} valid matches.")
+          PY

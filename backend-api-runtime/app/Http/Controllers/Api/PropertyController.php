@@ -316,6 +316,15 @@ class PropertyController extends Controller
             ->header('Cache-Control', 'private, no-store');
     }
 
+    public function marketplaceAddressSearch(Request $request, \App\Services\GoogleMapAddressSearch $search): JsonResponse
+    {
+        $input = $request->validate(['address' => ['required', 'string', 'min:2', 'max:120']]);
+        $matches = $search->find(trim($input['address']));
+
+        return response()->json(['available' => $matches !== null, 'data' => $matches ?? []])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
     public function show(Request $request, Property $property): JsonResponse
     {
         $user = $this->tokens->authenticate($request, false);
