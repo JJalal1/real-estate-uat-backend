@@ -22,6 +22,7 @@ import '../domain/map_area_geometry.dart';
 import '../domain/map_screen_coordinate_space.dart';
 import '../domain/property_marker_cluster.dart';
 import '../data/property_discovery_history_store.dart';
+import 'aqer_map.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
 import '../../properties/data/favorites_repository.dart';
@@ -404,13 +405,11 @@ class MapScreen extends ConsumerStatefulWidget {
 class _MapScreenState extends ConsumerState<MapScreen> {
   StateNotifierProvider<SmartSearchSession, SmartSearchState> get _searchSession => widget.searchSessionProvider ?? smartSearchSessionProvider;
   static const _fallback = LatLng(15.3694, 44.1910);
-  static const _openFreeMapStyle =
-      'https://tiles.openfreemap.org/styles/liberty';
   static const double _defaultRadiusKm = 30;
   bool get _journeyCurrent => mounted && (widget.isJourneyCurrent?.call() ?? true);
   bool _initialCameraResolved = true, _mapUserTouched = false;
 
-  MapLibreMapController? _mapController;
+  AqerMapController? _mapController;
   Timer? _styleLoadTimer, _viewportTimer;
   bool _fittingShared = false;
   bool _mapViewportGesture = false;
@@ -775,10 +774,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  void _onMapCreated(MapLibreMapController controller) {
+  void _onMapCreated(AqerMapController controller) {
     if (!_journeyCurrent) return;
+    if (_mapController != null) {
+      _styleLoaded = false;
+      _annotationGeneration++;
+      _areaAnnotationGeneration++;
+      _viewportGeneration++;
+    }
     _mapController = controller;
-    controller.onSymbolTapped.add(_onPropertySymbolTapped);
+    controller.listenForSymbolTaps(_onPropertySymbolTapped);
 
     _styleLoadTimer?.cancel();
     _styleLoadTimer = Timer(const Duration(seconds: 20), () {
@@ -809,11 +814,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         return;
       }
       if (mounted && widget.sharedSearchJourney) {
-        if (widget.enforceViewport) {
-          unawaited(_fitSharedRows().whenComplete(() {
-            if (_journeyCurrent) { _lastSharedViewport = ''; return _sharedViewport(); }
-          }));
-        } else if (ref.read(_searchSession).started) { _fitSharedRows(); } else { _sharedViewport(); }
+        unawaited(_renderSelectedAreaAnnotations());
+        if (ref.read(_searchSession).started) {
+          await _fitSharedRows();
+        } else {
+          await _sharedViewport();
+        }
       } else if (mounted) { _renderSelectedAreaAnnotations(); _commitCameraCenter(); }
     });
   }
@@ -1029,8 +1035,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           _symbolSignatures[key] = '${option.iconImage}:${option.geometry?.latitude}:${option.geometry?.longitude}:${option.zIndex}';
         }
         if (!mounted || generation != _annotationGeneration) return;
-        await controller.setSymbolIconAllowOverlap(true);
-        await controller.setSymbolIconIgnorePlacement(true);
+        await controller.allowSymbolOverlap();
       }
       final removed = _mapSymbols.keys.where((key) => !desired.contains(key)).toList();
       if (removed.isNotEmpty) {
@@ -1055,7 +1060,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _ensureMapPriceImage(
-    MapLibreMapController controller, {
+    AqerMapController controller, {
     required String imageName,
     required String label,
     required bool selected,
@@ -1068,11 +1073,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       rent: rent,
     );
     await controller.addImage(imageName, bytes);
-    _registeredPriceImages.add(imageName);
+    if (_mapController == controller) _registeredPriceImages.add(imageName);
   }
 
   Future<void> _ensureMapClusterImage(
-    MapLibreMapController controller, {
+    AqerMapController controller, {
     required String imageName,
     required int count,
     bool nearby = false,
@@ -1081,7 +1086,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     if (_registeredPriceImages.contains(imageName)) return;
     final bytes = await renderMapPropertyClusterImage(count, nearby: nearby, nearbyCount: nearbyCount);
     await controller.addImage(imageName, bytes);
-    _registeredPriceImages.add(imageName);
+    if (_mapController == controller) _registeredPriceImages.add(imageName);
   }
 
   void _onPropertySymbolTapped(Symbol symbol) {
@@ -1643,7 +1648,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   bool get _canApplySharedViewport =>
-      widget.enforceViewport || _mapViewportGesture || !ref.read(_searchSession).started;
+      _mapViewportGesture || !ref.read(_searchSession).started;
 
   Future<void> _sharedViewport([int? generation]) async {
     final controller=_mapController;
@@ -1651,7 +1656,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _restoringCamera ||
         ref.read(offlineConnectionProvider) == OfflineConnection.offline){ return; }
     // A native idle also follows initial layout, fitting and style changes.
-    // In an active Smart Search, only a gesture on the map can adopt new
+    // In an active search, only a gesture on the map can adopt new
     // bounds. Keep the current rows and pages while the camera is positioned.
     if (!_canApplySharedViewport) {
       _queueMarkerSync(_latestMarkerItems);
@@ -1787,7 +1792,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             onPointerMove: _onMapViewportGesture,
             onPointerPanZoomUpdate: _onMapViewportGesture,
             onPointerSignal: _onMapViewportGesture,
-            child: canvas == null ? _buildMap() : canvas(context, rows, select, (south, west, north, east) {
+            child: canvas == null ? _buildMap(
+              bottomPadding: !_selectingArea && showResults ? extent * height + 4 : 0,
+            ) : canvas(context, rows, select, (south, west, north, east) {
               if (_journeyCurrent && !_selectingArea && ref.read(offlineConnectionProvider) != OfflineConnection.offline) {
                 ref.read(_searchSession.notifier).updateViewport(south: south, west: west, north: north, east: east);
               }
@@ -1863,16 +1870,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           children: [draw, const SizedBox(height: 10), assistant]));
   }
 
-  Widget _buildMap() {
-    return MapLibreMap(
-      styleString: _openFreeMapStyle,
+  Widget _buildMap({double bottomPadding = 0}) {
+    return AqerMap(
       initialCameraPosition: CameraPosition(target: _center, zoom: 13.5),
       onMapCreated: _onMapCreated,
       onStyleLoadedCallback: _onStyleLoaded,
       onCameraIdle: _commitCameraCenter,
-      trackCameraPosition: true,
+      padding: EdgeInsets.only(bottom: bottomPadding),
       myLocationEnabled: _userLocation != null,
-      myLocationTrackingMode: MyLocationTrackingMode.none,
       minMaxZoomPreference: const MinMaxZoomPreference(3, 19),
       rotateGesturesEnabled: !_selectingArea,
       tiltGesturesEnabled: !_selectingArea,

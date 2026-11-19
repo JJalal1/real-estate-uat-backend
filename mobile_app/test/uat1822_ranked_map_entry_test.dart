@@ -6,13 +6,19 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
+import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/domain/saved_property_search.dart';
 
 import 'support/owner_ux_fixtures.dart';
+import 'wave2_home_search_test.dart' show Listings;
 
 const _widePolygon =
     '[[44.1,14.4],[44.4075,14.4],[44.4075,15.55],[44.1,15.55],[44.1,14.4]]';
@@ -88,6 +94,76 @@ class _NativeCamera {
 
 void main() {
   setUpAll(loadUxFixtures);
+
+  testWidgets(
+      'opening the marketplace map keeps the settled 21 listings in Sana’a',
+      (tester) async {
+    final native = _NativeCamera(tester);
+    final listings = List.generate(
+        21,
+        (index) => PropertySummary(
+              id: 200 + index,
+              title: 'عقار ${index + 1}',
+              type: 'house',
+              purpose: 'sale',
+              price: 100000,
+              currency: 'YER',
+              latitude: 15.1 + index * .02,
+              longitude: 44.25,
+            ));
+    final repository = Listings()
+      ..respond = (filters, page) async {
+        if (filters.containsKey('south')) {
+          return (listings.take(19).toList(), false);
+        }
+        return page == 1
+            ? (listings.take(20).toList(), true)
+            : (listings.skip(20).toList(), false);
+      };
+    final scope = uxContainer(
+        extra: [propertyRepositoryProvider.overrideWithValue(repository)]);
+    scope.read(homeLocationProvider.notifier).state = const HomeLocation(
+      latitude: 15.3694,
+      longitude: 44.1910,
+      governorate: 'صنعاء',
+      label: 'محافظة صنعاء',
+      manual: true,
+    );
+    final journey = scope.read(marketplaceSearchControllerProvider.notifier);
+    journey.applyFilters(SmartSearchFilters.fromMap({'purpose': 'sale'}));
+    await tester.pump();
+    final home = scope.read(homeSearchResultsProvider.notifier);
+    await home.loadNextPage(home.snapshot);
+    expect(home.snapshot.rows, hasLength(21));
+
+    journey.enterMap();
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
+    await native.emit('map#onStyleLoaded');
+    await tester.pumpAndSettle();
+    expect(native.fits, 1);
+    await native.emit('camera#onIdle');
+    await uxFrames(tester);
+    final drawer = tester
+        .widget<PropertyMapResultsSheet>(find.byType(PropertyMapResultsSheet));
+    expect(drawer.items.map((row) => row.id), listings.map((row) => row.id));
+    expect(
+        scope.read(marketplaceMapResultsProvider).filters.values['governorate'],
+        'صنعاء');
+    expect(repository.calls, hasLength(2));
+
+    native.bounds = _initialBounds;
+    await tester.dragFrom(
+        tester.getTopLeft(find.byType(MapLibreMap)) + const Offset(200, 25),
+        const Offset(65, 0));
+    await native.emit('camera#onIdle');
+    await uxFrames(tester);
+    expect(
+        repository.calls.last, containsPair('south', _initialBounds['south']));
+    expect(scope.read(marketplaceMapResultsProvider).rows, hasLength(19));
+    expect(home.snapshot.rows, hasLength(21));
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   final pages10 = [
     _rank([
