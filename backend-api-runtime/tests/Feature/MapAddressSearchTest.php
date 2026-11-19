@@ -36,9 +36,9 @@ class MapAddressSearchTest extends TestCase
         Http::fake(['maps.googleapis.com/*' => Http::response([
             'status' => 'OK',
             'results' => [
-                $this->result('حدة، صنعاء', 'YE', 15.31, 44.19, true),
-                $this->result('خارج اليمن', 'SA', 21.4, 39.8, false),
-                $this->result('إحداثيات غير صالحة', 'YE', 100, 44.2, false),
+                $this->geocodeResult('حدة، صنعاء', 'YE', 15.31, 44.19, true),
+                $this->geocodeResult('خارج اليمن', 'SA', 21.4, 39.8, false),
+                $this->geocodeResult('إحداثيات غير صالحة', 'YE', 100, 44.2, false),
             ],
         ])]);
 
@@ -75,7 +75,7 @@ class MapAddressSearchTest extends TestCase
         Http::assertSentCount(2);
     }
 
-    private function result(string $label, string $country, float $lat, float $lon, bool $partial): array
+    private function geocodeResult(string $label, string $country, float $lat, float $lon, bool $partial): array
     {
         return [
             'formatted_address' => $label,
