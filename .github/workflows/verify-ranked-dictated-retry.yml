@@ -1,0 +1,74 @@
+name: Recheck only the dictated Arabic filter request
+on:
+  push:
+    branches: [work/uat-ranked-text-retest-20261121]
+    paths: [.github/workflows/verify-ranked-dictated-retry.yml]
+permissions:
+  contents: read
+concurrency:
+  group: frankfurt-uat-ranked-text-check
+  cancel-in-progress: false
+jobs:
+  dictated-text:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record one retry and safe response metadata
+        run: |
+          python3 -B - <<'PY'
+          import json
+          import sys
+          from urllib.error import HTTPError
+          from urllib.request import Request, build_opener
+          sys.path.insert(0, 'scripts')
+          from verify_ranked_text_retest_uat import API, NoRedirect, SCOPE, SUITE, validate_context
+
+          deployment = validate_context()
+          message = SUITE[1][1]
+          request = Request(API + '/ai/search',
+                            data=json.dumps({'message': message, 'filters': SCOPE, 'revision': 2}).encode(),
+                            headers={'Accept': 'application/json', 'Content-Type': 'application/json'},
+                            method='POST')
+          receipt = {'render_deploy': deployment['deploy_id'], 'target_commit': deployment['commit'],
+                     'api_route': '/api/ai/search', 'role': 'guest', 'device_audio_used': False,
+                     'listing_writes': 0, 'test_case': 'dictated_text', 'requests_attempted': 1}
+          code, raw, headers = None, b'', {}
+          try:
+              with build_opener(NoRedirect()).open(request, timeout=45) as response:
+                  code, raw, headers = response.status, response.read(131073), response.headers
+          except HTTPError as error:
+              code, raw, headers = error.code, error.read(131073), error.headers
+          except Exception as error:
+              receipt['transport_error_type'] = type(error).__name__
+          receipt.update(http=code, exact_filters=False)
+          retry_after = headers.get('Retry-After', '')
+          if retry_after.isdigit():
+              receipt['retry_after_seconds'] = int(retry_after)
+          content_type = headers.get('Content-Type', '').split(';', 1)[0]
+          if content_type in ('application/json', 'text/html', 'text/plain'):
+              receipt['content_type'] = content_type
+          payload = {}
+          if 0 < len(raw) <= 131072:
+              try:
+                  decoded = json.loads(raw)
+                  if isinstance(decoded, dict):
+                      payload = decoded
+              except ValueError:
+                  pass
+          safe_errors = {'ai_unavailable', 'validation_error'}
+          if payload.get('code') in safe_errors:
+              receipt['application_error_code'] = payload['code']
+              receipt['retryable'] = payload.get('retryable') is True
+          actual = payload.get('data', {}).get('filters')
+          if code == 200 and isinstance(actual, dict):
+              expected = SCOPE | {'min_bedrooms': 3, 'min_bathrooms': 2}
+              receipt.update(exact_filters=actual == expected,
+                             missing=sorted(expected.keys() - actual.keys()),
+                             added=sorted(actual.keys() - expected.keys()),
+                             changed=sorted(k for k in actual.keys() & expected.keys() if actual[k] != expected[k]))
+          print('AQER_RANKED_DICTATED_RETRY ' + json.dumps(receipt, sort_keys=True))
+          raise SystemExit(int(not receipt['exact_filters']))
+          PY
