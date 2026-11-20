@@ -356,14 +356,18 @@ class CloudAssetStorageService
         if (! $cleaned) throw new RuntimeException('Signed TUS canary did not clean up.');
     }
 
-    public function readBytes(string $path, bool $private): string
+    public function readBytes(string $path, bool $private, ?int $timeoutSeconds = null): string
     {
         if (! $this->cloudEnabled()) {
             $bytes = Storage::disk($private ? 'local' : 'public')->get($path);
             if (! is_string($bytes)) throw new RuntimeException('Image unavailable.');
             return $bytes;
         }
-        $response = $this->request()->get($this->objectUrl($this->objectPath($path, $private)));
+        $request = $this->request();
+        if ($timeoutSeconds !== null) {
+            $request->connectTimeout($timeoutSeconds)->timeout($timeoutSeconds);
+        }
+        $response = $request->get($this->objectUrl($this->objectPath($path, $private)));
         $this->assertRemoteSuccess($response, 'Image unavailable.');
         return $response->body();
     }

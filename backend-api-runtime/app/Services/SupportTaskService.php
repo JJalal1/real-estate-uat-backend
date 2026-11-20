@@ -508,7 +508,7 @@ class SupportTaskService
             $existingMeta=$existing?->metadata??[];
             $returnedCycle=$existing?->status==='completed'&&($existingMeta['resolution']??null)==='returned_for_correction';
             $status=match($property->review_status){
-                'approved'=>'completed','rejected_blocked'=>'rejected','returned_for_correction'=>'completed',
+                'approved'=>'completed','rejected_blocked','rejected_duplicate'=>'rejected','returned_for_correction'=>'completed',
                 'under_review'=>'in_progress',
                 'submitted'=>$returnedCycle?'needs_followup':($property->review_assigned_to_user_id?'in_progress':'new'),
                 default=>'completed',
@@ -521,7 +521,7 @@ class SupportTaskService
                 ?($existing?->assigned_to_user_id===$assigneeId?$existing?->assigned_to_name_snapshot:($assigneeNames[(int)$assigneeId]??null))
                 :null;
             $resolution=match($property->review_status){
-                'approved'=>'approved','rejected_blocked'=>'rejected','returned_for_correction'=>'returned_for_correction',default=>null,
+                'approved'=>'approved','rejected_blocked'=>'rejected','rejected_duplicate'=>'rejected_duplicate','returned_for_correction'=>'returned_for_correction',default=>null,
             };
             $task=$this->upsertTask(
                 'listing_review',$property->id,'LIST-'.$property->id,'تحقق نشر إعلان: '.$property->title,
@@ -795,7 +795,7 @@ class SupportTaskService
         return $this->routeTask($task,$govId);
     }
 
-    public function projectListing(Property|int $listing): ?SupportTask
+    public function projectListing(Property|int $listing, array $duplicateEvidence = []): ?SupportTask
     {
         $property=$listing instanceof Property?$listing->fresh(['user']):Property::query()->with('user')->find($listing);
         if(!$property)return null;
@@ -804,7 +804,7 @@ class SupportTaskService
         $returnedCycle=$existing?->status==='completed'&&($existingMeta['resolution']??null)==='returned_for_correction';
         $status=match($property->review_status){
             'approved'=>'completed',
-            'rejected_blocked'=>'rejected',
+            'rejected_blocked','rejected_duplicate'=>'rejected',
             'returned_for_correction'=>'completed',
             'under_review'=>'in_progress',
             'submitted'=>$returnedCycle?'needs_followup':($property->review_assigned_to_user_id?'in_progress':'new'),
@@ -816,11 +816,18 @@ class SupportTaskService
         $assigneeId=$release?null:($property->review_assigned_to_user_id?:($closed?$existing?->assigned_to_user_id:null));
         $assigneeName=$assigneeId?($existing?->assigned_to_user_id===$assigneeId?$existing?->assigned_to_name_snapshot:User::query()->whereKey($assigneeId)->value('name')):null;
         $govId=$this->listingGovernorateId($property);
-        $resolution=match($property->review_status){'approved'=>'approved','rejected_blocked'=>'rejected','returned_for_correction'=>'returned_for_correction',default=>null};
+        $resolution=match($property->review_status){'approved'=>'approved','rejected_blocked'=>'rejected','rejected_duplicate'=>'rejected_duplicate','returned_for_correction'=>'returned_for_correction',default=>null};
+        if ($closed || $property->duplicate_check_status === 'pending') {
+            $duplicateEvidence = [
+                'duplicate_detection_source' => null,
+                'duplicate_detection_reason' => null,
+                'duplicate_detection_signals' => [],
+            ];
+        }
         $task=$this->upsertTask('listing_review',$property->id,'LIST-'.$property->id,'تحقق نشر إعلان: '.$property->title,$property->user,$status,'normal',null,$assigneeId,$assigneeName,$closed?null:$submitted->copy()->addHours(24),$property->updated_at,[
             'review_status'=>$property->review_status,'resolution'=>$resolution,'review_reason'=>$property->last_review_reason,
             'price'=>$property->price,'purpose'=>$property->purpose,'property_type'=>$property->type,'governorate_id'=>$govId,
-        ],$release||$closed);
+        ] + $duplicateEvidence,$release||$closed);
         return $this->routeTask($task,$govId);
     }
 

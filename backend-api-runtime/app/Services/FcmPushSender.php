@@ -93,6 +93,9 @@ class FcmPushSender
 
     private function routeFor(UserNotification $notification): string
     {
+        if ($notification->type === 'listing_duplicate_rejected') {
+            return '/notifications';
+        }
         $id=(int)($notification->entity_id ?? 0);
         if ($id>0 && in_array($notification->entity_type,['property','listing'],true)) {
             return '/properties/'.$id;

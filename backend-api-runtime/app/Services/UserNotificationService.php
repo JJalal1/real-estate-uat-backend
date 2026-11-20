@@ -20,7 +20,9 @@ class UserNotificationService
     ): ?UserNotification {
         if (in_array($type, UserNotification::RETIRED_VIEWING_TYPES, true) || $entityType === 'viewing_booking') return null;
         $category = $this->preferenceCategory($type);
-        if ($category !== null && ! $this->enabled($userId, $category)) {
+        $canPush = $category === null || $this->enabled($userId, $category);
+        // Keep this moderation decision in the inbox when optional listing alerts are muted.
+        if (! $canPush && $type !== 'listing_duplicate_rejected') {
             return null;
         }
 
@@ -35,7 +37,7 @@ class UserNotificationService
             'created_at' => now(),
         ]);
 
-        if (config('push.enabled',false)) {
+        if ($canPush && config('push.enabled',false)) {
             UserPushDevice::query()
                 ->where('user_id',$userId)
                 ->whereNull('disabled_at')

@@ -83,36 +83,60 @@ class PropertyAssetService
         $longitude = (float) $listing->longitude;
         $latWindow = 0.003;
         $lonWindow = 0.003 / max(cos(deg2rad($latitude)), 0.25);
+        $listing->loadMissing('propertyAsset');
+        $identity = app(PropertyIdentityService::class);
+        $identityMetadata = $listing->duplicate_check_metadata ?? [];
+        $confirmed = $listing->duplicate_check_status === 'confirmed_duplicate'
+            ? ($identityMetadata['candidate'] ?? null) : null;
 
         $candidates = Property::query()
             ->with(['propertyAsset', 'images'])
             ->whereKeyNot($listing->id)
-            ->where('type', $listing->type)
-            ->whereIn('review_status', ['submitted', 'under_review', 'approved'])
-            ->whereBetween('latitude', [$latitude - $latWindow, $latitude + $latWindow])
-            ->whereBetween('longitude', [$longitude - $lonWindow, $longitude + $lonWindow])
+            ->where(fn ($query) => $query->where('status', 'published')
+                ->orWhereIn('review_status', ['submitted', 'under_review', 'approved']))
+            ->where(function ($query) use ($listing, $confirmed, $latitude, $longitude, $latWindow, $lonWindow): void {
+                $query->where(fn ($nearby) => $nearby->where('type', $listing->type)
+                    ->whereBetween('latitude', [$latitude - $latWindow, $latitude + $latWindow])
+                    ->whereBetween('longitude', [$longitude - $lonWindow, $longitude + $lonWindow]));
+                $assetIds = array_filter([$listing->property_asset_id, $confirmed['property_asset_id'] ?? null]);
+                if ($assetIds !== []) $query->orWhereIn('property_asset_id', $assetIds);
+            })
+            ->orderByRaw('CASE WHEN property_asset_id = ? THEN 0 ELSE 1 END', [$listing->property_asset_id])
             ->latest('id')
             ->limit(80)
             ->get();
 
         $results = [];
         foreach ($candidates as $candidate) {
+            $sameAsset = $listing->property_asset_id !== null
+                && (int) $candidate->property_asset_id === (int) $listing->property_asset_id;
+            $confirmedMatch = $confirmed !== null
+                && (isset($confirmed['listing_id'])
+                    ? (int) $confirmed['listing_id'] === (int) $candidate->id
+                    : (int) ($confirmed['property_asset_id'] ?? 0) === (int) $candidate->property_asset_id);
+            if (! $sameAsset && ! $confirmedMatch
+                && $identity->hasDistinctUnitIdentity($listing->propertyAsset, $candidate->propertyAsset)) {
+                continue;
+            }
             $distance = $this->distanceMeters(
                 $latitude,
                 $longitude,
                 (float) $candidate->latitude,
                 (float) $candidate->longitude,
             );
-            if ($distance > 350) {
+            if ($distance > 350 && ! $sameAsset && ! $confirmedMatch) {
                 continue;
             }
 
             $score = 0;
             $signals = [];
 
-            if ((int) $candidate->property_asset_id === (int) $listing->property_asset_id) {
+            if ($sameAsset) {
                 $score += 10;
                 $signals[] = 'same_property_asset';
+                if ($listing->propertyAsset?->identity_kind === 'unit') {
+                    $signals[] = 'same_building_same_unit';
+                }
             }
 
             if ($distance <= 30) {
@@ -162,15 +186,20 @@ class PropertyAssetService
                 $signals[] = 'bathrooms_equal';
             }
 
-            if ($score < 5) {
+            $strongMatch = $sameAsset || $confirmedMatch;
+            if ($score < 5 && ! $strongMatch) {
                 continue;
             }
 
+            if ($confirmedMatch) {
+                $signals = array_values(array_unique(array_merge($identityMetadata['signals'] ?? [], $signals)));
+            }
             $results[] = [
                 'listing_id' => (int) $candidate->id,
                 'property_asset_id' => (int) $candidate->property_asset_id,
                 'title' => (string) $candidate->title,
                 'status' => (string) $candidate->status,
+                'published' => $candidate->isPubliclyAvailable(),
                 'review_status' => (string) $candidate->review_status,
                 'distance_m' => (int) round($distance),
                 'score' => $score,
@@ -180,15 +209,30 @@ class PropertyAssetService
                 'bedrooms' => $candidate->bedrooms,
                 'bathrooms' => $candidate->bathrooms,
                 'main_image_id' => $candidate->images->first()?->id,
+                'duplicate_detection_source' => $strongMatch ? 'algorithm' : null,
+                'duplicate_detection_reason' => $strongMatch ? $this->algorithmReason($signals) : null,
             ];
         }
 
         usort($results, function (array $a, array $b): int {
-            return [$b['score'], -$b['distance_m'], $b['listing_id']]
-                <=> [$a['score'], -$a['distance_m'], $a['listing_id']];
+            return [$b['duplicate_detection_source'] !== null, $b['score'], -$b['distance_m'], $b['listing_id']]
+                <=> [$a['duplicate_detection_source'] !== null, $a['score'], -$a['distance_m'], $a['listing_id']];
         });
 
         return array_slice($results, 0, max(1, min($limit, 20)));
+    }
+
+    private function algorithmReason(array $signals): string
+    {
+        return match (true) {
+            in_array('same_building_same_unit', $signals, true) => 'تطابقت هوية المبنى والدور والوحدة.',
+            in_array('same_property_asset', $signals, true),
+            in_array('same_property_identity', $signals, true) => 'تطابقت هوية العقار المسجلة.',
+            in_array('active_representation_exists', $signals, true) => 'يوجد إعلان مرتبط بتمثيل نشط للعقار نفسه.',
+            in_array('land_overlap_85_percent', $signals, true) => 'تداخلت حدود الأرض بنسبة ٨٥٪ فأكثر.',
+            in_array('same_explicit_house_reference', $signals, true) => 'تطابق رقم المبنى والعنوان وتقاربت المساحة والموقع.',
+            default => 'تطابقت بيانات تعريف العقار.',
+        };
     }
 
     public function activeBlock(PropertyAsset $asset, string $purpose): ?PropertyPublicationBlock

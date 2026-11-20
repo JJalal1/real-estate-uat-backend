@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
+use function Illuminate\Support\defer;
+
 class ListingWorkflowService
 {
     public function __construct(
@@ -24,6 +26,7 @@ class ListingWorkflowService
         private readonly BrokerListingVerificationService $brokerVerification,
         private readonly UserNotificationService $notifications,
         private readonly SupportTaskService $tasks,
+        private readonly ListingDuplicateAssessment $duplicates,
     ) {}
 
     /** Human fallback only: no external provider, guessed rejection or automatic image deletion. */
@@ -122,7 +125,7 @@ class ListingWorkflowService
     public function processSubmittedIdentity(User $actor, Property $listing): array
     {
         try {
-            return DB::transaction(function () use ($actor, $listing): array {
+            $result = DB::transaction(function () use ($actor, $listing): array {
                 $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
                 if (! in_array($locked->review_status, ['submitted', 'under_review'], true)) {
                     throw new ConflictHttpException('This listing is not awaiting identity review.');
@@ -157,6 +160,15 @@ class ListingWorkflowService
                 }
                 return $result;
             });
+            defer(function () use ($result, $listing): void {
+                $this->projectDuplicateEvidence((int) $listing->id);
+                if (in_array($result['decision'], ['distinct', 'possible_duplicate'], true)) {
+                    $this->duplicates->assess($listing);
+                    $this->projectDuplicateEvidence((int) $listing->id);
+                }
+            }, 'listing-duplicate-' . $listing->id);
+
+            return $result;
         } catch (\Throwable $error) {
             Log::warning('Submitted listing identity check did not complete.', [
                 'listing_id' => $listing->id, 'error_type' => $error::class,
@@ -187,6 +199,19 @@ class ListingWorkflowService
                 'score' => 0, 'signals' => [], 'candidate' => null,
             ];
         }
+    }
+
+    private function projectDuplicateEvidence(int $listingId): void
+    {
+        DB::transaction(function () use ($listingId): void {
+            $listing = Property::query()->lockForUpdate()->find($listingId);
+            if (! $listing || ! in_array($listing->review_status, ['submitted', 'under_review'], true)) {
+                return;
+            }
+            $evidence = $this->duplicates->evidence($listing, $this->assets->likelyDuplicates($listing));
+            unset($evidence['likely_duplicate_candidates']);
+            $this->tasks->projectListing($listing, $evidence);
+        }, 3);
     }
 
     /** Keep one signal per submitted review, while retaining earlier cycles as evidence. */
@@ -350,9 +375,20 @@ class ListingWorkflowService
             $this->assets->assertNotAlreadyPublished($asset, $locked->purpose, $locked->id);
             $this->regions->assertListingAllowed($owner, (float) $locked->latitude, (float) $locked->longitude);
 
+            $evidence = $this->duplicates->evidence($locked, $this->assets->likelyDuplicates($locked));
             $identityResult = $this->identity->assertApprovalAllowed($actor, $locked, $duplicateReviewReason);
-            if (($identityResult['decision'] ?? 'distinct') === 'possible_duplicate') {
+            if ($identityResult['decision'] === 'possible_duplicate' || $evidence['duplicate_detection_source'] !== null) {
                 $acknowledgement = trim((string) $duplicateReviewReason);
+                if (mb_strlen($acknowledgement) < 10) {
+                    throw ValidationException::withMessages([
+                        'duplicate_review_reason' => ['اذكر سبب اعتبار الإعلان مختلفاً من عشرة أحرف على الأقل.'],
+                    ]);
+                }
+                $resolution = [
+                    'identity_result' => $identityResult,
+                    'duplicate_detection_source' => $evidence['duplicate_detection_source'],
+                    'duplicate_detection_signals' => $evidence['duplicate_detection_signals'],
+                ];
                 $this->review(
                     $actor,
                     $locked,
@@ -360,13 +396,13 @@ class ListingWorkflowService
                     $locked->review_status,
                     $locked->review_status,
                     $acknowledgement,
-                    ['identity_result' => $identityResult],
+                    $resolution,
                 );
                 $this->audit->record(
                     $actor,
                     'listing.duplicate_review_cleared',
                     $locked,
-                    ['reason' => $acknowledgement, 'identity_result' => $identityResult],
+                    ['reason' => $acknowledgement] + $resolution,
                     $request,
                     $locked->user_id,
                 );
@@ -401,6 +437,60 @@ class ListingWorkflowService
                 'property',
                 (int) $locked->id,
                 ['review_status' => 'approved'],
+            );
+
+            return $locked->fresh();
+        });
+    }
+
+    public function rejectDuplicate(User $actor, Property $listing, int $candidateId, string $reason, Request $request): Property
+    {
+        abort_unless($actor->hasPermission('listings.moderate'), 403);
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 10) {
+            throw ValidationException::withMessages(['reason' => ['أضف سبباً واضحاً من عشرة أحرف على الأقل.']]);
+        }
+
+        return DB::transaction(function () use ($actor, $listing, $candidateId, $reason, $request): Property {
+            $locked = Property::query()->lockForUpdate()->findOrFail($listing->id);
+            $this->assertReviewable($locked, $actor);
+            if ($locked->status !== 'pending') {
+                throw new ConflictHttpException('الإعلان الجديد لا ينتظر قرار النشر.');
+            }
+
+            $previous = Property::query()->publiclyAvailable()
+                ->whereKeyNot($locked->id)->whereKey($candidateId)->lockForUpdate()->first();
+            $evidence = $this->duplicates->evidence($locked, $this->assets->likelyDuplicates($locked));
+            if (! $previous || ! in_array($candidateId, array_column($evidence['likely_duplicate_candidates'], 'listing_id'), true)) {
+                throw new ConflictHttpException('الإعلان السابق لم يعد متاحاً ضمن المقارنة. حدّث بيانات المراجعة.');
+            }
+
+            $sameOwner = (int) $previous->user_id === (int) $locked->user_id;
+            $message = $sameOwner ? 'سبق نشره من قبلك. ' . $reason : $reason;
+            $details = [
+                'previous_property_id' => (int) $previous->id,
+                'previous_listing_same_owner' => $sameOwner,
+            ];
+            $from = $locked->review_status;
+            $locked->forceFill([
+                'status' => 'rejected',
+                'review_status' => 'rejected_duplicate',
+                'reviewed_at' => now(),
+                'published_at' => null,
+                'last_review_reason' => $message,
+                'review_assigned_to_user_id' => null,
+                'review_assigned_at' => null,
+            ])->save();
+            $this->review($actor, $locked, 'rejected_duplicate', $from, 'rejected_duplicate', $reason, $details);
+            $this->audit->record($actor, 'listing.rejected_duplicate', $locked, ['reason' => $reason] + $details, $request, $locked->user_id);
+            $this->notifications->create(
+                (int) $locked->user_id,
+                'listing_duplicate_rejected',
+                'تم رفض الإعلان المكرر',
+                $message,
+                'property',
+                (int) $locked->id,
+                ['review_status' => 'rejected_duplicate'] + $details,
             );
 
             return $locked->fresh();
