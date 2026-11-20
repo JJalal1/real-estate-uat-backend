@@ -13,6 +13,8 @@ concurrency:
 jobs:
   verify-and-build:
     if: ${{ github.event.repository.private }}
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -155,12 +157,15 @@ jobs:
           (apk.parent / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
           print(json.dumps(receipt))
           PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: map-layers-1828-${{ env.AQER_SOURCE_SHA }}
-          path: uat1828/
-          retention-days: 14
-          if-no-files-found: error
+      - name: Save the signed build to a private release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "uat-1828-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            uat1828/AQER-UAT-1828-Map-Layers.apk uat1828/APK_VERIFICATION.json \
+            --repo "$GITHUB_REPOSITORY" --draft --target "$AQER_SOURCE_SHA" \
+            --title 'AQER UAT 1828 Map Layers' \
+            --notes "Signed test build from $AQER_SOURCE_SHA. GitHub Actions run $GITHUB_RUN_ID."
       - name: Remove temporary signing material
         if: always()
         run: |
