@@ -48,9 +48,9 @@ jobs:
           printf 'APP_KEY=\n' > .env
           php artisan key:generate --force
           psql -h 127.0.0.1 -U postgres -d aqer_ranking_test -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
-      - name: Check ranked discovery with SQLite
-        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
-      - name: Check ranked discovery with PostgreSQL and PostGIS
+      - name: Check ranked discovery and Arabic text search with SQLite
+        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php tests/Feature/Wave3AiAssistantTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Check ranked discovery and Arabic text search with PostgreSQL and PostGIS
         env:
           APP_ENV: testing
           DB_CONNECTION: pgsql
@@ -61,7 +61,7 @@ jobs:
           DB_PASSWORD: ''
           DB_URL: ''
           DB_SEARCH_PATH: public,extensions
-        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
+        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php tests/Feature/Wave3AiAssistantTest.php --display-warnings --fail-on-warning --fail-on-risky
 
   verify-and-build:
     if: ${{ github.event.repository.private }}
