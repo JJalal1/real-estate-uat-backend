@@ -1,0 +1,28 @@
+name: Prepare Frankfurt UAT duplicate review handset fixtures
+
+on:
+  push:
+    branches: [work/uat-duplicate-acceptance-fixtures-20261120]
+    paths: [scripts/uat_duplicate_acceptance_fixture_receipt.json]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frankfurt-uat-listing-duplicate-review
+  cancel-in-progress: false
+
+jobs:
+  acceptance-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Publish two labeled originals and submit three labeled review targets
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          python3 -B scripts/prepare_duplicate_acceptance_uat.py \
+            --receipt scripts/uat_duplicate_acceptance_fixture_receipt.json
