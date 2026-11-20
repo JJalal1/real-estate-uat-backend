@@ -86,7 +86,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
           git merge-base --is-ancestor c0da9ece237cd8059a7755b27451b1dfd33c3e0b HEAD
-      - name: Verify the deployed backend tree and ranked contract
+      - name: Verify the deployed runtime files and ranked contract
         run: |
           python3 -B - <<'PY'
           import json
@@ -98,13 +98,16 @@ jobs:
           deploy = json.loads(Path("docs/uat-acceptance-1830-deploy.json").read_text(encoding="utf-8"))
           source = deploy["commit"]
           assert re.fullmatch(r"[0-9a-f]{40}", source)
-          subprocess.run(["git", "diff", "--exit-code", source, "HEAD", "--", "backend-api-runtime", "render.yaml"], check=True)
+          subprocess.run([
+              "git", "diff", "--exit-code", source, "HEAD", "--",
+              "backend-api-runtime", "render.yaml", ":(exclude)backend-api-runtime/tests",
+          ], check=True)
           with urlopen(
               "https://real-estate-uat-api-frankfurt.onrender.com/api/properties?ranked_search=1&ranking_version=2&per_page=1",
               timeout=70,
           ) as response:
               assert response.status == 200 and response.headers["X-Aqer-Ranked-Contract"] == "2"
-          print("Verified deployed backend tree and live ranked contract 2.")
+          print("Verified deployed runtime files and live ranked contract 2.")
           PY
       - uses: subosito/flutter-action@v2
         with:

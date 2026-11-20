@@ -226,4 +226,3 @@ class Wave3AiAssistantTest extends TestCase
             'status' => 'published', 'review_status' => 'approved'], $changes));
     }
 }
-
