@@ -1,0 +1,22 @@
+name: Verify the public Arabic text filter correction
+
+on:
+  push:
+    branches: [work/uat-ranked-text-retest-20261121]
+    paths: [scripts/uat_ranked_text_retest_deploy.json]
+permissions:
+  contents: read
+concurrency:
+  group: frankfurt-uat-ranked-text-check
+  cancel-in-progress: false
+
+jobs:
+  typed-and-dictated-text:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify the two prior text inputs without listing writes
+        run: python3 -B scripts/verify_ranked_text_retest_uat.py

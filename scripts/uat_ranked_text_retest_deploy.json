@@ -1,0 +1,8 @@
+{
+  "service_id": "srv-dahj3vlg1s2s73bdqhtg",
+  "deploy_id": "dep-dc0c6ts0916s73daslb0",
+  "status": "live",
+  "commit": "1a85240c269b21c5eeb396e3d3504130bf2534c5",
+  "backend_tree": "7e3eb48ef74f965447d58c3c9ffb27c1aaafb6d9",
+  "observed_at_utc": "2026-11-20T22:03:38.550Z"
+}
