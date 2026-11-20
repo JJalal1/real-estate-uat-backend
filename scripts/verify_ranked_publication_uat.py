@@ -58,7 +58,7 @@ class RankedJourney(Journey):
         self.titles = {key: self.marker + " " + fixture[4] for key, fixture in FIXTURES.items()}
         self.scope = {
             "advertiser_id": BROKER_ID, "type": "apartment", "purpose": "rent",
-            "currency": "YER", "search": self.marker, "latitude": self.pin[0],
+            "currency": "YER", "search": self.marker.lower(), "latitude": self.pin[0],
             "longitude": self.pin[1], "radius_km": 0.2,
             "south": round(self.pin[0] + 0.00011, 6), "north": round(self.pin[0] + 0.003, 6),
             "west": round(self.pin[1] - 0.002, 6), "east": round(self.pin[1] + 0.00009, 6),
@@ -126,6 +126,10 @@ class RankedJourney(Journey):
             self.submit(key, "distinct")
             self.request(None, "GET", f"/properties/{listing_id}", expected=404)
             self.approve(key, image_id)
+            if key == "exact_near":
+                page = self.page("/properties", self.scope, 1)
+                require([entry.get("id") for entry in page.get("data", [])] == [listing_id],
+                        "approved_fixture_not_found_by_scoped_marker")
         self.receipt["approved_listings_became_public"] = len(self.record)
 
     def check_public_image(self, row):
@@ -149,6 +153,10 @@ class RankedJourney(Journey):
         for number, key in enumerate(RANK_ORDER, 1):
             page = self.page("/properties", filters, number)
             map_page = self.page("/properties/nearby", filters, number)
+            keys = ("current_page", "last_page", "total", "exact_total", "alternative_total",
+                    "ranking_distance_reference")
+            self.receipt["last_ranked_list_meta"] = {key: page.get("meta", {}).get(key) for key in keys}
+            self.receipt["last_ranked_map_meta"] = {key: map_page.get("meta", {}).get(key) for key in keys}
             require(page == map_page, "ranked_list_and_map_page_differ")
             meta = page.get("meta", {})
             require(meta.get("current_page") == number and meta.get("last_page") == 4
@@ -181,13 +189,24 @@ class RankedJourney(Journey):
 
     def check_text_equivalence(self, expected):
         self.receipt["stage"] = "compare_typed_with_dictated_text_at_api_boundary"
+        # The indexing test marker is automation scoping, not a user's search
+        # phrase. Preserve the same actual criteria and geographic scope.
+        context = {key: value for key, value in self.scope.items() if key != "search"}
+        expected = {key: value for key, value in expected.items() if key != "search"}
         proposals = []
         for revision, phrase in enumerate(PHRASES, 1):
             result = self.request(None, "POST", "/ai/search",
-                                  body={"message": phrase, "filters": self.scope, "revision": revision})
+                                  body={"message": phrase, "filters": context, "revision": revision})
             proposed = result.get("filters")
             require(isinstance(proposed, dict), "arabic_search_filters_missing")
             proposals.append(proposed)
+            common = proposed.keys() & expected.keys()
+            self.receipt.setdefault("text_filter_observations", []).append({
+                "missing": sorted(expected.keys() - proposed.keys()),
+                "added": sorted(proposed.keys() - expected.keys()),
+                "changed": sorted(key for key in common if proposed[key] != expected[key]),
+                "bedrooms": proposed.get("min_bedrooms"), "bathrooms": proposed.get("min_bathrooms"),
+            })
         require(proposals[0] == proposals[1], "typed_and_dictated_text_filters_differ")
         require(proposals[0] == expected, "arabic_search_scope_or_specifications_changed")
         self.receipt["typed_and_dictated_text_same_api_filters"] = True
