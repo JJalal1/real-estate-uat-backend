@@ -1793,13 +1793,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final favoriteState = user == null ? null : ref.watch(favoritePropertyIdsProvider);
     final canvas=ref.watch(sharedSearchMapBuilderProvider);
     void select(int id){for(final p in rows){if(p.id==id){setState(()=>_selected=p);break;}}}
-    final toolbar = widget.searchToolbarBuilder?.call(context, MapSearchActions(
-      onDrawArea: _beginAreaSelection, onClearArea: _clearSelectedArea,
-      onSmartSearch: _openSmartSearch, hasDrawnArea: state.filters.values.containsKey('area_polygon'))) ?? widget.searchToolbar;
     final actions = MapSearchActions(onDrawArea: _beginAreaSelection,
       onClearArea: _clearSelectedArea, onSmartSearch: _openSmartSearch,
       onFindAddress: _styleLoaded && !_selectingArea ? _findAddress : null,
       hasDrawnArea: state.filters.values.containsKey('area_polygon'));
+    final toolbar = widget.searchToolbarBuilder?.call(context, actions) ?? widget.searchToolbar;
     return PopScope(canPop: !_selectingArea, onPopInvokedWithResult: (didPop, _) {
       if (!didPop && _selectingArea) _cancelAreaSelection();
     }, child: LayoutBuilder(builder: (context, viewport) {

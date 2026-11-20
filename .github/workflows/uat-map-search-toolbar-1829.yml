@@ -1,13 +1,13 @@
-name: UAT1828 map layers
+name: UAT1829 compact map toolbar
 'on':
   push:
-    branches: [work/map-layers-1828-20261120]
+    branches: [work/map-search-toolbar-1829-20261120]
 
 permissions:
   contents: read
 
 concurrency:
-  group: uat1828-map-layers-${{ github.ref }}
+  group: uat1829-map-search-toolbar-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
       - name: Confirm the exact source
         run: |
           test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
-          git merge-base --is-ancestor 263efc42aa9c1277dbc05c9370cd8cbe5c891d2d HEAD
+          git merge-base --is-ancestor 4560e1b112402c0d5e3a10f5210951764b82a07c HEAD
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.3'
@@ -50,12 +50,12 @@ jobs:
         timeout-minutes: 3
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
-      - name: Verify map layers, layout and address navigation
+      - name: Verify the compact map toolbar, filters and map layers
         timeout-minutes: 5
         working-directory: mobile_app
         run: |
           flutter test --no-pub test/map_layers_test.dart --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_GOOGLE_MAPS_UAT=true --reporter expanded --timeout 45s
-          flutter test --no-pub test/uat1822_ranked_map_entry_test.dart test/map_search_layout_1820_test.dart --reporter expanded --timeout 45s
+          flutter test --no-pub test/uat1822_ranked_map_entry_test.dart test/map_search_layout_1820_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart --reporter expanded --timeout 45s
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -92,9 +92,9 @@ jobs:
             echo "The UAT Android Maps credential is missing."
             exit 1
           fi
-          flutter build apk --no-pub --flavor uat --release --build-number=1828 \
+          flutter build apk --no-pub --flavor uat --release --build-number=1829 \
             --target-platform=android-arm,android-arm64,android-x64 \
-            --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1828 \
+            --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1829 \
             --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline \
             --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api \
             --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
@@ -104,12 +104,12 @@ jobs:
           AQER_UAT_GOOGLE_MAPS_ANDROID_KEY: ${{ secrets.AQER_UAT_GOOGLE_MAPS_ANDROID_KEY }}
         run: |
           set -euo pipefail
-          mkdir uat1828
-          apk=uat1828/AQER-UAT-1828-Map-Layers.apk
+          mkdir uat1829
+          apk=uat1829/AQER-UAT-1829-Map-Search-Toolbar.apk
           cp mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk "$apk"
           tools="$ANDROID_HOME/build-tools/36.0.0"
           badging="$("$tools/aapt" dump badging "$apk")"
-          grep -F "package: name='com.aqer.yemen.uat.offline' versionCode='1828'" <<< "$badging"
+          grep -F "package: name='com.aqer.yemen.uat.offline' versionCode='1829'" <<< "$badging"
           certs="$("$tools/apksigner" verify --print-certs "$apk")"
           export SIGNER_SHA256="$(awk -F ': ' '/^Signer #1 certificate SHA-256 digest:/ {print $2}' <<< "$certs")"
           export SIGNER_SHA1="$(awk -F ': ' '/^Signer #1 certificate SHA-1 digest:/ {print $2}' <<< "$certs")"
@@ -147,7 +147,7 @@ jobs:
               "source": os.environ["AQER_SOURCE_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
               "package": "com.aqer.yemen.uat.offline",
-              "build": 1828,
+              "build": 1829,
               "certificate_sha256": identity["certificate_sha256"],
               "bytes": apk.stat().st_size,
               "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
@@ -161,10 +161,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "uat-1828-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            uat1828/AQER-UAT-1828-Map-Layers.apk uat1828/APK_VERIFICATION.json \
+          gh release create "uat-1829-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            uat1829/AQER-UAT-1829-Map-Search-Toolbar.apk uat1829/APK_VERIFICATION.json \
             --repo "$GITHUB_REPOSITORY" --draft --target "$AQER_SOURCE_SHA" \
-            --title 'AQER UAT 1828 Map Layers' \
+            --title 'AQER UAT 1829 Map Search Toolbar' \
             --notes "Signed test build from $AQER_SOURCE_SHA. GitHub Actions run $GITHUB_RUN_ID."
       - name: Remove temporary signing material
         if: always()

@@ -48,7 +48,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختصر البحث أو استخدام الأرض إلى ١٢٠ حرفًا.')));
       return;
     }
-    if (!_applyPriceRange()) return;
+    if (!widget.onMap && !_applyPriceRange()) return;
     // Clear the editor's focus history before a later push can restore it.
     FocusManager.instance.primaryFocus?.unfocus();
     await controller.submit(onMap: widget.onMap);
@@ -62,7 +62,8 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
     if (pending == null) return;
     FocusScope.of(context).unfocus();
     final value = await AppBottomSheet.show<SmartSearchFilters>(context, builder: (_) => SmartSearchFilterEditor(
-      initial: SmartSearchFilters.fromMap({...pending, if (ui.draftQuery.isNotEmpty) 'search': ui.draftQuery}), focus: focus));
+      initial: SmartSearchFilters.fromMap({...pending, if (ui.draftQuery.isNotEmpty) 'search': ui.draftQuery}),
+      focus: focus, rangesFirst: widget.onMap));
     if (!mounted || value == null || actor != ref.read(authControllerProvider).asData?.value?.id ||
         !identical(controller, ref.read(marketplaceSearchControllerProvider.notifier)) ||
         (widget.onMap && !controller.isMapJourneyCurrent(token))) { return; }
@@ -90,18 +91,25 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
     if (_text.text != ui.draftQuery) {
       _text.value = TextEditingValue(text: ui.draftQuery, selection: TextSelection.collapsed(offset: ui.draftQuery.length));
     }
-    _syncPriceRange(ui.criteria);
+    if (!widget.onMap) _syncPriceRange(ui.criteria);
     final theme = Theme.of(context), values = ui.criteria.values;
     final active = ui.active || widget.onMap;
     final key = publishedSuggestionKey(controller.suggestionFilters(onMap: widget.onMap));
     final showSuggestions = ui.editing && ui.draftQuery.trim().isNotEmpty && ui.draftQuery.trim().length <= 120;
+    final addressAction = widget.mapActions?.onFindAddress;
     final field = TextField(key: ValueKey(widget.onMap ? 'map-published-search-input' : 'home-search'),
       controller: _text, focusNode: _focus, maxLines: 1, minLines: 1, maxLength: 120,
       keyboardType: TextInputType.text, textInputAction: TextInputAction.search,
       inputFormatters: [FilteringTextInputFormatter.singleLineFormatter],
       onTap: () => controller.begin(onMap: widget.onMap), onChanged: (text) => controller.edit(text, onMap: widget.onMap), onSubmitted: (_) => unawaited(_submit()),
       decoration: InputDecoration(hintText: 'ابحث عن عقار…', counterText: '',
-        prefixIcon: const Icon(Icons.search), suffixIcon: _text.text.isEmpty ? null : IconButton(
+        isDense: widget.onMap ? true : null,
+        contentPadding: widget.onMap ? const EdgeInsets.symmetric(horizontal: 12, vertical: 12) : null,
+        prefixIcon: widget.onMap
+          ? IconButton(key: const ValueKey('published-search-submit'), tooltip: 'تنفيذ البحث',
+              icon: const Icon(Icons.search), onPressed: () => unawaited(_submit()))
+          : const Icon(Icons.search),
+        suffixIcon: _text.text.isEmpty ? null : IconButton(
           key: const ValueKey('published-search-clear'), tooltip: 'مسح النص',
           onPressed: () { controller.edit('', onMap: widget.onMap); _focus.requestFocus(); }, icon: const Icon(Icons.close))));
     final large = MediaQuery.textScalerOf(context).scale(14) > 23;
@@ -120,29 +128,53 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
         'land': 'أراضٍ', 'shop': 'محلات', 'office': 'مكاتب', 'building': 'عمائر', 'farm': 'مزارع'}.entries)
         ChoiceChip(key: ValueKey('published-type-${e.key}'), label: Text(e.value),
           selected: ui.criteria.selectedTypes.contains(e.key),
+          showCheckmark: widget.onMap ? false : null,
           onSelected: (_) => controller.toggleType(e.key, onMap: widget.onMap)),
     ];
+    final appliedChips = <Widget>[
+      for (final chip in ui.criteria.chips)
+        if (widget.onMap
+            ? !chip.$1.startsWith('type:') && !const ['type', 'purpose'].contains(chip.$1)
+            : !_representedByQuickFilter(chip.$1))
+          InputChip(
+            key: ValueKey('published-selected-${chip.$1}'),
+            label: Text(chip.$2),
+            onPressed: () => _editFilters(chip.$1),
+            onDeleted: () => controller.remove(chip.$1, onMap: widget.onMap),
+          ),
+      if (ui.landUse.isNotEmpty)
+        InputChip(label: Text('الاستخدام المعلن: ${ui.landUse}'), onPressed: _landUse,
+          onDeleted: () => controller.setLandUse('', onMap: widget.onMap))
+      else if (widget.onMap && values['type'] == 'land')
+        ActionChip(key: const ValueKey('published-filter-land-use'),
+          label: const Text('الاستخدام المعلن'), onPressed: _landUse),
+      if (widget.mapActions?.hasDrawnArea == true)
+        InputChip(key: const ValueKey('map-drawn-area'),
+          avatar: const Icon(Icons.gesture_rounded, size: 18), label: const Text('منطقة مرسومة'),
+          onPressed: widget.mapActions!.onDrawArea, onDeleted: widget.mapActions!.onClearArea),
+    ];
     return Material(color: theme.colorScheme.surface, borderRadius: BorderRadius.circular(16),
-      child: Padding(padding: const EdgeInsets.all(10), child: Column(mainAxisSize: MainAxisSize.min,
+      child: Padding(padding: EdgeInsets.all(widget.onMap ? 8 : 10), child: Column(mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [Expanded(child: field), const SizedBox(width: 4), execute,
+        Row(children: [Expanded(child: field),
+          if (!widget.onMap) ...[const SizedBox(width: 4), execute],
+          if (widget.onMap && addressAction != null) ...[
+            const SizedBox(width: 6),
+            IconButton.outlined(key: const ValueKey('marketplace-map-find-address'),
+              tooltip: 'انتقل إلى حي أو عنوان', onPressed: addressAction,
+              icon: const Icon(Icons.travel_explore)),
+          ],
           if (widget.onOpenMap != null) IconButton(key: const ValueKey('home-map'), tooltip: 'الخريطة',
             onPressed: widget.onOpenMap, icon: const Icon(Icons.map_outlined))]),
-        if (active && (!ui.editing || widget.onMap)) ...[
+        if (widget.onMap) ...[
+          const SizedBox(height: 4),
+          _mapFilterControls(ui, controller, typeChips, large),
+        ] else if (active && !ui.editing) ...[
           const SizedBox(height: 6),
           Row(children: [
-            Expanded(child: _ChipRail(children: [...purposeChips, if (widget.onMap) ...typeChips])),
+            Expanded(child: _ChipRail(children: purposeChips)),
             const SizedBox(width: 6),
-            if (widget.mapActions?.onFindAddress != null)
-              IconButton(key: const ValueKey('marketplace-map-find-address'),
-                tooltip: 'انتقل إلى حي أو عنوان', onPressed: widget.mapActions!.onFindAddress,
-                icon: const Icon(Icons.travel_explore)),
-            if (widget.onMap) IconButton.filledTonal(key: const ValueKey('published-map-filters'),
-              tooltip: ui.criteria.chips.isEmpty ? 'تصفية' : 'تصفية، ${arabicDigits(ui.criteria.chips.length.toString())} محددة',
-              isSelected: ui.criteria.chips.isNotEmpty,
-              onPressed: () => _editFilters(), icon: const Icon(Icons.tune),
-              selectedIcon: const Icon(Icons.filter_list_rounded))
-            else if (large) IconButton.outlined(key: const ValueKey('published-filter-more'),
+            if (large) IconButton.outlined(key: const ValueKey('published-filter-more'),
               tooltip: 'تصفية', onPressed: () => _editFilters(), icon: const Icon(Icons.tune))
             else OutlinedButton.icon(key: const ValueKey('published-filter-more'),
               onPressed: () => _editFilters(), icon: const Icon(Icons.tune, size: 18),
@@ -150,7 +182,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
               style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
           ]),
-          if (!widget.onMap) _ChipRail(children: typeChips),
+          _ChipRail(children: typeChips),
           LayoutBuilder(builder: (_, space) => Wrap(spacing: 6, runSpacing: 6, children: [
             if ((ui.criteria.selectedTypes.isNotEmpty || values.containsKey('min_bedrooms')) && DynamicPropertySchema.appliesToFilters('bedrooms', values))
               _quickFilter('min_bedrooms', 'الغرف', Icons.bed_outlined, large ? space.maxWidth : 110),
@@ -163,26 +195,56 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
               label: const Text('الاستخدام المعلن'), onPressed: _landUse),
           ])),
           _priceRange(ui.criteria),
-          if (ui.criteria.chips.any((e) => !_representedByQuickFilter(e.$1)) ||
-              ui.landUse.isNotEmpty || widget.mapActions?.hasDrawnArea == true)
-            _ChipRail(children: [
-              for (final chip in ui.criteria.chips.where((e) => !_representedByQuickFilter(e.$1)))
-                InputChip(key: ValueKey('published-selected-${chip.$1}'), label: Text(chip.$2),
-                  onPressed: () => _editFilters(chip.$1), onDeleted: () => controller.remove(chip.$1, onMap: widget.onMap)),
-              if (ui.landUse.isNotEmpty) InputChip(label: Text('الاستخدام المعلن: ${ui.landUse}'),
-                onPressed: _landUse, onDeleted: () => controller.setLandUse('', onMap: widget.onMap)),
-              if (widget.mapActions?.hasDrawnArea == true) InputChip(
-                key: const ValueKey('map-drawn-area'), avatar: const Icon(Icons.gesture_rounded, size: 18),
-                label: const Text('منطقة مرسومة'), onPressed: widget.mapActions!.onDrawArea,
-                onDeleted: widget.mapActions!.onClearArea),
-            ]),
         ],
+        if (active && (!ui.editing || widget.onMap) && appliedChips.isNotEmpty)
+          _ChipRail(children: appliedChips),
         if (showSuggestions) _PublishedSuggestions(suggestionKey: key, onOpen: (row) async {
           _focus.unfocus();
           await context.push('/properties/${row.id}', extra: row);
           if (mounted) ref.invalidate(publishedListingSuggestionsProvider(key));
         }),
       ])));
+  }
+
+  Widget _mapFilterControls(MarketplaceSearchUi ui, MarketplaceSearchController controller,
+      List<Widget> typeChips, bool largeText) {
+    final purpose = ui.criteria.values['purpose'] as String?;
+    final colors = Theme.of(context).colorScheme;
+    const filterKey = ValueKey('published-map-filters');
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Expanded(child: SegmentedButton<String>(
+          key: const ValueKey('map-search-purpose'),
+          segments: const [
+            ButtonSegment(value: 'rent', label: Text('إيجار', maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ButtonSegment(value: 'sale', label: Text('بيع', maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ],
+          selected: {if (purpose != null) purpose},
+          emptySelectionAllowed: true,
+          showSelectedIcon: false,
+          expandedInsets: EdgeInsets.zero,
+          style: SegmentedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
+          onSelectionChanged: (selection) => controller.setChoice(
+            'purpose', selection.isEmpty ? null : selection.single, onMap: true),
+        )),
+        const SizedBox(width: 8),
+        if (largeText)
+          IconButton.filled(key: filterKey, tooltip: 'تصفية', icon: const Icon(Icons.tune),
+            onPressed: () => _editFilters(), style: IconButton.styleFrom(
+              backgroundColor: colors.primary, foregroundColor: colors.onPrimary))
+        else
+          FilledButton.icon(key: filterKey, icon: const Icon(Icons.tune, size: 18),
+            label: const Text('تصفية'), onPressed: () => _editFilters(),
+            style: FilledButton.styleFrom(backgroundColor: colors.primary, foregroundColor: colors.onPrimary,
+              padding: const EdgeInsets.symmetric(horizontal: 12))),
+      ]),
+      _ChipRail(children: [
+        ChoiceChip(key: const ValueKey('published-type-all'), label: const Text('الكل'),
+          selected: ui.criteria.selectedTypes.isEmpty, showCheckmark: false,
+          onSelected: (selected) { if (selected) controller.remove('type', onMap: true); }),
+        ...typeChips,
+      ]),
+    ]);
   }
 
   bool _representedByQuickFilter(String key) =>
