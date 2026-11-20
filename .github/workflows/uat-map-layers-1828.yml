@@ -1,57 +1,25 @@
-name: UAT1827 map and listing
+name: UAT1828 map layers
 'on':
-  push:
+  pull_request:
     branches: [work/map-listing-readiness-1827-20261120]
 
 permissions:
   contents: read
 
 concurrency:
-  group: uat1827-map-listing-${{ github.ref }}
+  group: uat1828-map-layers-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  backend:
-    if: ${{ github.event.repository.private }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: backend-api-runtime
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: bcmath,curl,dom,exif,fileinfo,gd,intl,mbstring,pdo_sqlite,sqlite3
-          coverage: none
-      - run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Verify the address and listing assistant contracts in a disposable database
-        env:
-          APP_ENV: testing
-        run: |
-          printf 'APP_KEY=\n' > .env
-          php artisan key:generate --force
-          php artisan test tests/Feature/MapAddressSearchTest.php tests/Feature/Wave3AiAssistantTest.php tests/Feature/UatListingAiProbeTest.php --display-warnings --fail-on-warning --fail-on-risky
-      - name: Check the public UAT assistant capability flag
-        timeout-minutes: 1
-        run: |
-          { curl --silent --fail --max-time 20 'https://real-estate-uat-api-frankfurt.onrender.com/api/ai/capabilities' || true; } |
-            python3 -c 'import json, sys
-          try:
-              value = json.load(sys.stdin)["data"]["available"]
-              print("UAT assistant configured" if value is True else "UAT assistant not configured")
-          except (ValueError, KeyError, TypeError):
-              print("UAT assistant capability could not be read")'
-
   verify-and-build:
-    needs: backend
-    if: ${{ github.event.repository.private }}
+    if: >-
+      github.event.repository.private &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.head_ref == 'work/map-layers-1828-20261120'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
+      AQER_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
       AQER_SIGNING_ENVIRONMENT: uat
       AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
       ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.offline
@@ -60,12 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ env.AQER_SOURCE_SHA }}
           fetch-depth: 0
           persist-credentials: false
       - name: Confirm the exact source
         run: |
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          git merge-base --is-ancestor 90a3e7bb436641663ecdd275fc39711ce7b8fe02 HEAD
+          test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
+          git merge-base --is-ancestor 263efc42aa9c1277dbc05c9370cd8cbe5c891d2d HEAD
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.3'
@@ -82,10 +51,12 @@ jobs:
         timeout-minutes: 3
         working-directory: mobile_app
         run: python3 -B ../scripts/check_v3_analysis.py
-      - name: Verify address navigation, listing photos and dictation
+      - name: Verify map layers, layout and address navigation
         timeout-minutes: 5
         working-directory: mobile_app
-        run: flutter test --no-pub test/uat1822_ranked_map_entry_test.dart test/map_search_layout_1820_test.dart test/listing_photo_editor_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart test/assisted_search_suggestions_test.dart --reporter expanded --timeout 45s
+        run: |
+          flutter test --no-pub test/map_layers_test.dart --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_GOOGLE_MAPS_UAT=true --reporter expanded --timeout 45s
+          flutter test --no-pub test/uat1822_ranked_map_entry_test.dart test/map_search_layout_1820_test.dart --reporter expanded --timeout 45s
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -122,9 +93,9 @@ jobs:
             echo "The UAT Android Maps credential is missing."
             exit 1
           fi
-          flutter build apk --no-pub --flavor uat --release --build-number=1827 \
+          flutter build apk --no-pub --flavor uat --release --build-number=1828 \
             --target-platform=android-arm,android-arm64,android-x64 \
-            --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1827 \
+            --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1828 \
             --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline \
             --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api \
             --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
@@ -134,12 +105,12 @@ jobs:
           AQER_UAT_GOOGLE_MAPS_ANDROID_KEY: ${{ secrets.AQER_UAT_GOOGLE_MAPS_ANDROID_KEY }}
         run: |
           set -euo pipefail
-          mkdir uat1827
-          apk=uat1827/AQER-UAT-1827-Map-Listing.apk
+          mkdir uat1828
+          apk=uat1828/AQER-UAT-1828-Map-Layers.apk
           cp mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk "$apk"
           tools="$ANDROID_HOME/build-tools/36.0.0"
           badging="$("$tools/aapt" dump badging "$apk")"
-          grep -F "package: name='com.aqer.yemen.uat.offline' versionCode='1827'" <<< "$badging"
+          grep -F "package: name='com.aqer.yemen.uat.offline' versionCode='1828'" <<< "$badging"
           certs="$("$tools/apksigner" verify --print-certs "$apk")"
           export SIGNER_SHA256="$(awk -F ': ' '/^Signer #1 certificate SHA-256 digest:/ {print $2}' <<< "$certs")"
           export SIGNER_SHA1="$(awk -F ': ' '/^Signer #1 certificate SHA-1 digest:/ {print $2}' <<< "$certs")"
@@ -174,10 +145,10 @@ jobs:
                   for lib in ("libflutter.so", "libapp.so"):
                       assert contents.getinfo(f"lib/{abi}/{lib}").compress_type == zipfile.ZIP_DEFLATED
           receipt = {
-              "source": os.environ["GITHUB_SHA"],
+              "source": os.environ["AQER_SOURCE_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
               "package": "com.aqer.yemen.uat.offline",
-              "build": 1827,
+              "build": 1828,
               "certificate_sha256": identity["certificate_sha256"],
               "bytes": apk.stat().st_size,
               "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
@@ -189,8 +160,8 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: map-listing-1827-${{ github.sha }}
-          path: uat1827/
+          name: map-layers-1828-${{ env.AQER_SOURCE_SHA }}
+          path: uat1828/
           retention-days: 14
           if-no-files-found: error
       - name: Remove temporary signing material

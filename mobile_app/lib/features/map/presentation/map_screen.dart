@@ -1842,6 +1842,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ref.read(_searchSession.notifier).updateViewport(south: south, west: west, north: north, east: east);
               }
             }))),
+          if (_styleLoaded && !_selectingArea && _mapController?.usesGoogle == true)
+            const PositionedDirectional(
+              top: 8, start: 12,
+              child: Card(
+                margin: EdgeInsets.zero,
+                child: AqerMapLayerButton(),
+              ),
+            ),
           if (_previewingAddress && !_selectingArea)
             PositionedDirectional(
               top: 8, end: 12,

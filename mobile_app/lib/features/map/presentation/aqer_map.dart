@@ -12,6 +12,41 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/offline/offline_connection.dart';
 
+final _mapLayerProvider = StateProvider<google.MapType>(
+  (ref) => google.MapType.normal,
+);
+
+class AqerMapLayerButton extends ConsumerWidget {
+  const AqerMapLayerButton({this.enabled = true, super.key});
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(_mapLayerProvider);
+    const labels = {
+      google.MapType.normal: 'خريطة الشوارع',
+      google.MapType.satellite: 'قمر صناعي',
+      google.MapType.hybrid: 'هجين (صور وأسماء الشوارع)',
+    };
+    return PopupMenuButton<google.MapType>(
+      tooltip: 'طبقات الخريطة',
+      icon: const Icon(Icons.layers_outlined),
+      enabled: enabled,
+      position: PopupMenuPosition.under,
+      onSelected: (layer) => ref.read(_mapLayerProvider.notifier).state = layer,
+      itemBuilder: (context) => [
+        for (final entry in labels.entries)
+          CheckedPopupMenuItem<google.MapType>(
+            value: entry.key,
+            checked: entry.key == selected,
+            child: Text(entry.value),
+          ),
+      ],
+    );
+  }
+}
+
 /// The common property map. Android UAT uses the configured Google SDK online.
 class AqerMap extends ConsumerStatefulWidget {
   const AqerMap({
@@ -107,7 +142,7 @@ class _AqerMapState extends ConsumerState<AqerMap> {
   }
 }
 
-class _GoogleCanvas extends StatefulWidget {
+class _GoogleCanvas extends ConsumerStatefulWidget {
   const _GoogleCanvas({
     required this.options,
     required this.position,
@@ -121,10 +156,10 @@ class _GoogleCanvas extends StatefulWidget {
   final VoidCallback onIdle;
 
   @override
-  State<_GoogleCanvas> createState() => _GoogleCanvasState();
+  ConsumerState<_GoogleCanvas> createState() => _GoogleCanvasState();
 }
 
-class _GoogleCanvasState extends State<_GoogleCanvas> {
+class _GoogleCanvasState extends ConsumerState<_GoogleCanvas> {
   AqerMapController? _controller;
 
   void _onCreated(google.GoogleMapController native) {
@@ -145,6 +180,7 @@ class _GoogleCanvasState extends State<_GoogleCanvas> {
     final controller = _controller;
     return google.GoogleMap(
       initialCameraPosition: _googlePosition(widget.position),
+      mapType: ref.watch(_mapLayerProvider),
       onMapCreated: _onCreated,
       onCameraMove: (position) {
         _controller?._position = CameraPosition(
