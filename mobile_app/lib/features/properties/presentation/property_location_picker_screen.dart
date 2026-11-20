@@ -359,6 +359,8 @@ class _PropertyLocationPickerScreenState
           title: Text(widget.title),
           centerTitle: true,
           actions: [
+            if (_styleLoaded && _controller?.usesGoogle == true)
+              AqerMapLayerButton(enabled: !_resolving && !_locating && !_draggingPin),
             IconButton(
               key: const ValueKey('listing-map-find-address'),
               tooltip: 'انتقل إلى حي أو عنوان',
