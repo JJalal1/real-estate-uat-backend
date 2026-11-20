@@ -1,0 +1,114 @@
+name: Verify one Arabic UAT listing draft
+on:
+  push:
+    branches: [work/uat-listing-ai-request-20261120]
+    paths: [.github/workflows/uat-listing-ai-request-20261120.yml]
+permissions:
+  contents: read
+concurrency:
+  group: uat-listing-ai-request-20261120
+  cancel-in-progress: false
+
+jobs:
+  listing-draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare one synthetic Arabic listing without saving it
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          python3 -B - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          from time import monotonic
+
+          sys.path.insert(0, 'scripts')
+          from phase1_native_account_readiness import SECRET_NAME, validate_access
+          from phase23_preflight import API, http
+          from run_phase23_native import Session
+
+          if (
+              os.environ.get('GITHUB_ACTIONS') != 'true'
+              or os.environ.get('GITHUB_REPOSITORY') != 'JJalal1/real-estate-uat-backend'
+              or os.environ.get('GITHUB_REF') != 'refs/heads/work/uat-listing-ai-request-20261120'
+              or os.environ.get('GITHUB_EVENT_NAME') != 'push'
+              or os.environ.get('GITHUB_RUN_ATTEMPT') != '1'
+              or API != 'https://real-estate-uat-api-frankfurt.onrender.com/api'
+          ):
+              raise SystemExit('UAT draft probe context refused')
+
+          receipt = {'draft_post_attempted': False, 'saved': False}
+          session = None
+          exit_code = 1
+          try:
+              try:
+                  access = validate_access(os.environ.pop(SECRET_NAME, ''))
+              except ValueError as error:
+                  receipt['status'] = str(error)
+              else:
+                  receipt['status'] = 'approved_test_login_failed'
+                  session = Session('broker', access)
+                  del access
+                  session.login()
+                  if session.identity['account_type'] != 'broker':
+                      raise RuntimeError('unexpected_test_account_type')
+
+                  current = {
+                      'type': 'apartment', 'purpose': 'rent', 'governorate': 'صنعاء',
+                      'floor_number': '2', 'bedrooms': 3, 'bathrooms': 2,
+                      'has_parking': False, 'building_facade': 'north',
+                  }
+                  message = (
+                      'شقة للإيجار في صنعاء في الدور الثاني، رقم الشقة 7، '
+                      'ثلاث غرف نوم وحمامان، دون موقف سيارة، واجهة شمالية.'
+                  )
+                  receipt['status'] = 'draft_transport_or_response_error'
+                  receipt['draft_post_attempted'] = True
+                  started = monotonic()
+                  code, response = http('POST', '/ai/listing-draft', {
+                      'mode': 'prepare', 'message': message, 'facts': current,
+                  }, token=session.token)
+                  receipt.update(http=code, elapsed_ms=round((monotonic() - started) * 1000))
+                  if code != 200:
+                      receipt['status'] = 'draft_http_rejected'
+                  else:
+                      data = response.get('data')
+                      fields = data.get('fields') if isinstance(data, dict) else None
+                      copy = data.get('copy') if isinstance(data, dict) else None
+                      source = data.get('source') if isinstance(data, dict) else None
+                      effective = current | fields if isinstance(fields, dict) else {}
+                      expected = current | {'unit_number': '7'}
+                      arabic_copy = isinstance(copy, dict) and all(
+                          isinstance(copy.get(key), str) and re.search(r'[\u0600-\u06ff]', copy[key])
+                          for key in ('title', 'description')
+                      )
+                      receipt.update(
+                          required_facts_match=all(effective.get(k) == v for k, v in expected.items()),
+                          arabic_copy=bool(arabic_copy),
+                          requires_review=isinstance(data, dict) and data.get('requires_review') is True,
+                          proposal_source=source if source in ('ai', 'text') else 'other',
+                      )
+                      if all(receipt[key] for key in ('required_facts_match', 'arabic_copy', 'requires_review')):
+                          receipt['status'] = 'ai_proposal_verified' if source == 'ai' else 'non_ai_proposal'
+                          exit_code = int(source != 'ai')
+                      else:
+                          receipt['status'] = 'draft_contract_failed'
+          except Exception:
+              pass
+          finally:
+              if session is not None:
+                  try:
+                      receipt['session_closed'] = session.close()
+                  except Exception:
+                      receipt['session_closed'] = False
+                  if not receipt['session_closed']:
+                      exit_code = 1
+              print('AQER_UAT_LISTING_DRAFT ' + json.dumps(receipt, sort_keys=True))
+          raise SystemExit(exit_code)
+          PY
