@@ -14,6 +14,8 @@ import '../../account/presentation/actor_scoped_page.dart';
 import '../../financial/data/financial_repository.dart';
 import '../../financial/domain/financial_models.dart';
 import '../../broker/data/broker_repository.dart';
+import '../../reviews/domain/listing_duplicate_candidate.dart';
+import '../../reviews/presentation/listing_duplicate_notice.dart';
 import '../../reviews/presentation/listing_review_workspace_screen.dart';
 import '../data/support_repository.dart';
 import '../data/support_workspace_repository.dart';
@@ -1321,6 +1323,9 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final duplicateDetection = task.sourceType == 'listing_review' && !task.isClosed
+        ? ListingDuplicateDetection.fromJson(task.metadata)
+        : null;
     return Card(
       elevation: task.severity == 'critical' ? 2 : 0,
       child: Padding(
@@ -1389,6 +1394,10 @@ class _TaskCard extends StatelessWidget {
                 if (task.isOverdue) const _StatusPill(label: 'متأخر', kind: 2),
               ],
             ),
+            if (duplicateDetection != null) ...[
+              const SizedBox(height: 8),
+              ListingDuplicateNotice(detection: duplicateDetection),
+            ],
             const SizedBox(height: 9),
             Wrap(
               spacing: 10,
@@ -1723,6 +1732,7 @@ String _taskResultLabel(SupportTaskItem task) {
     'approved' =>
       task.sourceType == 'listing_review' ? 'تم القبول والنشر' : 'تم القبول',
     'returned_for_correction' => 'أُعيد للمراجعة والتصحيح',
+    'rejected_duplicate' => 'رُفض الإعلان لتكراره',
     'rejected' => 'تم الرفض',
     'resolved' => 'تم الحل والإغلاق',
     'dismissed' => 'تم الرفض والإغلاق',

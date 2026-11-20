@@ -110,6 +110,62 @@ Future<void> _next(WidgetTester tester) async {
 }
 
 void main() {
+  phase23WidgetTest('claimed duplicate review explains both sources and rejects only the new listing', (tester) async {
+    final algorithmRow = {
+      ..._listing(108),
+      'duplicate_detection_source': 'algorithm',
+      'duplicate_detection_reason': 'المبنى والوحدة متطابقان',
+    };
+    final aiRow = {
+      ..._listing(107),
+      'review_status': 'under_review',
+      'duplicate_detection_source': 'ai',
+      'duplicate_detection_reason': 'تتشابه صور الغرف ومواصفاتها',
+    };
+    final wire = _Wire((request) async {
+      if (request.path.endsWith('/queue')) return _page(1, [algorithmRow, aiRow]);
+      if (request.method == 'POST') return {'data': <String, dynamic>{}};
+      return {
+        'data': {
+          ...aiRow,
+          'likely_duplicate_candidates': [
+            {
+              'listing_id': 106,
+              'property_asset_id': 104,
+              'published': true,
+              'title': 'إعلان منشور للمقارنة',
+              'duplicate_detection_source': 'ai',
+              'duplicate_detection_reason': 'تتشابه صور الغرف ومواصفاتها',
+            },
+          ],
+        },
+      };
+    });
+    await _open(tester, wire);
+    final algorithmBadge = find.widgetWithText(AppStatusBadge, 'تشابه واضح رصده النظام');
+    expect(tester.widget<AppStatusBadge>(algorithmBadge).tone, AppStatusTone.warning);
+    expect(find.text('المبنى والوحدة متطابقان'), findsOneWidget);
+
+    await tester.tap(find.text('متابعة التحقيق'));
+    await tester.pumpAndSettle();
+    final reject = find.text('رفض الإعلان الجديد كمكرر');
+    await tester.scrollUntilVisible(reject, 300, scrollable: _verticalList.first);
+    final aiBadge = find.widgetWithText(AppStatusBadge, 'تشابه رصده المساعد');
+    expect(tester.widget<AppStatusBadge>(aiBadge).tone, AppStatusTone.info);
+    expect(find.text('تتشابه صور الغرف ومواصفاتها'), findsOneWidget);
+
+    await tester.tap(reject);
+    await tester.pumpAndSettle();
+    const reason = 'تأكد فريق الدعم من تطابق الوحدة مع الإعلان السابق';
+    await tester.enterText(find.byType(TextField), reason);
+    await tester.tap(find.text('تأكيد'));
+    await tester.pumpAndSettle();
+    final request = wire.requests.singleWhere((request) => request.method == 'POST');
+    expect(request.path, '/admin/listing-review/listings/107/reject-duplicate');
+    expect(request.data, {'candidate_property_id': 106, 'reason': reason});
+    expect(tester.takeException(), isNull);
+  });
+
   test('queue repository uses bounded pages and server end metadata', () async {
     final wire = _Wire((_) async => _page(2, [_listing(26)], last: 3, total: 51));
     final container = await _container(wire);

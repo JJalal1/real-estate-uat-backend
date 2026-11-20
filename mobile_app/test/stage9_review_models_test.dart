@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:real_estate_mobile/features/reviews/domain/listing_duplicate_candidate.dart';
 import 'package:real_estate_mobile/features/reviews/domain/listing_review_models.dart';
 
 void main() {
@@ -18,6 +19,23 @@ void main() {
     expect(item.id, 9);
     expect(item.reviewStatus, 'submitted');
     expect(item.proofCount, 1);
+    expect(item.duplicateDetection, isNull);
+  });
+  test('only a known published listing supplies a duplicate rejection target', () {
+    final row = <String, dynamic>{
+      'listing_id': 106,
+      'duplicate_detection_source': 'algorithm',
+      'duplicate_detection_reason': ' نفس الوحدة ',
+    };
+    final legacy = ListingDuplicateCandidate.fromJson({...row, 'status': 'published'});
+    expect(legacy.canRejectAsDuplicate, isTrue);
+    expect(legacy.detection?.source, ListingDuplicateSource.algorithm);
+    expect(legacy.detection?.reason, 'نفس الوحدة');
+    expect(ListingDuplicateCandidate.fromJson({
+      ...row, 'status': 'published', 'published': false,
+    }).canRejectAsDuplicate, isFalse);
+    expect(ListingDuplicateCandidate.fromJson(row).canRejectAsDuplicate, isFalse);
+    expect(ListingDuplicateCandidate.fromJson({'published': true}).canRejectAsDuplicate, isFalse);
   });
   test('publication block parses active state', () {
     final b = PublicationBlockItem.fromJson({

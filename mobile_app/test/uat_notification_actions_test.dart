@@ -10,6 +10,7 @@ import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/messages/data/message_repository.dart';
 import 'package:real_estate_mobile/features/messages/domain/message_models.dart';
+import 'package:real_estate_mobile/features/messages/domain/notification_destination.dart';
 import 'package:real_estate_mobile/features/messages/presentation/notifications_screen.dart';
 
 class _Authenticated extends AuthController {
@@ -19,6 +20,9 @@ class _Authenticated extends AuthController {
 }
 
 class _NotificationsRepository implements MessageRepository {
+  _NotificationsRepository({this.notification});
+
+  final AppNotificationItem? notification;
   Object? failure;
   Completer<void>? pending;
   int singleReads = 0;
@@ -31,6 +35,8 @@ class _NotificationsRepository implements MessageRepository {
   Future<List<AppNotificationItem>> notifications() async {
     listReads++;
     if (pendingList != null) return pendingList!.future;
+    final custom = notification;
+    if (custom != null) return read ? const [] : [custom];
     return [
         AppNotificationItem(
           id: 1,
@@ -78,6 +84,12 @@ Future<GoRouter> _mount(
         body: Text('support-case-${state.uri.queryParameters['case']}'),
       ),
     ),
+    GoRoute(
+      path: '/properties/:id',
+      builder: (_, state) => Scaffold(
+        body: Text('property-${state.pathParameters['id']}'),
+      ),
+    ),
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(
@@ -94,6 +106,37 @@ void main() {
     requestOptions: RequestOptions(path: '/notifications/read-all'),
     type: DioExceptionType.connectionError,
   );
+
+  testWidgets('duplicate rejection displays the exact reason and opens the previous listing', (tester) async {
+    const reason = 'سبق نشره من قبلك. تطابقت الوحدة والمبنى مع الإعلان السابق.';
+    final repository = _NotificationsRepository(notification: AppNotificationItem.fromJson({
+      'id': 1,
+      'type': 'listing_duplicate_rejected',
+      'title': 'رُفض الإعلان لتكراره',
+      'body': reason,
+      'entity_type': 'property',
+      'entity_id': 107,
+      'data': {'previous_property_id': 106, 'previous_listing_same_owner': true},
+    }));
+    await _mount(tester, repository);
+    expect(find.text(reason), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'عرض الإعلان السابق'));
+    await tester.pumpAndSettle();
+    expect(find.text('property-106'), findsOneWidget);
+    expect(find.text('property-107'), findsNothing);
+    expect(repository.singleReads, 1);
+  });
+
+  test('duplicate rejection does not link to the rejected listing', () {
+    final malformed = AppNotificationItem.fromJson({
+      'type': 'listing_duplicate_rejected',
+      'entity_type': 'property',
+      'entity_id': 107,
+      'data': {'previous_property_id': 107},
+    });
+    expect(notificationDestination(malformed), isNull);
+  });
 
   testWidgets('opening a notification recovers from offline failure and retries',
       (tester) async {

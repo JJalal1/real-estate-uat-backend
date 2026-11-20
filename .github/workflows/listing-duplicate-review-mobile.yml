@@ -1,0 +1,48 @@
+name: Listing duplicate review Flutter checks
+
+on:
+  push:
+    branches: [work/listing-duplicate-review-app-20261120]
+  pull_request:
+    paths:
+      - 'mobile_app/lib/features/reviews/**'
+      - 'mobile_app/lib/features/support/presentation/support_tasks_screen.dart'
+      - 'mobile_app/lib/features/messages/**/notification*.dart'
+      - 'mobile_app/test/listing_review_pagination_test.dart'
+      - 'mobile_app/test/stage9_review_models_test.dart'
+      - 'mobile_app/test/uat_notification_actions_test.dart'
+      - '.github/workflows/listing-duplicate-review-mobile.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  review-and-notification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: mobile_app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve the approved package lock
+        run: |
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --google-maps1826
+          flutter pub get --enforce-lockfile
+      - name: Strict Flutter analysis
+        run: python3 -B ../scripts/check_v3_analysis.py
+      - name: Test the support review and notification changes
+        run: >-
+          flutter test --no-pub --reporter expanded
+          test/listing_review_pagination_test.dart
+          test/stage9_review_models_test.dart
+          test/uat_notification_actions_test.dart
