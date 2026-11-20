@@ -1,25 +1,22 @@
 name: UAT1828 map layers
 'on':
-  pull_request:
-    branches: [work/map-listing-readiness-1827-20261120]
+  push:
+    branches: [work/map-layers-1828-20261120]
 
 permissions:
   contents: read
 
 concurrency:
-  group: uat1828-map-layers-${{ github.event.pull_request.number }}
+  group: uat1828-map-layers-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   verify-and-build:
-    if: >-
-      github.event.repository.private &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.head_ref == 'work/map-layers-1828-20261120'
+    if: ${{ github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      AQER_SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+      AQER_SOURCE_SHA: ${{ github.sha }}
       AQER_SIGNING_ENVIRONMENT: uat
       AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
       ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.offline
