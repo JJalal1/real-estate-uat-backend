@@ -1,0 +1,27 @@
+name: Verify live ranked listing publication and discovery
+
+on:
+  push:
+    branches: [work/uat-ranked-publication-live-20261121]
+    paths: [scripts/uat_ranked_publication_deploy_receipt.json]
+permissions:
+  contents: read
+concurrency:
+  group: frankfurt-uat-listing-fixtures
+  cancel-in-progress: false
+
+jobs:
+  ranked-publication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify ranked discovery on approved synthetic listings
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          python3 -B scripts/verify_ranked_publication_uat.py \
+            --receipt scripts/uat_ranked_publication_deploy_receipt.json \
+            --photo scripts/uat_ranked_publication_synthetic.png

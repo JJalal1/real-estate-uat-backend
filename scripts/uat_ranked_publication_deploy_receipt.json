@@ -1,0 +1,12 @@
+{
+  "service_id": "srv-dahj3vlg1s2s73bdqhtg",
+  "deploy_id": "dep-dc0c18rm8hqs738j3bb0",
+  "status": "live",
+  "commit": "28da333af0e54922a5b24166df119e8d4de11d17",
+  "backend_tree": "d8922005ba0fe9f4e80d6c1203c81a6637d1fd9c",
+  "latitude": "15.154277",
+  "longitude": "44.682468",
+  "nearby_comparison_rows": 0,
+  "observed_at_utc": "2026-11-20T21:53:44.727Z",
+  "photo_sha256": "47bacd4804303237b029d3d60ebb1ac8b36344be38f100214852f4f7b21eca8a"
+}
