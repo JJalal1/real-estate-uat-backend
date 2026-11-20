@@ -146,10 +146,18 @@ void main() {
     expect(tester.widget<AppStatusBadge>(algorithmBadge).tone, AppStatusTone.warning);
     expect(find.text('المبنى والوحدة متطابقان'), findsOneWidget);
 
-    await tester.tap(find.text('متابعة التحقيق'));
+    final openReview = find.text('متابعة التحقيق');
+    await tester.scrollUntilVisible(openReview, 180, scrollable: _verticalList.first);
+    await tester.tap(openReview);
     await tester.pumpAndSettle();
+    final reviewPage = find.byType(ListingReviewCaseScreen);
+    expect(reviewPage, findsOneWidget);
     final reject = find.text('رفض الإعلان الجديد كمكرر');
-    await tester.scrollUntilVisible(reject, 300, scrollable: _verticalList.first);
+    await tester.scrollUntilVisible(
+      reject,
+      180,
+      scrollable: find.descendant(of: reviewPage, matching: _verticalList),
+    );
     final aiBadge = find.widgetWithText(AppStatusBadge, 'تشابه رصده المساعد');
     expect(tester.widget<AppStatusBadge>(aiBadge).tone, AppStatusTone.info);
     expect(find.text('تتشابه صور الغرف ومواصفاتها'), findsOneWidget);

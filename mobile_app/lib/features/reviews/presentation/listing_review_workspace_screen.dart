@@ -262,27 +262,16 @@ class _ReviewQueueCardState extends ConsumerState<_ReviewQueueCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.s4),
-                    Text('المعلن: ${item.ownerName}'),
-                    Text('نوع الحساب: ${_verificationType(item.ownerVerificationType)}'),
-                    Text('مستندات الإثبات: ${item.proofCount}'),
-                  ],
-                ),
-              ),
-              AppStatusBadge(
-                label: claimed ? 'تم الاستلام - قيد التحقيق' : 'بانتظار الاستلام',
-                tone: claimed ? AppStatusTone.info : AppStatusTone.warning,
-              ),
-            ],
+          Text(item.title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.s4),
+          AppStatusBadge(
+            label: claimed ? 'تم الاستلام - قيد التحقيق' : 'بانتظار الاستلام',
+            tone: claimed ? AppStatusTone.info : AppStatusTone.warning,
           ),
+          const SizedBox(height: AppSpacing.s8),
+          Text('المعلن: ${item.ownerName}'),
+          Text('نوع الحساب: ${_verificationType(item.ownerVerificationType)}'),
+          Text('مستندات الإثبات: ${item.proofCount}'),
           if (duplicateDetection != null) ...[
             const SizedBox(height: AppSpacing.s8),
             ListingDuplicateNotice(detection: duplicateDetection),
