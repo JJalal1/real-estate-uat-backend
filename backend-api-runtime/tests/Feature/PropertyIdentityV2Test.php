@@ -6,18 +6,22 @@ use App\Models\Property;
 use App\Models\ListingReview;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\ListingDuplicateAssessment;
 use App\Services\PropertyIdentityService;
 use App\Services\PropertyAssetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Tests\Concerns\ConfirmsListingImages;
 use Tests\TestCase;
 
 class PropertyIdentityV2Test extends TestCase
 {
     use RefreshDatabase;
+    use ConfirmsListingImages;
 
     protected function setUp(): void
     {
@@ -154,6 +158,7 @@ class PropertyIdentityV2Test extends TestCase
             app(\App\Services\BrokerListingVerificationService::class),
             app(\App\Services\UserNotificationService::class),
             app(\App\Services\SupportTaskService::class),
+            app(ListingDuplicateAssessment::class),
         ) extends \App\Services\ListingWorkflowService {
             public bool $skipOnce = true;
 
@@ -364,6 +369,7 @@ class PropertyIdentityV2Test extends TestCase
         [, $first] = $this->user('identity-unit-1@example.test', '+967733000005');
         [, $second] = $this->user('identity-unit-2@example.test', '+967733000006');
         [, $third] = $this->user('identity-unit-3@example.test', '+967733000007');
+        [, $support] = $this->user('identity-two-units-support@example.test', '+967733000117', ['support_agent']);
 
         $common = [
             'type' => 'apartment', 'address' => 'صنعاء حدة شارع صفر مبنى النور',
@@ -372,6 +378,10 @@ class PropertyIdentityV2Test extends TestCase
         ];
         $a = $this->createReady($first, array_merge($common, ['title' => 'شقة 7', 'unit_number' => '7']));
         $this->withHeaders($first)->postJson("/api/properties/$a/submit")->assertOk();
+        $this->withHeaders($support)->postJson("/api/admin/listing-review/listings/$a/start")->assertOk();
+        $this->confirmListingImages($a, $support);
+        $this->withHeaders($support)->postJson("/api/admin/listing-review/listings/$a/approve")->assertOk()
+            ->assertJsonPath('data.status', 'published');
 
         $same = $this->createReady($second, array_merge($common, [
             'title' => 'نفس الشقة بدبوس محرك', 'unit_number' => '7', 'latitude' => 15.370070, 'longitude' => 44.190050,
@@ -380,11 +390,87 @@ class PropertyIdentityV2Test extends TestCase
             ->assertOk()->assertJsonPath('data.decision', 'confirmed_duplicate');
         $this->withHeaders($second)->postJson("/api/properties/$same/submit")
             ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $duplicates = app(PropertyAssetService::class)->likelyDuplicates(Property::query()->findOrFail($same));
+        $this->assertSame($a, $duplicates[0]['listing_id']);
+        $this->assertSame('algorithm', $duplicates[0]['duplicate_detection_source']);
+        $this->assertContains('same_building_same_unit', $duplicates[0]['signals']);
 
         $different = $this->createReady($third, array_merge($common, ['title' => 'شقة 8', 'unit_number' => '8']));
         $this->withHeaders($third)->postJson("/api/properties/$different/identity/check")
             ->assertOk()->assertJsonPath('data.decision', 'distinct');
         $this->withHeaders($third)->postJson("/api/properties/$different/submit")->assertOk();
+        $this->assertSame([], app(PropertyAssetService::class)
+            ->likelyDuplicates(Property::query()->findOrFail($different)));
+        $this->withHeaders($support)->postJson("/api/admin/listing-review/listings/$different/start")->assertOk();
+        $this->confirmListingImages($different, $support);
+        $this->withHeaders($support)->postJson("/api/admin/listing-review/listings/$different/approve")->assertOk()
+            ->assertJsonPath('data.status', 'published');
+    }
+
+    public function test_assistant_compares_safe_listing_photos_and_records_advisory_evidence_once(): void
+    {
+        config(['gemini.enabled' => false]);
+        [, $first] = $this->user('assistant-dupe-first@example.test', '+967733008501');
+        [, $second] = $this->user('assistant-dupe-second@example.test', '+967733008502');
+        $facts = [
+            'type' => 'villa',
+            'address' => 'صنعاء حي التجربة شارع الأربعين',
+            'area_m2' => 250,
+            'area_value' => 250,
+            'bedrooms' => 4,
+            'bathrooms' => 3,
+        ];
+        $previous = $this->createReady($first, $facts + ['latitude' => 15.340000, 'longitude' => 44.200000]);
+        $this->withHeaders($first)->postJson("/api/properties/$previous/submit")->assertOk();
+        $id = $this->createReady($second, $facts + ['latitude' => 15.340300, 'longitude' => 44.200120]);
+        $this->withHeaders($second)->postJson("/api/properties/$id/submit")->assertOk();
+
+        config(['gemini.enabled' => true, 'gemini.key' => 'fixture-key', 'gemini.daily_limit' => 5]);
+        Http::preventStrayRequests();
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response([
+            'candidates' => [[
+                'finishReason' => 'STOP',
+                'content' => ['parts' => [['text' => '{"signal":"matching_interior"}']]],
+            ]],
+        ])]);
+
+        $listing = Property::query()->findOrFail($id);
+        $assessment = app(ListingDuplicateAssessment::class);
+        $assessment->assess($listing);
+        $assessment->assess($listing);
+
+        Http::assertSentCount(1);
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($facts): bool {
+            $parts = $request->data()['contents'][0]['parts'];
+            $message = json_decode($parts[0]['text'], true);
+            $this->assertGreaterThan(0, $message['distance_m']);
+            $this->assertNotEmpty($message['facts_in_common']);
+            $this->assertEquals(250, $message['submitted_property']['area_m2']);
+            $this->assertStringNotContainsString($facts['address'], $parts[0]['text']);
+            $this->assertStringNotContainsString('+967700000000', $parts[0]['text']);
+            $this->assertCount(3, $parts);
+            foreach (array_slice($parts, 1) as $part) {
+                $this->assertSame('image/jpeg', $part['inlineData']['mimeType']);
+                $this->assertSame(IMAGETYPE_JPEG, getimagesizefromstring(base64_decode($part['inlineData']['data']))[2]);
+            }
+
+            return true;
+        });
+        $this->assertDatabaseHas('ai_daily_usage', ['day' => now('UTC')->toDateString(), 'request_count' => 1]);
+        $this->assertDatabaseHas('properties', ['id' => $id, 'review_status' => 'submitted', 'duplicate_check_status' => 'needs_support']);
+        $this->assertDatabaseHas('listing_reviews', ['listing_id' => $id, 'action' => 'duplicate_ai_assessed']);
+        $this->assertArrayNotHasKey('candidate_listing_id', $listing->fresh()->duplicate_check_metadata);
+
+        $candidates = app(PropertyAssetService::class)->likelyDuplicates($listing);
+        $evidence = $assessment->evidence($listing, $candidates);
+        $this->assertSame('ai', $evidence['duplicate_detection_source']);
+        $this->assertNotEmpty($evidence['duplicate_detection_reason']);
+        $this->assertSame($previous, $evidence['likely_duplicate_candidates'][0]['listing_id']);
+
+        $replacementFacts = Property::query()->findOrFail($previous);
+        $replacementFacts->forceFill(['area_m2' => 255])->save();
+        $candidates = app(PropertyAssetService::class)->likelyDuplicates($listing);
+        $this->assertNull($assessment->evidence($listing, $candidates)['duplicate_detection_source']);
     }
 
     public function test_land_boundary_prevents_pin_shift_and_allows_adjacent_parcel(): void

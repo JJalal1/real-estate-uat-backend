@@ -65,6 +65,27 @@ class PropertyIdentityService
         return $this->floorMarker($value);
     }
 
+    public function hasDistinctUnitIdentity(?PropertyAsset $left, ?PropertyAsset $right): bool
+    {
+        if ($left?->identity_kind !== 'unit' || $right?->identity_kind !== 'unit'
+            || ! $left->building_identity_key || $left->building_identity_key !== $right->building_identity_key) {
+            return false;
+        }
+
+        $leftFloor = $this->floorMarker((string) $left->floor_number);
+        $rightFloor = $this->floorMarker((string) $right->floor_number);
+        if ($leftFloor !== '' && $rightFloor !== '' && $leftFloor !== $rightFloor) {
+            return true;
+        }
+
+        $leftUnit = $this->unitMarker((string) $left->unit_number);
+        $rightUnit = $this->unitMarker((string) $right->unit_number);
+
+        return $leftFloor === $rightFloor && $leftUnit !== '' && $rightUnit !== ''
+            && $left->unit_number !== '@whole_floor' && $right->unit_number !== '@whole_floor'
+            && $leftUnit !== $rightUnit;
+    }
+
     public function validateIdentityInput(array $listing): void
     {
         $type = (string) ($listing['type'] ?? '');
