@@ -1,0 +1,59 @@
+name: Diagnose one public natural-language search filter
+on:
+  push:
+    branches: [work/uat-ranked-publication-live-20261121]
+    paths: [.github/workflows/verify-ranked-text-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  exact-text-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Record only the added numerical filter
+        run: |
+          test "$(git rev-parse HEAD:backend-api-runtime)" = 'd8922005ba0fe9f4e80d6c1203c81a6637d1fd9c'
+          python3 -B - <<'PY'
+          import json
+          import math
+          from urllib.request import Request, build_opener
+          from urllib.error import HTTPError
+          import sys
+          sys.path.insert(0, 'scripts')
+          from phase23_preflight import API, NoRedirect
+
+          expected_api = 'https://real-estate-uat-api-frankfurt.onrender.com/api'
+          if API != expected_api:
+              raise SystemExit('unexpected_api')
+          scope = {
+              'advertiser_id': 28, 'type': 'apartment', 'purpose': 'rent', 'currency': 'YER',
+              'latitude': 15.154277, 'longitude': 44.682468, 'radius_km': 0.2,
+              'south': 15.154387, 'north': 15.157277, 'west': 44.680468, 'east': 44.682558,
+          }
+          body = {'message': 'ثلاث غرف نوم وحمامان', 'filters': scope, 'revision': 1}
+          request = Request(API + '/ai/search', data=json.dumps(body).encode(), method='POST',
+                            headers={'Accept': 'application/json', 'Content-Type': 'application/json'})
+          metadata = {'api_route': '/api/ai/search', 'role': 'guest', 'listing_writes': 0}
+          try:
+              with build_opener(NoRedirect()).open(request, timeout=40) as response:
+                  metadata['http'] = response.status
+                  raw = response.read(131073)
+              if len(raw) > 131072:
+                  raise RuntimeError('response_size_bound')
+              filters = json.loads(raw)['data']['filters']
+              expected = scope | {'min_bedrooms': 3, 'min_bathrooms': 2}
+              value = filters.get('min_price')
+              metadata.update(extras=sorted(filters.keys() - expected.keys()),
+                              missing=sorted(expected.keys() - filters.keys()),
+                              changed=sorted(k for k in filters.keys() & expected.keys() if filters[k] != expected[k]),
+                              min_price=value if type(value) in (float, int) and math.isfinite(value) else None,
+                              price_value_type=type(value).__name__)
+          except HTTPError as error:
+              metadata['http'] = error.code
+          finally:
+              print('AQER_RANKED_TEXT_DIAGNOSTIC ' + json.dumps(metadata, sort_keys=True))
+          raise SystemExit(int(metadata.get('http') != 200))
+          PY
