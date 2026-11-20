@@ -30,6 +30,7 @@ LISTING_PHOTO_BRANCH = "work/listing-photo-check-1825-20261119"
 GOOGLE_MAPS_BRANCH = "work/google-maps-uat-1826-20261120"
 MAP_LISTING_BRANCH = "work/map-listing-readiness-1827-20261120"
 MAP_LAYERS_BRANCH = "work/map-layers-1828-20261120"
+MAP_SEARCH_TOOLBAR_BRANCH = "work/map-search-toolbar-1829-20261120"
 GOOGLE_MAPS_BASE_SHA = "2ff278bb27e25fcae8292a88128f58b3da04bc80"
 GOOGLE_MAPS_PACKAGES = {
     "csslib": "1.0.2",
@@ -211,7 +212,8 @@ def verify_google_maps_1826(baseline_lock, committed_lock, resolved, baseline_pu
             env.get("GITHUB_REPOSITORY") == CLEANUP_REPOSITORY and
             env.get("GITHUB_EVENT_NAME") == "push" and
             env.get("GITHUB_REF") in {"refs/heads/" + branch for branch in
-                                      (GOOGLE_MAPS_BRANCH, MAP_LISTING_BRANCH, MAP_LAYERS_BRANCH)}):
+                                      (GOOGLE_MAPS_BRANCH, MAP_LISTING_BRANCH, MAP_LAYERS_BRANCH,
+                                       MAP_SEARCH_TOOLBAR_BRANCH)}):
         raise ValueError("Google Maps requires the dedicated UAT push")
     expected = baseline_pubspec.replace(
         "  maplibre_gl: 0.22.0\n",

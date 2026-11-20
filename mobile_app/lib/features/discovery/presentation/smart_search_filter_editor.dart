@@ -4,9 +4,10 @@ import '../domain/smart_search_filters.dart';
 import '../../properties/domain/property_schema.dart';
 
 class SmartSearchFilterEditor extends StatefulWidget {
-  const SmartSearchFilterEditor({required this.initial, this.focus, super.key});
+  const SmartSearchFilterEditor({required this.initial, this.focus, this.rangesFirst = false, super.key});
   final SmartSearchFilters initial;
   final String? focus;
+  final bool rangesFirst;
   @override
   State<SmartSearchFilterEditor> createState() => SmartSearchFilterEditorState();
 }
@@ -19,7 +20,10 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
   @override
   void initState() {
     super.initState(); _values = Map.of(widget.initial.values);
-    _text = {for (final key in ['search', 'floor_number', ..._numbers]) key: TextEditingController(text: _values[key]?.toString() ?? '')};
+    String displayValue(Object? value) => value is double && value == value.truncateToDouble()
+      ? value.toStringAsFixed(0) : value?.toString() ?? '';
+    _text = {for (final key in ['search', 'floor_number', ..._numbers])
+      key: TextEditingController(text: displayValue(_values[key]))};
   }
   @override
   void dispose() { for (final controller in _text.values) { controller.dispose(); } super.dispose(); }
@@ -75,6 +79,24 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
     maxLength: key == 'search' ? 120 : key == 'floor_number' ? 32 : 24,
     keyboardType: _numbers.contains(key) ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
     decoration: InputDecoration(labelText: label, counterText: '')));
+
+  Widget _range(String label, String minimum, String maximum) {
+    if (!_visible(minimum) || !_visible(maximum)) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        LayoutBuilder(builder: (context, constraints) {
+          final lower = _field(minimum, 'من');
+          final upper = _field(maximum, 'إلى');
+          if (constraints.maxWidth < 270 || MediaQuery.textScalerOf(context).scale(14) > 20) {
+            return Column(children: [lower, upper]);
+          }
+          return Row(children: [Expanded(child: lower), const SizedBox(width: 8), Expanded(child: upper)]);
+        }),
+      ]),
+    );
+  }
   Widget _boolean(String key, String label) => !_visible(key) ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(top: 12), child: DropdownButtonFormField<bool>(
     value: _values[key] as bool?, isExpanded: true, isDense: false, itemHeight: null, decoration: InputDecoration(labelText: label),
     items: const [DropdownMenuItem(value: null, child: Text('لا يشترط')), DropdownMenuItem(value: true, child: Text('نعم')), DropdownMenuItem(value: false, child: Text('لا'))],
@@ -129,8 +151,22 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
   @override
   Widget build(BuildContext context) {
     final type = _values['type'], rent = _values['purpose'] == 'rent';
+    final rangesFirst = widget.rangesFirst && widget.focus == null;
+    final budget = <Widget>[
+      if (rangesFirst) _range(rent ? 'الإيجار الشهري' : 'السعر', 'min_price', 'max_price') else ...[
+        _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'),
+        _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
+      ],
+      const SizedBox(height: 12),
+      if (_visible('currency')) DropdownButtonFormField<String>(key: const ValueKey('filter-currency'), value: _values['currency'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'العملة'),
+        items: const [DropdownMenuItem(value: null, child: Text('ريال يمني للميزانية')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
+          DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
+        onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
+    ];
     final advanced = <Widget>[
-        _field('min_area_m2', 'أقل مساحة بالمتر المربع'), _field('max_area_m2', 'أقصى مساحة بالمتر المربع'),
+        if (!rangesFirst) ...[
+          _field('min_area_m2', 'أقل مساحة بالمتر المربع'), _field('max_area_m2', 'أقصى مساحة بالمتر المربع'),
+        ],
         if (_visible('floor_number')) Padding(padding:const EdgeInsets.only(top:12),child:DropdownButtonFormField<String>(key:const ValueKey('filter-floor_number'),
           value:_text['floor_number']!.text.isEmpty ? null : _text['floor_number']!.text,isExpanded:true,isDense:false,itemHeight:null,decoration:const InputDecoration(labelText:'الدور'),
           items:[const DropdownMenuItem(value:null,child:Text('أي دور')),for(final e in DynamicPropertySchema.floorOptions.entries) DropdownMenuItem(value:e.key,child:Text(e.value)),
@@ -150,15 +186,12 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
       padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('شروط البحث', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 18),
+        if (rangesFirst) ...budget,
+        if (rangesFirst) _range('المساحة (م²)', 'min_area_m2', 'max_area_m2'),
         _choices('type', 'نوع العقار', SmartSearchFilters.types),
         _choices('purpose', 'الغرض', const {'sale': 'بيع', 'rent': 'إيجار'}),
         _field('search', 'المحافظة أو المنطقة'),
-        _field('min_price', rent ? 'من إيجار شهري' : 'أقل سعر'), _field('max_price', rent ? 'حتى إيجار شهري' : 'أعلى سعر'),
-        const SizedBox(height: 12),
-        if (_visible('currency')) DropdownButtonFormField<String>(key: const ValueKey('filter-currency'), value: _values['currency'] as String?, isExpanded: true, isDense: false, itemHeight: null, decoration: const InputDecoration(labelText: 'العملة'),
-          items: const [DropdownMenuItem(value: null, child: Text('ريال يمني للميزانية')), DropdownMenuItem(value: 'YER', child: Text('ريال يمني')),
-            DropdownMenuItem(value: 'USD', child: Text('دولار')), DropdownMenuItem(value: 'SAR', child: Text('ريال سعودي'))],
-          onChanged: (value) => setState(() { if (value == null) { _values.remove('currency'); } else { _values['currency'] = value; } })),
+        if (!rangesFirst) ...budget,
         if (type == null || const ['apartment', 'house', 'villa'].contains(type)) ...[
           _minimumChoices('min_bedrooms', 'غرف النوم على الأقل', 6),
           _minimumChoices('min_bathrooms', 'دورات المياه على الأقل', 5),
@@ -167,8 +200,9 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
           tilePadding: EdgeInsets.zero, title: const Text('المزيد من الخيارات'),
           initiallyExpanded: const ['min_area_m2','max_area_m2','floor_number','unit_occupies_entire_floor','has_parking','building_facade']
             .any((key) => _values.containsKey(key)), children: advanced) else ...advanced,
-        if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
-        const SizedBox(height: 20), AppButton(label: 'تطبيق الشروط', expand: true, onPressed: _save),
+        if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Semantics(liveRegion: true,
+          child: Text(_error!, key: const ValueKey('filter-validation-error'), style: TextStyle(color: Theme.of(context).colorScheme.error)))),
+        const SizedBox(height: 20), AppButton(key: const ValueKey('filter-apply'), label: 'تطبيق الشروط', expand: true, onPressed: _save),
       ]))));
   }
 }

@@ -209,6 +209,7 @@ void main() {
     await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
     await native.emit('map#onStyleLoaded');
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('marketplace-map-find-address')), findsOneWidget);
     expect(native.fits, 1);
     await native.emit('camera#onIdle');
     await uxFrames(tester);
