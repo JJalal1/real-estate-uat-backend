@@ -1,0 +1,26 @@
+name: Read back Frankfurt UAT duplicate acceptance markers
+
+on:
+  push:
+    branches: [work/uat-duplicate-acceptance-fixtures-20261120]
+    paths: [scripts/observe_duplicate_acceptance_uat.py]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frankfurt-uat-listing-duplicate-review
+  cancel-in-progress: false
+
+jobs:
+  review-readback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm three marked UAT fixtures with normal support GETs
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: python3 -B scripts/observe_duplicate_acceptance_uat.py
