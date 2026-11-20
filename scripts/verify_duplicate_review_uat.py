@@ -70,8 +70,9 @@ def multipart(fields, photo):
 
 
 class Journey:
-    def __init__(self, receipt, photo, pin, http, no_redirect):
+    def __init__(self, receipt, photo, pin, http, no_redirect, exercise_ai=False):
         self.receipt, self.photo, self.pin, self.http = receipt, photo, pin, http
+        self.exercise_ai = exercise_ai
         self.opener = build_opener(no_redirect())
         self.record = {}
         self.attempts = set()
@@ -80,6 +81,9 @@ class Journey:
             "original": self.marker + " شقة ٧",
             "distinct": self.marker + " شقة ٨",
             "duplicate": self.marker + " نسخة الشقة ٧",
+        } if not exercise_ai else {
+            "original": self.marker + " فيلا اصطناعية أ",
+            "ambiguous": self.marker + " فيلا اصطناعية ب",
         }
         self.broker = self.support = None
 
@@ -138,17 +142,25 @@ class Journey:
             self.record[key] = listing_id
             seen.add(key)
 
-    def create(self, key, unit):
+    def create(self, key, unit=None):
         self.receipt["stage"] = "create_" + key
         fields = {
             "listing_input_version": 3, "title": self.titles[key],
             "description": "إعلان عقار اصطناعي لفحص خادم الاختبار فقط. غير معروض للإيجار فعلياً.",
             "type": "apartment", "purpose": "rent", "price": 80000, "currency": "YER",
+            "monthly_rent": 80000, "rental_term_months": 12, "advance_months": 1,
             "bedrooms": 3, "bathrooms": 2, "area_m2": 130,
             "address": "مبنى اصطناعي لاختبار UAT " + self.marker,
-            "building_reference": self.marker, "floor_number": 3, "unit_number": unit,
             "latitude": self.pin[0], "longitude": self.pin[1],
         }
+        if self.exercise_ai:
+            fields.update(type="villa", area_m2=250, bedrooms=4, bathrooms=3, has_parking=1,
+                          building_facade="north", address="حي التجربة شارع الأشجار الاصطناعي")
+            if key == "ambiguous":
+                fields["latitude"] = f"{float(self.pin[0]) + 0.000300:.6f}"
+                fields["longitude"] = f"{float(self.pin[1]) + 0.000120:.6f}"
+        else:
+            fields.update(building_reference=self.marker, floor_number=3, unit_number=unit)
         self.attempts.add(key)
         listing = self.request(self.broker, "POST", "/properties", expected=201,
                                raw=multipart(fields, self.photo))
@@ -157,18 +169,22 @@ class Journey:
                 and listing.get("title") == self.titles[key], "unexpected_created_listing")
         self.record[key] = listing_id
         owned = self.own(key)
-        require(owned.get("review_status") == "draft" and owned.get("unit_number") == str(unit)
+        require(owned.get("review_status") == "draft"
+                and (unit is None or owned.get("unit_number") == str(unit))
                 and len(owned.get("images", [])) == 1, "created_fixture_shape")
+        require(owned.get("monthly_rent") == 80000 and owned.get("rental_term_months") == 12
+                and owned.get("advance_months") == 1, "required_fixture_rent_terms_missing")
         self.request(self.broker, "PUT", f"/properties/{listing_id}/sai", body={
             "sai_payer": "tenant", "broker_sai_rate_percent": 0,
         })
         return listing_id, owned["images"][0]["id"]
 
     def submit(self, key, expected):
-        self.receipt["stage"] = "submit_" + key
+        self.receipt["stage"] = "identity_preflight_" + key
         listing_id = self.record[key]
         check = self.request(self.broker, "POST", f"/properties/{listing_id}/identity/check", body={})
         require(check.get("decision") == expected, "identity_preflight_conflict")
+        self.receipt["stage"] = "submit_" + key
         submitted = self.request(self.broker, "POST", f"/properties/{listing_id}/submit", body={})
         require(submitted.get("review_status") == "submitted", "fixture_not_submitted")
         return self.review(key)
@@ -216,7 +232,12 @@ class Journey:
         require(access_policy.get("can_create") is True and access_policy.get("mode") == "professional",
                 "fixture_broker_not_authorized_to_publish")
         self.reconcile()
+        if self.exercise_ai:
+            self.check_ai()
+        else:
+            self.check_duplicate_review()
 
+    def check_duplicate_review(self):
         original, original_image = self.create("original", 7)
         self.submit("original", "distinct")
         self.approve("original", original_image)
@@ -257,6 +278,34 @@ class Journey:
                 and notice.get("data", {}).get("previous_listing_same_owner") is True,
                 "duplicate_notification_target_or_copy")
         self.receipt["rejection_reason_and_previous_link"] = True
+
+    def check_ai(self):
+        original, _ = self.create("original")
+        first = self.submit("original", "distinct")
+        require(first.get("likely_duplicate_candidates") == [], "unexpected_first_candidate")
+
+        listing, _ = self.create("ambiguous")
+        self.receipt["stage"] = "verify_advisory_comparison"
+        evidence = self.submit("ambiguous", "possible_duplicate")
+        candidates = evidence.get("likely_duplicate_candidates", [])
+        require([row.get("listing_id") for row in candidates] == [original],
+                "assistant_comparison_candidate_changed")
+        require(evidence.get("review_status") == "submitted",
+                "assistant_did_not_leave_decision_to_support")
+        self.request(None, "GET", f"/properties/{listing}", expected=404)
+        self.request(None, "GET", f"/properties/{original}", expected=404)
+        actions = [item.get("action") for item in evidence.get("review_history", [])]
+        source = evidence.get("duplicate_detection_source")
+        require(source in (None, "ai"), "unexpected_ambiguous_detection_source")
+        if source == "ai":
+            require("duplicate_ai_assessed" in actions and bool(evidence.get("duplicate_detection_reason"))
+                    and candidates[0].get("duplicate_detection_source") == "ai",
+                    "assistant_reason_missing")
+        self.receipt["ai_advisory_source"] = source
+        self.receipt["ai_assessment_started"] = "duplicate_ai_assessment_started" in actions
+        self.receipt["ai_assessment_completed"] = "duplicate_ai_assessed" in actions
+        self.receipt["real_ai_comparison_exercised"] = self.receipt["ai_assessment_started"]
+        self.receipt["synthetic_comparison"] = {"listing_id": listing, "candidate_id": original}
 
     def clean_up(self):
         complete = True
@@ -306,6 +355,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--deployment-receipt", type=Path, required=True)
     parser.add_argument("--photo", type=Path, required=True)
+    parser.add_argument("--exercise-ai", action="store_true")
     args = parser.parse_args()
     action = os.environ
     require(action.get("GITHUB_ACTIONS") == "true" and action.get("GITHUB_REPOSITORY") == REPOSITORY
@@ -331,7 +381,7 @@ def main():
         "stage": "validate_fixture_access", "status": "FAILED",
         "real_ai_comparison_exercised": False,
     }
-    journey = Journey(receipt, photo, pin, http, NoRedirect)
+    journey = Journey(receipt, photo, pin, http, NoRedirect, args.exercise_ai)
     try:
         access = validate_access(action.pop(SECRET_NAME, ""))
         journey.run(Session, access)
