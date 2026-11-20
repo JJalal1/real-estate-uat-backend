@@ -1,0 +1,24 @@
+{
+  "service_id": "srv-dahj3vlg1s2s73bdqhtg",
+  "deploy_id": "dep-dc0c18rm8hqs738j3bb0",
+  "status": "live",
+  "commit": "28da333af0e54922a5b24166df119e8d4de11d17",
+  "backend_tree": "d8922005ba0fe9f4e80d6c1203c81a6637d1fd9c",
+  "observed_at_utc": "2026-11-20T21:52:05.046Z",
+  "retain_until_handset_acceptance": true,
+  "publication_and_retained_synthetic_history_approved": true,
+  "apartment": {
+    "latitude": "15.141456",
+    "longitude": "44.672321",
+    "comparison_rows_in_scoring_window": 0,
+    "visually_reviewed_synthetic_png_sha256": "47bacd4804303237b029d3d60ebb1ac8b36344be38f100214852f4f7b21eca8a",
+    "photo_file": "uat_listing_duplicate_synthetic_apartment.png"
+  },
+  "villa": {
+    "latitude": "15.137621",
+    "longitude": "44.678920",
+    "comparison_rows_in_scoring_window": 0,
+    "visually_reviewed_synthetic_png_sha256": "58cd29a11ce0be5c8dcb29b6917b4dd108dff4d973314e9cc19ee9fa7bef7783",
+    "photo_file": "uat_listing_duplicate_synthetic_interior.png"
+  }
+}
