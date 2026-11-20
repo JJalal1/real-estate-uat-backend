@@ -153,16 +153,17 @@ void main() {
     final reviewPage = find.byType(ListingReviewCaseScreen);
     expect(reviewPage, findsOneWidget);
     final reject = find.text('رفض الإعلان الجديد كمكرر');
-    await tester.scrollUntilVisible(
-      reject,
-      180,
-      scrollable: find.descendant(of: reviewPage, matching: _verticalList),
-    );
+    final caseList = find.descendant(of: reviewPage, matching: _verticalList);
+    for (var swipe = 0; swipe < 10 && !tester.any(reject.hitTestable()); swipe++) {
+      await tester.drag(caseList, const Offset(0, -220));
+      await tester.pumpAndSettle();
+    }
     final aiBadge = find.widgetWithText(AppStatusBadge, 'تشابه رصده المساعد');
     expect(tester.widget<AppStatusBadge>(aiBadge).tone, AppStatusTone.info);
     expect(find.text('تتشابه صور الغرف ومواصفاتها'), findsOneWidget);
 
-    await tester.tap(reject);
+    expect(reject.hitTestable(), findsOneWidget);
+    await tester.tap(reject.hitTestable());
     await tester.pumpAndSettle();
     const reason = 'تأكد فريق الدعم من تطابق الوحدة مع الإعلان السابق';
     await tester.enterText(find.byType(TextField), reason);
