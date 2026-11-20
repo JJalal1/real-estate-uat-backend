@@ -13,7 +13,7 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from phase23_firebase import disabled_receipt, validate_receipt, verify_compiled_configuration
 from phase23_preflight import GateError
-from prepare_uat_firebase import PROJECT, SENDER, PACKAGE, write_properties
+from prepare_uat_firebase import OFFLINE_PACKAGE, PACKAGE, PROJECT, SENDER, write_properties
 import import_ci_uat_firebase as importer
 
 
@@ -23,11 +23,11 @@ def configuration():
             'apiKey': 'synthetic-client-key-never-exported'}
 
 
-def google_configuration():
+def google_configuration(package=PACKAGE):
     config = configuration()
     return {'project_info': {'project_id': PROJECT, 'project_number': SENDER},
             'client': [{'client_info': {'mobilesdk_app_id': config['appId'],
-                                       'android_client_info': {'package_name': PACKAGE}},
+                                       'android_client_info': {'package_name': package}},
                         'api_key': [{'current_key': config['apiKey']}]}]}
 
 
@@ -150,6 +150,43 @@ class FirebaseEvidenceTest(unittest.TestCase):
                     self.assertEqual(importer.main(), 1)
                 self.assertNotIn('SENSITIVE_SENTINEL', log.getvalue())
                 self.assertFalse((Path(folder) / 'mobile_app/android/firebase-uat.properties').exists())
+
+    def test_offline_import_requires_its_own_secret_and_package_bound_receipt(self):
+        legacy_secret = 'AQER_UAT_GOOGLE_SERVICES_JSON_BASE64'
+        offline_secret = 'AQER_UAT_OFFLINE_GOOGLE_SERVICES_JSON_BASE64'
+        legacy_json = base64.b64encode(json.dumps(google_configuration()).encode()).decode()
+        offline_json = base64.b64encode(json.dumps(google_configuration(OFFLINE_PACKAGE)).encode()).decode()
+        with tempfile.TemporaryDirectory() as folder:
+            script = Path(folder) / 'scripts/import_ci_uat_firebase.py'
+            output = Path(folder) / 'mobile_app/android/firebase-uat.properties'
+            log = io.StringIO()
+            with patch.object(importer, '__file__', str(script)), contextlib.redirect_stdout(log):
+                with patch.dict(os.environ, {legacy_secret: legacy_json}, clear=True):
+                    self.assertEqual(importer.main(), 0)
+                    self.assertTrue(output.exists())
+                    self.assertEqual(importer.main(OFFLINE_PACKAGE), 0)
+                    self.assertFalse(output.exists())
+                with patch.dict(os.environ, {offline_secret: legacy_json}, clear=True):
+                    self.assertEqual(importer.main(OFFLINE_PACKAGE), 1)
+                    self.assertFalse(output.exists())
+                with patch.dict(os.environ, {offline_secret: offline_json}, clear=True):
+                    self.assertEqual(importer.main(), 0)
+                    self.assertFalse(output.exists())
+                    self.assertEqual(importer.main(OFFLINE_PACKAGE), 0)
+
+            config = configuration()
+            self.assertIn('aqer.uat.firebase.packageName=' + OFFLINE_PACKAGE, output.read_text())
+            with apk({'classes.dex': '\0'.join(config.values()).encode()}) as archive:
+                receipt = verify_compiled_configuration(archive, output, package=OFFLINE_PACKAGE)
+                self.assertTrue(receipt['client_configured'])
+                self.assertFalse(receipt['real_fcm_delivery_tested'])
+                with self.assertRaisesRegex(GateError, '^uat_firebase_properties_invalid$'):
+                    verify_compiled_configuration(archive, output)
+                output.write_text(output.read_text().replace(OFFLINE_PACKAGE, PACKAGE))
+                with self.assertRaisesRegex(GateError, '^uat_firebase_properties_invalid$'):
+                    verify_compiled_configuration(archive, output, package=OFFLINE_PACKAGE)
+            self.assertNotIn(config['apiKey'], log.getvalue())
+            self.assertNotIn(config['appId'], log.getvalue())
 
 
 if __name__ == '__main__':

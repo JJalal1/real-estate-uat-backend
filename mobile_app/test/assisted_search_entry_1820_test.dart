@@ -10,6 +10,7 @@ import 'package:real_estate_mobile/features/discovery/domain/smart_search_filter
 import 'package:real_estate_mobile/features/discovery/presentation/home_ai_search_entry.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
+import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/saved_property_search.dart';
 import 'package:real_estate_mobile/features/properties/presentation/saved_searches_screen.dart';
@@ -160,7 +161,9 @@ void main() {
     expect(tester.widget<MapScreen>(find.byType(MapScreen)).cameraCenterHint!.latitude, closeTo(13.58, 1e-9));
     expect(tester.widget<MapScreen>(find.byType(MapScreen)).cameraCenterHint!.longitude, closeTo(44.02, 1e-9));
     await tester.tap(find.byKey(const ValueKey('map-smart-search'))); await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('smart-search-list')), findsNothing);
+    expect(find.byKey(const ValueKey('smart-search-list')), findsOneWidget);
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+    await tester.tap(find.byKey(const ValueKey('smart-search-list'))); await tester.pumpAndSettle();
     final withinJourney = scope.read(smartSearchSessionProvider);
     expect(withinJourney.filters.sameAs(accepted.filters), isTrue);
     expect(withinJourney.rows.map((row) => row.id), accepted.rows.map((row) => row.id));
@@ -177,6 +180,70 @@ void main() {
     expect(parent.uiFor(onMap: true).criteria.values.containsKey('max_price'), isFalse);
     expect(scope.read(smartSearchSessionProvider).started, isFalse);
     parent.leaveMap(mapToken);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('map-origin typing and final dictation keep matching bounds and use the map drawer', (tester) async {
+    const bounds = {'south': 15.35, 'west': 44.17, 'north': 15.39, 'east': 44.21};
+    final voice = Wave3VoiceFake(autoComplete: false);
+    final ai = Wave3AiFake()..onRefine = (message, filters, revision) async => {
+      'revision': revision,
+      'filters': {...filters, 'purpose': 'rent', 'min_bedrooms': 3,
+        if (message.contains('السعر')) 'max_price': 100000},
+    };
+    final properties = Wave3PropertiesFake()..onSearch = (filters, _) async =>
+      ([wave3Property(filters.containsKey('max_monthly_rent') ? 12 : 11)], false);
+    addTearDown(voice.dispose);
+    final scope = uxContainer(extra: [
+      aiRepositoryProvider.overrideWithValue(ai),
+      voiceInputProvider.overrideWithValue(voice),
+      propertyRepositoryProvider.overrideWithValue(properties),
+      sharedSearchMapBuilderProvider.overrideWithValue((_, __, ___, ____) => const ColoredBox(color: Colors.teal)),
+    ]);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen(), size: const Size(412, 820));
+    final map = scope.read(marketplaceMapResultsProvider.notifier);
+    map.updateViewport(south: bounds['south']!, west: bounds['west']!, north: bounds['north']!, east: bounds['east']!);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('map-smart-search')));
+    await tester.pumpAndSettle();
+    final listMode = find.byKey(const ValueKey('smart-search-list'));
+    expect(listMode, findsOneWidget);
+    final field = find.byKey(_description);
+    const typed = 'أبحث عن شقة للإيجار بثلاث غرف';
+    await tester.enterText(field, typed);
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(ai.requests.single.message, typed);
+    expect(ai.requests.single.filters, bounds);
+    expect(properties.queries.last.filters, {...bounds, 'purpose': 'rent', 'min_bedrooms': 3});
+    expect(listMode, findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('smart-search-voice')));
+    await tester.pump();
+    voice.latest.emit(const VoiceEvent('ready'));
+    voice.latest.emit(const VoiceEvent('partial', text: 'خفّض السعر'));
+    await tester.pump();
+    expect(ai.requests, hasLength(1));
+    final finish = find.byKey(const ValueKey('voice-finish'));
+    await tester.ensureVisible(finish);
+    await tester.tap(finish);
+    await tester.pump();
+    const dictated = 'خفّض السعر إلى مئة ألف';
+    voice.latest.emit(const VoiceEvent('final', text: dictated));
+    await tester.pumpAndSettle();
+    expect(ai.requests.map((request) => request.message), [typed, dictated]);
+    final filters = {...bounds, 'purpose': 'rent', 'min_bedrooms': 3, 'max_monthly_rent': 100000, 'currency': 'YER'};
+    expect(properties.queries.last.filters, filters);
+    final drawer = tester.widget<PropertyMapResultsSheet>(find.byType(PropertyMapResultsSheet));
+    expect(drawer.items.map((row) => row.id), [12]);
+    expect(listMode, findsOneWidget);
+    final queryCount = properties.queries.length;
+    await tester.tap(listMode);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('smart-search-result-12')), findsOneWidget);
+    expect(properties.queries, hasLength(queryCount));
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });
@@ -245,6 +312,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('map-smart-search')));
       await tester.pumpAndSettle();
       expect(scope.read(smartSearchSessionProvider).filters.sameAs(parent.filters), isTrue);
+      final listMode = find.byKey(const ValueKey('smart-search-list'));
+      expect(listMode, findsOneWidget);
+      await tester.tap(listMode);
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('smart-chip-remove-purpose')));
       await tester.pumpAndSettle();
       final edited = scope.read(smartSearchSessionProvider);

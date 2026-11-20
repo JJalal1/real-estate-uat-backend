@@ -107,6 +107,22 @@ void main() {
     type: DioExceptionType.connectionError,
   );
 
+  testWidgets('publication opens the approved listing by its notification entity', (tester) async {
+    final repository = _NotificationsRepository(notification: AppNotificationItem.fromJson({
+      'id': 2,
+      'type': 'listing_approved',
+      'title': 'تم اعتماد إعلانك ونشره',
+      'entity_type': 'property',
+      'entity_id': 107,
+      'data': {'review_status': 'approved'},
+    }));
+    await _mount(tester, repository);
+    await tester.tap(find.text('تم اعتماد إعلانك ونشره'));
+    await tester.pumpAndSettle();
+    expect(find.text('property-107'), findsOneWidget);
+    expect(repository.singleReads, 1);
+  });
+
   testWidgets('duplicate rejection displays the exact reason and opens the previous listing', (tester) async {
     const reason = 'سبق نشره من قبلك. تطابقت الوحدة والمبنى مع الإعلان السابق.';
     final repository = _NotificationsRepository(notification: AppNotificationItem.fromJson({

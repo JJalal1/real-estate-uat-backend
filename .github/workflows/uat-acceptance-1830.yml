@@ -12,6 +12,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ranking-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: aqer_ranking_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aqer_ranking_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, pdo_pgsql
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Set up disposable test environment
+        run: |
+          printf 'APP_KEY=\n' > .env
+          php artisan key:generate --force
+          psql -h 127.0.0.1 -U postgres -d aqer_ranking_test -v ON_ERROR_STOP=1 -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+      - name: Check ranked discovery with SQLite
+        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
+      - name: Check ranked discovery with PostgreSQL and PostGIS
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: aqer_ranking_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: ''
+          DB_URL: ''
+          DB_SEARCH_PATH: public,extensions
+        run: php artisan test tests/Feature/Phase04RankedDiscoveryTest.php --display-warnings --fail-on-warning --fail-on-risky
+
   verify-and-build:
     if: ${{ github.event.repository.private }}
     permissions:
@@ -76,7 +124,7 @@ jobs:
         working-directory: mobile_app
         run: |
           flutter test --no-pub test/map_layers_test.dart --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_GOOGLE_MAPS_UAT=true --reporter expanded --timeout 45s
-          flutter test --no-pub test/uat1822_ranked_map_entry_test.dart test/map_search_layout_1820_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/phase04_ranked_search_test.dart --reporter expanded --timeout 45s
+          flutter test --no-pub test/uat1822_ranked_map_entry_test.dart test/map_search_layout_1820_test.dart test/map_dynamic_filters_1430_test.dart test/wave2_home_search_test.dart test/phase04_ranked_search_test.dart test/assisted_search_entry_1820_test.dart test/in_app_voice_search_test.dart --reporter expanded --timeout 45s
           flutter test --no-pub test/listing_photo_check_test.dart test/listing_photo_editor_test.dart test/broker_listing_assistant_test.dart test/live_dictation_test.dart test/branch2_location_test.dart --reporter expanded --timeout 45s
           flutter test --no-pub test/listing_review_pagination_test.dart test/stage9_review_models_test.dart test/uat_notification_actions_test.dart --reporter expanded --timeout 45s
       - uses: actions/setup-java@v4
@@ -103,6 +151,12 @@ jobs:
           AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
           AQER_UAT_SIGNING_CERT_SHA256: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 }}
         run: python3 -B scripts/import_ci_uat_signing.py --required
+      - name: Validate and import Firebase configuration for the acceptance package
+        env:
+          AQER_UAT_OFFLINE_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.AQER_UAT_OFFLINE_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          python3 -B -m unittest discover -s scripts/tests -p 'test_*firebase*.py'
+          python3 -B scripts/import_ci_uat_firebase.py --package com.aqer.yemen.uat.offline
       - name: Assemble the signed Android candidate
         working-directory: mobile_app
         env:
@@ -146,6 +200,10 @@ jobs:
           import zipfile
           from pathlib import Path
 
+          sys.path.insert(0, "scripts")
+          from phase23_firebase import verify_compiled_configuration
+          from prepare_uat_firebase import OFFLINE_PACKAGE
+
           apk = Path(sys.argv[1])
           identity = json.loads(Path("docs/uat-signing-identity.json").read_text())
           assert identity["approved_for_delivery"] and identity["github_secret_storage_verified"]
@@ -167,6 +225,9 @@ jobs:
                   for lib in ("libflutter.so", "libapp.so"):
                       assert contents.getinfo(f"lib/{abi}/{lib}").compress_type == zipfile.ZIP_DEFLATED
                   assert b"https://real-estate-uat-api-frankfurt.onrender.com/api" in contents.read(f"lib/{abi}/libapp.so")
+              firebase = verify_compiled_configuration(
+                  contents, Path("mobile_app/android/firebase-uat.properties"), package=OFFLINE_PACKAGE,
+              )
           deploy = json.loads(Path("docs/uat-acceptance-1830-deploy.json").read_text())
           receipt = {
               "server_deployment": deploy["id"],
@@ -182,6 +243,7 @@ jobs:
               "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
               "abis": abis,
               "google_maps_android_configured": True,
+              "firebase": firebase,
           }
           (apk.parent / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
           print(json.dumps(receipt))

@@ -204,6 +204,7 @@ void main() {
     expect(ai.requests.single.filters['min_bedrooms'], 3);
     await tester.pageBack();
     await tester.pumpAndSettle();
+    expect(find.byType(AssistedSearchScreen), findsNothing);
     expect(controller.isMapJourneyCurrent(mapToken), isTrue);
     expect(controller.uiFor(onMap: true).criteria.values.containsKey('max_price'), isFalse);
     expect(scope.read(marketplaceSearchControllerProvider).criteria.values, isEmpty);
