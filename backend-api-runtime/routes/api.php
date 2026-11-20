@@ -273,6 +273,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::post('/listings/{property}/start', [ListingReviewController::class, 'start'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/return', [ListingReviewController::class, 'returnForCorrection'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/approve', [ListingReviewController::class, 'approve'])->middleware('permission:listings.moderate');
+        Route::post('/listings/{property}/reject-duplicate', [ListingReviewController::class, 'rejectDuplicate'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/reject-final', [ListingReviewController::class, 'rejectFinal'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/link-property', [ListingReviewController::class, 'linkPropertyAsset'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/transfer-representation', [PropertyIdentityController::class, 'transferRepresentation'])->middleware('permission:listings.manage_blocks');

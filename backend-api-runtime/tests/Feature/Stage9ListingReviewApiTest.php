@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\Property;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserNotificationPreference;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use Tests\Concerns\ConfirmsListingImages;
 
@@ -141,6 +143,72 @@ class Stage9ListingReviewApiTest extends TestCase
         $this->withHeaders($b)->postJson('/api/properties', $this->payload([
             'title' => 'Sale allowed after lift',
         ]))->assertCreated();
+    }
+
+    #[DataProvider('duplicateAdvertisers')]
+    public function test_support_rejects_only_the_new_duplicate_and_notifies_its_advertiser(bool $sameOwner): void
+    {
+        [$owner, $ownerHeaders] = $this->user('s9-original@example.test', '+967710000016');
+        [$advertiser, $advertiserHeaders] = $sameOwner
+            ? [$owner, $ownerHeaders]
+            : $this->user('s9-duplicate@example.test', '+967710000017');
+        [, $mod] = $this->user('s9-duplicate-mod@example.test', '+967710000018', ['support_agent']);
+
+        $previous = $this->createReady($ownerHeaders, 'Published original');
+        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$previous/submit")->assertOk();
+        $this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$previous/start")->assertOk();
+        $this->confirmListingImages($previous, $mod);
+        $this->withHeaders($mod)->postJson("/api/admin/listing-review/listings/$previous/approve")->assertOk();
+
+        UserNotificationPreference::query()->create(['user_id' => $advertiser->id, 'listing_activity' => false]);
+        $duplicate = $this->createReady($advertiserHeaders, 'New duplicate');
+        $this->withHeaders($advertiserHeaders)->postJson("/api/properties/$duplicate/submit")
+            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+
+        $review = "/api/admin/listing-review/listings/$duplicate";
+        $reason = 'أثبتت مراجعة العنوان والبيانات أنه نفس العقار.';
+        $payload = ['candidate_property_id' => $previous, 'reason' => $reason];
+        $this->withHeaders($advertiserHeaders)->postJson("$review/reject-duplicate", $payload)->assertForbidden();
+        $this->withHeaders($mod)->postJson("$review/reject-duplicate", $payload)->assertConflict();
+        $this->withHeaders($mod)->getJson($review)
+            ->assertOk()
+            ->assertJsonPath('data.duplicate_detection_source', 'algorithm')
+            ->assertJsonPath('data.likely_duplicate_candidates.0.listing_id', $previous);
+        $this->withHeaders($mod)->postJson("$review/start")->assertOk();
+        $this->withHeaders($mod)->postJson("$review/reject-duplicate", ['candidate_property_id' => $duplicate] + $payload)->assertConflict();
+
+        // The reference must remain accessible when support confirms the decision.
+        \DB::table('properties')->where('id', $previous)->update(['availability_status' => 'sold']);
+        $this->withHeaders($mod)->postJson("$review/reject-duplicate", $payload)->assertConflict();
+        \DB::table('properties')->where('id', $previous)->update(['availability_status' => 'available']);
+
+        $message = $sameOwner ? 'سبق نشره من قبلك. ' . $reason : $reason;
+        $this->withHeaders($mod)->postJson("$review/reject-duplicate", $payload)->assertOk()
+            ->assertJsonPath('data.status', 'rejected')
+            ->assertJsonPath('data.review_status', 'rejected_duplicate')
+            ->assertJsonPath('data.last_review_reason', $message);
+        $this->withHeaders($mod)->postJson("$review/reject-duplicate", $payload)->assertConflict();
+        $this->assertDatabaseCount('property_publication_blocks', 0);
+        $this->assertDatabaseHas('listing_reviews', ['listing_id' => $duplicate, 'action' => 'rejected_duplicate']);
+        $this->assertDatabaseHas('support_tasks', ['source_type' => 'listing_review', 'source_id' => $duplicate, 'status' => 'rejected']);
+
+        $this->withHeaders($advertiserHeaders)->getJson('/api/notifications')->assertOk()
+            ->assertJsonPath('data.0.type', 'listing_duplicate_rejected')
+            ->assertJsonPath('data.0.entity_id', $duplicate)
+            ->assertJsonPath('data.0.body', $message)
+            ->assertJsonPath('data.0.data.previous_property_id', $previous)
+            ->assertJsonPath('data.0.data.previous_listing_same_owner', $sameOwner);
+        $this->assertSame(1, \DB::table('user_notifications')->where('type', 'listing_duplicate_rejected')->count());
+        $this->withHeaders($advertiserHeaders)->getJson("/api/properties/$duplicate")->assertOk()
+            ->assertJsonPath('data.can_edit', false)
+            ->assertJsonPath('data.can_submit', false);
+        $this->withHeaders(['Authorization' => ''])->getJson("/api/properties/$previous")->assertOk();
+        $this->withHeaders(['Authorization' => ''])->getJson("/api/properties/$duplicate")->assertNotFound();
+    }
+
+    public static function duplicateAdvertisers(): array
+    {
+        return ['same account' => [true], 'different accounts' => [false]];
     }
 
     public function test_published_edit_moves_back_to_draft_and_unpublishes_until_reapproval(): void
