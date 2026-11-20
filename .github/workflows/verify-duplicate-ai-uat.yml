@@ -1,0 +1,28 @@
+name: Verify real AI listing comparison on synthetic UAT records
+
+on:
+  push:
+    branches: [work/uat-listing-duplicate-live-20261120]
+    paths: [scripts/uat_listing_duplicate_ai_deploy_receipt.json]
+permissions:
+  contents: read
+concurrency:
+  group: frankfurt-uat-listing-duplicate-review
+  cancel-in-progress: false
+
+jobs:
+  synthetic-advisory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compare two synthetic pending listings and clean them up
+        env:
+          AQER_PHASE1_TEST_ACCESS_JSON: ${{ secrets.AQER_PHASE1_TEST_ACCESS_JSON }}
+        run: |
+          python3 -B scripts/verify_duplicate_review_uat.py \
+            --deployment-receipt scripts/uat_listing_duplicate_ai_deploy_receipt.json \
+            --photo scripts/uat_listing_duplicate_synthetic_interior.png \
+            --exercise-ai

@@ -87,9 +87,9 @@ class Journey:
         }
         self.broker = self.support = None
 
-    def request(self, session, method, path, *, expected=200, body=None, raw=None):
+    def request(self, session, method, path, *, expected=200, body=None, raw=None, timeout=None):
         token = session.token if session else None
-        if method in ("GET", "POST") and raw is None:
+        if method in ("GET", "POST") and raw is None and timeout is None:
             code, result = self.http(method, path, body, token=token)
         else:
             require(token and path.startswith("/properties"), "invalid_owner_request")
@@ -100,7 +100,7 @@ class Journey:
                 "Authorization": "Bearer " + token,
             })
             try:
-                with self.opener.open(request, timeout=45) as response:
+                with self.opener.open(request, timeout=timeout or 45) as response:
                     code, response_bytes = response.status, response.read(2_000_001)
             except HTTPError as error:
                 code, response_bytes = error.code, error.read(2_000_001)
@@ -179,13 +179,17 @@ class Journey:
         })
         return listing_id, owned["images"][0]["id"]
 
-    def submit(self, key, expected):
+    def submit(self, key, expected, candidate_asset=None):
         self.receipt["stage"] = "identity_preflight_" + key
         listing_id = self.record[key]
         check = self.request(self.broker, "POST", f"/properties/{listing_id}/identity/check", body={})
         require(check.get("decision") == expected, "identity_preflight_conflict")
+        if candidate_asset is not None:
+            require((check.get("candidate") or {}).get("property_asset_id") == candidate_asset,
+                    "identity_preflight_candidate_not_synthetic")
         self.receipt["stage"] = "submit_" + key
-        submitted = self.request(self.broker, "POST", f"/properties/{listing_id}/submit", body={})
+        submitted = self.request(self.broker, "POST", f"/properties/{listing_id}/submit", body={},
+                                 timeout=60 if candidate_asset is not None else None)
         require(submitted.get("review_status") == "submitted", "fixture_not_submitted")
         return self.review(key)
 
@@ -286,7 +290,8 @@ class Journey:
 
         listing, _ = self.create("ambiguous")
         self.receipt["stage"] = "verify_advisory_comparison"
-        evidence = self.submit("ambiguous", "possible_duplicate")
+        evidence = self.submit("ambiguous", "possible_duplicate",
+                               self.own("original")["property_asset_id"])
         candidates = evidence.get("likely_duplicate_candidates", [])
         require([row.get("listing_id") for row in candidates] == [original],
                 "assistant_comparison_candidate_changed")
