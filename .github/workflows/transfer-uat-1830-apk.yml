@@ -1,0 +1,32 @@
+name: Transfer verified UAT 1830 APK
+on:
+  push:
+    branches:
+      - 'transfer/uat-1830-apk-mwpmmqtw'
+    paths:
+      - '.github/workflows/transfer-uat-1830-apk.yml'
+permissions:
+  contents: read
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch and verify the original APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          apk=AQER-UAT-1830-Acceptance.apk
+          gh api --method GET --header 'Accept: application/octet-stream' "repos/$GITHUB_REPOSITORY/releases/assets/773537663" > "$apk"
+          test "$(wc -c < "$apk")" -eq 60872481
+          printf '%s  %s\n' 'b673d71d64e66f8297e61c2a297dd4a2cb3b787770ea3c6450b203c75aaa476f' "$apk" | sha256sum --check --strict
+      - name: Retain the verified APK for delivery
+        uses: actions/upload-artifact@v4
+        with:
+          name: AQER-UAT-1830-Acceptance
+          path: AQER-UAT-1830-Acceptance.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
