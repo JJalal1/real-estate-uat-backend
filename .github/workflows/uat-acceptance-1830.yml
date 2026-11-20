@@ -2,7 +2,10 @@ name: UAT 1830 unified acceptance
 'on':
   push:
     branches: [work/uat-acceptance-1830-20261121]
-    paths: ['docs/uat-acceptance-1830-deploy.json']
+    paths:
+      - 'docs/uat-acceptance-1830-deploy.json'
+      - 'scripts/import_ci_uat_signing.py'
+      - '.github/workflows/uat-acceptance-1830.yml'
 
 permissions:
   contents: read
