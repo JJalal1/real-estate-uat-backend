@@ -8,6 +8,7 @@ use App\Models\Property;
 use App\Models\PropertyAsset;
 use App\Models\PropertyPublicationBlock;
 use App\Services\AuditLogService;
+use App\Services\ListingDuplicateAssessment;
 use App\Services\ListingWorkflowService;
 use App\Services\PropertyAssetService;
 use Illuminate\Http\JsonResponse;
@@ -20,12 +21,13 @@ class ListingReviewController extends Controller
         private readonly ListingWorkflowService $workflow,
         private readonly AuditLogService $audit,
         private readonly PropertyAssetService $assets,
+        private readonly ListingDuplicateAssessment $duplicates,
     ) {}
 
     public function queue(Request $request): JsonResponse
     {
         $v = $request->validate([
-            'review_status' => ['nullable', Rule::in(['submitted', 'under_review', 'returned_for_correction', 'approved', 'rejected_blocked'])],
+            'review_status' => ['nullable', Rule::in(['submitted', 'under_review', 'returned_for_correction', 'approved', 'rejected_duplicate', 'rejected_blocked'])],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
         $user = $request->user();
@@ -158,6 +160,25 @@ class ListingReviewController extends Controller
         ]);
     }
 
+    public function rejectDuplicate(Request $request, Property $property): JsonResponse
+    {
+        $v = $request->validate([
+            'candidate_property_id' => ['required', 'integer', 'min:1'],
+            'reason' => ['required', 'string', 'max:2000'],
+        ]);
+
+        return response()->json([
+            'message' => 'تم رفض الإعلان المكرر.',
+            'data' => $this->data($this->workflow->rejectDuplicate(
+                $request->user(),
+                $property,
+                (int) $v['candidate_property_id'],
+                $v['reason'],
+                $request,
+            ), false),
+        ]);
+    }
+
     public function linkPropertyAsset(Request $request, Property $property): JsonResponse
     {
         $v = $request->validate([
@@ -244,6 +265,9 @@ class ListingReviewController extends Controller
         $likelyDuplicates = in_array($p->review_status, ['submitted', 'under_review'], true)
             ? $this->assets->likelyDuplicates($p)
             : [];
+        $evidence = $this->duplicates->evidence($p, $likelyDuplicates);
+        $likelyDuplicates = $evidence['likely_duplicate_candidates'];
+        unset($evidence['likely_duplicate_candidates']);
 
         $data = [
             'id' => $p->id,
@@ -258,6 +282,7 @@ class ListingReviewController extends Controller
             'published_at' => $p->published_at?->toIso8601String(),
             'last_review_reason' => $p->last_review_reason,
             'likely_duplicate_count' => count($likelyDuplicates),
+            'duplicate_check_status' => $p->duplicate_check_status,
             'owner' => [
                 'id' => $p->user?->id,
                 'name' => $p->user?->name,
@@ -309,7 +334,7 @@ class ListingReviewController extends Controller
                 'broker' => null,
                 'latest' => null,
             ],
-        ];
+        ] + $evidence;
 
         if ($full) {
             $p->loadMissing('reviews.actor');

@@ -190,6 +190,11 @@ class AppNotificationItem {
   int? get messageThreadId => _asInt(data['message_thread_id']);
   int? get agreementId => _asInt(data['agreement_id']);
   int? get rentalContractId => _asInt(data['rental_contract_id']);
+  int? get previousPropertyId {
+    if (type != 'listing_duplicate_rejected') return null;
+    final id = _asInt(data['previous_property_id']);
+    return id != null && id > 0 && id != entityId ? id : null;
+  }
 
   factory AppNotificationItem.fromJson(Map<String, dynamic> json) {
     final rawData = json['data'];

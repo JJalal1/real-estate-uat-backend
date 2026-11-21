@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
@@ -14,6 +15,7 @@ import '../../properties/domain/property_field_options.dart';
 import '../data/listing_review_repository.dart';
 import '../domain/listing_duplicate_candidate.dart';
 import '../domain/listing_review_models.dart';
+import 'listing_duplicate_notice.dart';
 import 'review_protected_photo.dart';
 
 final reviewQueueProvider = StateNotifierProvider.autoDispose<
@@ -254,32 +256,26 @@ class _ReviewQueueCardState extends ConsumerState<_ReviewQueueCard> {
   Widget build(BuildContext context) {
     final item = widget.item;
     final claimed = item.reviewStatus == 'under_review';
+    final duplicateDetection = item.duplicateDetection;
 
     return AppSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.title, style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.s4),
-                    Text('المعلن: ${item.ownerName}'),
-                    Text('نوع الحساب: ${_verificationType(item.ownerVerificationType)}'),
-                    Text('مستندات الإثبات: ${item.proofCount}'),
-                  ],
-                ),
-              ),
-              AppStatusBadge(
-                label: claimed ? 'تم الاستلام - قيد التحقيق' : 'بانتظار الاستلام',
-                tone: claimed ? AppStatusTone.info : AppStatusTone.warning,
-              ),
-            ],
+          Text(item.title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.s4),
+          AppStatusBadge(
+            label: claimed ? 'تم الاستلام - قيد التحقيق' : 'بانتظار الاستلام',
+            tone: claimed ? AppStatusTone.info : AppStatusTone.warning,
           ),
+          const SizedBox(height: AppSpacing.s8),
+          Text('المعلن: ${item.ownerName}'),
+          Text('نوع الحساب: ${_verificationType(item.ownerVerificationType)}'),
+          Text('مستندات الإثبات: ${item.proofCount}'),
+          if (duplicateDetection != null) ...[
+            const SizedBox(height: AppSpacing.s8),
+            ListingDuplicateNotice(detection: duplicateDetection),
+          ],
           if (item.reason != null && item.reason!.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s8),
             AppInlineMessage(
@@ -418,6 +414,11 @@ class _ListingReviewCaseScreenState
   Widget _body(_ReviewBundle bundle) {
     final item = bundle.detail;
     final isClaimed = item.reviewStatus == 'under_review';
+    final needsDuplicateReason = item.duplicateCheckStatus == 'needs_support' ||
+        item.duplicateDetection != null ||
+        bundle.duplicates.isNotEmpty;
+    final hasConfirmedPublicDuplicate = item.duplicateCheckStatus == 'confirmed_duplicate' &&
+        bundle.duplicates.any((candidate) => candidate.canRejectAsDuplicate);
 
     return ListView(
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -542,7 +543,7 @@ class _ListingReviewCaseScreenState
             ),
           ),
         const SizedBox(height: AppSpacing.s16),
-        _duplicateSection(bundle.duplicates),
+        _duplicateSection(bundle, isClaimed: isClaimed),
         const SizedBox(height: AppSpacing.s16),
         AppSectionHeader(title: 'سجل المراجعة (${item.reviewHistory.length})'),
         const SizedBox(height: AppSpacing.s8),
@@ -587,7 +588,7 @@ class _ListingReviewCaseScreenState
                 label: 'قبول ونشر',
                 icon: Icons.check_circle_outline,
                 loading: _busy,
-                onPressed: _busy ? null : () => _approve(bundle.duplicates),
+                onPressed: _busy ? null : () => _approve(needsDuplicateReason),
               ),
               AppButton(
                 label: 'إرجاع للتصحيح',
@@ -595,20 +596,37 @@ class _ListingReviewCaseScreenState
                 style: AppButtonStyle.outlined,
                 onPressed: _busy ? null : _returnForCorrection,
               ),
-              AppButton(
-                label: 'رفض نهائي وحظر',
-                icon: Icons.block_outlined,
-                style: AppButtonStyle.tonal,
-                onPressed: _busy ? null : _reject,
-              ),
+              if (!hasConfirmedPublicDuplicate)
+                AppButton(
+                  label: 'رفض نهائي وحظر',
+                  icon: Icons.block_outlined,
+                  style: AppButtonStyle.tonal,
+                  onPressed: _busy ? null : _reject,
+                ),
             ],
           ),
       ],
     );
   }
 
-  Widget _duplicateSection(List<ListingDuplicateCandidate> duplicates) {
-    if (duplicates.isEmpty) {
+  Widget _duplicateSection(_ReviewBundle bundle, {required bool isClaimed}) {
+    final duplicates = bundle.duplicates;
+    final detection = bundle.detail.duplicateDetection;
+    if (duplicates.isEmpty && detection == null) {
+      if (const ['pending', 'check_failed'].contains(bundle.detail.duplicateCheckStatus)) {
+        return const AppInlineMessage(
+          title: 'فحص التكرار',
+          message: 'فحص الهوية غير مكتمل. حدّث التحقيق للتحقق من الحالة قبل الاعتماد.',
+          tone: AppStatusTone.info,
+        );
+      }
+      if (bundle.detail.duplicateCheckStatus == 'needs_support') {
+        return const AppInlineMessage(
+          title: 'فحص التكرار',
+          message: 'تحتاج هوية العقار إلى تحقق. راجع بياناته وسجّل سبب قرارك قبل الاعتماد.',
+          tone: AppStatusTone.warning,
+        );
+      }
       return const AppInlineMessage(
         title: 'فحص التكرار',
         message: 'لم تظهر مرشحات تشابه قوية وفق الموقع والعنوان والمواصفات الحالية. يبقى فحص هوية العقار الخادمي فعالاً عند النشر.',
@@ -620,10 +638,14 @@ class _ListingReviewCaseScreenState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSectionHeader(
-          title: 'اشتباه تكرار (${duplicates.length})',
-          subtitle: 'هذه إشارات للمراجعة البشرية وليست رفضاً آلياً. افحص المرشحات قبل القرار.',
+          title: duplicates.isEmpty ? 'فحص التكرار' : 'اشتباه تكرار (${duplicates.length})',
+          subtitle: 'افحص أدلة التشابه قبل اتخاذ القرار.',
         ),
         const SizedBox(height: AppSpacing.s8),
+        if (detection != null && !duplicates.any((candidate) => candidate.detection != null)) ...[
+          ListingDuplicateNotice(detection: detection),
+          const SizedBox(height: AppSpacing.s8),
+        ],
         for (final candidate in duplicates)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.s8),
@@ -636,16 +658,22 @@ class _ListingReviewCaseScreenState
                       Expanded(
                         child: Text(candidate.title, style: Theme.of(context).textTheme.titleMedium),
                       ),
-                      AppStatusBadge(
-                        label: candidate.severityLabel,
-                        tone: candidate.score >= 8
-                            ? AppStatusTone.warning
-                            : AppStatusTone.info,
-                      ),
+                      if (candidate.detection == null)
+                        AppStatusBadge(
+                          label: candidate.severityLabel,
+                          tone: candidate.score >= 8
+                              ? AppStatusTone.warning
+                              : AppStatusTone.info,
+                        ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.s8),
-                  _InfoRow(label: 'رقم الإعلان', value: candidate.listingId.toString()),
+                  if (candidate.detection case final candidateDetection?) ...[
+                    ListingDuplicateNotice(detection: candidateDetection),
+                    const SizedBox(height: AppSpacing.s8),
+                  ],
+                  if (candidate.listingId > 0)
+                    _InfoRow(label: 'رقم الإعلان', value: candidate.listingId.toString()),
                   _InfoRow(label: 'هوية العقار', value: candidate.propertyAssetId.toString()),
                   _InfoRow(label: 'المسافة', value: '${candidate.distanceM} متر'),
                   if (candidate.address != null)
@@ -658,11 +686,32 @@ class _ListingReviewCaseScreenState
                         .toList(growable: false),
                   ),
                   const SizedBox(height: AppSpacing.s8),
-                  AppButton(
-                    label: 'ربط الإعلان بهوية هذا العقار',
-                    icon: Icons.link,
-                    style: AppButtonStyle.outlined,
-                    onPressed: _busy ? null : () => _linkCandidate(candidate),
+                  Wrap(
+                    spacing: AppSpacing.s8,
+                    runSpacing: AppSpacing.s8,
+                    children: [
+                      if (candidate.canRejectAsDuplicate)
+                        AppButton(
+                          label: 'عرض الإعلان السابق',
+                          icon: Icons.visibility_outlined,
+                          style: AppButtonStyle.outlined,
+                          onPressed: _busy ? null : () => context.push('/properties/${candidate.listingId}'),
+                        ),
+                      if (isClaimed && candidate.canRejectAsDuplicate)
+                        AppButton(
+                          label: 'رفض الإعلان الجديد كمكرر',
+                          icon: Icons.content_copy_outlined,
+                          style: AppButtonStyle.tonal,
+                          onPressed: _busy ? null : () => _rejectDuplicate(candidate),
+                        ),
+                      if (candidate.propertyAssetId > 0)
+                        AppButton(
+                          label: 'ربط الإعلان بهوية هذا العقار',
+                          icon: Icons.link,
+                          style: AppButtonStyle.outlined,
+                          onPressed: _busy ? null : () => _linkCandidate(candidate),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -672,30 +721,28 @@ class _ListingReviewCaseScreenState
     );
   }
 
-  Future<void> _approve(List<ListingDuplicateCandidate> duplicates) async {
+  Future<void> _approve(bool needsDuplicateReason) async {
     String? reviewReason;
     String? duplicateReason;
 
     final accepted = await showActorDialog<bool>(ref: ref,
           context: context,
           builder: (dialogContext) {
-            final reviewController = TextEditingController();
-            final duplicateController = TextEditingController();
             return AlertDialog(
               title: const Text('اعتماد الإعلان ونشره'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (duplicates.isNotEmpty) ...[
+                    if (needsDuplicateReason) ...[
                       AppInlineMessage(
                         title: 'يوجد اشتباه تكرار',
-                        message: 'راجع ${duplicates.length} مرشحاً أعلاه. إذا تأكدت أنها عقارات مختلفة، سجل سبب القرار هنا. لا تستخدم هذا الحقل لتجاوز تكرار مؤكد.',
+                        message: 'راجع أدلة التشابه. سجّل سبب اعتبار العقار مختلفًا بعد التحقق.',
                         tone: AppStatusTone.warning,
                       ),
                       const SizedBox(height: AppSpacing.s12),
                       TextField(
-                        controller: duplicateController,
+                        onChanged: (value) => duplicateReason = value.trim(),
                         maxLines: 4,
                         decoration: const InputDecoration(
                           labelText: 'سبب اعتبار الإعلان غير مكرر *',
@@ -704,7 +751,7 @@ class _ListingReviewCaseScreenState
                       const SizedBox(height: AppSpacing.s12),
                     ],
                     TextField(
-                      controller: reviewController,
+                      onChanged: (value) => reviewReason = value.trim(),
                       maxLines: 3,
                       decoration: const InputDecoration(
                         labelText: 'ملاحظة اعتماد (اختياري)',
@@ -720,14 +767,12 @@ class _ListingReviewCaseScreenState
                 ),
                 EbrokerFilledButton(
                   onPressed: () {
-                    if (duplicates.isNotEmpty && duplicateController.text.trim().length < 10) {
+                    if (needsDuplicateReason && (duplicateReason?.length ?? 0) < 10) {
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         const SnackBar(content: Text('اكتب سبباً واضحاً من 10 أحرف على الأقل بعد مراجعة مرشحات التكرار.')),
                       );
                       return;
                     }
-                    reviewReason = reviewController.text.trim();
-                    duplicateReason = duplicateController.text.trim();
                     Navigator.pop(dialogContext, true);
                   },
                   child: const Text('اعتماد ونشر'),
@@ -770,6 +815,22 @@ class _ListingReviewCaseScreenState
     );
   }
 
+  Future<void> _rejectDuplicate(ListingDuplicateCandidate candidate) async {
+    final reason = await _askReason(
+      title: 'رفض الإعلان الجديد كمكرر',
+      hint: 'اذكر للمعلن سبب التكرار مقارنةً بالإعلان رقم ${candidate.listingId}.',
+      minLength: 10,
+    );
+    if (reason == null || !mounted) return;
+    await _runDecision(
+      () => ref.read(listingReviewRepositoryProvider).rejectDuplicate(
+        widget.listingId,
+        candidate.listingId,
+        reason,
+      ),
+    );
+  }
+
   Future<void> _linkCandidate(ListingDuplicateCandidate candidate) async {
     final reason = await _askReason(
       title: 'ربط بهوية العقار رقم ${candidate.propertyAssetId}',
@@ -806,14 +867,14 @@ class _ListingReviewCaseScreenState
     required String title,
     required String hint,
     required int minLength,
-  }) async {
-    final controller = TextEditingController();
-    final value = await showActorDialog<String>(ref: ref,
+  }) {
+    var reason = '';
+    return showActorDialog<String>(ref: ref,
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(title),
         content: TextField(
-          controller: controller,
+          onChanged: (value) => reason = value.trim(),
           minLines: 3,
           maxLines: 6,
           decoration: InputDecoration(hintText: hint),
@@ -825,7 +886,6 @@ class _ListingReviewCaseScreenState
           ),
           EbrokerFilledButton(
             onPressed: () {
-              final reason = controller.text.trim();
               if (reason.length < minLength) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
                   SnackBar(content: Text('اكتب سبباً واضحاً من $minLength أحرف على الأقل.')),
@@ -839,8 +899,6 @@ class _ListingReviewCaseScreenState
         ],
       ),
     );
-    controller.dispose();
-    return value;
   }
 
   Future<void> _reviewMedia(ReviewMediaItem image) async {
@@ -1088,6 +1146,7 @@ String _reviewStatus(String value) => switch (value) {
       'returned_for_correction' => 'أعيد للتصحيح',
       'approved' => 'معتمد',
       'rejected_blocked' => 'مرفوض ومحظور',
+      'rejected_duplicate' => 'مرفوض لتكرار الإعلان',
       _ => value,
     };
 

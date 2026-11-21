@@ -31,6 +31,7 @@ GOOGLE_MAPS_BRANCH = "work/google-maps-uat-1826-20261120"
 MAP_LISTING_BRANCH = "work/map-listing-readiness-1827-20261120"
 MAP_LAYERS_BRANCH = "work/map-layers-1828-20261120"
 MAP_SEARCH_TOOLBAR_BRANCH = "work/map-search-toolbar-1829-20261120"
+APPROVED_UAT_1829_SHA = "eb4df35101387bdb0cc969224cdd28f5d5b913d9"
 GOOGLE_MAPS_BASE_SHA = "2ff278bb27e25fcae8292a88128f58b3da04bc80"
 GOOGLE_MAPS_PACKAGES = {
     "csslib": "1.0.2",
@@ -244,7 +245,11 @@ def main():
                       help="opt in to the finite approved cleanup on its exact CI branch")
     mode.add_argument("--google-maps1826", action="store_true",
                       help="verify the pinned Maps dependency set on its exact CI branch")
+    mode.add_argument("--approved-uat1829", action="store_true",
+                      help="verify unchanged dependency inputs from the signed UAT 1829 source")
     args = parser.parse_args()
+    if args.approved_uat1829:
+        return verify_approved_uat1829(args.resolved)
     baseline = GOOGLE_MAPS_BASE_SHA if args.google_maps1826 else GOLDEN_SHA
     original = subprocess.check_output(
         ["git", "show", baseline + ":mobile_app/pubspec.lock"], text=True,
@@ -292,6 +297,39 @@ def main():
     else:
         print(f"Original {count} locked package records and SDK constraints preserved.")
     print("Only original url_launcher completion plus five pinned SVG-renderer packages added.")
+    return 0
+
+
+def verify_approved_uat1829(resolved):
+    inputs = (
+        "mobile_app/pubspec.yaml",
+        "mobile_app/pubspec.lock",
+        "docs/ui-transplant-v3/pubspec_overrides.yaml",
+    )
+    try:
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", APPROVED_UAT_1829_SHA, "HEAD"],
+            cwd=ROOT, check=True,
+        )
+        for path in inputs:
+            expected = subprocess.check_output(["git", "show", f"{APPROVED_UAT_1829_SHA}:{path}"], cwd=ROOT)
+            committed = subprocess.check_output(["git", "show", f"HEAD:{path}"], cwd=ROOT)
+            if committed != expected:
+                raise ValueError(f"Approved UAT 1829 dependency input changed: {path}")
+            if path != "mobile_app/pubspec.lock" and (ROOT / path).read_bytes() != expected:
+                raise ValueError(f"Working dependency input differs from UAT 1829: {path}")
+        overrides = (ROOT / inputs[2]).read_bytes()
+        if (ROOT / "mobile_app/pubspec_overrides.yaml").read_bytes() != overrides:
+            raise ValueError("Effective overrides differ from UAT 1829")
+        baseline = subprocess.check_output(
+            ["git", "show", f"{APPROVED_UAT_1829_SHA}:mobile_app/pubspec.lock"],
+            cwd=ROOT, text=True,
+        )
+        records = verify(baseline, resolved.read_text(encoding="utf-8"))
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print("Dependency guard FAILED: " + str(error))
+        return 1
+    print(f"UAT 1829 dependency inputs and {records} approved lock records verified.")
     return 0
 
 

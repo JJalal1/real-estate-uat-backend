@@ -609,7 +609,8 @@ class _ListingCard extends StatelessWidget {
                 tone: nextAction.$3,
               ),
             ),
-          if (property.reviewStatus == 'returned_for_correction' &&
+          if ((property.reviewStatus == 'returned_for_correction' ||
+                  property.reviewStatus == 'rejected_duplicate') &&
               property.lastReviewReason != null)
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(
@@ -728,6 +729,7 @@ bool _inReview(PropertyDetails item) =>
       'returned_for_correction' => ('يحتاج تصحيح', AppStatusTone.warning),
       'approved' => ('منشور', AppStatusTone.success),
       'rejected_blocked' => ('مرفوض', AppStatusTone.error),
+      'rejected_duplicate' => ('مرفوض لتكرار الإعلان', AppStatusTone.error),
       'legacy_rejected' => ('مرفوض سابقاً', AppStatusTone.error),
       _ => (status, AppStatusTone.neutral),
     };

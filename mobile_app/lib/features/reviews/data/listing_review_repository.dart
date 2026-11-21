@@ -170,6 +170,18 @@ class ListingReviewRepository {
   Future<void> rejectFinal(int id, String reason) =>
       _action(id, 'reject-final', reason: reason);
 
+  Future<void> rejectDuplicate(int id, int candidatePropertyId, String reason) async {
+    await _dio.post<void>(
+      '/admin/listing-review/listings/$id/reject-duplicate',
+      data: <String, dynamic>{
+        'candidate_property_id': candidatePropertyId,
+        'reason': reason.trim(),
+      },
+      options: await _sessionOptions(),
+    );
+    _requestScope?.verify();
+  }
+
   Future<void> linkPropertyAsset(
     int listingId,
     int propertyAssetId,

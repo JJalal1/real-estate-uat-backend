@@ -11,6 +11,10 @@ const _viewingNotificationTypes = <String>{
 };
 
 String? notificationDestination(AppNotificationItem item) {
+  if (item.type == 'listing_duplicate_rejected') {
+    final previousPropertyId = item.previousPropertyId;
+    return previousPropertyId == null ? null : '/properties/$previousPropertyId';
+  }
   if (item.entityType == 'broker_deal_outcome' && item.entityId != null) return '/broker/deals/${item.entityId}';
   if (item.type == 'broker_availability_due') return '/broker/availability?due=1';
   if (item.entityType == 'property_platform_receivable') return '/broker/finance';

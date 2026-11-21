@@ -437,14 +437,14 @@ class PropertyController extends Controller
     public function update(Request $request, Property $property): JsonResponse
     {
         /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);$this->assertAdvertiserCanCreateDraft($user);
-        if(in_array($property->review_status,['submitted','under_review','rejected_blocked'],true)) abort(409,'This listing cannot be edited in its current review state.');
+        if(in_array($property->review_status,['submitted','under_review','rejected_blocked','rejected_duplicate'],true)) abort(409,'This listing cannot be edited in its current review state.');
         $validated=$request->validate($this->listingRules(true));$validated=$this->normalizeListingFields($validated,$property,true);$this->assertV2ListingCompleteness(array_merge($this->listingState($property),$validated));$replaceImages=$request->boolean('replace_images');$incomingCount=count($request->file('images',[]));$existingCount=$property->images()->count();
         if(!$replaceImages&&$existingCount+$incomingCount>12)throw ValidationException::withMessages(['images'=>['A listing may contain at most 12 images.']]);
         if($property->documents()->count()+count($request->file('proof_documents',[]))>5)throw ValidationException::withMessages(['proof_documents'=>['A listing may contain at most 5 proof documents.']]);
         $storedPublic=[];$storedPrivate=[];$oldImages=$replaceImages?$property->images()->get():collect();
         try{$property=DB::transaction(function()use($request,$property,$validated,$replaceImages,$user,&$storedPublic,&$storedPrivate){
             User::query()->lockForUpdate()->findOrFail($user->id);$property=Property::query()->lockForUpdate()->findOrFail($property->id);
-            abort_if($property->status === 'archived' || in_array($property->review_status,['submitted','under_review','rejected_blocked'],true),409);
+            abort_if($property->status === 'archived' || in_array($property->review_status,['submitted','under_review','rejected_blocked','rejected_duplicate'],true),409);
             $wasPublished=$property->status==='published';$property->fill($this->listingPayload($validated,true));
             $cell=$this->regions->assertListingAllowed($user,(float)$property->latitude,(float)$property->longitude);$property->geo_cell_id=$cell?->id;
             $identity=array_merge(['purpose'=>$property->purpose,'type'=>$property->type,'latitude'=>$property->latitude,'longitude'=>$property->longitude,'area_m2'=>$property->area_m2,'bedrooms'=>$property->bedrooms,'bathrooms'=>$property->bathrooms,'address'=>$property->address],$validated);
@@ -479,7 +479,7 @@ class PropertyController extends Controller
 
     public function uploadProofDocuments(Request $request, Property $property): JsonResponse
     {
-        /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);if(in_array($property->review_status,['submitted','under_review','rejected_blocked'],true))abort(409,'Proof documents cannot be changed in the current review state.');
+        /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);if(in_array($property->review_status,['submitted','under_review','rejected_blocked','rejected_duplicate'],true))abort(409,'Proof documents cannot be changed in the current review state.');
         $request->validate(['proof_documents'=>['required','array','min:1','max:5'],'proof_documents.*'=>['file','image','mimes:jpg,jpeg,png,webp','max:10240']]);if($property->documents()->count()+count($request->file('proof_documents',[]))>5)throw ValidationException::withMessages(['proof_documents'=>['A listing may contain at most 5 proof documents.']]);
         $paths=[];try{DB::transaction(function()use($request,$property,$user,&$paths){$this->storeProofDocuments($request,$property,$user,$paths);$this->audit->record($user,'listing.proof_documents_added',$property,['count'=>count($paths)],$request,$user->id);});}catch(Throwable $e){$this->deletePrivatePaths($paths);throw $e;}
         return response()->json(['message'=>'Proof documents uploaded.','data'=>$this->detailData($property->fresh(['images','documents','propertyAsset']),$request)]);
@@ -487,7 +487,7 @@ class PropertyController extends Controller
 
     public function deleteProofDocument(Request $request, Property $property, ListingDocument $document): JsonResponse
     {
-        /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);abort_unless((int)$document->property_id===(int)$property->id,404);if(in_array($property->review_status,['submitted','under_review','rejected_blocked'],true))abort(409,'Proof documents cannot be changed in the current review state.');$path=$document->path;$document->delete();$this->storage->deletePrivate($path);$this->audit->record($user,'listing.proof_document_deleted',$property,[],$request,$user->id);return response()->json(['message'=>'Proof document deleted.']);
+        /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);abort_unless((int)$document->property_id===(int)$property->id,404);if(in_array($property->review_status,['submitted','under_review','rejected_blocked','rejected_duplicate'],true))abort(409,'Proof documents cannot be changed in the current review state.');$path=$document->path;$document->delete();$this->storage->deletePrivate($path);$this->audit->record($user,'listing.proof_document_deleted',$property,[],$request,$user->id);return response()->json(['message'=>'Proof document deleted.']);
     }
 
     public function media(Request $request, PropertyImage $image)
@@ -1050,7 +1050,7 @@ class PropertyController extends Controller
             'last_review_reason' => $property->last_review_reason,
             'proof_document_count' => $property->documents->count(),
             'can_submit' => in_array($property->review_status, ['draft', 'returned_for_correction'], true),
-            'can_edit' => ! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked'], true),
+            'can_edit' => ! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked', 'rejected_duplicate'], true),
             'is_owner' => true,
             'status' => $property->status,
             'favorite_count' => (int) $property->favorite_count,
@@ -1121,7 +1121,7 @@ class PropertyController extends Controller
             $data['last_review_reason'] = $property->last_review_reason;
             $data['proof_document_count'] = $property->documents()->count();
             $data['can_submit'] = in_array($property->review_status, ['draft','returned_for_correction'], true);
-            $data['can_edit'] = ! in_array($property->review_status, ['submitted','under_review','rejected_blocked'], true);
+            $data['can_edit'] = ! in_array($property->review_status, ['submitted','under_review','rejected_blocked','rejected_duplicate'], true);
             $data['ownership_document_type'] = $property->ownership_document_type;
             $data['document_owner_name'] = $property->document_owner_name;
             $data['owner_relationship_type'] = $property->owner_relationship_type;

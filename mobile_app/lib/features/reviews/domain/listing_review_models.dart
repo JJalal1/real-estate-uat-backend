@@ -1,3 +1,5 @@
+import 'listing_duplicate_candidate.dart';
+
 class BrokerVerificationRecord {
   const BrokerVerificationRecord({
     required this.id,
@@ -136,6 +138,7 @@ class ReviewListingItem {
     required this.proofCount,
     required this.brokerVerification,
     this.reason,
+    this.duplicateDetection,
   });
 
   final int id;
@@ -151,6 +154,7 @@ class ReviewListingItem {
   final int proofCount;
   final BrokerVerificationState brokerVerification;
   final String? reason;
+  final ListingDuplicateDetection? duplicateDetection;
 
   factory ReviewListingItem.fromJson(Map<String, dynamic> json) {
     final owner = json['owner'];
@@ -175,6 +179,7 @@ class ReviewListingItem {
       brokerVerification:
           BrokerVerificationState.fromJson(json['broker_verification']),
       reason: _nullable(json['last_review_reason']),
+      duplicateDetection: ListingDuplicateDetection.fromJson(json),
     );
   }
 }
@@ -272,6 +277,8 @@ class ReviewListingDetail {
     required this.reviewHistory,
     required this.brokerVerification,
     this.reason,
+    this.duplicateCheckStatus,
+    this.duplicateDetection,
   });
 
   final int id;
@@ -309,6 +316,8 @@ class ReviewListingDetail {
   final List<ReviewHistoryItem> reviewHistory;
   final BrokerVerificationState brokerVerification;
   final String? reason;
+  final String? duplicateCheckStatus;
+  final ListingDuplicateDetection? duplicateDetection;
 
   factory ReviewListingDetail.fromJson(Map<String, dynamic> json) {
     final owner = json['owner'];
@@ -376,6 +385,8 @@ class ReviewListingDetail {
       brokerVerification:
           BrokerVerificationState.fromJson(json['broker_verification']),
       reason: _nullable(json['last_review_reason']),
+      duplicateCheckStatus: _nullable(json['duplicate_check_status']),
+      duplicateDetection: ListingDuplicateDetection.fromJson(json),
     );
   }
 }
@@ -395,6 +406,8 @@ class ReviewHistoryItem {
     'returned_for_correction' => 'أُعيد للتصحيح',
     'approved' => 'اعتُمد ونُشر',
     'rejected_blocked' => 'رُفض وحُظر النشر',
+    'rejected_duplicate' => 'رُفض الإعلان لتكراره',
+    'duplicate_review_cleared' => 'ثبُت اختلاف العقار',
     'media_relevance_review' => 'مراجعة صلة الصورة بالعقار',
     _ => 'تحديث المراجعة',
   };

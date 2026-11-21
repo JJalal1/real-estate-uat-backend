@@ -398,6 +398,7 @@ class _NotificationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final presentation = _notificationPresentation(item.type);
+    final isDuplicateRejection = item.type == 'listing_duplicate_rejected';
     return Semantics(button: true, label: 'إشعار جديد: ${item.title}', child: Material(
       color: scheme.primary.withValues(alpha: .025),
       child: InkWell(onTap: pending ? null : onTap,
@@ -410,7 +411,8 @@ class _NotificationCard extends StatelessWidget {
               Text(item.title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
               if (item.body != null) ...[
                 const SizedBox(height: 5),
-                Text(item.body!, maxLines: 2, overflow: TextOverflow.ellipsis,
+                Text(item.body!, maxLines: isDuplicateRejection ? null : 2,
+                  overflow: isDuplicateRejection ? null : TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
               ],
               const SizedBox(height: 8),
@@ -419,6 +421,11 @@ class _NotificationCard extends StatelessWidget {
                 if (item.createdAt != null) Text(_relativeTime(item.createdAt!),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
               ]),
+              if (item.previousPropertyId != null)
+                TextButton(
+                  onPressed: pending ? null : onTap,
+                  child: const Text('عرض الإعلان السابق'),
+                ),
             ])),
             const SizedBox(width: 10),
             Padding(padding: const EdgeInsets.only(top: 6), child: Container(width: 5, height: 5,
@@ -447,6 +454,9 @@ class _NotificationSkeleton extends StatelessWidget {
 }
 
 (IconData, String, AppStatusTone) _notificationPresentation(String type) {
+  if (type == 'listing_duplicate_rejected') {
+    return (Icons.content_copy_outlined, 'مراجعة إعلان', AppStatusTone.warning);
+  }
   if (type == 'message_received') {
     return (Icons.chat_bubble_outline, 'رسائل', AppStatusTone.info);
   }

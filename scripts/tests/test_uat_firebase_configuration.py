@@ -33,6 +33,26 @@ class UatFirebaseConfigurationTest(unittest.TestCase):
         self.assertEqual('aqer-yemen', actual['projectId'])
         self.assertEqual('synthetic-client-key-not-a-real-secret', actual['apiKey'])
 
+    def test_selects_offline_client_only_for_the_explicit_offline_package(self):
+        data = fixture()
+        offline = copy.deepcopy(data['client'][0])
+        offline['client_info']['android_client_info']['package_name'] = module.OFFLINE_PACKAGE
+        offline['api_key'][0]['current_key'] = 'synthetic-offline-client-key'
+        data['client'].append(offline)
+        raw = json.dumps(data).encode()
+        legacy = module.validate(raw)
+        validated = module.validate(raw, package=module.OFFLINE_PACKAGE)
+        self.assertNotIn('packageName', legacy)
+        self.assertEqual('synthetic-client-key-not-a-real-secret', legacy['apiKey'])
+        self.assertEqual(module.OFFLINE_PACKAGE, validated['packageName'])
+        self.assertEqual('synthetic-offline-client-key', validated['apiKey'])
+        with self.assertRaisesRegex(ValueError, 'Unsupported UAT Android package'):
+            module.validate(raw, package='com.aqer.yemen.uat.preview')
+        data['client'] = [offline, copy.deepcopy(offline)]
+        for package in module.SUPPORTED_PACKAGES:
+            with self.subTest(package=package), self.assertRaisesRegex(ValueError, 'exactly one'):
+                module.validate(json.dumps(data).encode(), package=package)
+
     def test_rejects_wrong_identity_missing_and_duplicate_clients(self):
         variants = []
         for key in ['project_id', 'project_number']:

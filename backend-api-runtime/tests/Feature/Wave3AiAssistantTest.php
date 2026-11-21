@@ -72,6 +72,37 @@ class Wave3AiAssistantTest extends TestCase
         $this->assertDatabaseCount('properties', 0);
     }
 
+    public function test_room_and_bathroom_phrases_do_not_add_or_change_a_budget(): void
+    {
+        $scope = ['purpose' => 'rent', 'south' => 15.34, 'west' => 44.16, 'north' => 15.39, 'east' => 44.21];
+
+        foreach (['ثلاث غرف نوم وحمامان' => 2, '٣ غرف نوم، و٢ حمام' => 0] as $message => $incorrectPrice) {
+            $this->model(['set' => ['min_bedrooms' => 3, 'min_bathrooms' => 2, 'min_price' => $incorrectPrice], 'remove' => []]);
+            $filters = $this->postJson('/api/ai/search', ['message' => $message, 'filters' => $scope, 'revision' => 1])
+                ->assertOk()->json('data.filters');
+            $this->assertEquals($scope + ['min_bedrooms' => 3, 'min_bathrooms' => 2], $filters);
+        }
+
+        $current = $scope + ['min_price' => 50000, 'max_price' => 100000, 'currency' => 'YER'];
+        $this->model(['set' => ['min_bedrooms' => 3, 'min_bathrooms' => 2, 'min_price' => 0, 'currency' => 'USD'], 'remove' => ['max_price']]);
+        $this->postJson('/api/ai/search', ['message' => 'أريد ثلاث غرف نوم وحمامان', 'filters' => $current, 'revision' => 2])
+            ->assertOk()->assertJsonPath('data.filters.min_price', 50000)->assertJsonPath('data.filters.max_price', 100000)
+            ->assertJsonPath('data.filters.currency', 'YER');
+    }
+
+    public function test_room_change_allows_an_explicit_budget_change_or_removal(): void
+    {
+        $current = ['purpose' => 'rent', 'min_price' => 50000, 'max_price' => 100000, 'currency' => 'YER'];
+        $this->model(['set' => ['min_bedrooms' => 3, 'max_price' => 120000], 'remove' => []]);
+        $this->postJson('/api/ai/search', ['message' => 'ثلاث غرف وخل سقف السعر ١٢٠ ألف', 'filters' => $current, 'revision' => 1])
+            ->assertOk()->assertJsonPath('data.filters.min_bedrooms', 3)->assertJsonPath('data.filters.min_price', 50000)
+            ->assertJsonPath('data.filters.max_price', 120000);
+
+        $this->model(['set' => ['min_bedrooms' => 3], 'remove' => ['min_price']]);
+        $this->postJson('/api/ai/search', ['message' => 'ثلاث غرف وألغ الحد الأدنى للسعر', 'filters' => $current, 'revision' => 2])
+            ->assertOk()->assertJsonMissingPath('data.filters.min_price')->assertJsonPath('data.filters.max_price', 100000);
+    }
+
     public function test_followup_preserves_exact_map_and_source_constraints_and_rejects_model_changes_to_them(): void
     {
         $scope = ['governorate' => 'تعز', 'advertiser_id' => 25, 'spotlight' => true,

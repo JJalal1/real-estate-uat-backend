@@ -46,12 +46,15 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   int _visibleEpoch = 0;
   int _journey = 0;
   bool _ready = false;
+  bool _showEntryMap = false;
   LocalHistoryEntry? _mapHistory;
+  bool get _showingMap => _showEntryMap || _mapHistory != null;
   bool _journeyEnded = false;
 
   @override
   void initState() {
     super.initState();
+    _showEntryMap = widget.initialMapMode;
     _journeySession = _session;
     _entryActor = ref.read(authControllerProvider).asData?.value?.id;
     _visibleActor = _entryActor;
@@ -64,7 +67,6 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       _journey = _journeySession.beginJourney(
         savedFilters: !sameActor || widget.savedSearch == null ? null : SmartSearchFilters.fromApiFilters(widget.savedSearch!.filters),
         entryFilters: sameActor ? widget.entryFilters : null);
-      if (widget.initialMapMode) unawaited(_openMap());
       setState(() => _ready = true);
     });
     _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
@@ -82,7 +84,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   void dispose() {
     _capture.removeListener(_voiceChanged);
     _endJourney();
-    _showList();
+    _mapHistory?.remove();
     _capture.dispose();
     _description.dispose();
     _scroll.dispose();
@@ -173,7 +175,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   }
 
   Future<void> _openMap() async {
-    if (_mapHistory != null || _journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
+    if (_showingMap || _journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
     final route = ModalRoute.of(context);
     if (route == null) return;
     if (_capture.active) _cancelVoice();
@@ -191,24 +193,27 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     route.addLocalHistoryEntry(entry);
   }
 
-  void _showList() => _mapHistory?.remove();
+  void _showList() {
+    if (_showEntryMap) {
+      if (_capture.active) _cancelVoice();
+      setState(() => _showEntryMap = false);
+    } else {
+      _mapHistory?.remove();
+    }
+  }
 
   Future<void> _focusAssistant() async {
     if (!mounted || _journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
     if (_capture.active) _cancelVoice();
-    _showList();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _journeyEnded) return;
-      if (_scroll.hasClients) _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-      _focus.requestFocus();
-    });
+    _focus.requestFocus();
   }
 
   Widget _mapToolbar(SmartSearchState state, String initialHint) => Material(elevation:2,borderRadius:BorderRadius.circular(16),
     color:Theme.of(context).colorScheme.surface,child:Padding(padding:const EdgeInsets.all(8),child:Column(mainAxisSize:MainAxisSize.min,children:[
       Row(children:[const SmartSearchRobotIcon(size:24),const SizedBox(width:6), Expanded(child:TextField(
         key:const ValueKey('smart-search-description'),controller:_description,focusNode:_focus,readOnly:_capture.active || state.interpreting,
-        minLines:1,maxLines:2,onChanged:_session.setDraftText,onSubmitted:(_)=>_send(),
+        minLines:1,maxLines:2,textInputAction:TextInputAction.search,
+        onChanged:_session.setDraftText,onSubmitted:(_)=>_send(),
         decoration:InputDecoration(hintText:_capture.active ? null : state.started ? 'أضف أو عدّل أي شرط…' : initialHint,isDense:true,border:InputBorder.none))),
         IconButton(key:const ValueKey('smart-search-voice'),tooltip:'أكمل بحثك بالصوت',onPressed:state.interpreting?null:() => _voice(),icon:const Icon(Icons.mic_none_outlined)),
         IconButton(key:const ValueKey('smart-search-send'),tooltip:'بحث',onPressed:state.interpreting?null:_send,
@@ -263,7 +268,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (ModalRoute.of(context)?.isCurrent == false && _capture.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted && _capture.active) _cancelVoice(); });
     }
-    if (_mapHistory != null) {
+    if (_showingMap) {
       final mapOwner = _journeySession, mapJourney = _journey;
       final mapActor = _visibleActor, mapEpoch = _visibleEpoch;
       return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
