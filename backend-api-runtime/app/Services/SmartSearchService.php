@@ -124,6 +124,7 @@ class SmartSearchService
             throw $error;
         }
 
+        $validationStage = 'patch_shape';
         try {
             if (array_diff(array_keys($patch), ['set', 'remove']) !== []) {
                 throw ValidationException::withMessages(['patch' => ['Unsupported patch members.']]);
@@ -137,6 +138,7 @@ class SmartSearchService
             // Reject malformed model values before reconciling explicit facts.
             // A successful but sparse/wrong patch must not reverse a clear
             // price ceiling or narrow an unmentioned multi-type selection.
+            $validationStage = 'model_fields';
             $this->validate($patch['set']);
             $patch = app(ExplicitSearchAmendments::class)->reconcile($message, $patch);
             foreach ($patch['remove'] as $key) {
@@ -153,9 +155,20 @@ class SmartSearchService
             if ((isset($patch['set']['type']) || isset($patch['set']['types'])) && ($purpose = $this->literalPurpose($message)) !== null) {
                 $next['purpose'] = $purpose;
             }
+            $validationStage = 'combined_filters';
             $next = $this->validate($next);
-        } catch (ValidationException) {
-            Log::notice('Smart search patch failed validation');
+        } catch (ValidationException $error) {
+            // Diagnostic metadata only. Neither the search nor any model values are logged.
+            $allowedFields = array_merge(['patch', 'set', 'remove', 'filters'], self::FIELDS, self::CONTEXT_FIELDS);
+            $set = $patch['set'] ?? null;
+            Log::notice('Smart search patch failed validation', [
+                'stage' => $validationStage,
+                'fields' => array_values(array_intersect(array_keys($error->errors()), $allowedFields)),
+                'set_type' => gettype($set),
+                'remove_type' => gettype($patch['remove'] ?? null),
+                'set_fields' => is_array($set) ? array_values(array_intersect(array_keys($set), self::FIELDS)) : [],
+                'has_unknown_set_fields' => is_array($set) && array_diff(array_keys($set), self::FIELDS) !== [],
+            ]);
             $this->gemini->unavailable();
         }
         return ['filters' => $next, 'suggestions' => $this->suggestions($next),
