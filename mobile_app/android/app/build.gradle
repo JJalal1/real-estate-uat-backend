@@ -68,6 +68,11 @@ if (aqerBuildingProduction) {
     }
 }
 def aqerUatClientEnabled = aqerUatFirebase.getProperty('aqer.uat.firebase.enabled', 'false').toBoolean()
+def aqerUatFirebasePackage = aqerUatFirebase.getProperty('aqer.uat.firebase.packageName', 'com.aqer.yemen.uat')
+if (aqerUatClientEnabled && (aqerUatFirebasePackage != aqerUatApplicationId ||
+    !(aqerUatFirebasePackage in ['com.aqer.yemen.uat', 'com.aqer.yemen.uat.offline']))) {
+    throw new GradleException('UAT Firebase client configuration does not match the Android application ID.')
+}
 if (aqerUatClientEnabled && (aqerUatFirebase.getProperty('aqer.uat.firebase.projectId') != 'aqer-yemen' ||
     aqerUatFirebase.getProperty('aqer.uat.firebase.senderId') != '982331876719' ||
     !aqerUatFirebase.getProperty('aqer.uat.firebase.apiKey') || !aqerUatFirebase.getProperty('aqer.uat.firebase.appId'))) {

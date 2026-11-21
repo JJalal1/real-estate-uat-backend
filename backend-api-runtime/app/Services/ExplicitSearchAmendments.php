@@ -5,6 +5,13 @@ namespace App\Services;
 /** Reconcile a successful model patch with clear, explicitly stated search facts. */
 class ExplicitSearchAmendments
 {
+    private const SPECIFICATION_UNITS = [
+        'min_bedrooms' => ['(?:غرف(?:ه)?(?:\s*نوم)?)', '(?:غرفتين|غرفتان)'],
+        'min_bathrooms' => ['(?:حمامات|حمام|دورات?\s*مياه|دوره\s*مياه)', '(?:حمامين|حمامان)'],
+    ];
+
+    private const BUDGET_FIELDS = ['min_price', 'max_price', 'currency'];
+
     public function __construct(private readonly ArabicListingNumber $numbers) {}
 
     public function reconcile(string $message, array $patch): array
@@ -21,26 +28,40 @@ class ExplicitSearchAmendments
         if (preg_match('/[?؟]|(?<!\pL)(?:هل|ليش|لماذا|كيف|ربما|تقصد|او|ام)(?!\pL)/u', $text)) return $patch;
 
         $facts = [];
-        foreach ([
-            'min_bedrooms' => ['(?:غرف(?:ه)?(?:\s*نوم)?)', '(?:غرفتين|غرفتان)'],
-            'min_bathrooms' => ['(?:حمامات|حمام|دورات?\s*مياه|دوره\s*مياه)', '(?:حمامين|حمامان)'],
-        ] as $key => [$unit, $dual]) {
+        foreach (self::SPECIFICATION_UNITS as $key => [$unit, $dual]) {
             $count = $this->count($text, $unit, $dual);
             if ($count !== null) $facts[$key] = $count;
         }
         $budget = $this->budget($text);
-        if ($budget !== []) {
-            // Ignore a model's inverted/new opposite bound; preserve any
-            // unmentioned opposite bound already present in current_filters.
-            unset($patch['set']['min_price'], $patch['set']['max_price'], $patch['set']['currency']);
-            $patch['remove'] = array_values(array_diff($patch['remove'], ['min_price', 'max_price', 'currency']));
-            $facts = array_merge($facts, $budget);
+        if ($budget !== [] || ($facts !== [] && ! $this->hasBudgetCue($text))) {
+            // Keep existing prices and currency unless the follow-up requests
+            // a budget change. A room or bathroom count is not a price.
+            foreach (self::BUDGET_FIELDS as $key) {
+                unset($patch['set'][$key]);
+            }
+            $patch['remove'] = array_values(array_diff($patch['remove'], self::BUDGET_FIELDS));
         }
-        foreach ($facts as $key => $value) {
+        foreach ($facts + $budget as $key => $value) {
             $patch['remove'] = array_values(array_diff($patch['remove'], [$key]));
             $patch['set'][$key] = $value;
         }
         return $patch;
+    }
+
+    private function hasBudgetCue(string $text): bool
+    {
+        if (preg_match('/(?<!\pL)(?:[وبفل]{0,2})(?:ال)?(?:سعر|اسعار|ايجار|ميزانيه|تكلفه|قيمه|مبلغ|قيمتها|سعرها|فلوس|عمله|ريال|ريالات|دولار|دولارات|سعودي|ارخص|اغلي|ادفع|budget|price|currency|rent|yer|usd|sar)(?!\pL)|[$€£]/iu', $text)) {
+            return true;
+        }
+
+        // An independent number may be a short price follow-up. Exclude
+        // digits and number words already attached to rooms or bathrooms.
+        $number = $this->numbers->pattern();
+        foreach (self::SPECIFICATION_UNITS as [$unit, $dual]) {
+            $text = preg_replace('/(?<![-\pL\d.])(?:و\s*)?'.$number.'\s*'.$unit.'(?!\pL)|(?<!\pL)(?:و)?'.$dual.'(?!\pL)/u', ' ', $text);
+        }
+
+        return preg_match('/(?<![\pL\d])(?:و)?'.$number.'(?![\pL\d])/u', $text) === 1;
     }
 
     private function negated(string $prefix): bool

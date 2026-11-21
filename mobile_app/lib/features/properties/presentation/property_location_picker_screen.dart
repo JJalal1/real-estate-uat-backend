@@ -322,12 +322,48 @@ class _PropertyLocationPickerScreenState
   }
 
   Future<void> _confirm() async {
-    if (_resolving || _draggingPin || _previewingAddress) return;
-    final selection = _selection;
+    if (_resolving || _locating || _draggingPin || _previewingAddress) return;
+    final needsProjection = _panningMap;
+    var selection = _selection;
     setState(() {
       _resolving = true;
-      _message = 'ثبّتنا النقطة. نجلب اقتراح العنوان…';
+      _message = needsProjection
+          ? 'جارٍ تثبيت الدبوس…'
+          : 'ثبّتنا النقطة. نجلب اقتراح العنوان…';
     });
+
+    if (needsProjection) {
+      // Native camera idle may arrive after the tap. Read the coordinates
+      // under the visible pin from the renderer before using the saved point.
+      final controller = _controller;
+      final box = _mapStackKey.currentContext?.findRenderObject();
+      try {
+        if (controller == null || box is! RenderBox || !box.hasSize) {
+          throw StateError('Map pin projection is unavailable.');
+        }
+        selection = await controller
+            .toLatLng(MapScreenCoordinateSpace.logicalToPlatformPixels(
+              _pinForSize(box.size),
+              MediaQuery.devicePixelRatioOf(context),
+            ))
+            .timeout(const Duration(seconds: 2));
+        if (!mounted) return;
+        if (_controller != controller ||
+            !hasValidPropertyCoordinates(
+                selection.latitude, selection.longitude)) {
+          throw StateError('Map pin changed while confirming.');
+        }
+        setState(() => _message = 'ثبّتنا النقطة. نجلب اقتراح العنوان…');
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _resolving = false;
+            _message = 'تعذر تثبيت الدبوس في هذا الموضع. حاول مرة أخرى.';
+          });
+        }
+        return;
+      }
+    }
 
     var address = const PropertyLocationAddress();
     final lookup = widget.reverseLookup;

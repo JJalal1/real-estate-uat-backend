@@ -704,10 +704,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _openSmartSearch() async {
     if (widget.onSmartSearch != null) { await widget.onSmartSearch!(); return; }
-    final initial = SmartSearchFilters.fromMap(Map<String, dynamic>.from(_currentSmartFilters().values));
+    final initial = widget.sharedSearchJourney ? ref.read(_searchSession).filters : _assistantEntryFilters();
     await Navigator.of(context).push<void>(MaterialPageRoute(
       settings: const RouteSettings(name: 'map-smart-search'),
-      builder: (_) => AssistedSearchScreen(entryFilters: initial)));
+      builder: (_) => AssistedSearchScreen(initialMapMode: true, entryFilters: initial)));
+  }
+
+  SmartSearchFilters _assistantEntryFilters() {
+    final current = _currentSmartFilters();
+    final bounds = _selectedAreaBounds ?? _cameraBounds;
+    if (bounds == null) return current;
+    final values = Map<String, dynamic>.of(current.values)
+      ..remove('latitude')
+      ..remove('longitude')
+      ..remove('radius_km')
+      ..addAll({
+        'south': bounds.southwest.latitude,
+        'west': bounds.southwest.longitude,
+        'north': bounds.northeast.latitude,
+        'east': bounds.northeast.longitude,
+      });
+    return SmartSearchFilters.fromMap(values);
   }
 
   Widget _withSharedSession(Widget child) => child;

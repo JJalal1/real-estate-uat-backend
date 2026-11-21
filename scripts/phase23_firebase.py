@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 from phase23_preflight import GateError
-from prepare_uat_firebase import PACKAGE, validate
+from prepare_uat_firebase import OFFLINE_PACKAGE, PACKAGE, SUPPORTED_PACKAGES, validate
 
 _PREFIX = 'aqer.uat.firebase.'
 _FIELDS = {'projectId', 'senderId', 'appId', 'apiKey'}
@@ -36,13 +36,15 @@ def validate_receipt(receipt):
         raise GateError('uat_firebase_absent_configuration_fingerprint')
 
 
-def verify_compiled_configuration(archive, properties):
+def verify_compiled_configuration(archive, properties, *, package=PACKAGE):
     """Return safe configuration evidence, not a provider-delivery claim.
 
     ``properties`` is the fixed local output of import_ci_uat_firebase.py.
     Disabled configuration remains OFF. A requested client must match the
     approved UAT identity, its recomputed fingerprint and the actual APK DEX.
     """
+    if package not in SUPPORTED_PACKAGES:
+        raise GateError('uat_firebase_package_invalid')
     receipt = disabled_receipt()
     dex = [archive.read(name) for name in archive.namelist()
            if re.fullmatch(r'classes[0-9]*\.dex', name)]
@@ -62,8 +64,13 @@ def verify_compiled_configuration(archive, properties):
         if any(len(pair) != 2 for pair in entries):
             raise ValueError()
         values = dict(entries)
+        fields = _FIELDS | {'fingerprint', 'enabled'}
+        if package == OFFLINE_PACKAGE:
+            fields.add('packageName')
+            if values.get(_PREFIX + 'packageName') != package:
+                raise ValueError()
         if (len(values) != len(entries) or
-                set(values) != {_PREFIX + key for key in _FIELDS | {'fingerprint', 'enabled'}} or
+                set(values) != {_PREFIX + key for key in fields} or
                 values[_PREFIX + 'enabled'] not in {'true', 'false'}):
             raise ValueError()
         config = validate(json.dumps({
@@ -71,9 +78,9 @@ def verify_compiled_configuration(archive, properties):
                              'project_number': values[_PREFIX + 'senderId']},
             'client': [{'client_info': {
                 'mobilesdk_app_id': values[_PREFIX + 'appId'],
-                'android_client_info': {'package_name': PACKAGE}},
+                'android_client_info': {'package_name': package}},
                 'api_key': [{'current_key': values[_PREFIX + 'apiKey']}]}],
-        }).encode())
+        }).encode(), package=package)
         fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
         if values[_PREFIX + 'fingerprint'] != fingerprint:
             raise ValueError()

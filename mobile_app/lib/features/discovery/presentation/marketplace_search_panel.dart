@@ -501,7 +501,7 @@ class _MarketplaceSearchMapScreenState extends ConsumerState<MarketplaceSearchMa
     try {
       await Navigator.of(context).push<void>(MaterialPageRoute(
         settings: const RouteSettings(name: 'map-smart-search'),
-        builder: (_) => AssistedSearchScreen(entryFilters: initial)));
+        builder: (_) => AssistedSearchScreen(initialMapMode: true, entryFilters: initial)));
       // The assistant owns its copied criteria. Returning restores this map.
     } finally {
       _openingSmartSearch = false;

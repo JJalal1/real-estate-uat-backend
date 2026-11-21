@@ -16,6 +16,7 @@ import 'package:real_estate_mobile/features/discovery/presentation/marketplace_s
 import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_location_address.dart';
 import 'package:real_estate_mobile/features/properties/domain/saved_property_search.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_location_picker_screen.dart';
 
@@ -70,6 +71,7 @@ class _NativeCamera {
   final TestDefaultBinaryMessenger messenger;
   MethodChannel? channel;
   Map<String, double> bounds = _initialBounds;
+  LatLng? projectedPin;
   int fits = 0;
   final animations = <Object?>[];
 
@@ -86,6 +88,10 @@ class _NativeCamera {
           'sw': [bounds['south'], bounds['west']],
           'ne': [bounds['north'], bounds['east']],
         };
+      case 'map#toLatLng':
+        final pin = projectedPin;
+        if (pin == null) return null;
+        return {'latitude': pin.latitude, 'longitude': pin.longitude};
     }
     return null;
   }
@@ -100,6 +106,62 @@ class _NativeCamera {
 
 void main() {
   setUpAll(loadUxFixtures);
+
+  testWidgets(
+      'confirming a panned pin before native idle reads its current location',
+      (tester) async {
+    const current = LatLng(15.31, 44.21);
+    final native = _NativeCamera(tester)..projectedPin = current;
+    PropertyLocationSelection? saved;
+    LatLng? lookupPoint;
+
+    await pumpUx(
+      tester,
+      uxContainer(),
+      Builder(builder: (context) {
+        return Scaffold(
+          body: TextButton(
+            onPressed: () async {
+              saved =
+                  await Navigator.of(context).push<PropertyLocationSelection>(
+                MaterialPageRoute(
+                  builder: (_) => PropertyLocationPickerScreen(
+                    initialLatitude: 15.3694,
+                    initialLongitude: 44.191,
+                    reverseLookup: (latitude, longitude) async {
+                      lookupPoint = LatLng(latitude, longitude);
+                      return const PropertyLocationAddress();
+                    },
+                  ),
+                ),
+              );
+            },
+            child: const Text('Open location picker'),
+          ),
+        );
+      }),
+    );
+    await tester.tap(find.text('Open location picker'));
+    await tester.pumpAndSettle();
+    await native.emit('map#onStyleLoaded');
+    await tester.pumpAndSettle();
+
+    await tester.dragFrom(
+      tester.getTopLeft(find.byType(MapLibreMap)) + const Offset(200, 25),
+      const Offset(65, 0),
+    );
+    // Intentionally confirm without a camera#onIdle callback.
+    await tester.tap(find.text('تأكيد هذا الموقع'));
+    await tester.pumpAndSettle();
+
+    expect(saved?.latitude, current.latitude);
+    expect(saved?.longitude, current.longitude);
+    expect(
+        (lookupPoint?.latitude, lookupPoint?.longitude),
+        (current.latitude, current.longitude));
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   testWidgets(
       'a registered neighborhood locates the picker and requires a separate pin choice',

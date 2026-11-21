@@ -89,7 +89,10 @@ jobs:
         run: |
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
-          if [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$AQER_CLEANUP_PR_HEAD_REPO" = JJalal1/real-estate-uat-backend ] && { { [ "$GITHUB_HEAD_REF" = work/apk-cleanup-1817-20261117 ] && [ "$GITHUB_BASE_REF" = work/fix-connectivity-1815-20261117 ]; } || { [ "$GITHUB_HEAD_REF" = work/map-search-ux-1820-20261117 ] && [ "$GITHUB_BASE_REF" = work/apk-cleanup-1817-20261117 ]; }; }; then
+          if git merge-base --is-ancestor eb4df35101387bdb0cc969224cdd28f5d5b913d9 HEAD; then
+            python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --approved-uat1829
+            flutter pub get --enforce-lockfile
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$AQER_CLEANUP_PR_HEAD_REPO" = JJalal1/real-estate-uat-backend ] && { { [ "$GITHUB_HEAD_REF" = work/apk-cleanup-1817-20261117 ] && [ "$GITHUB_BASE_REF" = work/fix-connectivity-1815-20261117 ]; } || { [ "$GITHUB_HEAD_REF" = work/map-search-ux-1820-20261117 ] && [ "$GITHUB_BASE_REF" = work/apk-cleanup-1817-20261117 ]; }; }; then
             python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --cleanup1818
           else
             python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock
@@ -114,6 +117,7 @@ jobs:
           test/buyer_loading_recovery_test.dart
           --reporter expanded
       - name: Build UAT release APK with explicit non-production signing allowance
+        if: github.head_ref != 'work/uat-acceptance-1830-20261121'
         working-directory: mobile_app
         run: >-
           flutter build apk --flavor uat --release
