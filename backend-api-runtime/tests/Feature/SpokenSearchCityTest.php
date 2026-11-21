@@ -83,15 +83,36 @@ class SpokenSearchCityTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_complete_spoken_city_search_preserves_rooms_and_the_monthly_price_ceiling(): void
+    {
+        config(['gemini.enabled' => false]);
+        Http::fake();
+        $this->postJson('/api/ai/search', [
+            'message' => 'أبغى شقة للإيجار في ذمار فيها ثلاث غرف وبحد أقصى ٨٠٬٠٠٠ ريال شهرياً',
+            'filters' => (object) [],
+            'revision' => 3,
+        ])->assertOk()->assertJson(['data' => ['filters' => [
+            'type' => 'apartment', 'purpose' => 'rent', 'search' => 'ذمار',
+            'min_bedrooms' => 3, 'max_price' => 80000, 'currency' => 'YER',
+        ], 'revision' => 3]]);
+        Http::assertNothingSent();
+    }
+
     public function test_spoken_city_search_with_more_criteria_passes_the_complete_text_to_the_model(): void
     {
-        $message = 'أبغى شقة للإيجار في ذمار بثلاث غرف';
-        $this->model(['set' => ['type' => 'apartment', 'purpose' => 'rent', 'search' => 'ذمار', 'min_bedrooms' => 3], 'remove' => []]);
+        $message = 'أبغى شقة للإيجار في ذمار فيها ثلاث غرف وموقف سيارة';
+        $this->model(['set' => ['type' => 'apartment', 'types' => ['apartment'], 'purpose' => 'rent',
+            'search' => 'ذمار', 'min_bedrooms' => 3, 'has_parking' => true], 'remove' => []]);
         $this->postJson('/api/ai/search', ['message' => $message, 'filters' => (object) [], 'revision' => 2])
-            ->assertOk()->assertJsonPath('data.filters.min_bedrooms', 3)->assertJsonPath('data.filters.search', 'ذمار');
-        Http::assertSent(fn (\Illuminate\Http\Client\Request $request): bool => json_decode(
-            $request->data()['contents'][0]['parts'][0]['text'], true, flags: JSON_THROW_ON_ERROR
-        )['follow_up'] === $message);
+            ->assertOk()->assertJsonPath('data.filters.min_bedrooms', 3)
+            ->assertJsonPath('data.filters.type', 'apartment')->assertJsonMissingPath('data.filters.types')
+            ->assertJsonPath('data.filters.search', 'ذمار')->assertJsonPath('data.filters.has_parking', true);
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($message): bool {
+            $data = $request->data();
+            $input = json_decode($data['contents'][0]['parts'][0]['text'], true, flags: JSON_THROW_ON_ERROR);
+            $properties = $data['generationConfig']['responseFormat']['text']['schema']['properties']['set']['properties'];
+            return $input['follow_up'] === $message && isset($properties['types']) && ! isset($properties['type']);
+        });
     }
 
     public function test_spoken_ibb_then_price_and_new_type_reuses_real_public_filters_without_writes(): void

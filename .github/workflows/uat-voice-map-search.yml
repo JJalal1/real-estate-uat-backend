@@ -49,6 +49,7 @@ jobs:
         run: |
           git diff --check HEAD^ HEAD
           php -l app/Services/SmartSearchService.php
+          php -l app/Services/ExplicitSearchAmendments.php
           php -l tests/Feature/SpokenSearchCityTest.php
           composer install --no-interaction --prefer-dist --no-progress
           install -m 600 /dev/null .env
@@ -67,4 +68,5 @@ jobs:
           tests/Feature/SpokenSearchCityTest.php
           tests/Feature/Wave3AiAssistantTest.php
           tests/Feature/Wave4VoiceContractTest.php
+          tests/Feature/Wave01SharedFiltersTest.php
           --display-warnings --fail-on-warning --fail-on-risky

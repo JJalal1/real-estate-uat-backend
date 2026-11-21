@@ -84,7 +84,16 @@ class SmartSearchService
         if (isset($parts[3])) {
             $city = $this->activeCityName($parts[3]);
             if ($city === null) {
-                return null;
+                $location = preg_split('/\s+(?=(?:فيها|فيه|مع|وبحد|بحد|حد|الحد|اقل|اكثر)\s)/u', $parts[3], 2);
+                if (! isset($location[1])) {
+                    return null;
+                }
+                $city = $this->activeCityName($location[0]);
+                $details = app(ExplicitSearchAmendments::class)->completeDetails($location[1]);
+                if ($city === null || $details === null) {
+                    return null;
+                }
+                $set += $details;
             }
             $set['search'] = $city;
         }
@@ -96,7 +105,7 @@ class SmartSearchService
     {
         $current = $this->validate($current);
         $schema = ['type' => 'object', 'additionalProperties' => false, 'properties' => [
-            'set' => ['type' => 'object', 'additionalProperties' => false, 'properties' => $this->properties()],
+            'set' => ['type' => 'object', 'additionalProperties' => false, 'properties' => $this->modelProperties()],
             'remove' => ['type' => 'array', 'maxItems' => count(self::FIELDS), 'items' => ['type' => 'string', 'enum' => self::FIELDS]],
         ], 'required' => ['set', 'remove']];
         try {
@@ -104,13 +113,14 @@ class SmartSearchService
                 'Interpret an Arabic Yemen real-estate search follow-up as a PATCH to current_filters. Return only set and remove. '
                 .'Set ONLY explicitly requested changes and remove ONLY explicitly withdrawn criteria. Preserve every unmentioned filter. '
                 .'Changing type does not reset location, budget or purpose. Extract every explicitly stated criterion in the follow_up, including للبيع=sale and للإيجار=rent. '
-                .'For several property types, use types as the complete array of selected enum values; for one type use type. Never set both. '
+                .'Use the types array for every requested type selection, including one item for a single type. '
                 .'To remove only one selected type, set types to the remaining selection; remove type or types only when withdrawing the entire type constraint. '
-                .'Examples: current_filters={"search":"إب","min_price":100000000}, follow_up="خلها أرض للبيع" => {"set":{"type":"land","purpose":"sale"},"remove":[]}. '
+                .'Examples: current_filters={"search":"إب","min_price":100000000}, follow_up="خلها أرض للبيع" => {"set":{"types":["land"],"purpose":"sale"},"remove":[]}. '
                 .'current_filters={"type":"land","purpose":"sale","search":"إب","min_price":100000000}, follow_up="في ذمار بدل إب" => {"set":{"search":"ذمار"},"remove":[]}. '
                 .'current_filters={"search":"إب","min_price":100000000}, follow_up="ألغ الحد الأدنى للسعر" => {"set":{},"remove":["min_price"]}. '
                 .'Map coordinates, polygon, bounds, governorate, advertiser_id and spotlight in current_filters are read-only source constraints chosen by the user; never change or remove them. The user may remove their chips manually. '
-                .'Resolve references against current_filters. Search is the location/address keyword. Do not insert property type or purpose into search. '
+                .'Resolve references against current_filters. Use search for the explicitly requested place. '
+                .'Example: "شقة للإيجار في ذمار" => {"set":{"types":["apartment"],"purpose":"rent","search":"ذمار"},"remove":[]}. '
                 .'Prices mean MONTHLY rent when the effective purpose is rent; they never mean advance payment or commission. '
                 .'Numbers such as 50 ألف mean 50000. Rooms map to min_bedrooms. A whole floor is type apartment and unit_occupies_entire_floor true. '
                 .'Never invent unavailable fields, listings, results or locations. If the request is unclear or outside property search, return empty set and remove. '
@@ -124,7 +134,6 @@ class SmartSearchService
             throw $error;
         }
 
-        $validationStage = 'patch_shape';
         try {
             if (array_diff(array_keys($patch), ['set', 'remove']) !== []) {
                 throw ValidationException::withMessages(['patch' => ['Unsupported patch members.']]);
@@ -133,12 +142,14 @@ class SmartSearchService
                 'remove' => ['present', 'array', 'max:'.count(self::FIELDS)], 'remove.*' => [Rule::in(self::FIELDS)]])->validate();
             $next = $current;
             if (isset($patch['set']['type'], $patch['set']['types'])) {
-                throw ValidationException::withMessages(['types' => ['Conflicting type selections.']]);
+                if ($patch['set']['types'] !== [$patch['set']['type']]) {
+                    throw ValidationException::withMessages(['types' => ['Conflicting type selections.']]);
+                }
+                unset($patch['set']['types']);
             }
             // Reject malformed model values before reconciling explicit facts.
             // A successful but sparse/wrong patch must not reverse a clear
             // price ceiling or narrow an unmentioned multi-type selection.
-            $validationStage = 'model_fields';
             $this->validate($patch['set']);
             $patch = app(ExplicitSearchAmendments::class)->reconcile($message, $patch);
             foreach ($patch['remove'] as $key) {
@@ -155,20 +166,9 @@ class SmartSearchService
             if ((isset($patch['set']['type']) || isset($patch['set']['types'])) && ($purpose = $this->literalPurpose($message)) !== null) {
                 $next['purpose'] = $purpose;
             }
-            $validationStage = 'combined_filters';
             $next = $this->validate($next);
-        } catch (ValidationException $error) {
-            // Diagnostic metadata only. Neither the search nor any model values are logged.
-            $allowedFields = array_merge(['patch', 'set', 'remove', 'filters'], self::FIELDS, self::CONTEXT_FIELDS);
-            $set = $patch['set'] ?? null;
-            Log::notice('Smart search patch failed validation', [
-                'stage' => $validationStage,
-                'fields' => array_values(array_intersect(array_keys($error->errors()), $allowedFields)),
-                'set_type' => gettype($set),
-                'remove_type' => gettype($patch['remove'] ?? null),
-                'set_fields' => is_array($set) ? array_values(array_intersect(array_keys($set), self::FIELDS)) : [],
-                'has_unknown_set_fields' => is_array($set) && array_diff(array_keys($set), self::FIELDS) !== [],
-            ]);
+        } catch (ValidationException) {
+            Log::notice('Smart search patch failed validation');
             $this->gemini->unavailable();
         }
         return ['filters' => $next, 'suggestions' => $this->suggestions($next),
@@ -200,10 +200,9 @@ class SmartSearchService
         return array_values(array_filter($keys,fn($key)=>!array_key_exists($key,$filters) && array_key_exists($key,$allowed)));
     }
 
-    private function properties(): array
+    private function modelProperties(): array
     {
-        $result = ['type' => ['type' => 'string', 'enum' => self::TYPES],
-            'types' => ['type' => 'array', 'maxItems' => 8, 'items' => ['type' => 'string', 'enum' => self::TYPES]],
+        $result = ['types' => ['type' => 'array', 'maxItems' => count(self::TYPES), 'items' => ['type' => 'string', 'enum' => self::TYPES]],
             'purpose' => ['type' => 'string', 'enum' => ['sale', 'rent']],
             'search' => ['type' => 'string', 'maxLength' => 120],
             'currency' => ['type' => 'string', 'enum' => ['YER', 'USD', 'SAR']],
