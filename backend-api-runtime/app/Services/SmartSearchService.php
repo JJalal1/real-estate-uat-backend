@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Governorate;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -34,7 +36,9 @@ class SmartSearchService
         $value = Validator::make($filters, $rules)->validate();
         app(PropertyDiscoveryFilterService::class)->validateGeometry($value);
         $value = array_filter($value, fn ($v) => $v !== null && $v !== '');
-        if (isset($value['search'])) $value['search'] = $this->canonicalCityKeyword($value['search']);
+        if (isset($value['search'])) {
+            $value['search'] = $this->activeCityName($value['search']) ?? $value['search'];
+        }
         foreach (['min_price' => 'max_price', 'min_area_m2' => 'max_area_m2'] as $min => $max) {
             if (isset($value[$min], $value[$max]) && $value[$min] > $value[$max]) {
                 throw ValidationException::withMessages(['filters' => ['الحد الأدنى يجب ألا يتجاوز الحد الأعلى.']]);
@@ -45,7 +49,7 @@ class SmartSearchService
         return $value;
     }
 
-    private function canonicalCityKeyword(string $keyword): string
+    private function activeCityName(string $keyword): ?string
     {
         $key = function (string $name): string {
             $name = preg_replace('/[\x{0640}\x{064B}-\x{065F}\x{0670}]/u', '', $name);
@@ -56,9 +60,36 @@ class SmartSearchService
         foreach (Governorate::query()->where('is_active', true)->pluck('name_ar') as $city) {
             if ($candidate === $key($city)) return $city;
         }
-        // A neighborhood or an unknown place remains the user's exact keyword;
-        // only a complete match to the existing active gazetteer is canonical.
-        return $keyword;
+        return null;
+    }
+
+    private function explicitSearchPatch(string $message): ?array
+    {
+        $normalize = app(PropertyDiscoveryFilterService::class)->normalizeArabicSearch(...);
+        $text = $normalize($message);
+        // Match the complete request so extra filters, alternatives and unknown places
+        // continue through the existing interpretation path.
+        if (preg_match('/\A(?:(?:ابحث (?:لي )?عن|اريد|ابغي|اشتي|ادور علي) )?(\p{Arabic}+) (للبيع|للايجار)(?: (?:في|داخل) (.{1,120}))?\z/u', $text, $parts) !== 1) {
+            return null;
+        }
+
+        [, $spokenType, $purpose] = $parts;
+        $typeLabels = app(DynamicPropertySchema::class)->definition()['types'];
+        $type = $spokenType === 'بيت' ? 'house' : array_search($spokenType, array_map($normalize, $typeLabels), true);
+        if (! in_array($type, self::TYPES, true)) {
+            return null;
+        }
+
+        $set = ['type' => $type, 'purpose' => $purpose === 'للبيع' ? 'sale' : 'rent'];
+        if (isset($parts[3])) {
+            $city = $this->activeCityName($parts[3]);
+            if ($city === null) {
+                return null;
+            }
+            $set['search'] = $city;
+        }
+
+        return ['set' => $set, 'remove' => []];
     }
 
     public function update(string $message, array $current): array
@@ -68,25 +99,35 @@ class SmartSearchService
             'set' => ['type' => 'object', 'additionalProperties' => false, 'properties' => $this->properties()],
             'remove' => ['type' => 'array', 'maxItems' => count(self::FIELDS), 'items' => ['type' => 'string', 'enum' => self::FIELDS]],
         ], 'required' => ['set', 'remove']];
-        $patch = $this->gemini->object(
-            'Interpret an Arabic Yemen real-estate search follow-up as a PATCH to current_filters. Return only set and remove. '
-            .'Set ONLY explicitly requested changes and remove ONLY explicitly withdrawn criteria. Preserve every unmentioned filter. '
-            .'Changing type does not reset location, budget or purpose. Extract every explicitly stated criterion in the follow_up, including للبيع=sale and للإيجار=rent. '
-            .'For several property types, use types as the complete array of selected enum values; for one type use type. Never set both. '
-            .'To remove only one selected type, set types to the remaining selection; remove type or types only when withdrawing the entire type constraint. '
-            .'Examples: current_filters={"search":"إب","min_price":100000000}, follow_up="خلها أرض للبيع" => {"set":{"type":"land","purpose":"sale"},"remove":[]}. '
-            .'current_filters={"type":"land","purpose":"sale","search":"إب","min_price":100000000}, follow_up="في ذمار بدل إب" => {"set":{"search":"ذمار"},"remove":[]}. '
-            .'current_filters={"search":"إب","min_price":100000000}, follow_up="ألغ الحد الأدنى للسعر" => {"set":{},"remove":["min_price"]}. '
-            .'Map coordinates, polygon, bounds, governorate, advertiser_id and spotlight in current_filters are read-only source constraints chosen by the user; never change or remove them. The user may remove their chips manually. '
-            .'Resolve references against current_filters. Search is the location/address keyword. Do not insert property type or purpose into search. '
-            .'Prices mean MONTHLY rent when the effective purpose is rent; they never mean advance payment or commission. '
-            .'Numbers such as 50 ألف mean 50000. Rooms map to min_bedrooms. A whole floor is type apartment and unit_occupies_entire_floor true. '
-            .'Never invent unavailable fields, listings, results or locations. If the request is unclear or outside property search, return empty set and remove. '
-            .'A reset is handled by the app button, not by dropping all filters. Schema names are the only supported filters.',
-            ['current_filters' => $current, 'follow_up' => $message, 'property_schema'=>app(DynamicPropertySchema::class)->definition()], $schema,
-        );
         try {
-            if (array_diff(array_keys($patch), ['set', 'remove']) !== []) $this->gemini->unavailable();
+            $patch = $this->explicitSearchPatch($message) ?? $this->gemini->object(
+                'Interpret an Arabic Yemen real-estate search follow-up as a PATCH to current_filters. Return only set and remove. '
+                .'Set ONLY explicitly requested changes and remove ONLY explicitly withdrawn criteria. Preserve every unmentioned filter. '
+                .'Changing type does not reset location, budget or purpose. Extract every explicitly stated criterion in the follow_up, including للبيع=sale and للإيجار=rent. '
+                .'For several property types, use types as the complete array of selected enum values; for one type use type. Never set both. '
+                .'To remove only one selected type, set types to the remaining selection; remove type or types only when withdrawing the entire type constraint. '
+                .'Examples: current_filters={"search":"إب","min_price":100000000}, follow_up="خلها أرض للبيع" => {"set":{"type":"land","purpose":"sale"},"remove":[]}. '
+                .'current_filters={"type":"land","purpose":"sale","search":"إب","min_price":100000000}, follow_up="في ذمار بدل إب" => {"set":{"search":"ذمار"},"remove":[]}. '
+                .'current_filters={"search":"إب","min_price":100000000}, follow_up="ألغ الحد الأدنى للسعر" => {"set":{},"remove":["min_price"]}. '
+                .'Map coordinates, polygon, bounds, governorate, advertiser_id and spotlight in current_filters are read-only source constraints chosen by the user; never change or remove them. The user may remove their chips manually. '
+                .'Resolve references against current_filters. Search is the location/address keyword. Do not insert property type or purpose into search. '
+                .'Prices mean MONTHLY rent when the effective purpose is rent; they never mean advance payment or commission. '
+                .'Numbers such as 50 ألف mean 50000. Rooms map to min_bedrooms. A whole floor is type apartment and unit_occupies_entire_floor true. '
+                .'Never invent unavailable fields, listings, results or locations. If the request is unclear or outside property search, return empty set and remove. '
+                .'A reset is handled by the app button, not by dropping all filters. Schema names are the only supported filters.',
+                ['current_filters' => $current, 'follow_up' => $message, 'property_schema'=>app(DynamicPropertySchema::class)->definition()], $schema,
+            );
+        } catch (HttpResponseException $error) {
+            if ($error->getResponse()->getStatusCode() === 503) {
+                Log::notice('Smart search model unavailable', ['reason' => $this->gemini->probeFailure()]);
+            }
+            throw $error;
+        }
+
+        try {
+            if (array_diff(array_keys($patch), ['set', 'remove']) !== []) {
+                throw ValidationException::withMessages(['patch' => ['Unsupported patch members.']]);
+            }
             Validator::make($patch, ['set' => ['present', 'array:'.implode(',', self::FIELDS)],
                 'remove' => ['present', 'array', 'max:'.count(self::FIELDS)], 'remove.*' => [Rule::in(self::FIELDS)]])->validate();
             $next = $current;
@@ -114,6 +155,7 @@ class SmartSearchService
             }
             $next = $this->validate($next);
         } catch (ValidationException) {
+            Log::notice('Smart search patch failed validation');
             $this->gemini->unavailable();
         }
         return ['filters' => $next, 'suggestions' => $this->suggestions($next),

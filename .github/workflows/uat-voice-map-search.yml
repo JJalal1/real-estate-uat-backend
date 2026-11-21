@@ -1,0 +1,70 @@
+name: UAT voice map search
+on:
+  push:
+    branches: [work/uat-voice-map-search-20261121]
+permissions:
+  contents: read
+jobs:
+  search-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: real_estate_audit
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d real_estate_audit"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'pgsql' && 'real_estate_audit' || ':memory:' }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: ''
+      DB_URL: ''
+      DB_SEARCH_PATH: public,extensions
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, pdo_sqlite, sqlite3, pdo_pgsql
+          coverage: none
+      - name: Check syntax and install locked dependencies
+        run: |
+          git diff --check HEAD^ HEAD
+          php -l app/Services/SmartSearchService.php
+          php -l tests/Feature/SpokenSearchCityTest.php
+          composer install --no-interaction --prefer-dist --no-progress
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          php artisan key:generate --force
+      - name: Prepare disposable Postgres
+        if: matrix.database == 'pgsql'
+        run: |
+          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1 \
+            -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;' \
+            -c 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;'
+          php artisan migrate --force
+      - name: Exercise voice and text search
+        run: >-
+          php artisan test
+          tests/Feature/SpokenSearchCityTest.php
+          tests/Feature/Wave3AiAssistantTest.php
+          tests/Feature/Wave4VoiceContractTest.php
+          --display-warnings --fail-on-warning --fail-on-risky
