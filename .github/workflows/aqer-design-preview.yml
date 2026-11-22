@@ -45,9 +45,16 @@ jobs:
       - name: Resolve the approved package lock
         working-directory: mobile_app
         run: |
+          # This manifest differs from UAT 1830 only by the Cairo font assets.
+          test "$(git hash-object pubspec.yaml)" = '4583d88e975281d4d55c0622b48ae1249342d99c'
+          git diff --exit-code fd832497768aac67fdd32485f2af835f273111c8 HEAD -- \
+            pubspec.lock ../docs/ui-transplant-v3/pubspec_overrides.yaml
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
-          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --approved-uat1829
+          approved="$RUNNER_TEMP/aqer-approved-dependencies"
+          git worktree add --detach --quiet "$approved" fd832497768aac67fdd32485f2af835f273111c8
+          cp "$approved/docs/ui-transplant-v3/pubspec_overrides.yaml" "$approved/mobile_app/pubspec_overrides.yaml"
+          python3 -B "$approved/scripts/verify_v3_dependency_lock.py" --resolved "$PWD/pubspec.lock" --approved-uat1829
           flutter pub get --enforce-lockfile
       - name: Verify the app theme and design journeys
         working-directory: mobile_app
