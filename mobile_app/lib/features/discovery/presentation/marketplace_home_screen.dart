@@ -212,7 +212,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               filled: true,
               fillColor: theme.colorScheme.surface,
               hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-              suffixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
+              suffixIcon: Icon(Icons.search, color: theme.colorScheme.tertiary),
             ),
           ),
           if (data != null && data.brokers.isNotEmpty) ...[

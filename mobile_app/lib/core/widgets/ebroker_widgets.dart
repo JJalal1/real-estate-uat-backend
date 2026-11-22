@@ -5,7 +5,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/ebroker_design.dart';
 import '../theme/app_tokens.dart';
-import '../theme/app_semantic_colors.dart';
 import 'property_type_icon.dart';
 
 class EbrokerIcon extends StatelessWidget {
@@ -418,13 +417,11 @@ class EbrokerPurposeLabel extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final semantic = theme.extension<AppSemanticColors>() ?? (theme.brightness == Brightness.dark ? AppSemanticColors.dark : AppSemanticColors.light);
     final rent = label.contains('إيجار');
-    final color = rent ? semantic.onWarningContainer : semantic.onInfoContainer;
+    final color = rent ? AppPalette.charcoal : AppPalette.paper;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: rent ? semantic.warningContainer : semantic.infoContainer,
+      decoration: BoxDecoration(color: rent ? AppPalette.sand : AppPalette.petrol,
         borderRadius: BorderRadius.circular(AppRadii.small)),
       child: Text(label, style: AppTypography.dealBadge.copyWith(color: color)),
     );
