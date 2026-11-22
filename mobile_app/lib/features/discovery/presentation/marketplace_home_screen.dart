@@ -174,7 +174,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         } catch (_) { /* Public region caching never blocks browsing. */ }
       }());
     });
-    final data = feed.asData?.value;
+    final data = feed.valueOrNull;
     return Scaffold(backgroundColor: background,
       appBar: AppBar(backgroundColor: background, elevation: 0, automaticallyImplyLeading: false,
         toolbarHeight: (58 + (MediaQuery.textScalerOf(context).scale(15) - 15) * 2).clamp(58, 112).toDouble(),
@@ -236,11 +236,11 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                       icon: ebrokerCategoryIcon(category.$2), selected: selectedTypes.contains(category.$2),
                       onTap: () => ref.read(marketplaceSearchControllerProvider.notifier).chooseType(category.$2))),
                 ]))),
-        if (feed.hasValue && (feed.isRefreshing || (feed.hasError && isTransientApiFailure(feed.error!))))
+        if (feed.hasValue && (feed.isLoading || (feed.hasError && isTransientApiFailure(feed.error!))))
           SliverToBoxAdapter(child: AppRefreshStatus(loading: feed.isLoading,
             error: feed.hasError ? friendlyApiError(feed.error!) : null,
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))),
-        feed.when(skipLoadingOnReload: false, skipError: feed.hasValue && feed.hasError && isTransientApiFailure(feed.error!),
+        feed.when(skipLoadingOnReload: true, skipError: feed.hasValue && feed.hasError && isTransientApiFailure(feed.error!),
           loading: () => const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(18),
             child: AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 8))),
           error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error),
