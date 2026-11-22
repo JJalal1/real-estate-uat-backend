@@ -70,6 +70,34 @@ class SigningConfigurationTests(unittest.TestCase):
                 with self.assertRaises(signing.SigningError):
                     signing.guard({**env, field: value})
 
+    def test_design_preview_signing_requires_the_exact_uat_workflow_and_branch(self):
+        env = dict(
+            self.env, GITHUB_REF='refs/heads/تصميم',
+            GITHUB_WORKFLOW_REF=(
+                'JJalal1/real-estate-uat-backend/.github/workflows/'
+                'aqer-design-preview.yml@refs/heads/تصميم'
+            ),
+        )
+        signing.guard(env)
+        rejected_contexts = {
+            'GITHUB_ACTIONS': 'false',
+            'GITHUB_REPOSITORY': 'other/repository',
+            'GITHUB_REF': 'refs/heads/main',
+            'GITHUB_WORKFLOW_REF': (
+                'JJalal1/real-estate-uat-backend/.github/workflows/'
+                'other.yml@refs/heads/تصميم'
+            ),
+            'GITHUB_EVENT_NAME': 'pull_request',
+            'AQER_SIGNING_ENVIRONMENT': 'production',
+        }
+        for field, value in rejected_contexts.items():
+            with self.subTest(field=field):
+                with self.assertRaises(signing.SigningError):
+                    signing.guard({**env, field: value})
+        del env['GITHUB_WORKFLOW_REF']
+        with self.assertRaises(signing.SigningError):
+            signing.guard(env)
+
     def test_optional_absence_does_not_open_paths_or_change_files(self):
         absent = {key: value for key, value in self.env.items() if key not in signing.INPUTS}
         with mock.patch.object(signing, 'open_runner_paths', side_effect=AssertionError):

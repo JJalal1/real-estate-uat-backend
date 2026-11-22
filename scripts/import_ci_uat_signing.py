@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Import an existing, pinned UAT key in phase23 CI; never create signing keys.
+"""Import an existing, pinned UAT key in approved CI; never create signing keys.
 
 The build step supplies the same three password/alias secrets independently.
 Only a generated path and public flags are appended to GITHUB_ENV. Optional
@@ -31,6 +31,10 @@ MAP_LISTING_BRANCH = 'refs/heads/work/map-listing-readiness-1827-20261120'
 MAP_LAYERS_BRANCH = 'refs/heads/work/map-layers-1828-20261120'
 MAP_SEARCH_TOOLBAR_BRANCH = 'refs/heads/work/map-search-toolbar-1829-20261120'
 UAT_ACCEPTANCE_BRANCH = 'refs/heads/work/uat-acceptance-1830-20261121'
+DESIGN_PREVIEW_BRANCH = 'refs/heads/تصميم'
+DESIGN_PREVIEW_WORKFLOW = (
+    f'{REPOSITORY}/.github/workflows/aqer-design-preview.yml@{DESIGN_PREVIEW_BRANCH}'
+)
 ALLOWED_BRANCHES = {
     BRANCH, CONNECTIVITY_FIX_BRANCH, APK_CLEANUP_BRANCH, MAP_SEARCH_UX_BRANCH,
     LISTING_PHOTO_BRANCH, GOOGLE_MAPS_BRANCH, MAP_LISTING_BRANCH, MAP_LAYERS_BRANCH,
@@ -87,9 +91,14 @@ def read_configuration(env, required=False):
 
 
 def guard(env):
+    ref = env.get('GITHUB_REF')
+    approved_ref = ref in ALLOWED_BRANCHES or (
+        ref == DESIGN_PREVIEW_BRANCH and
+        env.get('GITHUB_WORKFLOW_REF') == DESIGN_PREVIEW_WORKFLOW
+    )
     if not (env.get('GITHUB_ACTIONS') == 'true' and
             env.get('GITHUB_REPOSITORY') == REPOSITORY and
-            env.get('GITHUB_REF') in ALLOWED_BRANCHES and
+            approved_ref and
             env.get('GITHUB_EVENT_NAME') == 'push' and
             env.get('AQER_SIGNING_ENVIRONMENT') == 'uat'):
         raise SigningError('explicit_phase23_uat_ci_context_required')
