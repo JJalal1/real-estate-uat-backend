@@ -93,15 +93,9 @@ class DiscoverySearchQualityTest extends TestCase
     public function test_marketplace_loads_photos_once_for_listings_in_multiple_sections(): void
     {
         $owner = $this->owner();
-        $sale = $this->listing($owner, [
-            'governorate' => 'أمانة العاصمة',
-            'latitude' => 15.3700,
-            'spotlight_until' => now()->addDay(),
-        ]);
-        $rent = $this->listing($owner, [
-            'governorate' => 'أمانة العاصمة',
-            'purpose' => 'rent',
-        ]);
+        $sale = $this->listing($owner, ['latitude' => 15.3700]);
+        $sale->forceFill(['spotlight_until' => now()->addDay()])->save();
+        $rent = $this->listing($owner, ['purpose' => 'rent', 'monthly_rent' => 100000]);
         $sale->images()->createMany([
             ['path' => 'test/gallery.jpg', 'cdn_url' => 'https://example.test/gallery.jpg', 'sort_order' => 0, 'is_primary' => false],
             ['path' => 'test/cover.jpg', 'cdn_url' => 'https://example.test/cover.jpg', 'sort_order' => 1, 'is_primary' => true],
