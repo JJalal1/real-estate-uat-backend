@@ -146,12 +146,12 @@ void main() {
       expect(find.descendant(of: broker, matching: find.textContaining('3 صفقات مؤكدة')), findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is Hero && w.tag == 'agent-hero-7'), findsNothing);
       await uxPreview(tester, boundary, 'w3-two-broker-$scale');
-      await tester.scrollUntilVisible(find.byType(PropertySummaryCard).first, 250, scrollable: home);
-      final card = tester.widget<PropertySummaryCard>(find.byType(PropertySummaryCard).first);
+      final first = find.byKey(const ValueKey('home-property-11'));
+      await tester.scrollUntilVisible(first, 250, scrollable: home);
+      final card = tester.widget<PropertySummaryCard>(first);
       expect(card.property.purpose, 'sale');
       expect(card.imageFirst, isTrue);
       expect(card.preview, isTrue);
-      final first = find.byType(PropertySummaryCard).first;
       expect(find.descendant(of: first, matching: find.byKey(const ValueKey('property-photo-purpose'))), findsOneWidget);
       expect(find.descendant(of: first, matching: find.byKey(const ValueKey('property-photo-price'))), findsNothing);
       expect(find.descendant(of: first, matching: find.byKey(const ValueKey('compare-property-11'))), findsNothing);

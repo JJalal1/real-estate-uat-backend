@@ -269,8 +269,6 @@ void main() {
     expect(pins,scope.read(marketplaceMapResultsProvider).rows.map((r)=>r.id));
     await uxPreview(tester,boundary,'w2-D-map-results');
     select(5); await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('map-show-list')));
-    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('map-result-5')),findsOneWidget);
     await tester.drag(find.byKey(const ValueKey('map-results-handle')),const Offset(0,-400)); await tester.pumpAndSettle();
     expect(tester.element(find.byKey(const ValueKey('w2-native-canvas'))),same(element));

@@ -1825,15 +1825,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         final horizontalActions = height < (compact ? 440 : 340);
         final actionHeight = compact ? (horizontalActions ? 44.0 : 194.0) : horizontalActions ? 58.0 : 120.0;
         // Reserve actual map room for the controls even when results expand.
+        final visibleMap = math.max(70.0, actionHeight + 24);
         final maximum = widget.toolbarAboveMap
-          ? math.min(widget.resultsMaxExtent, (1 - (actionHeight + 24) / height).clamp(.29, .84)).toDouble()
+          ? math.min(widget.resultsMaxExtent, (1 - visibleMap / height).clamp(.29, .84)).toDouble()
           : widget.resultsMaxExtent;
         final titleStyle = Theme.of(context).textTheme.titleSmall;
         final titleHeight = MediaQuery.textScalerOf(context).scale(titleStyle?.fontSize ?? 16) * (titleStyle?.height ?? 1.4);
         final headerHeight = compact ? compactMapResultsHeaderHeight(context) : 40 + math.max(titleHeight * 2, 48);
         final minimum = (headerHeight / height).clamp(compact ? .0 : .14, maximum).toDouble();
         final extent = (_sharedResultsExtent ?? (compact ? minimum : .29)).clamp(minimum, maximum).toDouble();
-        final showResults = !widget.toolbarAboveMap || (!keyboard && height >= headerHeight + actionHeight + 24);
+        final showResults = !widget.toolbarAboveMap || (!keyboard && height >= headerHeight + visibleMap);
         if (showResults) {
           _visibleSharedMapHeight = height;
           _visibleSharedSheetMaximum = maximum;
