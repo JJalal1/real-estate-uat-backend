@@ -25,7 +25,7 @@ jobs:
       apk_sha256: ${{ steps.verified_apk.outputs.sha256 }}
       receipt_sha256: ${{ steps.verified_apk.outputs.receipt_sha256 }}
     env:
-      AQER_SOURCE_SHA: ${{ github.event.before == '3426297c217dcd1a078cc3e166d0be924331acd4' && '3426297c217dcd1a078cc3e166d0be924331acd4' || github.sha }}
+      AQER_SOURCE_SHA: ${{ github.event.before == 'ea8b7f65d70ac4c8dd969f85985b4d4db2567b19' && 'ea8b7f65d70ac4c8dd969f85985b4d4db2567b19' || github.sha }}
       AQER_SIGNING_ENVIRONMENT: uat
       AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
       ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.offline
@@ -38,11 +38,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Confirm the approved one-time draft contains the verified design
-        if: ${{ github.event.before == '3426297c217dcd1a078cc3e166d0be924331acd4' }}
+        if: ${{ github.event.before == 'ea8b7f65d70ac4c8dd969f85985b4d4db2567b19' }}
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^)" = '3426297c217dcd1a078cc3e166d0be924331acd4'
-          git diff --exit-code '3426297c217dcd1a078cc3e166d0be924331acd4' HEAD -- . ':(exclude).github/workflows/aqer-design-preview.yml'
+          test "$(git rev-parse HEAD^)" = 'ea8b7f65d70ac4c8dd969f85985b4d4db2567b19'
+          git diff --exit-code 'ea8b7f65d70ac4c8dd969f85985b4d4db2567b19' HEAD -- . ':(exclude).github/workflows/aqer-design-preview.yml'
           git checkout --detach "$AQER_SOURCE_SHA"
       - name: Confirm the design baseline
         run: |
@@ -228,7 +228,7 @@ jobs:
           Path("mobile_app/android/firebase-uat.properties").unlink(missing_ok=True)
           PY
       - name: Keep later verified APKs as private CI artifacts
-        if: ${{ github.event.before != '3426297c217dcd1a078cc3e166d0be924331acd4' }}
+        if: ${{ github.event.before != 'ea8b7f65d70ac4c8dd969f85985b4d4db2567b19' }}
         uses: actions/upload-artifact@v4
         with:
           name: AQER-Design-Preview
@@ -236,7 +236,7 @@ jobs:
           if-no-files-found: error
           compression-level: 0
       - name: Transfer the APK and verification receipt to the keyless draft job
-        if: ${{ github.event.before == '3426297c217dcd1a078cc3e166d0be924331acd4' }}
+        if: ${{ github.event.before == 'ea8b7f65d70ac4c8dd969f85985b4d4db2567b19' }}
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: design-preview/
@@ -245,7 +245,7 @@ jobs:
   draft:
     name: Save this verified APK in the approved private draft
     needs: design
-    if: ${{ github.event.repository.private && github.ref == 'refs/heads/تصميم' && github.event.before == '3426297c217dcd1a078cc3e166d0be924331acd4' }}
+    if: ${{ github.event.repository.private && github.ref == 'refs/heads/تصميم' && github.event.before == 'ea8b7f65d70ac4c8dd969f85985b4d4db2567b19' }}
     runs-on: ubuntu-latest
     timeout-minutes: 6
     permissions:
@@ -259,8 +259,8 @@ jobs:
       - name: Verify both files and save the single private draft
         env:
           GH_TOKEN: ${{ github.token }}
-          APPROVED_SOURCE: 3426297c217dcd1a078cc3e166d0be924331acd4
-          RELEASE_TAG: aqer-design-preview-3426297
+          APPROVED_SOURCE: ea8b7f65d70ac4c8dd969f85985b4d4db2567b19
+          RELEASE_TAG: aqer-design-preview-ea8b7f6
           APK_SHA256: ${{ needs.design.outputs.apk_sha256 }}
           RECEIPT_SHA256: ${{ needs.design.outputs.receipt_sha256 }}
         run: |
@@ -272,9 +272,9 @@ jobs:
           jq --exit-status --arg source "$APPROVED_SOURCE" --arg sha "$APK_SHA256" '
             .source == $source and .sha256 == $sha and .build == 1830 and .package == "com.aqer.yemen.uat.offline"
           ' "$proof" > /dev/null
-          delivery_apk=design-preview/AQER-Design-Preview-R3.apk
+          delivery_apk=design-preview/AQER-Design-Preview-R4.apk
           mv -- "$apk" "$delivery_apk"
           gh release create "$RELEASE_TAG" "$delivery_apk" "$proof" \
             --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
-            --title 'AQER experimental design APK — yellow accents' \
+            --title 'AQER experimental design APK — approved color palette' \
             --notes "Signed test build from the approved design at $APPROVED_SOURCE. Android version code 1830."
