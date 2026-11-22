@@ -1,3 +1,5 @@
+import 'package:real_estate_mobile/core/offline/offline_connection.dart';
+import 'package:real_estate_mobile/core/offline/offline_store.dart';
 import 'support/wave6_fakes.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'dart:io';
@@ -93,11 +95,26 @@ final _property = PropertyMarker.fromJson({
   'latitude': 15.3694, 'longitude': 44.1910, 'purpose': 'sale', 'type': 'house',
 });
 
+class _TemplateTestStore extends OfflineStore {
+  final _rows = <(String, String), Map<String, dynamic>>{};
+
+  @override
+  Future<Map<String, dynamic>?> read(String space, String identity,
+    {bool private = false, bool strict = false}) async => _rows[(space, identity)];
+
+  @override
+  Future<void> write(String space, String identity, Map<String, dynamic> data,
+    {bool private = false, bool Function()? current}) async {
+    if (current?.call() != false) _rows[(space, identity)] = Map.of(data);
+  }
+}
+
 class _MessagesFixture implements MessageRepository {
   _MessagesFixture({this.canManageCustomer = false});
   final bool canManageCustomer;
   final sent = <String>[];
   final sentThreadIds = <int>[];
+  final sentClientIds = <String?>[];
   @override
   Future<MessageThreadDetails> details(int threadId, {int? beforeId}) async =>
     MessageThreadDetails.fromJson({
@@ -110,12 +127,13 @@ class _MessagesFixture implements MessageRepository {
           'body': 'أرغب بمعرفة تفاصيل العقار.', 'is_mine': true},
         for (var i = 0; i < sent.length; i++)
           {'id': i + 3, 'sender_user_id': 1, 'sender_name': 'أنت',
-            'body': sent[i], 'is_mine': true},
+            'body': sent[i], 'is_mine': true, 'client_message_id': sentClientIds[i]},
       ],
     });
   @override
   Future<PrivateMessageItem> send(int threadId, String body, {String? clientMessageId}) async {
     sent.add(body);
+    sentClientIds.add(clientMessageId);
     sentThreadIds.add(threadId);
     return PrivateMessageItem(id: 3, senderUserId: 1, senderName: 'أنت',
       body: body, isMine: true, clientMessageId: clientMessageId);
@@ -209,6 +227,8 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     myListingsProvider.overrideWith((ref) async => [_details(37)]),
     myListingsPagesProvider.overrideWith((ref) => fixedMyListings([_details(37)])),
     messageRepositoryProvider.overrideWithValue(messages ?? _MessagesFixture()),
+    offlineStoreProvider.overrideWithValue(_TemplateTestStore()),
+    offlineConnectionProvider.overrideWith((_) => OfflineConnectionController()..online()),
     bookingRepositoryProvider.overrideWithValue(bookings ?? _BookingsFixture()),
     propertyRepositoryProvider.overrideWithValue(properties ?? _PropertiesFixture()),
     favoritePagesProvider.overrideWith((ref) => fixedFavoritePages([_property])),

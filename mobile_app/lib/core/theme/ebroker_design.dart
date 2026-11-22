@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'app_tokens.dart';
+
 // October19 owner-authorized refresh. Retain original assets and brand recognition.
 abstract final class EbrokerDesign {
-  static const page = Color(0xFFF5F7FA);
-  static const surface = Colors.white;
-  static const templateBrand = Color(0xFF087C7C);
-  static const text = Color(0xFF192F48);
-  static const textLight = Color(0xFF64748B);
-  static const border = Color(0xFFE3EAF1);
+  static const page = AppPalette.ivory;
+  static const surface = AppPalette.paper;
+  static const templateBrand = AppPalette.petrol;
+  static const text = AppPalette.charcoal;
+  static const textLight = AppPalette.slate;
+  static const border = AppPalette.stone;
   static const controlRadius = 16.0;
   static const cardRadius = 22.0;
   static const pageGutter = 18.0;

@@ -152,11 +152,12 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
 
 /// A small vector mascot in the app palette, shared by the chip and launcher.
 class SmartSearchRobotIcon extends StatelessWidget {
-  const SmartSearchRobotIcon({this.size = 24, super.key});
+  const SmartSearchRobotIcon({this.size = 24, this.color, super.key});
   final double size;
+  final Color? color;
   @override
   Widget build(BuildContext context) => ExcludeSemantics(child: CustomPaint(
-    size: Size.square(size), painter: _RobotPainter(Theme.of(context).colorScheme.primary),
+    size: Size.square(size), painter: _RobotPainter(color ?? Theme.of(context).colorScheme.primary),
   ));
 }
 

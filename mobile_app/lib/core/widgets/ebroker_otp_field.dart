@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../theme/app_typography.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/ebroker_design.dart';
@@ -25,7 +27,7 @@ class EbrokerOtpField extends StatelessWidget {
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(width: 1.5,
                     color: index < value.text.length ? Theme.of(context).colorScheme.primary : Colors.grey))),
                   child: Text(index < value.text.length ? value.text[index] : '',
-                    style: TextStyle(fontFamily: 'PrimaryFont', fontSize: 22.rf(context),
+                    style: TextStyle(fontFamily: AppTypography.fontFamily, fontSize: 22.rf(context),
                       color: EbrokerDesign.text.withValues(alpha: .8))))),
               ],
             ]))))),

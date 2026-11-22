@@ -9,24 +9,28 @@ void main() {
     expect(theme.useMaterial3, isTrue);
     expect(scheme.brightness, Brightness.light);
     final roles = <(Color, int)>[
-      (scheme.primary, 0xFF087C7C),
-      (scheme.primaryContainer, 0xFFE6F2F2),
-      (scheme.onPrimaryContainer, 0xFF065858),
-      (scheme.secondary, 0xFF203A56),
-      (scheme.secondaryContainer, 0xFFEAF0F7),
-      (scheme.onSecondaryContainer, 0xFF203A56),
-      (scheme.onSurface, 0xFF192F48),
-      (scheme.onSurfaceVariant, 0xFF64748B),
-      (scheme.surfaceContainerLow, 0xFFF5F7FA),
-      (scheme.surfaceContainer, 0xFFF0F4F8),
-      (scheme.surfaceContainerHigh, 0xFFEAF0F5),
-      (scheme.surfaceContainerHighest, 0xFFE3EAF1),
-      (scheme.outline, 0xFF7A8797),
-      (scheme.outlineVariant, 0xFFE3EAF1),
+      (scheme.primary, 0xFF123F42),
+      (scheme.primaryContainer, 0xFFE0F3F0),
+      (scheme.onPrimaryContainer, 0xFF0B2D30),
+      (scheme.secondary, 0xFF0B817A),
+      (scheme.secondaryContainer, 0xFFE0F3F0),
+      (scheme.onSecondaryContainer, 0xFF123F42),
+      (scheme.tertiary, 0xFFE86A43),
+      (scheme.onTertiary, 0xFF202C2D),
+      (scheme.tertiaryContainer, 0xFFFFEEE7),
+      (scheme.onTertiaryContainer, 0xFFB4482C),
+      (scheme.onSurface, 0xFF202C2D),
+      (scheme.onSurfaceVariant, 0xFF5F6B6D),
+      (scheme.surfaceContainerLow, 0xFFF7F4EE),
+      (scheme.surfaceContainer, 0xFFF1EEE7),
+      (scheme.surfaceContainerHigh, 0xFFE7EFEC),
+      (scheme.surfaceContainerHighest, 0xFFE3E0D8),
+      (scheme.outline, 0xFF7A8784),
+      (scheme.outlineVariant, 0xFFE3E0D8),
       (scheme.error, 0xFFB3261E),
       (scheme.errorContainer, 0xFFF9DEDC),
       (scheme.onErrorContainer, 0xFF410E0B),
-      (scheme.inverseSurface, 0xFF192F48),
+      (scheme.inverseSurface, 0xFF123F42),
     ];
     for (final (actual, expected) in roles) {
       expect(actual, Color(expected));
@@ -46,7 +50,7 @@ void main() {
     expect(scheme.primary, AppTheme.brandSeed);
   });
 
-  test('purchased Manrope uses template 1.3 metrics and platform Arabic fallback', () {
+  test('Cairo is bundled with the approved text and property scale', () {
     final text = AppTheme.light.textTheme;
     final scale = <(TextStyle?, double, double, FontWeight)>[
       (text.headlineLarge, 24, 31.2, FontWeight.w700),
@@ -55,8 +59,8 @@ void main() {
       (text.titleLarge, 18, 23.4, FontWeight.w600),
       (text.titleMedium, 18, 23.4, FontWeight.w600),
       (text.titleSmall, 16, 20.8, FontWeight.w600),
-      (text.bodyLarge, 16, 20.8, FontWeight.w400),
-      (text.bodyMedium, 14, 18.2, FontWeight.w400),
+      (text.bodyLarge, 15, 19.5, FontWeight.w400),
+      (text.bodyMedium, 15, 19.5, FontWeight.w400),
       (text.bodySmall, 12, 15.6, FontWeight.w400),
       (text.labelLarge, 16, 20.8, FontWeight.w600),
       (text.labelMedium, 14, 18.2, FontWeight.w600),
@@ -67,11 +71,16 @@ void main() {
       expect(style.height! * size, closeTo(lineHeight, 0.000001));
       expect(style.fontWeight, weight);
       expect(style.letterSpacing, 0);
-      expect(style.fontFamily, 'PrimaryFont');
-      expect(style.fontFamilyFallback, ['sans-serif']);
-      expect(style.color, const Color(0xFF192F48));
+      expect(style.fontFamily, 'Cairo');
+      expect(style.fontFamilyFallback, ['NotoSansArabic', 'PrimaryFont', 'sans-serif']);
+      expect(style.color, const Color(0xFF202C2D));
     }
-    expect(AppTypography.bodyLarge.fontFamily, isNull);
+    expect(AppTypography.propertyPrice.fontSize, 22);
+    expect(AppTypography.propertyPrice.fontWeight, FontWeight.w700);
+    expect(AppTypography.propertyName.fontSize, 17);
+    expect(AppTypography.propertyName.fontWeight, FontWeight.w600);
+    expect(AppTypography.propertySecondary.fontSize, 14);
+    expect(AppTypography.propertySecondary.fontWeight, FontWeight.w400);
     for (final style in [
       text.displayLarge,
       text.displayMedium,
@@ -89,6 +98,8 @@ void main() {
       (scheme.onPrimaryContainer, scheme.primaryContainer),
       (scheme.onSecondary, scheme.secondary),
       (scheme.onSecondaryContainer, scheme.secondaryContainer),
+      (scheme.onTertiary, scheme.tertiary),
+      (scheme.onTertiaryContainer, scheme.tertiaryContainer),
       (scheme.onSurface, scheme.surface),
       (scheme.onSurfaceVariant, scheme.surface),
       (scheme.primary, scheme.surface),
@@ -198,17 +209,17 @@ void main() {
       AppTheme.warning,
     ];
     expect(legacy, const [
-      Color(0xFF087C7C),
-      Color(0xFF065858),
-      Color(0xFFE6F2F2),
-      Color(0xFF203A56),
-      Color(0xFFEAF0F7),
-      Color(0xFFF5F7FA),
+      Color(0xFF123F42),
+      Color(0xFF0B2D30),
+      Color(0xFFE0F3F0),
+      Color(0xFF0B817A),
+      Color(0xFFE0F3F0),
+      Color(0xFFF7F4EE),
       Colors.white,
-      Color(0xFFE3EAF1),
-      Color(0xFF192F48),
-      Color(0xFF64748B),
-      Color(0xFFC88700),
+      Color(0xFFE3E0D8),
+      Color(0xFF202C2D),
+      Color(0xFF5F6B6D),
+      Color(0xFFC5A46D),
     ]);
   });
 

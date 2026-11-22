@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_typography.dart';
 import 'app_components.dart';
 import 'property_card_gallery.dart';
 import 'property_type_icon.dart';
@@ -21,7 +22,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final theme = Theme.of(context), scheme = theme.colorScheme;
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 21;
     final vertical = imageFirst || largeText;
-    final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix, compact: true);
+    final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix);
     Widget gallery(double height) => ClipRRect(borderRadius: BorderRadius.circular(12),
       child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, authenticatedImages: authenticatedImages,
         height: height, overlay: vertical ? trailing : null,
@@ -31,17 +32,18 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
           child: money) : null,
         propertyType: propertyType ?? propertyTypeFromLabel(categoryLabel)));
     final detail = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      if (!imageFirst) ...[money, const SizedBox(height: 4)],
+      Text(title, maxLines: largeText ? null : 2, overflow: largeText ? null : TextOverflow.ellipsis,
+        style: AppTypography.propertyName),
+      if (location?.trim().isNotEmpty == true) ...[const SizedBox(height: 4), Text(location!,
+        maxLines: largeText ? null : 1, overflow: largeText ? null : TextOverflow.ellipsis,
+        style: AppTypography.propertySecondary.copyWith(color: scheme.onSurfaceVariant))],
+      const SizedBox(height: 4),
       Wrap(spacing: 7, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center, children: [
         Row(mainAxisSize: MainAxisSize.min, children: [PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
           const SizedBox(width: 4), Text(categoryLabel, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))]),
-        if (purposeLabel != null) Text(purposeLabel!, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.primary)),
+        if (purposeLabel != null) Text(purposeLabel!, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: purposeLabel!.contains('إيجار') ? scheme.onSurfaceVariant : scheme.primary)),
       ]),
-      const SizedBox(height: 4), Text(title, maxLines: largeText ? null : 2, overflow: largeText ? null : TextOverflow.ellipsis,
-        style: theme.textTheme.titleSmall?.copyWith(fontSize: 14, height: 1.45, fontWeight: FontWeight.w700)),
-      if (location?.trim().isNotEmpty == true) ...[const SizedBox(height: 4), Text(location!,
-        maxLines: largeText ? null : 1, overflow: largeText ? null : TextOverflow.ellipsis,
-        style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))],
-      if (!imageFirst) ...[const SizedBox(height: 5), money],
       if (facts.isNotEmpty) ...[const SizedBox(height: 6), Wrap(spacing: 9, runSpacing: 4, children: [
         for (final fact in facts) Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 14, color: scheme.onSurfaceVariant),
           const SizedBox(width: 3), Flexible(child: Text(fact.label, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: scheme.onSurfaceVariant)))]),

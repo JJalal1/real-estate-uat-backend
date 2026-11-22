@@ -52,7 +52,7 @@ class AccountScreen extends ConsumerWidget {
                 ]),
                 const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
-                  AppListRow(title: 'المفضلة', leading: EbrokerImage('heart', color: Theme.of(context).colorScheme.onSurface),
+                  AppListRow(title: 'المفضلة', leading: EbrokerImage('heart', color: Theme.of(context).colorScheme.tertiary),
                     onTap: () => context.push('/favorites')),
                   const SizedBox(height: 12),
                   AppButton(
@@ -300,8 +300,8 @@ class _AccountHeaderDelegate extends SliverPersistentHeaderDelegate {
     final top = (176 - 64 - shrinkOffset).clamp(0.0, 176.0).toDouble();
     final banner = (176 - shrinkOffset).clamp(0.0, 176.0).toDouble();
     return ColoredBox(color: Theme.of(context).scaffoldBackgroundColor, child: Stack(children: [
-      if (banner > 0) Positioned(top: 0, left: 0, right: 0, height: banner, child: ColoredBox(color: Theme.of(context).colorScheme.primary,
-        child: const Padding(padding: EdgeInsets.all(20), child: Align(alignment: Alignment.topRight, child: Text('حسابي', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)))))),
+      if (banner > 0) Positioned(top: 0, left: 0, right: 0, height: banner, child: ColoredBox(color: AppPalette.petrol,
+        child: const Padding(padding: EdgeInsets.all(20), child: Align(alignment: Alignment.topRight, child: Text('حسابي', style: TextStyle(color: AppPalette.paper, fontSize: 22, fontWeight: FontWeight.w700)))))),
       Positioned(top: top, left: 16, right: 16, height: cardHeight - 16, child: _ProfileHeader(user: user)),
     ]));
   }
@@ -321,13 +321,19 @@ class _AccountGroup extends StatelessWidget {
       child: Column(
         children: List.generate(rows.length, (index) {
           final row = rows[index];
+          final scheme = Theme.of(context).colorScheme;
+          final color = switch (row.icon) {
+            Icons.auto_awesome_outlined || Icons.help_outline => scheme.secondary,
+            Icons.favorite_border => scheme.tertiary,
+            _ => scheme.primary,
+          };
           return Column(
             children: [
               AppListRow(
                 key: row.key,
                 title: row.title,
                 subtitle: row.subtitle,
-                leading: EbrokerIcon(row.icon),
+                leading: EbrokerIcon(row.icon, color: color),
                 onTap: row.onTap,
               ),
               if (index != rows.length - 1) const SizedBox(height: 4),

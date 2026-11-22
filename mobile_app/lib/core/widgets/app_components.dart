@@ -640,7 +640,7 @@ class AppNavigationBar extends StatelessWidget {
         ));
       }
       final item = destinations[index], active = index == selectedIndex;
-      final color = active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant;
+      final color = active ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.onSurfaceVariant;
       items.add(Expanded(
         child: Semantics(button: true, selected: active, label: item.label, excludeSemantics: true,
           child: Tooltip(message: item.label, child: GestureDetector(
@@ -780,12 +780,21 @@ class AppPropertyPrice extends StatelessWidget {
   final String? suffix;
   final bool compact;
   @override
-  Widget build(BuildContext context) => Text.rich(TextSpan(children: [
-    TextSpan(text: formatMoneyAmount(price), style: Theme.of(context).textTheme.titleLarge?.copyWith(
-      fontSize: compact ? 13.5 : 18, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800)),
-    TextSpan(text: ' ${currencyLabel(currency)}', style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: compact ? 9 : 11)),
-    if (suffix != null) TextSpan(text: ' $suffix', style: Theme.of(context).textTheme.bodySmall),
-  ]), maxLines: compact ? 1 : null, overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip);
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final supporting = AppTypography.propertySecondary.copyWith(
+      color: scheme.onSurfaceVariant,
+    );
+    return Text.rich(
+      TextSpan(children: [
+        TextSpan(text: formatMoneyAmount(price), style: AppTypography.propertyPrice.copyWith(color: scheme.primary)),
+        TextSpan(text: ' ${currencyLabel(currency)}', style: supporting),
+        if (suffix != null) TextSpan(text: ' $suffix', style: supporting),
+      ]),
+      maxLines: compact ? 1 : null,
+      overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
+    );
+  }
 }
 
 class AppPropertyFacts extends StatelessWidget {

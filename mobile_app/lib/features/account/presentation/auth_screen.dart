@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/branding/aqer_brand.dart';
 import '../data/auth_controller.dart';
 
@@ -64,8 +63,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final submitColor = theme.brightness == Brightness.dark ? scheme.primary : AppTheme.brandMint;
-    final onSubmit = theme.brightness == Brightness.dark ? scheme.onPrimary : AppTheme.brandStrong;
+    final submitColor = scheme.primary;
+    final onSubmit = scheme.onPrimary;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(

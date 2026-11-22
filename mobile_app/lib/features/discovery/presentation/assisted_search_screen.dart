@@ -18,6 +18,7 @@ import 'smart_search_filter_editor.dart';
 import 'smart_search_assistant.dart';
 import 'smart_search_query_summary.dart';
 import 'search_result_pagination.dart';
+import '../../map/presentation/map_discovery_toolbar.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../properties/domain/saved_property_search.dart';
 
@@ -47,6 +48,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   int _journey = 0;
   bool _ready = false;
   bool _showEntryMap = false;
+  bool _mapEditorOpen = false;
   LocalHistoryEntry? _mapHistory;
   bool get _showingMap => _showEntryMap || _mapHistory != null;
   bool _journeyEnded = false;
@@ -161,17 +163,30 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       onPressed: () => _voice(retry: true), child: const Text('إعادة محاولة التفريغ')),
   ]);
 
-  Future<void> _edit({String? focus}) async {
+  Future<void> _edit({String? focus, MapSearchActions? mapActions}) async {
     if (_journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
     if (_capture.active) _cancelVoice();
     if (focus == 'map_area') { await _openMap(); return; }
     final owner = _session, journey = _journey, epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    final next = await AppBottomSheet.show<SmartSearchFilters>(context,
-      builder: (_) => SmartSearchFilterEditor(initial: ref.read(smartSearchSessionProvider).filters, focus: focus));
-    if (next != null && mounted && !_journeyEnded && journey == _journey && owner.isCurrentJourney(journey) &&
-        epoch == Stage6SecureSessionStore.instance.sessionEpoch && identical(owner, _session)) {
-      unawaited(owner.replaceManually(next));
+    final next = await AppBottomSheet.show<Object>(context,
+      builder: (sheetContext) => SmartSearchFilterEditor(
+        initial: ref.read(smartSearchSessionProvider).filters, focus: focus,
+        rangesFirst: mapActions != null,
+        extraActions: mapActions == null ? null : Wrap(spacing: 8, children: [
+          TextButton.icon(key: const ValueKey('map-draw-area'),
+            onPressed: () => Navigator.of(sheetContext).pop(mapActions.onDrawArea),
+            icon: const Icon(Icons.gesture_rounded), label: const Text('رسم منطقة')),
+          if (mapActions.hasDrawnArea) TextButton(
+            onPressed: () => Navigator.of(sheetContext).pop(mapActions.onClearArea),
+            child: const Text('إزالة المنطقة المرسومة')),
+        ]),
+      ));
+    if (!mounted || _journeyEnded || journey != _journey || !owner.isCurrentJourney(journey) ||
+        epoch != Stage6SecureSessionStore.instance.sessionEpoch || !identical(owner, _session)) {
+      return;
     }
+    if (next is SmartSearchFilters) unawaited(owner.replaceManually(next));
+    if (next is VoidCallback) next();
   }
 
   Future<void> _openMap() async {
@@ -187,7 +202,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       _mapHistory = null;
       if (!mounted || _journeyEnded) return;
       if (_capture.active) _cancelVoice();
-      setState(() {});
+      _focus.unfocus();
+      setState(() => _mapEditorOpen = false);
     });
     setState(() => _mapHistory = entry);
     route.addLocalHistoryEntry(entry);
@@ -196,7 +212,11 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
   void _showList() {
     if (_showEntryMap) {
       if (_capture.active) _cancelVoice();
-      setState(() => _showEntryMap = false);
+      _focus.unfocus();
+      setState(() {
+        _showEntryMap = false;
+        _mapEditorOpen = false;
+      });
     } else {
       _mapHistory?.remove();
     }
@@ -204,11 +224,40 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
 
   Future<void> _focusAssistant() async {
     if (!mounted || _journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
-    if (_capture.active) _cancelVoice();
-    _focus.requestFocus();
+    if (_mapEditorOpen) {
+      _focus.requestFocus();
+      return;
+    }
+    setState(() => _mapEditorOpen = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _showingMap && _mapEditorOpen) _focus.requestFocus();
+    });
   }
 
-  Widget _mapToolbar(SmartSearchState state, String initialHint) => Material(elevation:2,borderRadius:BorderRadius.circular(16),
+  void _closeMapEditor() {
+    if (!_mapEditorOpen) return;
+    if (_capture.active) _cancelVoice();
+    _focus.unfocus();
+    setState(() => _mapEditorOpen = false);
+  }
+
+  Widget _mapToolbar(SmartSearchState state, String initialHint, MapSearchActions actions) =>
+    Column(mainAxisSize: MainAxisSize.min, children: [
+      MapDiscoveryToolbar(
+        filters: state.filters,
+        onBack: () => Navigator.of(context).maybePop(),
+        onPurpose: (purpose) => unawaited(_session.replaceManually(
+          SmartSearchFilters.fromMap({...state.filters.values, 'purpose': purpose}))),
+        onType: (type) => unawaited(_session.replaceManually(state.filters.toggleType(type))),
+        onSearch: _focusAssistant,
+        onFilters: () => _edit(mapActions: actions),
+        extraFilters: actions.hasDrawnArea,
+      ),
+      if (_mapEditorOpen) Padding(padding: const EdgeInsets.only(top: 7),
+        child: _mapEditor(state, initialHint)),
+    ]);
+
+  Widget _mapEditor(SmartSearchState state, String initialHint) => Material(elevation:2,borderRadius:BorderRadius.circular(13),
     color:Theme.of(context).colorScheme.surface,child:Padding(padding:const EdgeInsets.all(8),child:Column(mainAxisSize:MainAxisSize.min,children:[
       Row(children:[const SmartSearchRobotIcon(size:24),const SizedBox(width:6), Expanded(child:TextField(
         key:const ValueKey('smart-search-description'),controller:_description,focusNode:_focus,readOnly:_capture.active || state.interpreting,
@@ -218,7 +267,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         IconButton(key:const ValueKey('smart-search-voice'),tooltip:'أكمل بحثك بالصوت',onPressed:state.interpreting?null:() => _voice(),icon:const Icon(Icons.mic_none_outlined)),
         IconButton(key:const ValueKey('smart-search-send'),tooltip:'بحث',onPressed:state.interpreting?null:_send,
           icon:state.interpreting?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.search)),
-        IconButton(key:const ValueKey('smart-search-manual'),tooltip:'الفلاتر',onPressed:()=>_edit(),icon:const Icon(Icons.tune)),
+        IconButton(tooltip: 'إغلاق البحث', onPressed: _closeMapEditor, icon: const Icon(Icons.close)),
       ]),
       if(_capture.active) InlineVoiceCapture(capture:_capture,onCancel:_cancelVoice,onRestart:_restartVoice),
       if (!_capture.active && !state.interpreting) _voiceOptions(),
@@ -272,15 +321,15 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       final mapOwner = _journeySession, mapJourney = _journey;
       final mapActor = _visibleActor, mapEpoch = _visibleEpoch;
       return Directionality(textDirection:TextDirection.rtl,child:Scaffold(
-      appBar:AppAppBar(title:'البحث على الخريطة',actions:[TextButton(key:const ValueKey('smart-search-list'),onPressed:_showList,child:const Text('القائمة'))]),
-      body:MapScreen(key: ValueKey(('assisted-search-map', mapActor, mapEpoch, mapJourney)),
-        sharedSearchJourney:true,toolbarAboveMap:true,
+      body:SafeArea(bottom: false, child: MapScreen(key: ValueKey(('assisted-search-map', mapActor, mapEpoch, mapJourney)),
+        sharedSearchJourney:true, toolbarAboveMap:true, collapseResults: true,
         cameraCenterHint: mapSearchInitialCamera(state.filters, location, regions),
-        searchToolbar:_mapToolbar(state, suggestions.hint),onShowList:_showList,
-        onSmartSearch:_focusAssistant,
+        searchToolbarBuilder: (_, actions) => _mapToolbar(state, suggestions.hint, actions),
+        onShowList:_showList, onSmartSearch:_focusAssistant,
+        onMapInteraction: _closeMapEditor,
         isJourneyCurrent: () => mounted && !_journeyEnded && mapJourney != 0 &&
           _journey == mapJourney && mapOwner.isCurrentJourney(mapJourney) && _visibleActor == mapActor && _visibleEpoch == mapEpoch &&
-          identical(mapOwner, _journeySession) && identical(mapOwner, ref.read(smartSearchSessionProvider.notifier))))); }
+          identical(mapOwner, _journeySession) && identical(mapOwner, ref.read(smartSearchSessionProvider.notifier)))))); }
     final controller = ref.read(smartSearchSessionProvider.notifier);
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
       appBar: AppAppBar(title: 'البحث الذكي', actions: [

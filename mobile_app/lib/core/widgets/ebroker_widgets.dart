@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../theme/app_typography.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/ebroker_design.dart';
@@ -110,7 +112,7 @@ class EbrokerText extends StatelessWidget {
   Widget build(BuildContext context) => Text(text,
     maxLines: maxLines, overflow: TextOverflow.ellipsis, softWrap: true,
     textAlign: align,
-    style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: size.rf(context),
+    style: TextStyle(fontFamily: AppTypography.fontFamily, fontFamilyFallback: AppTypography.fontFamilyFallback, fontSize: size.rf(context),
       fontWeight: weight, color: color ?? DefaultTextStyle.of(context).style.color ?? Theme.of(context).colorScheme.onSurface, height: 1.3),
   );
 }
@@ -152,7 +154,7 @@ class EbrokerButton extends StatelessWidget {
       },
       child: DefaultTextStyle(
         softWrap: true,
-        style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: 15, fontWeight: FontWeight.w600,
+        style: TextStyle(fontFamily: AppTypography.fontFamily, fontFamilyFallback: AppTypography.fontFamilyFallback, fontSize: 15, fontWeight: FontWeight.w600,
           color: onPressed == null || loading ? scheme.onSurfaceVariant : foreground, height: 1.4),
         child: IconTheme(data: IconThemeData(color: foreground, size: 20),
           child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center,
@@ -216,8 +218,8 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
               border: Border.all(color: active ? primary : Theme.of(context).colorScheme.outlineVariant,
                 width: active ? 1.5 : 1)),
             child: DefaultTextStyle(
-              style: TextStyle(fontFamily: 'PrimaryFont',
-                fontFamilyFallback: const ['sans-serif'],
+              style: TextStyle(fontFamily: AppTypography.fontFamily,
+                fontFamilyFallback: AppTypography.fontFamilyFallback,
                 fontSize: 14.rf(context), height: 1.3, color: active
                   ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurface,
                 fontWeight: active ? FontWeight.w500 : FontWeight.w400),
@@ -250,7 +252,7 @@ class EbrokerSegmentedButton<T> extends StatelessWidget {
         final label = segment.label;
         final painter = TextPainter(textDirection: Directionality.of(context), textScaler: MediaQuery.textScalerOf(context),
           text: TextSpan(text: label is Text ? label.data : null, children: label is Text && label.data == null ? [label.textSpan!] : null,
-            style: TextStyle(fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'], fontSize: 14.rf(context))))..layout();
+            style: TextStyle(fontFamily: AppTypography.fontFamily, fontFamilyFallback: AppTypography.fontFamilyFallback, fontSize: 14.rf(context))))..layout();
         final needed = (label is Text ? painter.width : MediaQuery.textScalerOf(context).scale(90)) + 28 +
           (showSelectedIcon ? 28 : 0) + (segment.icon == null ? 0 : 28);
         if (needed > minimum) minimum = needed;
@@ -283,8 +285,8 @@ class EbrokerChoiceChip extends StatelessWidget {
           color: selected ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
           border: Border.all(color: selected ? Theme.of(context).colorScheme.primary.withValues(alpha: .5) : Theme.of(context).colorScheme.outlineVariant),
           borderRadius: BorderRadius.circular(999)),
-        child: DefaultTextStyle(style: TextStyle(fontFamily: 'PrimaryFont',
-          fontFamilyFallback: const ['sans-serif'],
+        child: DefaultTextStyle(style: TextStyle(fontFamily: AppTypography.fontFamily,
+          fontFamilyFallback: AppTypography.fontFamilyFallback,
           fontSize: 14.rf(context), height: 1.3,
           color: selected ? Theme.of(context).colorScheme.onPrimaryContainer : Theme.of(context).colorScheme.onSurface),
           child: IconTheme(data: IconThemeData(color: selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface),

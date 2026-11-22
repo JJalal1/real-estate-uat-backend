@@ -1,5 +1,24 @@
 import 'package:flutter/animation.dart';
 
+/// AQER's second visual identity, الفخامة الحيوية.
+abstract final class AppPalette {
+  static const petrol = Color(0xFF123F42);
+  static const sand = Color(0xFFC5A46D);
+  static const ivory = Color(0xFFF7F4EE);
+  static const turquoise = Color(0xFF0B817A);
+  static const coral = Color(0xFFE86A43);
+  static const peach = Color(0xFFFFEEE7);
+  static const paleTurquoise = Color(0xFFE0F3F0);
+  static const copper = Color(0xFFB4482C);
+  static const paper = Color(0xFFFFFFFF);
+  static const charcoal = Color(0xFF202C2D);
+  static const slate = Color(0xFF5F6B6D);
+  static const stone = Color(0xFFE3E0D8);
+  static const pressedPetrol = Color(0xFF0B2D30);
+  static const inputBorder = Color(0xFF7A8784);
+  static const mist = Color(0xFFE7EFEC);
+}
+
 /// Shared logical-pixel tokens from PHASE1_ACCEPTED_DESIGN_SYSTEM.md.
 abstract final class AppSpacing {
   static const double none = 0;

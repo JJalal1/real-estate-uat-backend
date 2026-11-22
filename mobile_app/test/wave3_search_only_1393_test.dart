@@ -117,7 +117,7 @@ void main() {
   }
 
   for (final scale in [1.0, 2.4]) {
-    testWidgets('APK1393 category, broker and property presentation is retained at $scale', (tester) async {
+    testWidgets('Home keeps category choices, live broker details and the property feed at $scale', (tester) async {
       final boundary = GlobalKey();
       final fake = Wave3MarketplaceFake(onFeed: (query) async => MarketplaceFeed(label: 'صنعاء',
         brokers: const [BrokerProfile(id: 7, name: 'دلال اختبار 1393', type: 'broker', verified: true,
@@ -129,12 +129,14 @@ void main() {
         size: scale == 1 ? const Size(412, 820) : const Size(320, 700), boundary: boundary);
       expect(find.byType(EbrokerCategoryCard), findsWidgets);
       expect(find.byWidgetPredicate((w) => w.runtimeType.toString().startsWith('EbrokerHome')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('home-purpose-sale'))); await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('home-purpose-sale')), findsNothing);
+      scope.read(marketplaceSearchControllerProvider.notifier).choosePurpose('sale');
+      await tester.pumpAndSettle();
       expect(fake.queries.last.purpose, 'sale');
       expect(scope.read(marketplaceSearchControllerProvider).criteria.values['purpose'], 'sale');
       final home = find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first;
       await tester.scrollUntilVisible(find.text('دلال اختبار 1393'), 200, scrollable: home);
-      expect(find.text('3 صفقات مؤكدة'), findsOneWidget);
+      expect(find.textContaining('3 صفقات مؤكدة'), findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is Hero && w.tag == 'agent-hero-7'), findsNothing);
       await uxPreview(tester, boundary, 'w3-two-broker-$scale');
       await tester.scrollUntilVisible(find.byType(PropertySummaryCard).first, 250, scrollable: home);
@@ -146,7 +148,37 @@ void main() {
     });
   }
 
-  testWidgets('B08 approved Home uses readable theme surfaces for search, purpose and heading', (tester) async {
+  testWidgets('weekly brokers follow the search row, advance and support an RTL swipe', (tester) async {
+    final feed = Wave3MarketplaceFake(onFeed: (_) async => const MarketplaceFeed(
+      label: 'ذمار',
+      sectionOrder: [],
+      brokers: [
+        BrokerProfile(id: 7, name: 'دلال الاختبار الأول', type: 'broker', verified: true,
+          rating: 4.8, ratingCount: 12, completedDeals: 3, activeListings: 7),
+        BrokerProfile(id: 8, name: 'دلال الاختبار الثاني', type: 'broker', verified: true,
+          rating: 4.8, ratingCount: 12, completedDeals: 3, activeListings: 7),
+      ],
+    ));
+    final scope = uxContainer(extra: [marketplaceRepositoryProvider.overrideWithValue(feed)]);
+    await pumpUx(tester, scope, const MarketplaceHomeScreen(), size: const Size(412, 820));
+    await tester.pumpAndSettle();
+    final rail = find.byKey(const ValueKey('home-weekly-brokers'));
+    final controller = tester.widget<PageView>(rail).controller!;
+    final search = find.byKey(const ValueKey('home-search'));
+    expect(tester.getTopLeft(rail).dy, greaterThan(tester.getBottomLeft(search).dy));
+    expect(tester.getSize(rail).height, 92);
+    expect(controller.page, 1);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(controller.page, 2);
+    await tester.drag(rail, const Offset(280, 0));
+    await tester.pumpAndSettle();
+    expect(controller.page, 1);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('Home search, assistant and heading retain readable contrast on dark narrow screens', (tester) async {
     final scope = uxContainer(), boundary = GlobalKey();
     await pumpUx(tester, scope, const MarketplaceHomeScreen(), dark: true,
       size: const Size(320, 700), scale: 2.4, boundary: boundary);
@@ -156,11 +188,10 @@ void main() {
     }
     final field = tester.widget<TextField>(find.byKey(const ValueKey('home-search')));
     expect(contrast(field.decoration!.hintStyle!.color!, field.decoration!.fillColor!), greaterThan(4.5));
-    await tester.tap(find.byKey(const ValueKey('home-purpose-rent'))); await tester.pumpAndSettle();
-    final purpose = find.byKey(const ValueKey('home-purpose-rent'));
-    final label = tester.widget<Text>(find.descendant(of: purpose, matching: find.byType(Text)));
-    final fill = tester.widget<AnimatedContainer>(find.descendant(of: purpose, matching: find.byType(AnimatedContainer)));
-    expect(contrast(label.style!.color!, (fill.decoration! as BoxDecoration).color!), greaterThan(4.5));
+    expect(find.byKey(const ValueKey('home-purpose-rent')), findsNothing);
+    final assistant = find.text('جرّب الآن');
+    final coral = Theme.of(tester.element(assistant)).colorScheme.tertiary;
+    expect(contrast(tester.widget<Text>(assistant).style!.color!, coral), greaterThan(4.5));
     final heading = tester.widget<Text>(find.text('ماذا تبحث عنه؟'));
     final canvas = tester.widget<Scaffold>(find.byType(Scaffold).first).backgroundColor!;
     expect(contrast(heading.style!.color!, canvas), greaterThan(4.5));

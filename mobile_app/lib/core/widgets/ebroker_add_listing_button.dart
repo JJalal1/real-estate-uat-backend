@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_tokens.dart';
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
 
@@ -21,7 +22,7 @@ class EbrokerAddListingButton extends StatelessWidget {
     Duration duration(int milliseconds) => reducedMotion
         ? Duration.zero
         : Duration(milliseconds: milliseconds);
-    final label = isOpen ? 'إغلاق خيارات الإعلان' : 'إضافة عقار';
+    final label = isOpen ? 'إغلاق خيارات الإعلان' : 'إضافة إعلان';
 
     return Semantics(
       button: true,
@@ -76,7 +77,7 @@ class EbrokerAddListingButton extends StatelessWidget {
                     child: EbrokerImage(
                       'plus_btn',
                       size: 18.rw(context),
-                      color: Colors.white,
+                      color: AppPalette.sand,
                     ),
                   ),
                 ),
