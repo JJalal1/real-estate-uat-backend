@@ -122,6 +122,18 @@ void main() {
     expect(_contrast(scheme.outline, scheme.surface), greaterThanOrEqualTo(3));
   });
 
+  test('yellow accents stay readable on their dedicated surfaces', () {
+    for (final (foreground, background) in [
+      (AppPalette.charcoal, AppPalette.yellow),
+      (AppPalette.charcoal, AppPalette.paleYellow),
+      (AppPalette.yellow, AppPalette.petrol),
+      for (final scheme in [AppTheme.light.colorScheme, AppTheme.dark.colorScheme])
+        (scheme.onSurface, Color.alphaBlend(AppPalette.yellow.withValues(alpha: .16), scheme.surface)),
+    ]) {
+      expect(_contrast(foreground, background), greaterThanOrEqualTo(4.5));
+    }
+  });
+
   test('semantic copyWith preserves omitted fields and replaces every role', () {
     const original = AppSemanticColors.light;
     expect(_semanticValues(original.copyWith()), _semanticValues(original));

@@ -177,7 +177,9 @@ class EbrokerAdvertiserCard extends StatelessWidget {
             if(action!=null)action!,
             SizedBox(height: 10.rh(context)),
             Container(padding: EdgeInsets.symmetric(vertical: 8.rh(context), horizontal: 6.rw(context)),
-              decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .08),
+              decoration: BoxDecoration(
+                color: ratingCount > 0 ? AppPalette.yellow.withValues(alpha: .16)
+                  : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(8.rw(context))),
               child: Row(children: [
                 Expanded(child: EbrokerText(ratingCount == 0 ? 'لا توجد تقييمات بعد' : 'التقييم: ${rating.toStringAsFixed(1)}',

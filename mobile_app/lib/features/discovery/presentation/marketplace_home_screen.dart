@@ -495,8 +495,18 @@ class _HomeBrokerCard extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('دلالو الأسبوع', style: theme.textTheme.labelSmall?.copyWith(color: AppPalette.paper),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: AppPalette.yellow,
+                    borderRadius: BorderRadius.all(Radius.circular(4)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('دلالو الأسبوع',
+                      style: theme.textTheme.labelSmall?.copyWith(color: AppPalette.charcoal),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
                 Row(children: [
                   Flexible(child: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(fontSize: 19,

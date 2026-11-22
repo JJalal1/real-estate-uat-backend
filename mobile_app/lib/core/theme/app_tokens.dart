@@ -4,6 +4,8 @@ import 'package:flutter/animation.dart';
 abstract final class AppPalette {
   static const petrol = Color(0xFF123F42);
   static const sand = Color(0xFFC5A46D);
+  static const yellow = Color(0xFFF5CB53);
+  static const paleYellow = Color(0xFFFFF3CA);
   static const ivory = Color(0xFFF7F4EE);
   static const turquoise = Color(0xFF0B817A);
   static const coral = Color(0xFFE86A43);

@@ -68,7 +68,7 @@ class _PropertyCardGalleryState extends State<PropertyCardGallery> {
         start: widget.priceBadge != null && Directionality.of(context) == TextDirection.ltr ? 8 : null,
         end: widget.priceBadge == null || Directionality.of(context) == TextDirection.rtl ? 8 : null,
         child: Tooltip(message: 'إعلان مميز', child: Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-          decoration: BoxDecoration(color: AppPalette.sand, borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: AppPalette.paleYellow, borderRadius: BorderRadius.circular(6)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [EbrokerIcon(Icons.auto_awesome_outlined, size: 13, color: AppPalette.charcoal),
             if (size.maxWidth > 180) ...[const SizedBox(width: 3), Text('مميز', style: TextStyle(fontSize: 11, color: AppPalette.charcoal))],
           ])))),

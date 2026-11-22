@@ -77,7 +77,7 @@ class EbrokerAddListingButton extends StatelessWidget {
                     child: EbrokerImage(
                       'plus_btn',
                       size: 18.rw(context),
-                      color: AppPalette.sand,
+                      color: AppPalette.yellow,
                     ),
                   ),
                 ),
