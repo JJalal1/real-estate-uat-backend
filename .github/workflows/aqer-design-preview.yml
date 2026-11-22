@@ -72,7 +72,7 @@ jobs:
       - name: Verify the enabled UAT Maps configuration
         working-directory: mobile_app
         run: |
-          flutter test --no-pub test/map_layers_test.dart test/uat1822_ranked_map_entry_test.dart \
+          flutter test --no-pub test/map_layers_test.dart test/phase04_ranked_search_test.dart \
             --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_GOOGLE_MAPS_UAT=true \
             --reporter expanded --timeout 45s
       - name: Test the UAT signing boundary
