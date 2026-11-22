@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
+import 'package:real_estate_mobile/core/widgets/property_type_icon.dart';
 
 void main() {
   test('light theme implements the accepted Material role contract', () {
@@ -9,19 +11,19 @@ void main() {
     expect(theme.useMaterial3, isTrue);
     expect(scheme.brightness, Brightness.light);
     final roles = <(Color, int)>[
-      (scheme.primary, 0xFF123F42),
+      (scheme.primary, 0xFF064D50),
       (scheme.primaryContainer, 0xFFE0F3F0),
       (scheme.onPrimaryContainer, 0xFF0B2D30),
-      (scheme.secondary, 0xFF0B817A),
+      (scheme.secondary, 0xFF087E79),
       (scheme.secondaryContainer, 0xFFE0F3F0),
-      (scheme.onSecondaryContainer, 0xFF123F42),
+      (scheme.onSecondaryContainer, 0xFF064D50),
       (scheme.tertiary, 0xFFE86A43),
       (scheme.onTertiary, 0xFF202C2D),
       (scheme.tertiaryContainer, 0xFFFFEEE7),
       (scheme.onTertiaryContainer, 0xFFB4482C),
       (scheme.onSurface, 0xFF202C2D),
       (scheme.onSurfaceVariant, 0xFF5F6B6D),
-      (scheme.surfaceContainerLow, 0xFFF7F4EE),
+      (scheme.surfaceContainerLow, 0xFFF6F2E9),
       (scheme.surfaceContainer, 0xFFF1EEE7),
       (scheme.surfaceContainerHigh, 0xFFE7EFEC),
       (scheme.surfaceContainerHighest, 0xFFE3E0D8),
@@ -30,7 +32,7 @@ void main() {
       (scheme.error, 0xFFB3261E),
       (scheme.errorContainer, 0xFFF9DEDC),
       (scheme.onErrorContainer, 0xFF410E0B),
-      (scheme.inverseSurface, 0xFF123F42),
+      (scheme.inverseSurface, 0xFF064D50),
     ];
     for (final (actual, expected) in roles) {
       expect(actual, Color(expected));
@@ -122,7 +124,7 @@ void main() {
     expect(_contrast(scheme.outline, scheme.surface), greaterThanOrEqualTo(3));
   });
 
-  test('yellow accents stay readable on their dedicated surfaces', () {
+  test('gold accents and orange notification counts stay readable', () {
     for (final (foreground, background) in [
       (AppPalette.charcoal, AppPalette.yellow),
       (AppPalette.charcoal, AppPalette.paleYellow),
@@ -132,6 +134,51 @@ void main() {
     ]) {
       expect(_contrast(foreground, background), greaterThanOrEqualTo(4.5));
     }
+    expect(_contrast(AppPalette.paper, AppPalette.attention), greaterThanOrEqualTo(4.5));
+    expect(_contrast(AppPalette.gold, AppPalette.paper), greaterThanOrEqualTo(3));
+    for (final stop in AppPalette.selectionGradient.colors) {
+      expect(_contrast(AppPalette.paper, stop), greaterThanOrEqualTo(4.5));
+      expect(_contrast(AppPalette.yellow, stop), greaterThanOrEqualTo(3));
+    }
+  });
+
+  testWidgets('property categories use gold icons and the petrol selection gradient',
+      (tester) async {
+    Future<void> showCategory({required bool selected}) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: EbrokerCategoryCard(
+              label: 'شقق',
+              icon: 'apartment',
+              selected: selected,
+              onTap: () {},
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    final card = find.byType(EbrokerCategoryCard);
+    final decoration = find.descendant(
+      of: card,
+      matching: find.byType(AnimatedContainer),
+    );
+    final icon = find.descendant(of: card, matching: find.byType(PropertyTypeIcon));
+    await showCategory(selected: false);
+    final unselected = tester.widget<AnimatedContainer>(decoration).decoration as BoxDecoration;
+    expect(unselected.color, AppPalette.paper);
+    expect(unselected.gradient, isNull);
+    expect(tester.widget<PropertyTypeIcon>(icon).color, AppPalette.gold);
+
+    await showCategory(selected: true);
+    final selected = tester.widget<AnimatedContainer>(decoration).decoration as BoxDecoration;
+    expect(selected.gradient, AppPalette.selectionGradient);
+    expect(tester.widget<EbrokerText>(find.byType(EbrokerText)).color, AppPalette.paper);
+    expect(tester.widget<PropertyTypeIcon>(icon).color, AppPalette.yellow);
   });
 
   test('semantic copyWith preserves omitted fields and replaces every role', () {
@@ -223,12 +270,12 @@ void main() {
       AppTheme.warning,
     ];
     expect(legacy, const [
-      Color(0xFF123F42),
+      Color(0xFF064D50),
       Color(0xFF0B2D30),
       Color(0xFFE0F3F0),
-      Color(0xFF0B817A),
+      Color(0xFF087E79),
       Color(0xFFE0F3F0),
-      Color(0xFFF7F4EE),
+      Color(0xFFF6F2E9),
       Colors.white,
       Color(0xFFE3E0D8),
       Color(0xFF202C2D),

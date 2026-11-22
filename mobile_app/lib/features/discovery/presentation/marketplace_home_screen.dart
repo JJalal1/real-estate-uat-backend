@@ -184,7 +184,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             key: const ValueKey('home-location'), onPressed: _chooseLocation,
             style: TextButton.styleFrom(foregroundColor: theme.colorScheme.primary),
             icon: _locationBusy ? const SizedBox.square(dimension: 14, child: CircularProgressIndicator(strokeWidth: 2))
-              : EbrokerImage('location', size: 17, color: theme.colorScheme.primary),
+              : EbrokerImage('location', size: 17, color: theme.colorScheme.secondary),
             label: Text(location.needsConfirmation ? location.label : (data?.label ?? location.label), maxLines: 1, overflow: TextOverflow.ellipsis)))),
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text('عقار اليمن', maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -212,7 +212,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               filled: true,
               fillColor: theme.colorScheme.surface,
               hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-              suffixIcon: Icon(Icons.search, color: theme.colorScheme.tertiary),
+              suffixIcon: Icon(Icons.search, color: theme.colorScheme.primary),
             ),
           ),
           if (data != null && data.brokers.isNotEmpty) ...[
@@ -474,11 +474,7 @@ class _HomeBrokerCard extends StatelessWidget {
       '${profile.completedDeals} صفقات مؤكدة',
     ].join(' · ');
     return DecoratedBox(
-      decoration: const BoxDecoration(gradient: LinearGradient(
-        begin: AlignmentDirectional.centerStart,
-        end: AlignmentDirectional.centerEnd,
-        colors: [AppPalette.petrol, AppPalette.turquoise],
-      )),
+      decoration: const BoxDecoration(gradient: AppPalette.selectionGradient),
       child: Material(type: MaterialType.transparency, child: InkWell(
         onTap: () => context.push('/advertisers/${profile.id}'),
         child: Padding(
@@ -513,7 +509,7 @@ class _HomeBrokerCard extends StatelessWidget {
                       fontWeight: FontWeight.w700, color: AppPalette.paper))),
                   if (profile.verified) ...[
                     const SizedBox(width: 5),
-                    const Icon(Icons.verified_outlined, color: AppPalette.sand,
+                    const Icon(Icons.verified_outlined, color: AppPalette.yellow,
                       size: 16, semanticLabel: 'موثّق'),
                   ],
                 ]),

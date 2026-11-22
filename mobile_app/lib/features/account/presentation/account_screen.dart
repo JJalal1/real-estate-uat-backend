@@ -52,7 +52,7 @@ class AccountScreen extends ConsumerWidget {
                 ]),
                 const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
-                  AppListRow(title: 'المفضلة', leading: EbrokerImage('heart', color: Theme.of(context).colorScheme.tertiary),
+                  AppListRow(title: 'المفضلة', leading: EbrokerImage('heart', color: AppTheme.goldIcon(context)),
                     onTap: () => context.push('/favorites')),
                   const SizedBox(height: 12),
                   AppButton(
@@ -324,7 +324,7 @@ class _AccountGroup extends StatelessWidget {
           final scheme = Theme.of(context).colorScheme;
           final color = switch (row.icon) {
             Icons.auto_awesome_outlined || Icons.help_outline => scheme.secondary,
-            Icons.favorite_border => scheme.tertiary,
+            Icons.favorite_border => AppTheme.goldIcon(context),
             _ => scheme.primary,
           };
           return Column(

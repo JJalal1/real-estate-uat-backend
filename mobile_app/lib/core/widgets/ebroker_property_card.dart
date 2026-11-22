@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_typography.dart';
+import '../theme/app_theme.dart';
 import 'app_components.dart';
 import 'ebroker_widgets.dart';
 import 'property_card_gallery.dart';
@@ -21,6 +21,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
     final theme = Theme.of(context), scheme = theme.colorScheme;
+    final gold = AppTheme.goldIcon(context);
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 21;
     final vertical = preview || imageFirst || largeText;
     final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix);
@@ -44,12 +45,12 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
         style: AppTypography.propertySecondary.copyWith(color: scheme.onSurfaceVariant))],
       if (preview) ...[const SizedBox(height: 6), money],
       if (!preview) ...[const SizedBox(height: 4), Wrap(spacing: 7, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
+        Row(mainAxisSize: MainAxisSize.min, children: [PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: gold),
           const SizedBox(width: 4), Text(categoryLabel, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))]),
         if (purposeLabel != null) Text(purposeLabel!, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: purposeLabel!.contains('إيجار') ? scheme.onSurfaceVariant : scheme.primary)),
       ])],
       if (facts.isNotEmpty) ...[const SizedBox(height: 6), Wrap(spacing: 9, runSpacing: 4, children: [
-        for (final fact in facts) Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 14, color: scheme.onSurfaceVariant),
+        for (final fact in facts) Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 14, color: gold),
           const SizedBox(width: 3), Flexible(child: Text(fact.label, style: (preview
             ? AppTypography.propertySecondary
             : theme.textTheme.bodySmall?.copyWith(fontSize: 10))?.copyWith(color: scheme.onSurfaceVariant)))]),

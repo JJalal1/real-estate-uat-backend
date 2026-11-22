@@ -41,6 +41,7 @@ class AppIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     this.selected = false,
+    this.iconColor,
     super.key,
   });
 
@@ -48,6 +49,7 @@ class AppIconButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onPressed;
   final bool selected;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +64,7 @@ class AppIconButton extends StatelessWidget {
           dimension: AppSizes.touchTarget,
           child: IconButton(
             onPressed: onPressed,
-            icon: EbrokerIcon(icon),
+            icon: EbrokerIcon(icon, color: iconColor),
             style: IconButton.styleFrom(
               backgroundColor: selected ? scheme.primaryContainer : null,
               foregroundColor: selected ? scheme.onPrimaryContainer : null,
@@ -804,7 +806,7 @@ class AppPropertyFacts extends StatelessWidget {
   Widget build(BuildContext context) => Wrap(spacing: 7, runSpacing: 7, children: [for (final fact in facts)
     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerLow, borderRadius: BorderRadius.circular(10)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 16, color: AppTheme.goldIcon(context)),
         const SizedBox(width: 5), Flexible(child: Text(fact.label, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11)))])),
   ]);
 }

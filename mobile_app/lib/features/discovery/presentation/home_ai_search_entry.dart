@@ -26,16 +26,11 @@ class HomeAiSearchEntry extends StatelessWidget {
     }
     if (wide) {
       final theme = Theme.of(context);
-      final scheme = theme.colorScheme;
       final radius = BorderRadius.circular(AppRadii.control);
       return DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
-          gradient: const LinearGradient(
-            begin: AlignmentDirectional.centerStart,
-            end: AlignmentDirectional.centerEnd,
-            colors: [AppPalette.petrol, AppPalette.turquoise],
-          ),
+          gradient: AppPalette.selectionGradient,
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -63,10 +58,10 @@ class HomeAiSearchEntry extends StatelessWidget {
                 const SizedBox(width: 8),
                 Flexible(
                   child: DecoratedBox(
-                    decoration: BoxDecoration(color: scheme.tertiary, borderRadius: BorderRadius.circular(9)),
+                    decoration: BoxDecoration(color: AppPalette.attention, borderRadius: BorderRadius.circular(9)),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      child: Text('جرّب الآن', style: theme.textTheme.labelMedium?.copyWith(color: scheme.onTertiary)),
+                      child: Text('جرّب الآن', style: theme.textTheme.labelMedium?.copyWith(color: AppPalette.paper)),
                     ),
                   ),
                 ),

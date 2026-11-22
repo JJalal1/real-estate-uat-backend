@@ -24,6 +24,11 @@ abstract final class AppTheme {
   static const textMuted = AppPalette.slate;
   static const warning = AppPalette.sand;
 
+  static Color goldIcon(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+          ? AppPalette.yellow
+          : AppPalette.gold;
+
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
       seedColor: brandSeed,

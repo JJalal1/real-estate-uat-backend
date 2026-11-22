@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../properties/domain/saved_property_search.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../data/marketplace_search_session.dart';
@@ -138,11 +139,27 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
             angle: math.sin(_motion.value * math.pi * 2) * .055,
             child: Transform.scale(scale: 1 + math.sin(_motion.value * math.pi) * .035, child: child),
           ), child: Material(
-            color: scheme.surface, elevation: 5, shadowColor: scheme.primary.withValues(alpha: .24), shape: const CircleBorder(),
-            child: InkWell(key: const ValueKey('floating-smart-search'), customBorder: const CircleBorder(),
-              onTap: () { _dismissHint(); if (broker) { ref.read(brokerAssistantMenuProvider.notifier).state = !menuOpen; return; } if (widget.onPressed != null) { widget.onPressed!(); } else { context.push('/smart-search', extra: widget.savedSearch); } },
-              child: Tooltip(message: menuOpen ? 'إغلاق المساعد' : broker ? 'مساعد العقار' : 'بحث ذكي', child: Semantics(button: true, label: menuOpen ? 'إغلاق المساعد' : broker ? 'فتح مساعد العقار' : 'فتح مساعد البحث الذكي',
-                child: Padding(padding: const EdgeInsets.all(10), child: menuOpen ? Icon(Icons.close, size: 38, color: scheme.primary) : const SmartSearchRobotIcon(size: 38)))),
+            color: AppPalette.petrol, elevation: 5, shadowColor: scheme.primary.withValues(alpha: .24), shape: const CircleBorder(),
+            child: Ink(
+              decoration: const ShapeDecoration(
+                gradient: AppPalette.selectionGradient,
+                shape: CircleBorder(),
+              ),
+              child: InkWell(key: const ValueKey('floating-smart-search'), customBorder: const CircleBorder(),
+                onTap: () { _dismissHint(); if (broker) { ref.read(brokerAssistantMenuProvider.notifier).state = !menuOpen; return; } if (widget.onPressed != null) { widget.onPressed!(); } else { context.push('/smart-search', extra: widget.savedSearch); } },
+                child: Tooltip(message: menuOpen ? 'إغلاق المساعد' : broker ? 'مساعد العقار' : 'بحث ذكي', child: Semantics(button: true, label: menuOpen ? 'إغلاق المساعد' : broker ? 'فتح مساعد العقار' : 'فتح مساعد البحث الذكي',
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: menuOpen
+                        ? const Icon(Icons.close, size: 38, color: AppPalette.paper)
+                        : const SmartSearchRobotIcon(
+                            size: 38,
+                            color: AppPalette.paper,
+                            featuresColor: AppPalette.petrol,
+                          ),
+                  ),
+                )),
+              ),
             ),
           )),
         ])),
@@ -152,18 +169,24 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
 
 /// A small vector mascot in the app palette, shared by the chip and launcher.
 class SmartSearchRobotIcon extends StatelessWidget {
-  const SmartSearchRobotIcon({this.size = 24, this.color, super.key});
+  const SmartSearchRobotIcon({
+    this.size = 24,
+    this.color,
+    this.featuresColor = Colors.white,
+    super.key,
+  });
   final double size;
   final Color? color;
+  final Color featuresColor;
   @override
   Widget build(BuildContext context) => ExcludeSemantics(child: CustomPaint(
-    size: Size.square(size), painter: _RobotPainter(color ?? Theme.of(context).colorScheme.primary),
+    size: Size.square(size), painter: _RobotPainter(color ?? Theme.of(context).colorScheme.primary, featuresColor),
   ));
 }
 
 class _RobotPainter extends CustomPainter {
-  const _RobotPainter(this.color);
-  final Color color;
+  const _RobotPainter(this.color, this.featuresColor);
+  final Color color, featuresColor;
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save(); canvas.scale(size.width / 40, size.height / 40);
@@ -174,7 +197,7 @@ class _RobotPainter extends CustomPainter {
     canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(35, 16, 4, 12), const Radius.circular(2)), paint);
     canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(5, 8, 30, 26), const Radius.circular(10)), paint..color = color.withValues(alpha: .13));
     canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(8, 11, 24, 20), const Radius.circular(9)), paint..color = color);
-    paint.color = Colors.white;
+    paint.color = featuresColor;
     canvas.drawOval(const Rect.fromLTWH(13, 16, 3.5, 5), paint);
     canvas.drawOval(const Rect.fromLTWH(23.5, 16, 3.5, 5), paint);
     canvas.drawArc(const Rect.fromLTWH(16, 19, 8, 7), .25, math.pi - .5, false, paint..style = PaintingStyle.stroke..strokeWidth = 1.3..strokeCap = StrokeCap.round);
@@ -183,5 +206,6 @@ class _RobotPainter extends CustomPainter {
     canvas.restore();
   }
   @override
-  bool shouldRepaint(_RobotPainter oldDelegate) => oldDelegate.color != color;
+  bool shouldRepaint(_RobotPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.featuresColor != featuresColor;
 }

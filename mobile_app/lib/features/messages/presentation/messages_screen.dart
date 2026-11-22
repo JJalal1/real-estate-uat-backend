@@ -496,13 +496,13 @@ class _ConversationCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: scheme.primary,
+                    color: AppPalette.attention,
                     borderRadius: BorderRadius.circular(AppRadii.pill),
                   ),
                   child: Text(
                     item.unreadCount > 99 ? '99+' : '${item.unreadCount}',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: scheme.onPrimary,
+                          color: AppPalette.paper,
                           fontWeight: FontWeight.w700,
                         ),
                   ),

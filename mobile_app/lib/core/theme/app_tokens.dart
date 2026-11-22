@@ -1,13 +1,15 @@
-import 'package:flutter/animation.dart';
+import 'package:flutter/material.dart';
 
 /// AQER's second visual identity, الفخامة الحيوية.
 abstract final class AppPalette {
-  static const petrol = Color(0xFF123F42);
+  static const petrol = Color(0xFF064D50);
   static const sand = Color(0xFFC5A46D);
-  static const yellow = Color(0xFFF5CB53);
+  static const gold = Color(0xFFA6762F);
+  static const yellow = Color(0xFFF1D28A);
   static const paleYellow = Color(0xFFFFF3CA);
-  static const ivory = Color(0xFFF7F4EE);
-  static const turquoise = Color(0xFF0B817A);
+  static const ivory = Color(0xFFF6F2E9);
+  static const turquoise = Color(0xFF087E79);
+  static const attention = Color(0xFFC44F27);
   static const coral = Color(0xFFE86A43);
   static const peach = Color(0xFFFFEEE7);
   static const paleTurquoise = Color(0xFFE0F3F0);
@@ -19,6 +21,12 @@ abstract final class AppPalette {
   static const pressedPetrol = Color(0xFF0B2D30);
   static const inputBorder = Color(0xFF7A8784);
   static const mist = Color(0xFFE7EFEC);
+
+  static const selectionGradient = LinearGradient(
+    begin: AlignmentDirectional.centerStart,
+    end: AlignmentDirectional.centerEnd,
+    colors: [petrol, turquoise],
+  );
 }
 
 /// Shared logical-pixel tokens from PHASE1_ACCEPTED_DESIGN_SYSTEM.md.

@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-
-import '../theme/app_typography.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../theme/app_theme.dart';
 import '../theme/ebroker_design.dart';
-import '../theme/app_tokens.dart';
 import 'property_type_icon.dart';
 
 class EbrokerIcon extends StatelessWidget {
@@ -119,12 +117,13 @@ class EbrokerText extends StatelessWidget {
 // Shared adaptive button; the existing callback and loading contracts stay intact.
 class EbrokerButton extends StatelessWidget {
   const EbrokerButton({required this.onPressed, required this.child,
-    this.icon, this.style, this.outlined = false, this.tonal = false,
+    this.icon, this.style, this.gradient, this.outlined = false, this.tonal = false,
     this.loading = false, this.expand = false, super.key});
   final VoidCallback? onPressed;
   final Widget child;
   final Widget? icon;
   final ButtonStyle? style;
+  final Gradient? gradient;
   final bool outlined;
   final bool tonal;
   final bool loading;
@@ -132,21 +131,26 @@ class EbrokerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final states = <WidgetState>{if (onPressed == null || loading) WidgetState.disabled};
+    final disabled = onPressed == null || loading;
+    final states = <WidgetState>{if (disabled) WidgetState.disabled};
+    final fill = disabled ? null : gradient;
+    final defaultForeground = outlined || tonal ? scheme.primary : scheme.onPrimary;
     final foreground = style?.foregroundColor?.resolve(states) ??
-      (outlined || tonal ? scheme.primary : scheme.onPrimary);
+        (fill == null ? defaultForeground : AppPalette.paper);
     final background = style?.backgroundColor?.resolve(states) ??
       (outlined ? Colors.transparent : tonal ? scheme.primaryContainer : scheme.primary);
-    return MaterialButton(
+    final radius = BorderRadius.circular(AppRadii.control);
+    final button = MaterialButton(
       focusElevation: 0, hoverElevation: 0, highlightElevation: 0,
       minWidth: expand ? double.infinity : null,
       height: 52,
       padding: style?.padding?.resolve(states) ?? const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       shape: RoundedRectangleBorder(
         side: outlined ? BorderSide(color: scheme.primary) : BorderSide.none,
-        borderRadius: BorderRadius.circular(AppRadii.control),
+        borderRadius: radius,
       ),
-      elevation: 0, color: background, disabledColor: scheme.surfaceContainerHigh,
+      elevation: 0, color: fill == null ? background : Colors.transparent,
+      disabledColor: scheme.surfaceContainerHigh,
       textColor: foreground, disabledTextColor: scheme.onSurfaceVariant,
       onPressed: loading || onPressed == null ? null : () {
         FocusManager.instance.primaryFocus?.unfocus(); onPressed!();
@@ -166,6 +170,10 @@ class EbrokerButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+    return fill == null ? button : DecoratedBox(
+      decoration: BoxDecoration(gradient: fill, borderRadius: radius),
+      child: button,
     );
   }
 }
@@ -401,12 +409,15 @@ class EbrokerCategoryCard extends StatelessWidget {
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(AppRadii.control),
         child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 180),
           constraints: const BoxConstraints(minHeight: 48), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(color: selected ? scheme.secondary : scheme.surface,
-            border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant),
+          decoration: BoxDecoration(
+            color: selected ? null : scheme.surface,
+            gradient: selected ? AppPalette.selectionGradient : null,
+            border: Border.all(color: selected ? AppPalette.turquoise : scheme.outlineVariant),
             borderRadius: BorderRadius.circular(AppRadii.control)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            PropertyTypeIcon(label: label, size: 18, color: selected ? scheme.onSecondary : scheme.primary), const SizedBox(width: 8),
-            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? scheme.onSecondary : scheme.onSurface, maxLines: 1),
+            PropertyTypeIcon(label: label, size: 18, color: selected ? AppPalette.yellow : AppTheme.goldIcon(context)),
+            const SizedBox(width: 8),
+            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? AppPalette.paper : scheme.onSurface, maxLines: 1),
           ])))));
   }
 }

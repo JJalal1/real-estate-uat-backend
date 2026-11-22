@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_tokens.dart';
-import '../theme/app_typography.dart';
+import '../theme/app_theme.dart';
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
 import 'viewport_media.dart';
@@ -116,7 +115,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
             : SizedBox.square(dimension: 50, child: ViewportMedia(builder: (_) => Image.network(photoUrl!, width: 50, height: 50, fit: BoxFit.cover, errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 50, color: primary))))),
           const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [Text(name, style: Theme.of(context).textTheme.titleMedium),
-              if (verified) Icon(Icons.verified, color: primary, size: 18)]),
+              if (verified) Icon(Icons.verified, color: AppTheme.goldIcon(context), size: 18)]),
             Text(identity, style: Theme.of(context).textTheme.bodySmall), const SizedBox(height: 5),
             Text(ratingCount == 0 ? 'لا توجد تقييمات بعد' : '${rating.toStringAsFixed(1)} من 5 · $ratingCount تقييمًا', style: Theme.of(context).textTheme.bodySmall),
             if (completedDeals != null && activeListings != null) Text('$activeListings عقارات متاحة · $completedDeals صفقات مؤكدة', style: Theme.of(context).textTheme.bodySmall),
@@ -167,7 +166,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                   if (verified) Positioned(bottom: -5.rh(context),
                     child: Container(width: 22.rw(context), height: 22.rh(context), alignment: Alignment.center,
                       decoration: const BoxDecoration(color: AppPalette.petrol, shape: BoxShape.circle),
-                      child: EbrokerImage('agent_badge', size: 13.rw(context), color: AppPalette.paper))),
+                      child: EbrokerImage('agent_badge', size: 13.rw(context), color: AppPalette.yellow))),
                 ])),
             ])),
             SizedBox(height: 10.rh(context)),

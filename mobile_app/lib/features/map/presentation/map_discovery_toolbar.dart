@@ -126,8 +126,8 @@ class MapDiscoveryToolbar extends StatelessWidget {
                         tooltip: 'بحث',
                         padding: EdgeInsets.zero,
                         style: IconButton.styleFrom(
-                          backgroundColor: colors.tertiary,
-                          foregroundColor: colors.onTertiary,
+                          backgroundColor: colors.primaryContainer,
+                          foregroundColor: colors.onPrimaryContainer,
                           shape: const RoundedRectangleBorder(
                               borderRadius: _radius),
                         ),

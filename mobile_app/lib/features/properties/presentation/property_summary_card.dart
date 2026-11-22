@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -101,6 +102,6 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
       icon: Container(width: 32, height: 32, alignment: Alignment.center,
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: .96), shape: BoxShape.circle),
         child: _busy ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-          : Icon(status.icon, size: 19)));
+          : Icon(status.icon, size: 19, color: status.selected ? AppPalette.gold : null)));
   }
 }

@@ -142,6 +142,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             if (loaded != null && loaded.status == 'published' && !loaded.isOwner)
               AppIconButton(
                 icon: favoriteStatus.icon,
+                iconColor: favoriteStatus.selected ? AppTheme.goldIcon(context) : null,
                 tooltip: favoriteStatus.tooltip,
                 onPressed: _changingFavorite || _consumingPendingFavorite || favoriteStatus.loading
                     ? null
@@ -281,7 +282,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             const AppUnavailableState(),
           ],
           if (property.address?.isNotEmpty == true) Padding(padding: const EdgeInsets.only(top: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.location_on_outlined, size: 20, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 6), Expanded(child: Text(property.address!)),
+            Icon(Icons.location_on_outlined, size: 20, color: AppTheme.goldIcon(context)), const SizedBox(width: 6), Expanded(child: Text(property.address!)),
           ])),
           if (published) Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
             PropertyCompareAction(propertyId: property.id, enabled: property.availabilityStatus == 'available'), const PropertyCompareTray(),
@@ -307,7 +308,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                   Container(width: 36.rw(context), height: 36.rh(context), padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(4), border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
-                    child: EbrokerIcon(facts[index].icon, size: 24, color: Theme.of(context).colorScheme.onSurface)),
+                    child: EbrokerIcon(facts[index].icon, size: 24, color: AppTheme.goldIcon(context))),
                   SizedBox(width: 10.rw(context)),
                   Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start, children: [

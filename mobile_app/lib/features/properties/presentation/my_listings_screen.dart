@@ -71,6 +71,18 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   Widget build(BuildContext context) {
     final listings = ref.watch(myListingsPagesProvider);
     final controller = ref.read(myListingsPagesProvider.notifier);
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final semantic = theme.extension<AppSemanticColors>() ??
+        (dark ? AppSemanticColors.dark : AppSemanticColors.light);
+    final listingColors = semantic.copyWith(
+      warning: dark ? const Color(0xFFF39B77) : AppPalette.attention,
+      warningContainer: dark ? const Color(0xFF4C281C) : AppPalette.peach,
+      onWarningContainer: dark ? const Color(0xFFFFC3A6) : AppPalette.copper,
+      info: dark ? AppPalette.yellow : semantic.warning,
+      infoContainer: dark ? semantic.warningContainer : AppPalette.paleYellow,
+      onInfoContainer: semantic.onWarningContainer,
+    );
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -78,16 +90,20 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         appBar: AppAppBar(title: 'عقاراتي', actions: [IconButton(key: const ValueKey('my-saved-listing-drafts'), tooltip: 'مسوداتي', onPressed: () => context.push('/add-property?drafts=1'), icon: const Icon(Icons.drafts_outlined)), IconButton(tooltip: 'تحديث التوفر الجماعي', onPressed: () => context.push('/broker/availability'), icon: const EbrokerIcon(Icons.update, size: 20))]),
         floatingActionButton: listings.items.isNotEmpty ? EbrokerButton(
           onPressed: () => _create(context, ref),
-          icon: const EbrokerIcon(Icons.add_home_work_outlined),
+          gradient: AppPalette.selectionGradient,
+          icon: const EbrokerIcon(Icons.add_home_work_outlined, color: AppPalette.yellow),
           child: const Text('إضافة عقار'),
         ) : null,
-        body: Column(children: [
-          if (listings.page != null && (listings.loading || listings.error != null))
-            AppRefreshStatus(loading: listings.loading,
-              error: listings.error == null ? null : friendlyApiError(listings.error!),
-              onRetry: controller.refresh),
-          Expanded(child: _body(listings, controller)),
-        ]),
+        body: Theme(
+          data: theme.copyWith(extensions: [listingColors]),
+          child: Column(children: [
+            if (listings.page != null && (listings.loading || listings.error != null))
+              AppRefreshStatus(loading: listings.loading,
+                error: listings.error == null ? null : friendlyApiError(listings.error!),
+                onRetry: controller.refresh),
+            Expanded(child: _body(listings, controller)),
+          ]),
+        ),
       ),
     );
   }
@@ -439,9 +455,7 @@ class _ListingsOverview extends StatelessWidget {
                   icon: Icons.priority_high_rounded,
                   value: action,
                   label: 'تحتاج إجراء',
-                  tone: action > 0
-                      ? AppStatusTone.warning
-                      : AppStatusTone.neutral,
+                  tone: AppStatusTone.warning,
                 ),
               ),
               const SizedBox(width: AppSpacing.s8),
@@ -485,18 +499,34 @@ class _OverviewMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final colors = theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final (iconColor, countColor) = switch (tone) {
+      AppStatusTone.warning => (colors.warning, colors.warning),
+      AppStatusTone.info => (AppTheme.goldIcon(context), colors.onInfoContainer),
+      AppStatusTone.success => (colors.success, colors.success),
+      _ => (scheme.onSurfaceVariant, scheme.onSurfaceVariant),
+    };
+    final isEmpty = value == 0;
     return Column(
       children: [
-        EbrokerIcon(icon, color: Theme.of(context).colorScheme.primary),
+        EbrokerIcon(icon, color: isEmpty
+            ? Color.alphaBlend(iconColor.withValues(alpha: .82), scheme.surface)
+            : iconColor),
         const SizedBox(height: AppSpacing.s4),
         Text(
           '$value',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            color: isEmpty ? scheme.onSurfaceVariant : countColor,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: AppSpacing.s4),
-        AppStatusBadge(label: label, tone: tone),
+        AppStatusBadge(
+          label: label,
+          tone: isEmpty && tone == AppStatusTone.warning ? AppStatusTone.neutral : tone,
+        ),
       ],
     );
   }
@@ -591,7 +621,11 @@ class _ListingCard extends StatelessWidget {
               AppStatusBadge(label: state.$1, tone: state.$2),
               if (property.status == 'published') AppStatusBadge(label: switch (property.availabilityStatus) {
                 'sold' => 'تم البيع', 'rented' => 'تم التأجير', 'paused' => 'متوقف مؤقتًا', 'confirmation_paused' => 'يحتاج تأكيد التوفر', _ => 'متوفر',
-              }, tone: property.availabilityStatus == 'available' ? AppStatusTone.success : AppStatusTone.neutral),
+              }, tone: switch (property.availabilityStatus) {
+                'available' => AppStatusTone.success,
+                'confirmation_paused' => AppStatusTone.warning,
+                _ => AppStatusTone.neutral,
+              }),
               AppStatusBadge(label: '${property.proofDocumentCount} إثبات',
                 tone: AppStatusTone.neutral, icon: Icons.description_outlined),
             ])),
