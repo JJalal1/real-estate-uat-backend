@@ -17,6 +17,7 @@ use App\Services\ListingWorkflowService;
 use App\Services\PropertyAssetService;
 use App\Services\PropertyIdentityService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -252,7 +253,7 @@ class PropertyController extends Controller
         $context = app(\App\Services\MarketplaceContextService::class)->resolve($v);
         $context['purpose'] = $filters['purpose'] ?? null;
         $context['filters'] = $filters;
-        $base = $this->publicQuery();
+        $base = $this->publicQuery()->without('images');
         if ($context['governorate_code'] === null) $base->whereRaw('1=0');
         else {
             $regionalFilters = array_replace($filters, ['governorate' => $context['governorate']]);
@@ -260,19 +261,19 @@ class PropertyController extends Controller
             if (isset($v['governorate_code']) || isset($v['latitude'], $v['longitude'])) $regionalFilters['governorate_code'] = $context['governorate_code'];
             $this->applyFilters($base, $regionalFilters);
         }
-        $sections = [];
+        $sectionRows = [];
         foreach (['spotlight', 'latest', 'sale', 'rent'] as $section) {
             if (isset($v['purpose']) && in_array($section, ['sale', 'rent'], true) && $section !== $v['purpose']) {
-                $sections[$section] = [];
+                $sectionRows[$section] = new EloquentCollection();
                 continue;
             }
             $query = clone $base;
             if ($section === 'spotlight') $query->where('spotlight_until', '>', now());
             if (in_array($section, ['sale', 'rent'], true)) $query->where('purpose', $section);
-            $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
+            $sectionRows[$section] = $query->latest('id')->limit(6)->get();
         }
         if (isset($v['latitude'],$v['longitude'])) {
-            $nearby=$this->publicQuery();
+            $nearby=$this->publicQuery()->without('images');
             $nearbyFilters=$filters;unset($nearbyFilters['governorate'], $nearbyFilters['governorate_code']);$this->applyFilters($nearby,$nearbyFilters);
             $lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
             if(DB::getDriverName()==='pgsql'){
@@ -284,8 +285,22 @@ class PropertyController extends Controller
                 $nearbyRows=$nearby->limit(1000)->get()->filter(fn($p)=>$this->distanceKm($lat,$lon,(float)$p->latitude,(float)$p->longitude)<=30)
                     ->sortBy(fn($p)=>$this->distanceKm($lat,$lon,(float)$p->latitude,(float)$p->longitude))->take(6);
             }
-            $sections['nearby']=$nearbyRows->map(fn($p)=>$this->summaryData($p,$request))->values()->all();
+            $sectionRows['nearby'] = $nearbyRows;
         }
+
+        $listings = new EloquentCollection();
+        foreach ($sectionRows as $rows) {
+            $listings = $listings->merge($rows);
+        }
+        $listings->load('images');
+        $summaries = $listings->mapWithKeys(fn (Property $listing) => [
+            $listing->getKey() => $this->summaryData($listing, $request),
+        ]);
+        $sections = array_map(
+            fn (EloquentCollection $rows) => $rows->map(fn (Property $listing) => $summaries->get($listing->getKey()))->values()->all(),
+            $sectionRows,
+        );
+
         $purposeOrder=count($sections['rent'])>count($sections['sale'])?['rent','sale']:['sale','rent'];
         $sectionOrder=array_values(array_filter(array_merge(['nearby','spotlight','latest'],$purposeOrder),fn($key)=>!empty($sections[$key])));
         $ranking = app(\App\Services\BrokerRankingService::class);
