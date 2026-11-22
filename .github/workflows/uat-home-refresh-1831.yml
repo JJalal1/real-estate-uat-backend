@@ -15,6 +15,8 @@ concurrency:
 jobs:
   verify-and-build:
     if: ${{ github.event.repository.private }}
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -194,16 +196,15 @@ jobs:
           (apk.parent / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
           print(json.dumps(receipt))
           PY
-      - name: Upload the verified APK and receipt
-        uses: actions/upload-artifact@v4
-        with:
-          name: aqer-uat-1831-home-refresh
-          path: |
-            uat1831/AQER-UAT-1831-Home-Refresh.apk
-            uat1831/APK_VERIFICATION.json
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 14
+      - name: Save the signed build to a private release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "uat-1831-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            uat1831/AQER-UAT-1831-Home-Refresh.apk uat1831/APK_VERIFICATION.json \
+            --repo "$GITHUB_REPOSITORY" --draft --target "$AQER_SOURCE_SHA" \
+            --title 'AQER UAT 1831 Homepage Refresh' \
+            --notes "Signed test build from $AQER_SOURCE_SHA. GitHub Actions run $GITHUB_RUN_ID."
       - name: Remove temporary signing material
         if: always()
         run: |
