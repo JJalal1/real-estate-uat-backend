@@ -10,8 +10,8 @@ abstract final class EbrokerDesign {
   static const text = AppPalette.charcoal;
   static const textLight = AppPalette.slate;
   static const border = AppPalette.stone;
-  static const controlRadius = 16.0;
-  static const cardRadius = 22.0;
+  static const controlRadius = AppRadii.control;
+  static const cardRadius = AppRadii.card;
   static const pageGutter = 18.0;
 }
 

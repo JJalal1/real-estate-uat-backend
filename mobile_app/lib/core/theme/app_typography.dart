@@ -5,43 +5,22 @@ abstract final class AppTypography {
   static const fontFamily = 'Cairo';
   static const fontFamilyFallback = <String>['NotoSansArabic', 'PrimaryFont', 'sans-serif'];
 
-  static const headlineLarge = TextStyle(
-    fontSize: 24,
-    height: 1.3,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0,
-    fontFamilyFallback: fontFamilyFallback,
-  );
-  static const headlineMedium = TextStyle(
-    fontSize: 24,
-    height: 1.3,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0,
-    fontFamilyFallback: fontFamilyFallback,
-  );
-  static const headlineSmall = TextStyle(
+  static const screenTitle = TextStyle(
     fontSize: 22,
     height: 1.3,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
-  static const titleLarge = TextStyle(
-    fontSize: 18,
+  static const sectionTitle = TextStyle(
+    fontSize: 19,
     height: 1.3,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0,
-    fontFamilyFallback: fontFamilyFallback,
-  );
-  static const titleMedium = TextStyle(
-    fontSize: 18,
-    height: 1.3,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const titleSmall = TextStyle(
-    fontSize: 16,
+    fontSize: 17,
     height: 1.3,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
@@ -105,6 +84,16 @@ abstract final class AppTypography {
     height: 1.45,
     fontWeight: FontWeight.w400,
   );
+  static const dealBadge = TextStyle(
+    fontSize: 13,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+  );
+  static const headlineLarge = screenTitle;
+  static const headlineMedium = screenTitle;
+  static const headlineSmall = screenTitle;
+  static const titleLarge = sectionTitle;
+  static const titleMedium = sectionTitle;
 
   static const textTheme = TextTheme(
     displayLarge: headlineLarge,

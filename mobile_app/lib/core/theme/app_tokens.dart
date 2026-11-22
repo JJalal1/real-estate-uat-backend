@@ -56,9 +56,9 @@ abstract final class AppLayout {
 
 abstract final class AppRadii {
   static const double small = 8;
-  static const double control = 16;
-  static const double card = 22;
-  static const double modal = 28;
+  static const double control = 10;
+  static const double card = 12;
+  static const double modal = 18;
   static const double pill = 999;
 }
 

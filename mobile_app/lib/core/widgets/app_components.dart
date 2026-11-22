@@ -578,7 +578,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       toolbarHeight: AppSizes.appBarMinHeight,
-      title: EbrokerText(title, size: 18, weight: FontWeight.w500, maxLines: 1),
+      title: Text(title, style: AppTypography.screenTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
       titleSpacing: leading == null ? 16 : 0,
       actions: actions,
       leading: leading,

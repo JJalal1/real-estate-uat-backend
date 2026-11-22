@@ -21,12 +21,13 @@ double compactMapResultsHeaderHeight(BuildContext context) {
 /// controller resizes first, then scrolls, without rebuilding the native map.
 class PropertyMapResultsSheet extends StatefulWidget {
   const PropertyMapResultsSheet({required this.items, required this.itemBuilder,
-    this.selectedId, this.loading = false, this.staleResults = false, this.error, this.onRetry, this.onShowList,
+    this.selectedId, this.markerSelection = 0, this.loading = false, this.staleResults = false, this.error, this.onRetry, this.onShowList,
     this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, this.filterPanel, super.key});
   final Widget? filterPanel;
   final List<PropertyMarker> items;
   final Widget Function(PropertyMarker property) itemBuilder;
   final int? selectedId;
+  final int markerSelection;
   final bool loading, staleResults, more;
   final bool collapsed;
   final double maxExtent;
@@ -104,7 +105,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
         }
       });
     }
-    if (!widget.collapsed && widget.selectedId != null && widget.selectedId != old.selectedId) {
+    if (widget.selectedId != null &&
+        (widget.selectedId != old.selectedId || widget.markerSelection != old.markerSelection)) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         if (_extent.isAttached && _extent.size < .5) {

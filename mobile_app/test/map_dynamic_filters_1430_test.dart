@@ -146,7 +146,6 @@ void main() {
     await _tap(tester, 'published-type-house');
     scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south: 15, west: 44, north: 16, east: 45);
     await tester.pumpAndSettle();
-    await _tap(tester, 'published-map-filters');
     await _tap(tester, 'map-draw-area');
     expect(find.byKey(const ValueKey('map-results-sheet')), findsNothing);
     await _stroke(tester);
@@ -178,7 +177,7 @@ void main() {
     await tester.pumpAndSettle();
     final before = listings.calls.length;
     await _tap(tester, 'published-map-filters');
-    await _tap(tester, 'map-draw-area');
+    await _tap(tester, 'map-filter-draw-area');
     await _stroke(tester);
     await tester.tap(find.text('إلغاء'));
     await tester.pumpAndSettle();
@@ -204,7 +203,6 @@ void main() {
     scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south: 15, west: 44, north: 16, east: 45);
     await tester.pumpAndSettle();
     final mapToken = controller.mapJourneyToken;
-    await _tap(tester, 'map-open-search');
     await _tap(tester, 'map-smart-search');
     expect(controller.isMapJourneyCurrent(mapToken), isTrue);
     expect(find.byType(AssistedSearchScreen), findsOneWidget);
@@ -238,7 +236,7 @@ void main() {
     await tester.pumpAndSettle();
     await _tap(tester, 'published-type-apartment');
     await _tap(tester, 'map-open-search');
-    await _tap(tester, 'map-smart-search');
+    await _tap(tester, 'map-search-editor-assistant');
     await _tap(tester, 'map-open-search');
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'خفض السعر');
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));
@@ -301,7 +299,7 @@ void main() {
         await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
         await _tap(tester, 'published-map-filters');
-        expect(find.byKey(const ValueKey('map-draw-area')), findsOneWidget);
+        expect(find.byKey(const ValueKey('map-filter-draw-area')), findsOneWidget);
         final maximum = find.byKey(const ValueKey('filter-max_price'));
         await tester.ensureVisible(maximum);
         await tester.pumpAndSettle();

@@ -83,7 +83,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
       focus: focus, rangesFirst: widget.onMap,
       extraActions: widget.onMap && focus == null ? Wrap(spacing: 8, children: [
         if (actions != null) TextButton.icon(
-          key: const ValueKey('map-draw-area'),
+          key: const ValueKey('map-filter-draw-area'),
           onPressed: () => Navigator.of(sheetContext).pop(_MapFilterAction.drawArea),
           icon: const Icon(Icons.gesture_rounded),
           label: const Text('رسم منطقة'),
@@ -254,7 +254,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
               label: const Text('انتقل إلى حي أو عنوان'),
             ),
             if (widget.mapActions != null) TextButton.icon(
-              key: const ValueKey('map-smart-search'),
+              key: const ValueKey('map-search-editor-assistant'),
               onPressed: () => Navigator.of(context).pop(_MapSearchAction.assistant),
               icon: const Icon(Icons.auto_awesome_outlined),
               label: const Text('بحث ذكي'),

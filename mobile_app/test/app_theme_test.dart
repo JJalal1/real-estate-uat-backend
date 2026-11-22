@@ -53,12 +53,12 @@ void main() {
   test('Cairo is bundled with the approved text and property scale', () {
     final text = AppTheme.light.textTheme;
     final scale = <(TextStyle?, double, double, FontWeight)>[
-      (text.headlineLarge, 24, 31.2, FontWeight.w700),
-      (text.headlineMedium, 24, 31.2, FontWeight.w700),
-      (text.headlineSmall, 22, 28.6, FontWeight.w600),
-      (text.titleLarge, 18, 23.4, FontWeight.w600),
-      (text.titleMedium, 18, 23.4, FontWeight.w600),
-      (text.titleSmall, 16, 20.8, FontWeight.w600),
+      (text.headlineLarge, 22, 28.6, FontWeight.w700),
+      (text.headlineMedium, 22, 28.6, FontWeight.w700),
+      (text.headlineSmall, 22, 28.6, FontWeight.w700),
+      (text.titleLarge, 19, 24.7, FontWeight.w700),
+      (text.titleMedium, 19, 24.7, FontWeight.w700),
+      (text.titleSmall, 17, 22.1, FontWeight.w600),
       (text.bodyLarge, 15, 19.5, FontWeight.w400),
       (text.bodyMedium, 15, 19.5, FontWeight.w400),
       (text.bodySmall, 12, 15.6, FontWeight.w400),
@@ -81,6 +81,8 @@ void main() {
     expect(AppTypography.propertyName.fontWeight, FontWeight.w600);
     expect(AppTypography.propertySecondary.fontSize, 14);
     expect(AppTypography.propertySecondary.fontWeight, FontWeight.w400);
+    expect(AppTypography.dealBadge.fontSize, 13);
+    expect(AppTypography.dealBadge.fontWeight, FontWeight.w600);
     for (final style in [
       text.displayLarge,
       text.displayMedium,

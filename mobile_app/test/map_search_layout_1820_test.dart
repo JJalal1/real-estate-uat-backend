@@ -336,6 +336,9 @@ void main() {
     expect(find.byKey(const ValueKey('published-type-all')), findsNothing);
     expect(find.byKey(const ValueKey('map-published-search-input')), findsNothing);
     expect(find.text('البحث على الخريطة'), findsNothing);
+    expect(find.byKey(const ValueKey('map-draw-area')).hitTestable(), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-smart-search')).hitTestable(), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-my-location')).hitTestable(), findsOneWidget);
     expect(find.byKey(const ValueKey('published-filter-min-price')), findsNothing);
     expect(find.byKey(const ValueKey('filter-min_area_m2')), findsNothing);
     final rent = find.descendant(of: purpose, matching: find.widgetWithText(TextButton, 'إيجار'));
@@ -357,6 +360,35 @@ void main() {
     await tester.enterText(area, '١٢٠');
     await _tap(tester, 'filter-apply');
     expect(scope.read(marketplaceMapResultsProvider).filters.apiFilters['min_area_m2'], 120);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('a price pin opens the compact list again after the user collapses it', (tester) async {
+    const listing = PropertySummary(id: 77, title: 'شقة للإيجار', type: 'apartment',
+      purpose: 'rent', price: 120000, currency: 'YER', latitude: 15.4, longitude: 44.2);
+    final properties = Listings()..respond = (_, __) async => ([listing], false);
+    late void Function(int) select;
+    final scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      sharedSearchMapBuilderProvider.overrideWithValue((_, __, pick, ___) {
+        select = pick;
+        return const ColoredBox(color: Colors.teal);
+      }),
+    ]);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen(), size: const Size(360, 640));
+    await tester.pumpAndSettle();
+    final sheet = find.byKey(const ValueKey('map-search-panel-surface'));
+    final collapsedTop = tester.getTopLeft(sheet).dy;
+    select(listing.id);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(sheet).dy, lessThan(collapsedTop));
+    expect(find.byKey(const ValueKey('map-result-77')).hitTestable(), findsOneWidget);
+    await _tap(tester, 'map-show-list');
+    expect(tester.getTopLeft(sheet).dy, closeTo(collapsedTop, 1));
+    select(listing.id);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(sheet).dy, lessThan(collapsedTop));
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });

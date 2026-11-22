@@ -208,7 +208,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('map-open-search')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('map-smart-search')));
+    await tester.tap(find.byKey(const ValueKey('map-search-editor-assistant')));
     await tester.pumpAndSettle();
     final listMode = find.byKey(const ValueKey('smart-search-list'));
     expect(listMode, findsOneWidget);
@@ -313,8 +313,6 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await tester.tap(find.byKey(const ValueKey('map-open-search')));
-      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('map-smart-search')));
       await tester.pumpAndSettle();
       expect(scope.read(smartSearchSessionProvider).filters.sameAs(parent.filters), isTrue);

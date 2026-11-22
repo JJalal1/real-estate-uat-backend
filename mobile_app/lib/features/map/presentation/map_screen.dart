@@ -416,6 +416,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   LatLng _center = _fallback;
   LatLng? _userLocation;
   PropertyMarker? _selected;
+  int _markerSelection = 0;
 
   String? _filterPurpose;
   String? _filterType;
@@ -1134,8 +1135,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
     if (property == null || !mounted) return;
 
+    _selectMarker(property);
+  }
+
+  void _selectMarker(PropertyMarker property) {
     setState(() {
       _selected = property;
+      _markerSelection++;
       _lastMarkerSignature = '';
     });
   }
@@ -1796,7 +1802,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final user = ref.watch(authControllerProvider).asData?.value;
     final favoriteState = user == null ? null : ref.watch(favoritePropertyIdsProvider);
     final canvas=ref.watch(sharedSearchMapBuilderProvider);
-    void select(int id){for(final p in rows){if(p.id==id){setState(()=>_selected=p);break;}}}
+    void select(int id) {
+      for (final property in rows) {
+        if (property.id == id) {
+          _selectMarker(property);
+          break;
+        }
+      }
+    }
     final actions = MapSearchActions(onDrawArea: _beginAreaSelection,
       onClearArea: _clearSelectedArea, onSmartSearch: _openSmartSearch,
       onFindAddress: _styleLoaded && !_selectingArea ? _findAddress : null,
@@ -1809,8 +1822,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       final keyboard = View.of(context).viewInsets.bottom > 0;
       final map = LayoutBuilder(builder: (context, bounds) {
         final height = bounds.maxHeight > 0 ? bounds.maxHeight : 1.0;
-        final horizontalActions = height < 340;
-        final actionHeight = compact ? (horizontalActions ? 48.0 : 102.0) : horizontalActions ? 58.0 : 120.0;
+        final horizontalActions = height < (compact ? 440 : 340);
+        final actionHeight = compact ? (horizontalActions ? 44.0 : 194.0) : horizontalActions ? 58.0 : 120.0;
         // Reserve actual map room for the controls even when results expand.
         final maximum = widget.toolbarAboveMap
           ? math.min(widget.resultsMaxExtent, (1 - (actionHeight + 24) / height).clamp(.29, .84)).toDouble()
@@ -1865,7 +1878,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           if (!_selectingArea) Offstage(offstage: !showResults, child: OverflowBox(
             alignment: Alignment.bottomCenter, minHeight: sheetHeight, maxHeight: sheetHeight,
             child: SizedBox(height: sheetHeight, child: PropertyMapResultsSheet(
-            items: rows, selectedId: _selected?.id, loading: state.loading,
+            items: rows, selectedId: _selected?.id, markerSelection: _markerSelection, loading: state.loading,
             staleResults: state.resultsError != null && rows.isNotEmpty,
             maxExtent: sheetMaximum, collapsed: widget.collapseResults,
             filterPanel: widget.toolbarAboveMap ? null : toolbar,
@@ -1880,7 +1893,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               onFavorite: _favoriteAction(row.id, favoriteState), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row)))))),
           if (!_selectingArea && widget.toolbarAboveMap && height >= actionHeight + 12) Positioned(
             left: compact ? 10 : 16, bottom: (showResults ? extent * height : 0) + 12,
-            child: compact ? _compactMapTools(horizontal: horizontalActions)
+            child: compact ? _compactMapTools(actions, horizontal: horizontalActions)
               : _sharedFloatingActions(actions, horizontal: horizontalActions)),
           if (_selectingArea) _buildAreaSelectionOverlay(),
         ]));
@@ -1913,15 +1926,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     });
   }
 
-  Widget _compactMapTools({required bool horizontal}) {
+  Widget _compactMapTools(MapSearchActions actions, {required bool horizontal}) {
     final colors = Theme.of(context).colorScheme;
-    Widget button(Widget child) => Material(
-      color: colors.secondaryContainer, elevation: 2,
+    Widget button(Widget child, {bool active = false}) => Material(
+      color: active ? colors.primaryContainer : colors.secondaryContainer, elevation: 2,
       shadowColor: AppPalette.charcoal.withValues(alpha: .14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9),
         side: BorderSide(color: colors.outlineVariant)),
       child: IconTheme(data: IconThemeData(color: colors.onSecondaryContainer, size: 23),
-        child: SizedBox.square(dimension: 40, child: child)),
+        child: SizedBox.square(dimension: 44, child: child)),
     );
     final children = [
       button(AqerMapLayerButton(enabled: _mapController?.usesGoogle == true)),
@@ -1931,12 +1944,29 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         tooltip: 'موقعي', padding: EdgeInsets.zero,
         icon: const Icon(Icons.my_location, size: 23),
       )),
+      button(IconButton(
+        key: const ValueKey('map-draw-area'),
+        onPressed: () { FocusScope.of(context).unfocus(); actions.onDrawArea(); },
+        tooltip: 'رسم منطقة على الخريطة',
+        icon: const Icon(Icons.gesture_rounded),
+      ), active: actions.hasDrawnArea),
+      button(IconButton(
+        key: const ValueKey('map-smart-search'),
+        onPressed: () { FocusScope.of(context).unfocus(); actions.onSmartSearch(); },
+        tooltip: 'البحث الذكي',
+        icon: const SmartSearchRobotIcon(size: 28),
+      )),
     ];
     return Flex(
       key: const ValueKey('map-floating-search-actions'),
       direction: horizontal ? Axis.horizontal : Axis.vertical,
       mainAxisSize: MainAxisSize.min,
-      children: [children[0], const SizedBox(width: 6, height: 6), children[1]],
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6, height: 6),
+          children[i],
+        ],
+      ],
     );
   }
 

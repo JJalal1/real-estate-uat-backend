@@ -126,9 +126,7 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: readableTextTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w700,
-        ),
+        titleTextStyle: readableTextTheme.headlineMedium,
       ),
       cardTheme: CardThemeData(
         color: scheme.surface,

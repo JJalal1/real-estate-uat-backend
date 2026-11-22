@@ -173,7 +173,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         initial: ref.read(smartSearchSessionProvider).filters, focus: focus,
         rangesFirst: mapActions != null,
         extraActions: mapActions == null ? null : Wrap(spacing: 8, children: [
-          TextButton.icon(key: const ValueKey('map-draw-area'),
+          TextButton.icon(key: const ValueKey('map-filter-draw-area'),
             onPressed: () => Navigator.of(sheetContext).pop(mapActions.onDrawArea),
             icon: const Icon(Icons.gesture_rounded), label: const Text('رسم منطقة')),
           if (mapActions.hasDrawnArea) TextButton(

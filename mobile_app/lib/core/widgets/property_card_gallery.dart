@@ -8,13 +8,15 @@ import 'ebroker_widgets.dart';
 
 class PropertyCardGallery extends StatefulWidget {
   const PropertyCardGallery({this.imageUrl, this.imageUrls = const [], this.height = 190,
-    this.overlay, this.priceBadge, this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, super.key});
+    this.overlay, this.priceBadge, this.purposeBadge, this.isSpotlight = false,
+    this.authenticatedImages = false, this.propertyType, super.key});
   final String? imageUrl;
   final String? propertyType;
   final List<String> imageUrls;
   final double height;
   final Widget? overlay;
   final Widget? priceBadge;
+  final Widget? purposeBadge;
   final bool isSpotlight;
   final bool authenticatedImages;
   @override
@@ -70,7 +72,11 @@ class _PropertyCardGalleryState extends State<PropertyCardGallery> {
           child: Row(mainAxisSize: MainAxisSize.min, children: [EbrokerIcon(Icons.auto_awesome_outlined, size: 13, color: AppPalette.charcoal),
             if (size.maxWidth > 180) ...[const SizedBox(width: 3), Text('مميز', style: TextStyle(fontSize: 11, color: AppPalette.charcoal))],
           ])))),
-      if (widget.overlay != null) PositionedDirectional(top: 4, end: 4, child: widget.overlay!),
+      if (widget.purposeBadge != null)
+        PositionedDirectional(top: 8, end: 8, child: widget.purposeBadge!),
+      if (widget.overlay != null)
+        PositionedDirectional(top: 4, start: widget.purposeBadge == null ? null : 4,
+          end: widget.purposeBadge == null ? 4 : null, child: widget.overlay!),
       if (widget.priceBadge != null) Positioned(bottom: 8, right: 8,
         child: ConstrainedBox(constraints: BoxConstraints(maxWidth: size.maxWidth - (widget.isSpotlight ? 68 : 16)), child: widget.priceBadge!)),
     ]));

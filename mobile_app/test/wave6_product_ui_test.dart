@@ -231,10 +231,10 @@ void main(){
     testWidgets('professional home has a compact house-plus CTA and dynamic sections at scale $scale',(tester)async{
       final boundary=GlobalKey();await pumpWave6(tester,const AppShellScreen(),scale:scale,boundary:boundary);
       expect(find.byKey(const ValueKey('home-add-property')),findsOneWidget);expect(find.text('إدارة عملي'),findsNothing);
-      expect(find.text('بحث ذكي'),findsOneWidget);expect(find.descendant(of:find.byType(AppNavigationBar),matching:find.byTooltip('عملي')),findsOneWidget);
+      expect(find.descendant(of:find.byType(AppNavigationBar),matching:find.byTooltip('عملي')),findsOneWidget);
       expect(tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item)=>item.label),['الرئيسية','عملي','العملاء','حسابي']);
-      expect(find.byKey(const ValueKey('home-smart-search')),findsOneWidget);
-      expect(find.byKey(const ValueKey('floating-smart-search')),findsNothing);
+      expect(find.byKey(const ValueKey('home-smart-search')),findsNothing);
+      expect(find.byKey(const ValueKey('floating-smart-search')),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-home-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
     testWidgets('voice prepares a reviewed shop draft then asks only for missing point and real photos at scale $scale',(tester)async{

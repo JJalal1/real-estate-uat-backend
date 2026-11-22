@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_tokens.dart';
+import '../theme/app_typography.dart';
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
 import 'viewport_media.dart';
@@ -133,17 +135,21 @@ class EbrokerAdvertiserCard extends StatelessWidget {
       SizedBox(width: 5.rw(context)),
       if (enlarged) Expanded(child: identityLabel) else identityLabel,
     ]);
+    final photo = photoUrl;
+    final fallbackCover = Image.asset(ebrokerBannerAsset, fit: BoxFit.cover);
     return Semantics(button: true, label: 'المعلن $name',
       child: GestureDetector(onTap: onTap,
         child: Container(width: width, padding: EdgeInsets.all(12.rw(context)),
           decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(16.rw(context)),
+            borderRadius: BorderRadius.circular(AppRadii.card),
             border: Border.all(color: Theme.of(context).colorScheme.outlineVariant)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             SizedBox(height: 198.rh(context) + (MediaQuery.textScalerOf(context).scale(11.5) - 11.5) * 4, child: Stack(clipBehavior: Clip.none, children: [
               Positioned(top: 0, left: 0, right: 0, height: 152.rh(context),
                 child: ClipRRect(borderRadius: BorderRadius.circular(12.rw(context)),
-                  child: Image.asset(ebrokerBannerAsset, fit: BoxFit.cover))),
+                  child: photo == null ? fallbackCover : ViewportMedia(
+                    builder: (_) => Image.network(photo, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => fallbackCover)))),
               Positioned(right: 4.rw(context), top: 162.rh(context),
                 child: Container(padding: EdgeInsets.symmetric(horizontal: 10.rw(context), vertical: 6.rh(context)),
                   decoration: BoxDecoration(color: primary.withValues(alpha: .12),
@@ -165,12 +171,10 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                 ])),
             ])),
             SizedBox(height: 10.rh(context)),
+            Text(name, style: AppTypography.propertyName, maxLines: 2, overflow: TextOverflow.ellipsis),
             if (completedDeals != null && activeListings != null) Padding(padding: const EdgeInsets.only(bottom: 8),
               child: Text('$completedDeals صفقات مؤكدة · $activeListings عقارات نشطة', style: Theme.of(context).textTheme.bodySmall)),
             if(action!=null)action!,
-            EbrokerText(name, size: 16, weight: FontWeight.w600, maxLines: 1),
-            SizedBox(height: 2.rh(context)),
-            EbrokerText(identity, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, maxLines: 1),
             SizedBox(height: 10.rh(context)),
             Container(padding: EdgeInsets.symmetric(vertical: 8.rh(context), horizontal: 6.rw(context)),
               decoration: BoxDecoration(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .08),
