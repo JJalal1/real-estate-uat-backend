@@ -21,6 +21,9 @@ jobs:
     if: ${{ github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    outputs:
+      apk_sha256: ${{ steps.verified_apk.outputs.sha256 }}
+      receipt_sha256: ${{ steps.verified_apk.outputs.receipt_sha256 }}
     env:
       AQER_SOURCE_SHA: ${{ github.sha }}
       AQER_SIGNING_ENVIRONMENT: uat
@@ -40,6 +43,11 @@ jobs:
           git merge-base --is-ancestor fd832497768aac67fdd32485f2af835f273111c8 HEAD
           git diff --exit-code fd832497768aac67fdd32485f2af835f273111c8 HEAD -- \
             backend-api-runtime render.yaml docs/uat-signing-identity.json mobile_app/android
+      - name: Confirm the approved one-time draft contains the verified design
+        if: ${{ github.event.before == 'a04569df514fbeb25cfb55d13dca996693561b93' }}
+        run: |
+          test "$(git rev-parse HEAD^)" = 'a04569df514fbeb25cfb55d13dca996693561b93'
+          git diff --exit-code 'a04569df514fbeb25cfb55d13dca996693561b93' HEAD -- . ':(exclude).github/workflows/aqer-design-preview.yml'
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.27.3'
@@ -127,6 +135,7 @@ jobs:
             --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
             --dart-define=AQER_GOOGLE_MAPS_UAT=true --dart-define=AQER_RANKED_DISCOVERY=true --dart-define=AQER_MAP_SEARCH_TRACE=true
       - name: Verify the APK, restricted Maps configuration and bundled classifier
+        id: verified_apk
         env:
           AQER_UAT_GOOGLE_MAPS_ANDROID_KEY: ${{ secrets.AQER_UAT_GOOGLE_MAPS_ANDROID_KEY }}
         run: |
@@ -199,7 +208,11 @@ jobs:
               "google_maps_android_configured": True,
               "firebase": firebase,
           }
-          (apk.parent / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          proof = apk.parent / "APK_VERIFICATION.json"
+          proof.write_text(json.dumps(receipt, indent=2) + "\n")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("sha256=" + receipt["sha256"] + "\n")
+              output.write("receipt_sha256=" + hashlib.sha256(proof.read_bytes()).hexdigest() + "\n")
           print(json.dumps(receipt))
           PY
       - name: Remove temporary signing material
@@ -212,10 +225,47 @@ jobs:
           (folder / "uat-release.keystore").unlink(missing_ok=True)
           Path("mobile_app/android/firebase-uat.properties").unlink(missing_ok=True)
           PY
-      - name: Keep the verified APK as a private CI artifact
+      - name: Keep later verified APKs as private CI artifacts
+        if: ${{ github.event.before != 'a04569df514fbeb25cfb55d13dca996693561b93' }}
         uses: actions/upload-artifact@v4
         with:
           name: AQER-Design-Preview
           path: design-preview/
           if-no-files-found: error
           compression-level: 0
+      - name: Transfer the APK and verification receipt to the keyless draft job
+        if: ${{ github.event.before == 'a04569df514fbeb25cfb55d13dca996693561b93' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: design-preview/
+          key: aqer-design-delivery-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+
+  draft:
+    name: Save this verified APK in the approved private draft
+    needs: design
+    if: ${{ github.event.repository.private && github.ref == 'refs/heads/تصميم' && github.event.before == 'a04569df514fbeb25cfb55d13dca996693561b93' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: design-preview/
+          key: aqer-design-delivery-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          fail-on-cache-miss: true
+      - name: Verify both files and save the single private draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK_SHA256: ${{ needs.design.outputs.apk_sha256 }}
+          RECEIPT_SHA256: ${{ needs.design.outputs.receipt_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$APK_SHA256" =~ ^[0-9a-f]{64}$ && "$RECEIPT_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          apk=design-preview/AQER-Design-Preview.apk
+          proof=design-preview/APK_VERIFICATION.json
+          printf '%s  %s\n%s  %s\n' "$APK_SHA256" "$apk" "$RECEIPT_SHA256" "$proof" | sha256sum --check --strict
+          gh release create aqer-design-preview-1830 "$apk" "$proof" \
+            --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+            --title 'AQER experimental design APK' \
+            --notes "Signed test build from the design branch at $GITHUB_SHA. Android version code 1830."
