@@ -302,7 +302,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/my-listings',
         builder: (context, state) => Stage6AuthGate(
           child: MyListingsScreen(
-            initiallyNeedsAction: state.uri.queryParameters['needs_action'] == '1',
+            initiallyShowCorrections: state.uri.queryParameters['corrections'] == '1',
           ),
         ),
       ),

@@ -33,16 +33,16 @@ final myListingsProvider =
 });
 
 class MyListingsScreen extends ConsumerStatefulWidget {
-  const MyListingsScreen({this.initiallyNeedsAction = false, super.key});
+  const MyListingsScreen({this.initiallyShowCorrections = false, super.key});
 
-  final bool initiallyNeedsAction;
+  final bool initiallyShowCorrections;
 
   @override
   ConsumerState<MyListingsScreen> createState() => _MyListingsScreenState();
 }
 
 class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
-  late String _filter = widget.initiallyNeedsAction ? 'action' : 'all';
+  late String _filter = widget.initiallyShowCorrections ? 'corrections' : 'all';
   final Set<int> _updating = {};
 
   Future<void> _availability(PropertyDetails item, String state) async {
@@ -142,6 +142,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
               child: _LifecycleFilterBar(
                 selected: _filter,
                 items: items,
+                showCorrections: widget.initiallyShowCorrections,
                 onChanged: (value) => setState(() => _filter = value),
               ),
             ),
@@ -229,6 +230,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   List<PropertyDetails> _applyFilter(List<PropertyDetails> items) {
     return switch (_filter) {
       'action' => items.where(_needsAction).toList(growable: false),
+      'corrections' => items.where(_needsCorrection).toList(growable: false),
       'review' => items.where(_inReview).toList(growable: false),
       'published' => items
           .where((item) => item.reviewStatus == 'approved')
@@ -508,17 +510,20 @@ class _LifecycleFilterBar extends StatelessWidget {
   const _LifecycleFilterBar({
     required this.selected,
     required this.items,
+    required this.showCorrections,
     required this.onChanged,
   });
 
   final String selected;
   final List<PropertyDetails> items;
+  final bool showCorrections;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final counts = <String, int>{
       'all': items.length,
+      if (showCorrections) 'corrections': items.where(_needsCorrection).length,
       'action': items.where(_needsAction).length,
       'review': items.where(_inReview).length,
       'published':
@@ -526,6 +531,7 @@ class _LifecycleFilterBar extends StatelessWidget {
     };
     final labels = <String, String>{
       'all': 'الكل',
+      if (showCorrections) 'corrections': 'تحتاج تصحيحًا',
       'action': 'تحتاج إجراء',
       'review': 'قيد المراجعة',
       'published': 'منشورة',
@@ -681,6 +687,9 @@ class _MyListingsSkeleton extends StatelessWidget {
 bool _needsAction(PropertyDetails item) =>
     item.saiAttestationRequired ||
     item.reviewStatus == 'draft' ||
+    _needsCorrection(item);
+
+bool _needsCorrection(PropertyDetails item) =>
     item.reviewStatus == 'returned_for_correction';
 
 bool _inReview(PropertyDetails item) =>

@@ -110,7 +110,7 @@ MyListingsPagesController _controller(Future<MyListingsPage> Function(int) load)
 Future<ProviderContainer> _open(
   WidgetTester tester,
   _Wire wire, {
-  bool initiallyNeedsAction = false,
+  bool initiallyShowCorrections = false,
 }) async {
   tester.view.physicalSize = const Size(390, 800);
   tester.view.devicePixelRatio = 1;
@@ -120,7 +120,7 @@ Future<ProviderContainer> _open(
   await tester.pumpWidget(UncontrolledProviderScope(container: container,
     child: MaterialApp(
       theme: AppTheme.light,
-      home: MyListingsScreen(initiallyNeedsAction: initiallyNeedsAction),
+      home: MyListingsScreen(initiallyShowCorrections: initiallyShowCorrections),
     )));
   await tester.pumpAndSettle();
   return container;
@@ -360,16 +360,20 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  phase23WidgetTest('dashboard entry starts on the needs-action listings', (tester) async {
+  phase23WidgetTest('dashboard entry starts on listings returned for correction', (tester) async {
     final wire = _Wire((_) async => _page(1, [
       _listing(1, title: 'Needs correction', review: 'returned_for_correction'),
       _listing(2, title: 'Published listing', review: 'approved'),
+      _listing(3, title: 'Draft listing'),
     ]));
-    await _open(tester, wire, initiallyNeedsAction: true);
+    await _open(tester, wire, initiallyShowCorrections: true);
     expect(find.text('Needs correction'), findsOneWidget);
     expect(find.text('Published listing'), findsNothing);
-    await tester.tap(find.text('الكل (2)'));
+    expect(find.text('Draft listing'), findsNothing);
+    await tester.tap(find.text('الكل (3)'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Published listing'), 240,
+      scrollable: _verticalList.first);
     expect(find.text('Published listing'), findsOneWidget);
   });
 

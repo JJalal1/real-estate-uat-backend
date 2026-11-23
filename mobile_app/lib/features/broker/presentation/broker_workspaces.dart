@@ -91,7 +91,8 @@ class BrokerDashboardScreen extends ConsumerWidget {
           final completedDeals = brokerInt(activity['completed_deals']);
           final unread = brokerInt(activity['unread_conversations']);
           final followups = brokerInt(attention['customer_followups_due']);
-          final corrections = brokerRows(attention['correction_listings']).length;
+          final corrections = brokerInt(listings['returned_for_correction'] ??
+              brokerRows(attention['correction_listings']).length);
           final availability = brokerInt(attention['availability_count']);
           final pendingDeals = brokerInt(attention['pending_deal_count']);
           final priorities = <({String id, String label, String route, IconData icon, int? count})>[
@@ -105,7 +106,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
               (id: 'followup-due', label: 'متابعة العملاء', route: '/broker/customers?filter=followup_due',
                 icon: Icons.event_note_outlined, count: followups),
             if (corrections > 0)
-              (id: 'corrections', label: 'تصحيح الإعلانات', route: '/my-listings?needs_action=1',
+              (id: 'corrections', label: 'تصحيح الإعلانات', route: '/my-listings?corrections=1',
                 icon: Icons.edit_outlined, count: corrections),
             if (availability > 0)
               (id: 'availability', label: 'تأكيد توفر الإعلانات', route: '/broker/availability?due=1',

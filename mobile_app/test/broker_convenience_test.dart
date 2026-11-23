@@ -68,6 +68,7 @@ class _DashboardTasks extends BrokerTestRepository {
   Future<Map<String, dynamic>> workspace() async {
     final data = brokerTestWorkspace();
     (data['needs_attention'] as Map<String, dynamic>)['customer_followups_due'] = 4;
+    (data['listings'] as Map<String, dynamic>)['returned_for_correction'] = 12;
     return data;
   }
 }
@@ -162,7 +163,7 @@ void main() {
       GoRoute(path: '/broker/activity', builder: (_, __) => const Scaffold(body: Text('deals'))),
       GoRoute(path: '/broker/customers', builder: (_, state) => Scaffold(body: Text('filter:${state.uri.queryParameters['filter']}'))),
       GoRoute(path: '/broker/availability', builder: (_, state) => Scaffold(body: Text('due:${state.uri.queryParameters['due']}'))),
-      GoRoute(path: '/my-listings', builder: (_, state) => Scaffold(body: Text('action:${state.uri.queryParameters['needs_action']}'))),
+      GoRoute(path: '/my-listings', builder: (_, state) => Scaffold(body: Text('corrections:${state.uri.queryParameters['corrections']}'))),
     ]);
     addTearDown(router.dispose);
     await tester.pumpWidget(ProviderScope(overrides: [listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
@@ -171,10 +172,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('معاينات للمتابعة'), findsNothing);
     expect(find.textContaining('إجراءات أخرى'), findsNothing);
+    expect(find.descendant(
+      of: find.byKey(const ValueKey('broker-priority-corrections')),
+      matching: find.text('12'),
+    ), findsOneWidget);
     for (final (task, destination) in [
       ('unread', 'filter:unread'),
       ('followup-due', 'filter:followup_due'),
-      ('corrections', 'action:1'),
+      ('corrections', 'corrections:1'),
       ('availability', 'due:1'),
       ('pending-deals', 'deals'),
     ]) {
