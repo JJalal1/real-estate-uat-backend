@@ -25,6 +25,7 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
   Duration _probeDeadline = const Duration(seconds: 30);
   CancelToken? _activeProbe;
   Future<void>? _checking;
+  bool _forceProbe = false;
   bool _disposed = false;
   DateTime? _lastApiReceipt;
   int _revision = 0;
@@ -101,10 +102,14 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
     if (_disposed) return Future.value();
     // Both manual and periodic checks may recover an unvalidated but usable
     // network. Coalesce them, never skip probing because Android did not validate.
-    return _checking ??= _check(force: force).whenComplete(() => _checking = null);
+    if (force) _forceProbe = true;
+    return _checking ??= _check().whenComplete(() {
+      _checking = null;
+      _forceProbe = false;
+    });
   }
 
-  Future<void> _check({required bool force}) async {
+  Future<void> _check() async {
     final startedRevision = _revision;
     try {
       final snapshot =
@@ -122,8 +127,10 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
     // An active API response already verifies the server. Still inspect the
     // device route above so a recent response cannot conceal a real disconnect.
     final receipt = _lastApiReceipt;
-    if (!force && state == OfflineConnection.online && receipt != null &&
-        DateTime.now().difference(receipt) < const Duration(seconds: 24)) return;
+    if (!_forceProbe && state == OfflineConnection.online && receipt != null &&
+        DateTime.now().difference(receipt) < const Duration(seconds: 24)) {
+      return;
+    }
     final probe = _probe;
     if (probe == null) return;
     final cancelToken = CancelToken();
