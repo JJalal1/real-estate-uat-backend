@@ -8,6 +8,7 @@ import '../domain/property_details.dart';
 import '../../account/data/auth_controller.dart';
 
 final recentHistoryDirectoryProvider = Provider<Future<Directory> Function()>((ref) => getApplicationSupportDirectory);
+final _recentPropertiesRevisionProvider = StateProvider<int>((_) => 0);
 
 final Provider<RecentPropertiesStore> recentPropertiesStoreProvider = Provider((ref) {
   final scope = ref.watch(authControllerProvider.select((state) =>
@@ -16,11 +17,12 @@ final Provider<RecentPropertiesStore> recentPropertiesStoreProvider = Provider((
   ref.onDispose(() => active = false);
   return RecentPropertiesStore(actorId: scope.$1, enabled: scope.$2,
     supportDirectory: ref.watch(recentHistoryDirectoryProvider), onChanged: () {
-      if (active) ref.invalidate(recentPropertiesProvider);
+      if (active) ref.read(_recentPropertiesRevisionProvider.notifier).state++;
     });
 });
 
 final FutureProvider<List<PropertySummary>> recentPropertiesProvider = FutureProvider((ref) {
+  ref.watch(_recentPropertiesRevisionProvider);
   return ref.watch(recentPropertiesStoreProvider).load();
 });
 
