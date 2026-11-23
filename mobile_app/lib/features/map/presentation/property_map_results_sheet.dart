@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import '../../../core/formatters/money.dart';
+import '../../../core/widgets/app_components.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
@@ -13,7 +13,7 @@ const mapSaleColor = Color(0xff0b8a55);
 
 double compactMapResultsHeaderHeight(BuildContext context) {
   final scaler = MediaQuery.textScalerOf(context);
-  return 16 + math.max(41.0, scaler.scale(19) * 1.3) + MediaQuery.paddingOf(context).bottom;
+  return math.max(48.0, scaler.scale(15) * 1.6 + 12) + MediaQuery.paddingOf(context).bottom;
 }
 
 /// The map and this list receive the same immutable result snapshot. Its
@@ -21,14 +21,18 @@ double compactMapResultsHeaderHeight(BuildContext context) {
 class PropertyMapResultsSheet extends StatefulWidget {
   const PropertyMapResultsSheet({required this.items, required this.itemBuilder,
     this.selectedId, this.markerSelection = 0, this.loading = false, this.staleResults = false, this.error, this.onRetry, this.onShowList,
+    this.onMarkerDetails, this.onDismissMarker, this.onAdd, this.total, this.hasDrawnArea = false,
     this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, this.filterPanel, super.key});
   final Widget? filterPanel;
   final List<PropertyMarker> items;
   final Widget Function(PropertyMarker property) itemBuilder;
   final int? selectedId;
   final int markerSelection;
+  final int? total;
   final bool loading, staleResults, more;
-  final bool collapsed;
+  final bool collapsed, hasDrawnArea;
+  final ValueChanged<PropertyMarker>? onMarkerDetails;
+  final VoidCallback? onDismissMarker, onAdd;
   final double maxExtent;
   final String? error;
   final VoidCallback? onRetry, onShowList, onMore;
@@ -104,7 +108,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
         }
       });
     }
-    if (widget.selectedId != null &&
+    if (widget.onMarkerDetails == null && widget.selectedId != null &&
         (widget.selectedId != old.selectedId || widget.markerSelection != old.markerSelection)) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
@@ -140,10 +144,10 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
     final selected = widget.items.where((row) => row.id == widget.selectedId);
     final ranked = widget.items.any((row) => row.discoveryMatch != null);
     final rows = ranked ? widget.items : [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
-    final countLabel = compact ? '${arabicDigits('${rows.length}')} نتيجة'
+    final countLabel = compact ? '${arabicDigits('${widget.total ?? rows.length}')} نتيجة'
       : widget.staleResults ? '${rows.length} عقار من آخر تحميل'
       : '${rows.length}${widget.more ? '+' : ''} ${ranked ? 'نتيجة' : 'عقار في النطاق'}';
-    return DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
+    final sheet = DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
       controller: _extent, initialChildSize: widget.collapsed ? _minimum : _initial, minChildSize: _minimum, maxChildSize: _maximum,
       snap: true, snapSizes: [
         for (final size in (compact ? [_initial] : [_initial, widget.filterPanel == null ? .5 : .75]))
@@ -180,7 +184,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                 ]),
               ]))),
             Expanded(child: SearchResultPagination(
-              onLoadMore: ranked && widget.more && !widget.loading && widget.error == null ? widget.onMore : null,
+              onLoadMore: (ranked || widget.hasDrawnArea) && widget.more && !widget.loading && widget.error == null ? widget.onMore : null,
               child: ListView.builder(key: const ValueKey('map-results-list'), controller: scroll,
               padding: EdgeInsets.fromLTRB(12, 0, 12, 24 + (compact ? 0 : MediaQuery.paddingOf(context).bottom)), cacheExtent: 0,
               itemCount: rows.length + 2,
@@ -198,7 +202,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                     if (rows.isNotEmpty) const Text('هذه آخر نتائج متاحة داخل النطاق؛ أعد المحاولة لتحديثها.'),
                     TextButton(onPressed: widget.onRetry, child: const Text('إعادة المحاولة'))])),
                 if (rows.isEmpty && !widget.loading && widget.error == null)
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Text('لا توجد عقارات مطابقة في هذا النطاق. حرّك الخريطة أو عدّل الفلاتر.')),
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Text(widget.hasDrawnArea
+                    ? 'لا توجد إعلانات داخل المنطقة المحددة' : 'لا توجد عقارات مطابقة في هذا النطاق. حرّك الخريطة أو عدّل الفلاتر.')),
                 const SizedBox(height: 12),
               ]); }
               if (index > rows.length) { return widget.more && !widget.staleResults ? TextButton(onPressed: widget.loading ? null : widget.onMore,
@@ -214,53 +219,82 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
             }))),
           ])));
       });
+    final showPreview = selected.isNotEmpty && widget.onMarkerDetails != null;
+    return Stack(fit: StackFit.expand, children: [
+      Offstage(offstage: showPreview, child: sheet),
+      if (showPreview) Positioned(left: 10, right: 10, bottom: MediaQuery.paddingOf(context).bottom + 8,
+        child: ConstrainedBox(constraints: BoxConstraints(maxHeight: height),
+          child: SingleChildScrollView(child: _MapMarkerPreview(property: selected.first,
+            onTap: () => widget.onMarkerDetails!(selected.first), onDismiss: widget.onDismissMarker)))),
+    ]);
   }
 
   Widget _compactHeader(BuildContext context, String count) {
-    final theme = Theme.of(context), scheme = theme.colorScheme;
-    final height = compactMapResultsHeaderHeight(context) - MediaQuery.paddingOf(context).bottom - 16;
+    final theme = Theme.of(context);
     final showCollapse = widget.onShowList == null && _expanded;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(11, 0, 11, 4),
-      child: Column(children: [
-        Semantics(
-          label: 'اسحب لتوسيع النتائج أو تصغيرها',
-          child: SizedBox(key: const ValueKey('map-results-handle'), height: 12, width: double.infinity,
-            child: Center(child: Container(width: 32, height: 3, decoration: BoxDecoration(
-              color: scheme.outlineVariant, borderRadius: BorderRadius.circular(3),
-            ))),
-          ),
-        ),
-        SizedBox(height: height, child: Row(children: [
-          Expanded(child: Semantics(
-            liveRegion: true,
-            label: widget.staleResults ? '$count من آخر تحميل' : count,
-            excludeSemantics: true,
-            child: Text(count, key: const ValueKey('map-results-count'), maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleSmall?.copyWith(fontSize: 19, height: 1.3,
-                fontWeight: FontWeight.w700, color: scheme.primary)),
-          )),
-          if (widget.loading) Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-          ),
-          OutlinedButton.icon(
-            key: widget.onShowList == null ? const ValueKey('map-show-list') : const ValueKey('smart-search-list'),
-            onPressed: widget.onShowList ?? _toggleExtent,
-            icon: Icon(showCollapse ? Icons.keyboard_arrow_down : Icons.view_list_outlined, size: 22),
-            label: Text(showCollapse ? 'تصغير' : 'القائمة', maxLines: 1),
-            style: OutlinedButton.styleFrom(
-              minimumSize: Size(0, height), tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: const EdgeInsets.symmetric(horizontal: 9),
-              foregroundColor: scheme.primary, side: BorderSide(color: scheme.primary),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-              textStyle: theme.textTheme.labelMedium,
-            ),
-          ),
-        ])),
-      ]),
-    );
+    final toggle = widget.onShowList ?? _toggleExtent;
+    final height = compactMapResultsHeaderHeight(context) - MediaQuery.paddingOf(context).bottom;
+    return SizedBox(key: const ValueKey('map-results-handle'), height: height,
+      child: Row(textDirection: TextDirection.rtl, children: [
+        Expanded(child: TextButton.icon(
+          key: widget.onShowList == null ? const ValueKey('map-show-list') : const ValueKey('smart-search-list'),
+          onPressed: toggle, icon: Icon(showCollapse ? Icons.keyboard_arrow_down : Icons.view_list_outlined, size: 18),
+          label: Text(showCollapse ? 'تصغير' : 'قائمة', maxLines: 1),
+          style: TextButton.styleFrom(foregroundColor: theme.colorScheme.onSurface, padding: EdgeInsets.zero))),
+        const VerticalDivider(width: 1, indent: 9, endIndent: 9),
+        Expanded(flex: 2, child: InkWell(onTap: toggle, child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (widget.loading && widget.items.isEmpty)
+            const Padding(padding: EdgeInsetsDirectional.only(end: 5), child: SizedBox.square(dimension: 13,
+              child: CircularProgressIndicator(strokeWidth: 1.5))),
+          Flexible(child: Semantics(liveRegion: true, label: widget.staleResults ? '$count من آخر تحميل' : count,
+            excludeSemantics: true, child: Text(count, key: const ValueKey('map-results-count'),
+              maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+              style: theme.textTheme.labelLarge))),
+        ])))),
+        if (widget.onAdd != null) const VerticalDivider(width: 1, indent: 9, endIndent: 9),
+        Expanded(child: widget.onAdd == null ? const SizedBox.shrink() : TextButton.icon(
+          key: const ValueKey('map-broker-add'), onPressed: widget.onAdd, icon: const Icon(Icons.add_circle, size: 18),
+          label: const Text('إضافة'), style: TextButton.styleFrom(padding: EdgeInsets.zero))),
+      ]));
+  }
+}
+
+class _MapMarkerPreview extends StatelessWidget {
+  const _MapMarkerPreview({required this.property, required this.onTap, this.onDismiss});
+  final PropertyMarker property;
+  final VoidCallback onTap;
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = property;
+    final theme = Theme.of(context);
+    final monthly = p.purpose == 'rent' && p.monthlyRent != null;
+    final facts = [
+      if (p.areaM2 != null) '${p.areaM2} م²',
+      if (p.bedrooms != null) '${p.bedrooms} غرف',
+      if (p.bathrooms != null) '${p.bathrooms} حمامات',
+    ].join('  ·  ');
+    final image = p.mainImage?.isNotEmpty == true ? p.mainImage : p.imageUrls.firstOrNull;
+    return Material(key: ValueKey('map-marker-preview-${p.id}'), color: theme.colorScheme.surface,
+      elevation: 4, borderRadius: BorderRadius.circular(8), clipBehavior: Clip.antiAlias,
+      child: Semantics(button: true, onDismiss: onDismiss, child: InkWell(onTap: onTap,
+        child: LayoutBuilder(builder: (context, bounds) {
+          final photoWidth = (bounds.maxWidth * .34).clamp(72.0, 145.0).toDouble();
+          return Row(textDirection: TextDirection.rtl, children: [
+            Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall),
+                AppPropertyPrice(price: (monthly ? p.monthlyRent! : p.price).toString(), currency: p.currency,
+                  suffix: monthly ? 'شهريًا' : null),
+                if (facts.isNotEmpty) Text(arabicDigits(facts), maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall),
+                if (p.address?.isNotEmpty == true) Text(p.address!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              ]))),
+            SizedBox(width: photoWidth, child: AppPropertyMedia(imageUrl: image, propertyType: p.type,
+              height: photoWidth, cacheWidth: (MediaQuery.devicePixelRatioOf(context) * photoWidth).round())),
+          ]);
+        }))));
   }
 }
 

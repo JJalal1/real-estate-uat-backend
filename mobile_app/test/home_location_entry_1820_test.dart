@@ -36,7 +36,7 @@ void main() {
   setUpAll(loadUxFixtures);
 
   for (final saved in [false, true]) {
-    testWidgets('${saved ? 'saved' : 'fresh'} Home enters quietly and retains explicit governorate selection', (tester) async {
+    testWidgets('${saved ? 'saved' : 'fresh'} Home requests the system permission only for a new install and retains manual selection', (tester) async {
       final store = _Preferences(DiscoveryLocationPreferences(manual: saved ? _dhamar : null));
       final access = _Access();
       final scope = uxContainer(extra: [
@@ -54,9 +54,15 @@ void main() {
       expect(find.byKey(const ValueKey('location-introduction-device')), findsNothing);
       expect(find.text('المتابعة الآن'), findsNothing);
       expect(find.text('أين تبحث؟'), findsNothing);
-      expect(access.permissionChecks, 0);
-      expect(access.permissionRequests, 0);
+      expect(access.permissionChecks, saved ? 0 : 1);
+      expect(access.permissionRequests, saved ? 0 : 1);
       expect(access.fixes, 0);
+      if (!saved) {
+        expect(store.value.permissionResolved, isTrue);
+        final restarted = DiscoveryLocationCoordinator(store, access, () => scope.read(homeLocationProvider), (_) {});
+        await restarted.initialize();
+        expect(access.permissionRequests, 1);
+      }
       if (saved) expect(scope.read(homeLocationProvider).governorateCode, 'DHAMAR');
 
       await tester.tap(find.byKey(const ValueKey('home-location')));
@@ -68,8 +74,8 @@ void main() {
       expect(scope.read(homeLocationProvider).governorateCode, 'DHAMAR');
       expect(store.value.manual?.governorateCode, 'DHAMAR');
       expect(find.text('أين تبحث؟'), findsNothing);
-      expect(access.permissionChecks, 0);
-      expect(access.permissionRequests, 0);
+      expect(access.permissionChecks, saved ? 0 : 1);
+      expect(access.permissionRequests, saved ? 0 : 1);
       expect(access.fixes, 0);
       expect(tester.takeException(), isNull);
       await closeUx(tester);

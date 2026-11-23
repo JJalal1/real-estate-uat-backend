@@ -78,8 +78,6 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       final coordinator = ref.read(discoveryLocationCoordinatorProvider);
       if (prompt) { await coordinator.useDevice(); } else {
         await coordinator.initialize();
-        // Restore the saved public region quietly. Location access and the
-        // governorate picker remain explicit actions from the header button.
       }
       if (deviceChosen && mounted && ref.read(homeLocationProvider).device) {
         ref.read(marketplaceSearchControllerProvider.notifier).locationChanged();

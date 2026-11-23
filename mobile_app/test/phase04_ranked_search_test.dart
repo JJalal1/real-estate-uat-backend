@@ -116,7 +116,7 @@ void main() {
     final dio=Dio(BaseOptions(baseUrl:'https://example.invalid/api'));
     dio.httpClientAdapter=_Adapter((q) async {requests.add(q);return _body([_row(q.queryParameters['page'] as int,nearby:q.queryParameters['page']==2)],page:q.queryParameters['page'] as int,last:2);});
     final repo=PropertyRepository(dio,AuthRepository(dio),rankedDiscovery:true);
-    final filters={'purpose':'rent','max_monthly_rent':100000,'area_polygon':'[[44,15],[45,15],[45,16],[44,15]]'};
+    final filters={'purpose':'rent','max_monthly_rent':100000,'south':15,'west':44,'north':16,'east':45};
     await repo.searchListings(filters);
     final next=await repo.searchListings(filters,page:2);
     expect(next.$1.single.discoveryMatch!.nearby,isTrue);
@@ -128,6 +128,54 @@ void main() {
     dio.httpClientAdapter=_Adapter((_) async => _body([],acknowledge:false));
     await expectLater(repo.searchListings({'search':'another'}),throwsStateError);
     dio.close(force:true);
+  });
+
+  test('a drawn polygon requests exact results before pagination on every page', () async {
+    final requests = <RequestOptions>[];
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid/api'));
+    dio.httpClientAdapter = _Adapter((q) async {
+      requests.add(q);
+      final page = q.queryParameters['page'] as int;
+      return _body([_row(page)], page: page, last: 2);
+    });
+    final repo = PropertyRepository(dio, AuthRepository(dio), rankedDiscovery: true);
+    const ring = '[[44,15],[45,15],[45,16],[44,15]]';
+    for (final page in [1, 2]) {
+      final result = await repo.searchListings({'area_polygon': ring}, page: page);
+      expect(result.$2, page == 1);
+      expect((result.$1 as PropertySearchPageRows).total, 21);
+    }
+    for (final q in requests) {
+      expect(q.queryParameters['area_polygon'], ring);
+      expect(q.queryParameters.containsKey('ranked_search'), isFalse);
+    }
+    dio.close(force: true);
+  });
+
+  test('concave drawing filters retained rows, boundary pins and late server alternatives', () async {
+    final pending = Completer<ResponseBody>();
+    final rows = [
+      {..._row(1), 'latitude': 15.25, 'longitude': 44.25},
+      {..._row(2), 'latitude': 16.5, 'longitude': 45.5},
+      {..._row(3), 'latitude': 16.0, 'longitude': 45.0},
+    ];
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid/api'));
+    dio.httpClientAdapter = _Adapter((q) async =>
+      q.queryParameters.containsKey('area_polygon') ? pending.future : _body(rows));
+    final repo = PropertyRepository(dio, AuthRepository(dio), rankedDiscovery: true);
+    final session = SmartSearchSession(AiRepository(dio, AuthRepository(dio)), repo);
+    await session.search();
+    expect(session.snapshot.rows.map((r) => r.id), [1, 2, 3]);
+    final changed = session.replaceManually(SmartSearchFilters.fromMap({
+      'area_polygon': '[[44,15],[46,15],[46,16],[45,16],[45,17],[44,17],[44,15]]',
+    }), retainedRows: session.snapshot.rows);
+    expect(session.snapshot.rows.map((r) => r.id), [1, 3]);
+    pending.complete(_body(rows));
+    await changed;
+    expect(session.snapshot.rows.map((r) => r.id), [1, 3]);
+    expect(session.snapshot.loading, isFalse);
+    session.dispose();
+    dio.close(force: true);
   });
 
   test('network failure stays an error and never becomes an empty successful ranked page', () async {

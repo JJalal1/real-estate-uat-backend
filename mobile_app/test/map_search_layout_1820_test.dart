@@ -364,7 +364,7 @@ void main() {
     await closeUx(tester);
   });
 
-  testWidgets('a price pin opens the compact list again after the user collapses it', (tester) async {
+  testWidgets('a pin shows only its preview and a second tap opens that same listing', (tester) async {
     const listing = PropertySummary(id: 77, title: 'شقة للإيجار', type: 'apartment',
       purpose: 'rent', price: 120000, currency: 'YER', latitude: 15.4, longitude: 44.2);
     final properties = Listings()..respond = (_, __) async => ([listing], false);
@@ -376,20 +376,47 @@ void main() {
         return const ColoredBox(color: Colors.teal);
       }),
     ]);
-    await pumpUx(tester, scope, const MarketplaceSearchMapScreen(), size: const Size(360, 640));
+    final navigation = GoRouter(routes: [
+      GoRoute(path: '/', builder: (_, __) => const MarketplaceSearchMapScreen()),
+      GoRoute(path: '/properties/:id', builder: (_, state) => Scaffold(appBar: AppBar(),
+        body: Text('تفاصيل ${state.pathParameters['id']}'))),
+    ]);
+    addTearDown(navigation.dispose);
+    await pumpUx(tester, scope, const SizedBox(), router: navigation, size: const Size(360, 640));
     await tester.pumpAndSettle();
-    final sheet = find.byKey(const ValueKey('map-search-panel-surface'));
-    final collapsedTop = tester.getTopLeft(sheet).dy;
+    expect(find.byKey(const ValueKey('map-broker-add')), findsNothing);
     select(listing.id);
     await tester.pumpAndSettle();
-    expect(tester.getTopLeft(sheet).dy, lessThan(collapsedTop));
-    expect(find.byKey(const ValueKey('map-result-77')).hitTestable(), findsOneWidget);
-    await _tap(tester, 'map-show-list');
-    expect(tester.getTopLeft(sheet).dy, closeTo(collapsedTop, 1));
-    select(listing.id);
+    final card = find.byKey(const ValueKey('map-marker-preview-77'));
+    expect(card.hitTestable(), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-results-list')), findsNothing);
+    expect(find.text('تفاصيل 77'), findsNothing);
+    await tester.tap(card);
     await tester.pumpAndSettle();
-    expect(tester.getTopLeft(sheet).dy, lessThan(collapsedTop));
+    expect(find.text('تفاصيل 77'), findsOneWidget);
+    navigation.pop();
+    await tester.pumpAndSettle();
+    expect(card.hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('the map add action follows the broker role and respects RTL order', (tester) async {
+    final auth = UxAuth(uxUser(type: 'broker'));
+    final scope = uxContainer(auth: auth, extra: [
+      propertyRepositoryProvider.overrideWithValue(Listings()),
+      sharedSearchMapBuilderProvider.overrideWithValue((_, __, ___, ____) => const SizedBox.expand()),
+    ]);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
+    await tester.pumpAndSettle();
+    final add = find.byKey(const ValueKey('map-broker-add'));
+    final count = find.byKey(const ValueKey('map-results-count'));
+    final list = find.byKey(const ValueKey('map-show-list'));
+    expect(tester.getCenter(add).dx, lessThan(tester.getCenter(count).dx));
+    expect(tester.getCenter(count).dx, lessThan(tester.getCenter(list).dx));
+    auth.change(uxUser(type: 'owner'));
+    await tester.pumpAndSettle();
+    expect(add, findsNothing);
     await closeUx(tester);
   });
 

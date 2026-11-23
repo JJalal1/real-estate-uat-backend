@@ -1140,6 +1140,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     _selectMarker(property);
   }
 
+  void _dismissMarker() {
+    if (_selected != null) setState(() => _selected = null);
+  }
+
   void _selectMarker(PropertyMarker property) {
     setState(() {
       _selected = property;
@@ -1178,7 +1182,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _openDetails(PropertyMarker property) async {
     if (!_journeyCurrent) return;
-    setState(() => _selected = property);
     await context.push('/properties/${property.id}', extra: PropertySummary(id: property.id, title: property.title,
       purpose: property.purpose ?? '', type: property.type ?? '', price: property.price, currency: property.currency,
       latitude: property.latitude, longitude: property.longitude, monthlyRent: property.monthlyRent,
@@ -1416,9 +1419,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     try {
       final geoPoints = <LatLng>[];
       final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-      for (final point in draft) {
-        final pixels = MapScreenCoordinateSpace.logicalToPlatformPixels(point, pixelRatio);
-        geoPoints.add(await (projector != null ? projector(pixels) : controller!.toLatLng(pixels)));
+      // Project a bounded batch per platform round trip instead of serializing
+      // every sampled vertex. Future.wait preserves the order of the stroke.
+      for (var start = 0; start < draft.length; start += 12) {
+        geoPoints.addAll(await Future.wait(draft.skip(start).take(12).map((point) {
+          final pixels = MapScreenCoordinateSpace.logicalToPlatformPixels(point, pixelRatio);
+          return projector != null ? projector(pixels) : controller!.toLatLng(pixels);
+        })));
         if (!_journeyCurrent || generation != _areaSelectionGeneration || !_selectingArea) return;
       }
       final geometry = MapAreaGeometry.fromPoints(geoPoints);
@@ -1453,7 +1460,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           if (hasViewport) ...{for (final key in bounds) key: current[key]}
           else ...{'south': geometry.bounds.southwest.latitude, 'west': geometry.bounds.southwest.longitude,
             'north': geometry.bounds.northeast.latitude, 'east': geometry.bounds.northeast.longitude}});
-        sharedSearch = ref.read(_searchSession.notifier).replaceManually(SmartSearchFilters.fromMap(values));
+        sharedSearch = ref.read(_searchSession.notifier).replaceManually(SmartSearchFilters.fromMap(values),
+          retainedRows: ref.read(_searchSession).rows);
       }
       await _renderSelectedAreaAnnotations();
       if (sharedSearch != null) await sharedSearch;
@@ -1575,6 +1583,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
 
   void _openAddProperty() {
+    if (ref.read(authControllerProvider).asData?.value?.isBroker != true) return;
     context.push('/add-property');
   }
 
@@ -1635,6 +1644,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               _buildAreaChip(),
             if (_selectingArea) _buildAreaSelectionOverlay(),
             if (!_selectingArea) PropertyMapResultsSheet(items: displayed, selectedId: _selected?.id,
+              hasDrawnArea: _selectedAreaGeometry != null,
+              onMarkerDetails: _openDetails, onDismissMarker: _dismissMarker,
               filterPanel: _buildFilterPanel(properties),
               loading: rawProperties.isLoading, error: apiError == null ? null : friendlyApiError(apiError),
               onRetry: () => ref.invalidate(nearbyPropertiesProvider(query)),
@@ -1736,11 +1747,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final search=ref.read(_searchSession), controller=_mapController;
     if(controller==null || !_journeyCurrent)return;
     final values=search.filters.values;
-    if((widget.enforceViewport || search.filters.hasMapArea) && const ['south','west','north','east'].every((key)=>values[key] is num)) {
+    final hasViewport = (widget.enforceViewport || search.filters.hasMapArea) &&
+        const ['south', 'west', 'north', 'east'].every((key) => values[key] is num);
+    final drawnBounds = _selectedAreaGeometry?.bounds;
+    if (hasViewport || drawnBounds != null) {
       // Reopening the same map restores its actual bounds, including an empty
       // result viewport, rather than fitting only its remaining listing pins.
-      final bounds=LatLngBounds(southwest:LatLng((values['south'] as num).toDouble(),(values['west'] as num).toDouble()),
-        northeast:LatLng((values['north'] as num).toDouble(),(values['east'] as num).toDouble()));
+      final bounds = hasViewport
+          ? LatLngBounds(southwest: LatLng((values['south'] as num).toDouble(), (values['west'] as num).toDouble()),
+              northeast: LatLng((values['north'] as num).toDouble(), (values['east'] as num).toDouble()))
+          : drawnBounds!;
       _fittingShared=true;
       try {
         await controller.moveCamera(CameraUpdate.newLatLngBounds(bounds,left:0,top:0,right:0,bottom:0));
@@ -1881,7 +1897,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           if (!_selectingArea) Offstage(offstage: !showResults, child: OverflowBox(
             alignment: Alignment.bottomCenter, minHeight: sheetHeight, maxHeight: sheetHeight,
             child: SizedBox(height: sheetHeight, child: PropertyMapResultsSheet(
-            items: rows, selectedId: _selected?.id, markerSelection: _markerSelection, loading: state.loading,
+            items: rows, total: state.total, selectedId: _selected?.id, markerSelection: _markerSelection, loading: state.loading,
+            hasDrawnArea: _selectedAreaGeometry != null, onMarkerDetails: _openDetails, onDismissMarker: _dismissMarker,
+            onAdd: user?.isBroker == true ? _openAddProperty : null,
             staleResults: state.resultsError != null && rows.isNotEmpty,
             maxExtent: sheetMaximum, collapsed: widget.collapseResults,
             filterPanel: widget.toolbarAboveMap ? null : toolbar,
@@ -1894,10 +1912,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               favorite: favoriteState?.asData?.value.contains(row.id) ?? false,
               favoriteStatus: PropertyFavoriteStatus.fromAsync(favoriteState, row.id),
               onFavorite: _favoriteAction(row.id, favoriteState), onMap: () => _focusProperty(row), onDetails: () => _openDetails(row)))))),
-          if (!_selectingArea && widget.toolbarAboveMap && height >= actionHeight + 12) Positioned(
+          if (!_selectingArea && _selected == null && widget.toolbarAboveMap && height >= actionHeight + 12) Positioned(
             left: compact ? 10 : 16, bottom: (showResults ? extent * height : 0) + 12,
             child: compact ? _compactMapTools(actions, horizontal: horizontalActions)
               : _sharedFloatingActions(actions, horizontal: horizontalActions)),
+          if (!_selectingArea && compact && showResults && extent <= minimum + .015 &&
+              _selectedAreaGeometry != null && rows.isEmpty && !state.loading && state.resultsError == null)
+            Positioned(bottom: headerHeight + 6, left: 68, right: 12,
+              child: IgnorePointer(child: _MessageCard(text: 'لا توجد إعلانات داخل المنطقة المحددة'))),
           if (_selectingArea) _buildAreaSelectionOverlay(),
         ]));
       });
@@ -2000,6 +2022,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       onMapCreated: _onMapCreated,
       onStyleLoadedCallback: _onStyleLoaded,
       onCameraIdle: _commitCameraCenter,
+      onMapClick: (_) => _dismissMarker(),
       padding: EdgeInsets.only(bottom: bottomPadding),
       rememberCameraAcrossRenderers: !_googleAddressUsed,
       myLocationEnabled: _userLocation != null,
@@ -2287,7 +2310,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
               mapMode: false,
               onSwitch: () => setState(() => _listMode = false),
-              onAdd: _openAddProperty,
+              onAdd: ref.watch(authControllerProvider).asData?.value?.isBroker == true ? _openAddProperty : null,
             ),
           ),
         ),
@@ -2422,7 +2445,7 @@ class _MapListSwitcherBar extends StatelessWidget {
   final String countText;
   final bool mapMode;
   final VoidCallback onSwitch;
-  final VoidCallback onAdd;
+  final VoidCallback? onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -2468,8 +2491,8 @@ class _MapListSwitcherBar extends StatelessWidget {
                 ),
               ),
             ),
-            const VerticalDivider(),
-            Expanded(
+            if (onAdd != null) const VerticalDivider(),
+            if (onAdd != null) Expanded(
               child: InkWell(
                 onTap: onAdd,
                 child: Row(

@@ -39,13 +39,6 @@ const _fitBounds = {
   'east': 44.45
 };
 
-typedef _Rank = (int id, bool nearby);
-
-List<_Rank> _rank(List<int> exact, List<int> nearby) => [
-      for (final id in exact) (id, false),
-      for (final id in nearby) (id, true),
-    ];
-
 class _NativeCamera {
   _NativeCamera(WidgetTester tester)
       : messenger = tester.binding.defaultBinaryMessenger {
@@ -303,7 +296,7 @@ void main() {
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   final pages10 = [
-    _rank([
+    [
       145,
       144,
       143,
@@ -324,11 +317,9 @@ void main() {
       124,
       123,
       122
-    ], []),
-    _rank(List.generate(16, (i) => 121 - i), [142, 147, 141, 146]),
-    _rank([], [132, 137]),
+    ],
+    List.generate(16, (i) => 121 - i),
   ];
-  const nearby11 = [140, 133, 138, 135, 147, 131, 142, 136, 129];
   for (final (id, name, filters, pages) in [
     (6, '10', {'area_polygon': _widePolygon}, pages10),
     for (final (id, label, east, onBoundary) in [
@@ -350,12 +341,12 @@ void main() {
           'governorate_code': 'DHAMAR',
         },
         [
-          _rank(onBoundary ? [145] : [], [if (!onBoundary) 145, ...nearby11])
+          <int>[if (onBoundary) 145]
         ]
       ),
   ]) {
     testWidgets(
-        'saved case $name keeps ranked pages through native map startup and drawer scrolling',
+        'saved case $name keeps only matching polygon pages through native map startup and drawer scrolling',
         (tester) async {
       final native = _NativeCamera(tester);
       final requests = <Map<String, dynamic>>[];
@@ -368,19 +359,18 @@ void main() {
         requests.add(query);
         final hasCamera = query.containsKey('south');
         final candidates =
-            hasCamera ? [_rank([], List.generate(12, (i) => 106 + i))] : pages;
+            hasCamera ? [List.generate(12, (i) => 106 + i)] : pages;
         final currentPage = query['page'] as int;
         final combined = candidates.expand((page) => page).toList();
-        final exactCount = combined.where((rank) => !rank.$2).length;
         handler.resolve(Response(
             requestOptions: request,
             statusCode: 200,
             headers: Headers.fromMap({
-              'x-aqer-ranked-contract': ['1']
+              'x-aqer-filter-contract': ['2']
             }),
             data: {
               'data': [
-                for (final (id, nearby) in candidates[currentPage - 1])
+                for (final id in candidates[currentPage - 1])
                   {
                     'id': id,
                     'title': 'عقار $id',
@@ -388,26 +378,14 @@ void main() {
                     'type': 'house',
                     'price': 100000,
                     'currency': 'YER',
-                    'latitude': id == 145 ? 14.552 : 15.18 + id / 1000,
-                    'longitude': id == 145 ? 44.4 : 44.2,
-                    'discovery_match': {
-                      'kind': nearby ? 'nearby' : 'exact',
-                      'reasons': [
-                        if (nearby)
-                          {
-                            'field': 'location',
-                            'message': 'خارج المنطقة المرسومة'
-                          }
-                      ]
-                    },
+                    'latitude': hasCamera ? 14.97 : id == 145 ? 14.552 : 15.18 + id / 1000,
+                    'longitude': hasCamera ? 44.25 : id == 145 ? 44.4 : 44.2,
                   }
               ],
               'meta': {
                 'current_page': currentPage,
                 'last_page': candidates.length,
-                'total': combined.length,
-                'exact_total': exactCount,
-                'alternative_total': combined.length - exactCount
+                'total': combined.length
               },
             }));
       }));
@@ -422,7 +400,7 @@ void main() {
           filters: filters,
           alertFrequency: 'off',
           isActive: true,
-          matchingCount: all.where((rank) => !rank.$2).length);
+          matchingCount: all.length);
       await pumpUx(tester, scope, AssistedSearchScreen(savedSearch: search));
       await tester.pumpAndSettle();
       final list = find.byType(Scrollable).first;
@@ -434,16 +412,13 @@ void main() {
       }
       final stateBeforeMap = scope.read(smartSearchSessionProvider);
       expect(
-          stateBeforeMap.rows
-              .map((row) => (row.id, row.discoveryMatch!.nearby)),
+          stateBeforeMap.rows.map((row) => row.id),
           all);
       Map<String, dynamic> query(int page) => {
             ...filters,
             'page': page,
             'per_page': 20,
             'sort': 'latest',
-            'ranked_search': 1,
-            'ranking_version': 2,
           };
       final listRequests = [
         for (var page = 1; page <= pages.length; page++) query(page)
@@ -484,7 +459,7 @@ void main() {
       final drawer = tester.widget<PropertyMapResultsSheet>(
           find.byType(PropertyMapResultsSheet));
       expect(
-          drawer.items.map((row) => (row.id, row.discoveryMatch!.nearby)), all);
+          drawer.items.map((row) => row.id), all);
       expect(drawer.more, isFalse);
       expect(find.text('${arabicDigits(all.length.toString())} نتيجة'), findsOneWidget);
 
@@ -513,7 +488,7 @@ void main() {
         await native.emit('camera#onIdle');
         await tester.pump(const Duration(milliseconds: 350));
         await tester.pumpAndSettle();
-        expect(requests, hasLength(4),
+        expect(requests, hasLength(pages.length + 1),
             reason:
                 'A settled gesture must not authorize a later layout idle.');
       }
