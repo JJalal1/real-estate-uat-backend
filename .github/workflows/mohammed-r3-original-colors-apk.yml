@@ -14,6 +14,8 @@ concurrency:
 
 jobs:
   verify-and-build:
+    permissions:
+      contents: write
     if: ${{ github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -212,15 +214,6 @@ jobs:
           (apk.parent / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
           print(json.dumps(receipt))
           PY
-      - name: Save the verified installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: AQER-R3-1834-ARM64
-          path: |
-            uat1834/AQER-R3-1834-ARM64.apk
-            uat1834/APK_VERIFICATION.json
-          if-no-files-found: error
-          compression-level: 0
       - name: Remove temporary signing and Firebase configuration
         if: always()
         run: |
@@ -231,27 +224,14 @@ jobs:
           folder = Path(os.environ["RUNNER_TEMP"]) / "aqer-uat-signing"
           (folder / "uat-release.keystore").unlink(missing_ok=True)
           PY
-
-  private-delivery:
-    needs: verify-and-build
-    if: ${{ github.event.repository.private }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: AQER-R3-1834-ARM64
-          path: delivery
-      - name: Keep a private draft of the verified installer
+      - name: Deliver the verified installer directly to a private draft
         env:
           GH_TOKEN: ${{ github.token }}
-          AQER_SOURCE_SHA: 44c76bd8f314e199650a8d8d8053a983a48bf819
         run: |
-          cd delivery
+          set -euo pipefail
+          cd uat1834
           apk=AQER-R3-1834-ARM64.apk
-          jq -e --arg sha "$AQER_SOURCE_SHA" '.source == $sha and .build == 1834 and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
+          jq -e --arg source "$AQER_SOURCE_SHA" '.source == $source and .build == 1834 and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
           printf '%s  %s\n' "$(jq -r .sha256 APK_VERIFICATION.json)" "$apk" | sha256sum --check --strict
           gh release create "mohammed-design-r3-1834-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             "$apk" APK_VERIFICATION.json --repo "$GITHUB_REPOSITORY" --draft --target "$AQER_SOURCE_SHA" \
