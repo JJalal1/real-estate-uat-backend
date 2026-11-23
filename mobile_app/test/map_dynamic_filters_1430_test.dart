@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
@@ -158,10 +159,58 @@ void main() {
     expect(filters['north'], 16);
     expect(listings.calls.last['area_polygon'], filters['area_polygon']);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('area_polygon'), isFalse);
-    await _tap(tester, 'published-map-filters');
-    await _tap(tester, 'map-clear-area');
+    final drawControl = find.byKey(const ValueKey('map-draw-area'));
+    expect(find.descendant(of: drawControl, matching: find.byIcon(Icons.close_rounded)), findsOneWidget);
+    await _tap(tester, 'map-draw-area');
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('area_polygon'), isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['south'], filters['south']);
+    expect(listings.calls.last, containsPair('type', 'house'));
+    expect(listings.calls.last, isNot(contains('area_polygon')));
+    expect(find.descendant(of: drawControl, matching: find.byIcon(Icons.gesture_rounded)), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('clearing a drawing restores the earlier province if no viewport was selected', (tester) async {
+    final listings = Listings();
+    var markerCount = 0;
+    final scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(listings),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, viewport) {
+        markerCount = rows.length;
+        return _map;
+      }),
+      sharedSearchMapProjectorProvider.overrideWithValue((pixels) async =>
+        LatLng(14.4 + pixels.y / 10000, 44.3 + pixels.x / 10000)),
+    ]);
+    scope.read(homeLocationProvider.notifier).state = const HomeLocation(
+      latitude: 14.5428, longitude: 44.4051, governorate: 'ذمار',
+      governorateCode: 'DH', label: 'ذمار', manual: true);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
+    await tester.pumpAndSettle();
+    await _tap(tester, 'published-type-house');
+    final before = scope.read(marketplaceMapResultsProvider).filters.values;
+    expect(before, containsPair('governorate_code', 'DH'));
+    expect(before, isNot(contains('south')));
+    final originalMarkerCount = markerCount;
+    expect(originalMarkerCount, greaterThan(0));
+    await _tap(tester, 'map-draw-area');
+    await _stroke(tester);
+    await tester.pumpAndSettle();
+    expect(listings.calls.last['area_polygon'], isA<String>());
+    expect(listings.calls.last, isNot(contains('south')));
+    expect(listings.calls.last, isNot(contains('governorate_code')));
+    expect(markerCount, 0);
+    scope.read(marketplaceSearchControllerProvider.notifier).setChoice('purpose', 'rent', onMap: true);
+    await tester.pumpAndSettle();
+    await _tap(tester, 'map-draw-area');
+    final restored = listings.calls.last;
+    expect(restored, containsPair('governorate_code', 'DH'));
+    expect(restored, containsPair('type', 'house'));
+    expect(restored, containsPair('purpose', 'rent'));
+    expect(restored, isNot(contains('area_polygon')));
+    expect(restored, isNot(contains('south')));
+    expect(markerCount, originalMarkerCount);
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });

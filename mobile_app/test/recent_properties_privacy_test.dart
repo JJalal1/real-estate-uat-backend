@@ -116,4 +116,20 @@ void main() {
     account.change(1);
     expect((await container.read(recentPropertiesProvider.future)).map((p) => p.id), [11]);
   });
+
+  test('recording and clearing refresh an already loaded history', () async {
+    final directory = await Directory.systemTemp.createTemp('aqer-recent-test-');
+    addTearDown(() => directory.delete(recursive: true));
+    final container = ProviderContainer(overrides: [authControllerProvider.overrideWith(_Account.new),
+      recentHistoryDirectoryProvider.overrideWithValue(() async => directory)]);
+    addTearDown(container.dispose);
+    await container.read(authControllerProvider.future);
+    expect(await container.read(recentPropertiesProvider.future), isEmpty);
+
+    final store = container.read(recentPropertiesStoreProvider);
+    await store.record(_property(20));
+    expect((await container.read(recentPropertiesProvider.future)).map((p) => p.id), [20]);
+    await store.clear();
+    expect(await container.read(recentPropertiesProvider.future), isEmpty);
+  });
 }

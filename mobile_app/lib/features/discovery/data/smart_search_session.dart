@@ -48,6 +48,11 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   final bool traceMapResults;
   final bool retainMapRowsOnUnknownFailure;
   Map<String, dynamic> _defaultContext = {};
+  static const _mapViewportFields = {'south', 'west', 'north', 'east'};
+  static const _drawnAreaLocationFields = {
+    ...SmartSearchFilters.mapFields, 'governorate', 'governorate_code',
+  };
+  Map<String, dynamic>? _locationBeforeDrawing;
   bool _usingDefaultLocation = false;
   int _inference = 0, _results = 0;
   CancelToken? _resultTransfer;
@@ -90,6 +95,37 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     state = state.copyWith(draftText: value, interpreting: false);
   }
   void startFromHome({required String location, String? type}) => reset();
+
+  Future<void> applyDrawnArea(String encodedRing) {
+    final current = state.filters.values;
+    final hasViewport = _mapViewportFields.every((key) => current[key] is num);
+    _locationBeforeDrawing ??= {
+      for (final entry in current.entries)
+        if (entry.key != 'area_polygon' && _drawnAreaLocationFields.contains(entry.key))
+          entry.key: entry.value,
+    };
+    // The polygon already supplies the exact limits. Keep only a viewport
+    // the user had applied, so clearing the drawing can restore the prior scope.
+    final values = Map<String, dynamic>.from(current)
+      ..removeWhere((key, _) => _drawnAreaLocationFields.contains(key) &&
+        !(hasViewport && _mapViewportFields.contains(key)))
+      ..['area_polygon'] = encodedRing;
+    return replaceManually(SmartSearchFilters.fromMap(values), retainedRows: state.rows);
+  }
+
+  Future<void> clearDrawnArea() {
+    final values = Map<String, dynamic>.from(state.filters.values);
+    if (values.remove('area_polygon') == null) return Future.value();
+    final location = _locationBeforeDrawing;
+    final hasOtherLocation = values.keys.any((key) =>
+      _drawnAreaLocationFields.contains(key) && !_mapViewportFields.contains(key));
+    if (location != null && !hasOtherLocation &&
+        _mapViewportFields.every((key) => values[key] == location[key])) {
+      values.addAll(location);
+    }
+    return replaceManually(SmartSearchFilters.fromMap(values));
+  }
+
   void updateViewport({required double south, required double west, required double north, required double east}) {
     if (![south, west, north, east].every((value) => value.isFinite) || south >= north ||
       south < -90 || north > 90 || west < -180 || east > 180) { return; }
@@ -159,6 +195,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     List<PropertySummary> retainedRows = const []}) {
     _inference++; _results++;
     _resultTransfer?.cancel('Search criteria changed');
+    if (!filters.values.containsKey('area_polygon')) _locationBeforeDrawing = null;
     state = SmartSearchState(filters: filters, rows: _insideDrawnArea(filters, retainedRows), revision: state.revision + 1,
       message: message, lastRequest: state.lastRequest, draftText: draftText ?? state.draftText);
   }
@@ -175,6 +212,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     _inference++; _results++;
     _resultTransfer?.cancel('Search journey ended');
     _resultTransfer = null;
+    _locationBeforeDrawing = null;
     _defaultContext = useLocation ? Map.of(defaultLocation?.call().values ?? const <String,dynamic>{}) : {};
     _usingDefaultLocation = _defaultContext.isNotEmpty;
     state = SmartSearchState(revision: state.revision + 1, filters: SmartSearchFilters.fromMap(_defaultContext));
