@@ -222,7 +222,9 @@ void main() {
     await pumpWave6(tester,const AppShellScreen(),boundary:boundary,scale:scale);
     final nav=find.byType(AppNavigationBar);
     expect(tester.widget<AppNavigationBar>(nav).destinations.map((d)=>d.label),['الرئيسية','عملي','العملاء','حسابي']);
-    await tester.tap(find.byKey(const ValueKey('floating-smart-search')));await tester.pumpAndSettle();
+    final assistant = find.byKey(const ValueKey('floating-smart-search'));
+    await tester.ensureVisible(assistant);
+    await tester.tap(assistant);await tester.pumpAndSettle();
     expect(find.text('بحث عن عقار بالذكاء'),findsOneWidget);expect(find.text('إضافة عقار بالذكاء'),findsOneWidget);
     expect(find.text('تعبئة يدوي'),findsNothing);
     for (final label in ['بحث عن عقار بالذكاء','إضافة عقار بالذكاء']) {

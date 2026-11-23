@@ -7,6 +7,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/uat_network_trace.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
+import '../../map/domain/map_area_geometry.dart';
 import '../../properties/domain/property_details.dart';
 import '../domain/smart_search_filters.dart';
 import 'ai_repository.dart';
@@ -14,22 +15,23 @@ import 'marketplace_repository.dart';
 
 class SmartSearchState {
   const SmartSearchState({this.filters = const SmartSearchFilters(), this.rows = const [], this.revision = 0,
-    this.page = 0, this.more = false, this.interpreting = false, this.loading = false, this.started = false,
+    this.page = 0, this.total, this.more = false, this.interpreting = false, this.loading = false, this.started = false,
     this.message = '', this.lastRequest = '', this.draftText = '', this.aiError, this.resultsError});
   final SmartSearchFilters filters;
   final List<PropertySummary> rows;
   final int revision, page;
+  final int? total;
   final bool more, interpreting, loading, started;
   final String message, lastRequest, draftText;
   final String? aiError, resultsError;
   bool get canLoadMore => more && !loading && resultsError == null;
   bool get hasRankedResults => rows.isNotEmpty && rows.first.discoveryMatch != null;
 
-  SmartSearchState copyWith({SmartSearchFilters? filters, List<PropertySummary>? rows, int? revision, int? page,
+  SmartSearchState copyWith({SmartSearchFilters? filters, List<PropertySummary>? rows, int? revision, int? page, int? total,
     bool? more, bool? interpreting, bool? loading, bool? started, String? message, String? lastRequest, String? draftText, String? aiError,
     String? resultsError, bool clearAiError = false, bool clearResultsError = false}) => SmartSearchState(
       filters: filters ?? this.filters, rows: rows ?? this.rows, revision: revision ?? this.revision,
-      page: page ?? this.page, more: more ?? this.more, interpreting: interpreting ?? this.interpreting,
+      page: page ?? this.page, total: total ?? this.total, more: more ?? this.more, interpreting: interpreting ?? this.interpreting,
       loading: loading ?? this.loading, started: started ?? this.started, message: message ?? this.message, lastRequest: lastRequest ?? this.lastRequest, draftText: draftText ?? this.draftText,
       aiError: clearAiError ? null : aiError ?? this.aiError,
       resultsError: clearResultsError ? null : resultsError ?? this.resultsError);
@@ -46,6 +48,11 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   final bool traceMapResults;
   final bool retainMapRowsOnUnknownFailure;
   Map<String, dynamic> _defaultContext = {};
+  static const _mapViewportFields = {'south', 'west', 'north', 'east'};
+  static const _drawnAreaLocationFields = {
+    ...SmartSearchFilters.mapFields, 'governorate', 'governorate_code',
+  };
+  Map<String, dynamic>? _locationBeforeDrawing;
   bool _usingDefaultLocation = false;
   int _inference = 0, _results = 0;
   CancelToken? _resultTransfer;
@@ -66,8 +73,8 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     if (initialResults != null && initialResults.started && !initialResults.loading &&
         initialResults.resultsError == null && initialResults.page > 0 && initialResults.filters.sameAs(filters)) {
       _usingDefaultLocation = false;
-      state = SmartSearchState(filters: filters, rows: initialResults.rows, page: initialResults.page,
-        more: initialResults.more, started: true, revision: state.revision);
+      state = SmartSearchState(filters: filters, rows: _insideDrawnArea(filters, initialResults.rows), page: initialResults.page,
+        more: initialResults.more, total: initialResults.total, started: true, revision: state.revision);
     } else {
       replaceManually(filters);
     }
@@ -88,6 +95,37 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     state = state.copyWith(draftText: value, interpreting: false);
   }
   void startFromHome({required String location, String? type}) => reset();
+
+  Future<void> applyDrawnArea(String encodedRing) {
+    final current = state.filters.values;
+    final hasViewport = _mapViewportFields.every((key) => current[key] is num);
+    _locationBeforeDrawing ??= {
+      for (final entry in current.entries)
+        if (entry.key != 'area_polygon' && _drawnAreaLocationFields.contains(entry.key))
+          entry.key: entry.value,
+    };
+    // The polygon already supplies the exact limits. Keep only a viewport
+    // the user had applied, so clearing the drawing can restore the prior scope.
+    final values = Map<String, dynamic>.from(current)
+      ..removeWhere((key, _) => _drawnAreaLocationFields.contains(key) &&
+        !(hasViewport && _mapViewportFields.contains(key)))
+      ..['area_polygon'] = encodedRing;
+    return replaceManually(SmartSearchFilters.fromMap(values), retainedRows: state.rows);
+  }
+
+  Future<void> clearDrawnArea() {
+    final values = Map<String, dynamic>.from(state.filters.values);
+    if (values.remove('area_polygon') == null) return Future.value();
+    final location = _locationBeforeDrawing;
+    final hasOtherLocation = values.keys.any((key) =>
+      _drawnAreaLocationFields.contains(key) && !_mapViewportFields.contains(key));
+    if (location != null && !hasOtherLocation &&
+        _mapViewportFields.every((key) => values[key] == location[key])) {
+      values.addAll(location);
+    }
+    return replaceManually(SmartSearchFilters.fromMap(values));
+  }
+
   void updateViewport({required double south, required double west, required double north, required double east}) {
     if (![south, west, north, east].every((value) => value.isFinite) || south >= north ||
       south < -90 || north > 90 || west < -180 || east > 180) { return; }
@@ -141,11 +179,24 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     return false;
   }
 
+  List<PropertySummary> _insideDrawnArea(SmartSearchFilters filters, List<PropertySummary> rows) {
+    final ring = filters.values['area_polygon'];
+    if (ring is! String || rows.isEmpty) return rows;
+    try {
+      final polygon = MapAreaGeometry.fromEncodedRing(ring);
+      return rows.where((row) => polygon.contains(row.latitude, row.longitude)).toList(growable: false);
+    } on FormatException {
+      // Discard out-of-scope cached results while the API validates the ring.
+      return const [];
+    }
+  }
+
   void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.', String? draftText,
     List<PropertySummary> retainedRows = const []}) {
     _inference++; _results++;
     _resultTransfer?.cancel('Search criteria changed');
-    state = SmartSearchState(filters: filters, rows: retainedRows, revision: state.revision + 1,
+    if (!filters.values.containsKey('area_polygon')) _locationBeforeDrawing = null;
+    state = SmartSearchState(filters: filters, rows: _insideDrawnArea(filters, retainedRows), revision: state.revision + 1,
       message: message, lastRequest: state.lastRequest, draftText: draftText ?? state.draftText);
   }
 
@@ -161,6 +212,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     _inference++; _results++;
     _resultTransfer?.cancel('Search journey ended');
     _resultTransfer = null;
+    _locationBeforeDrawing = null;
     _defaultContext = useLocation ? Map.of(defaultLocation?.call().values ?? const <String,dynamic>{}) : {};
     _usingDefaultLocation = _defaultContext.isNotEmpty;
     state = SmartSearchState(revision: state.revision + 1, filters: SmartSearchFilters.fromMap(_defaultContext));
@@ -184,8 +236,12 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       final rows = more ? List<PropertySummary>.of(state.rows) : <PropertySummary>[];
       // Keep the server's order across pages regardless of classification.
       final ids = rows.map((row) => row.id).toSet();
-      rows.addAll(result.$1.where((row) => ids.add(row.id)));
-      state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
+      final pageRows = result.$1;
+      final inside = _insideDrawnArea(filters, pageRows);
+      rows.addAll(inside.where((row) => ids.add(row.id)));
+      final total = !result.$2 ? rows.length
+        : inside.length == pageRows.length && pageRows is PropertySearchPageRows ? pageRows.total : rows.length;
+      state = state.copyWith(rows: List.unmodifiable(rows), page: page, total: total, more: result.$2, loading: false);
       timing?.mark(UatMapPhase.resultsApplied);
     } catch (error) {
       if (_acceptResultsDelivery(request, revision, epoch)) {
@@ -194,7 +250,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
         final retainRows = isTransientApiFailure(error) ||
             (retainMapRowsOnUnknownFailure && error is DioException &&
               error.type == DioExceptionType.unknown && error.response == null);
-        state = state.copyWith(loading: false, rows: retainRows ? null : const [],
+        state = state.copyWith(loading: false, rows: retainRows ? null : const [], total: retainRows ? state.total : 0,
           resultsError: friendlyApiError(error));
         timing?.mark(UatMapPhase.resultsFailed);
       }

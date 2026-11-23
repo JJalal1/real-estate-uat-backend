@@ -246,6 +246,29 @@ void main() {
     expect(wire.calls, isEmpty);
   });
 
+  test('recent live data avoids a duplicate health request while manual retry still probes', () async {
+    final wire = _Wire();
+    final active = _controller(_client(wire));
+    active.online();
+    await active.check();
+    expect(wire.calls, isEmpty);
+    await active.check(force: true);
+    expect(wire.calls, hasLength(1));
+  });
+
+  test('one slow request does not flash the global unavailable state on a reachable network', () async {
+    final response = Completer<ResponseBody>();
+    final wire = _Wire()..reply = (_) => response.future;
+    final monitor = _controller(_client(wire));
+    monitor.online();
+    monitor.transportFailure(monitor.revision);
+    await wire.started.future;
+    expect(monitor.current, OfflineConnection.online);
+    response.complete(_json({'status': 'ok'}));
+    await monitor.check();
+    expect(monitor.current, OfflineConnection.online);
+  });
+
   test('concurrent forced checks share a single health request', () async {
     final wire = _Wire(), response = Completer<ResponseBody>();
     wire.reply = (_) => response.future;

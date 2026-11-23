@@ -99,7 +99,8 @@ class DiscoveryLocationCoordinator {
     _manual = _read().manual ? _read() : saved.manual;
     if (_manual != null) { _write(_manual!); return; }
     if (_lastPublicRegion != null) _write(_lastPublicRegion!);
-    // The OS sheet is opened only by useDevice().
+    // A previous decision or manual region survives app restarts and upgrades.
+    if (!_resolved) await _runDevice(automatic: true);
   }
   bool get shouldOfferChoice => !_introductionShown && !_resolved && _manual == null;
   Future<void> markIntroductionShown() async { _introductionShown = true; await _save(); }

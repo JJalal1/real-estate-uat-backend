@@ -93,14 +93,14 @@ void main() {
 
   for (final dark in [false, true]) {
     for (final purpose in ['sale', 'rent']) {
-      for (final compact in [false, true]) {
-        testWidgets('T05 actual map purpose text meets contrast dark=$dark purpose=$purpose compact=$compact', (tester) async {
+      for (final width in [320.0, 412.0]) {
+        testWidgets('T05 actual map purpose text meets contrast dark=$dark purpose=$purpose width=$width', (tester) async {
           final scope = uxContainer();
           await pumpUx(tester, scope, Scaffold(body: Builder(builder: (context) => Material(
             color: Theme.of(context).colorScheme.surface,
             child: PropertyMapResultCard(property: PropertyMarker(id: 11, title: 'عقار اختبار', price: 100000,
               currency: 'YER', latitude: 15.37, longitude: 44.19, distanceKm: 0, type: 'apartment', purpose: purpose),
-              compact: compact, favorite: false, onFavorite: () {}, onMap: () {}, onDetails: () {})))), dark: dark);
+              favorite: false, onFavorite: () {}, onMap: () {}, onDetails: () {})))), dark: dark, size: Size(width, 820));
           final label = find.textContaining(purpose == 'rent' ? 'للإيجار' : 'للبيع');
           final foreground = tester.widget<Text>(label).style!.color!;
           final background = Theme.of(tester.element(label)).colorScheme.surface;
@@ -242,6 +242,7 @@ void main() {
           const ColoredBox(key: ValueKey('keyboard-map'), color: Color(0xffd5e4dd)))]);
       await pumpUx(tester, scope, const MarketplaceSearchMapScreen(), size: const Size(320,568), scale: 2.4, dark: dark);
       await tester.pumpAndSettle();
+      await _tap(tester, 'map-open-search');
       final field = find.byKey(const ValueKey('map-published-search-input'));
       await tester.ensureVisible(field); await tester.tap(field); await tester.pump();
       final queries = properties.queries.length;
@@ -249,10 +250,11 @@ void main() {
       addTearDown(tester.view.resetViewInsets);
       await tester.pumpAndSettle(); await tester.ensureVisible(field); await tester.pumpAndSettle();
       await tester.enterText(field, 'مسودة بحث لم أرسلها'); await tester.pump();
-      final input = tester.getRect(field), viewport = tester.getRect(find.byKey(const ValueKey('map-top-search-region')));
-      expect(input.top, greaterThanOrEqualTo(viewport.top - 1));
-      expect(input.bottom, lessThanOrEqualTo(viewport.bottom + 1));
-      final map = tester.getRect(find.byKey(const ValueKey('keyboard-map')));
+      final input = tester.getRect(field);
+      expect(input.top, greaterThanOrEqualTo(0));
+      expect(input.bottom, lessThanOrEqualTo(368));
+      final viewport = tester.getRect(find.byKey(const ValueKey('map-top-search-region'), skipOffstage: false));
+      final map = tester.getRect(find.byKey(const ValueKey('keyboard-map'), skipOffstage: false));
       expect(map.top, greaterThanOrEqualTo(viewport.bottom - 1));
       expect(map.height, greaterThan(70));
       expect(find.byKey(const ValueKey('map-results-sheet')), findsNothing);

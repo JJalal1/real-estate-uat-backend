@@ -10,12 +10,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/properties/data/recent_properties_store.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
@@ -46,7 +48,8 @@ class _TestAuthController extends AuthController {
 Future<GoRouter> _pumpHome(
   WidgetTester tester, {
   Future<List<PropertyMarker>> Function()? load,
-  bool advertiser = false,
+  Map<String, List<PropertySummary>> sections = const {},
+  List<PropertySummary> recent = const [],
   AuthUser? user,
   double scale = 1,
   GlobalKey? boundaryKey,
@@ -55,9 +58,7 @@ Future<GoRouter> _pumpHome(
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, __) => MarketplaceHomeScreen(
-          showAdvertiserActions: advertiser,
-        ),
+        builder: (_, __) => const MarketplaceHomeScreen(),
       ),
       GoRoute(path: '/marketplace-search', builder: (_, __) => const MarketplaceSearchScreen()),
       GoRoute(
@@ -70,6 +71,7 @@ Future<GoRouter> _pumpHome(
           body: Text('property ${state.pathParameters['id']}'),
         ),
       ),
+      GoRoute(path: '/recent', builder: (_, __) => const Scaffold(body: Text('recent destination'))),
       GoRoute(
         path: '/favorites',
         builder: (_, state) => Stage6AuthGate(
@@ -103,6 +105,7 @@ Future<GoRouter> _pumpHome(
       overrides: [
         authControllerProvider.overrideWith(() => _TestAuthController(user)),
         homeLocationAttemptedProvider.overrideWith((_) => true),
+        recentPropertiesProvider.overrideWith((_) async => recent),
         marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake(onFeed: (query) async {
           final rows = await (load?.call() ?? Future.value([_exampleProperty]));
           return MarketplaceFeed(label: 'صنعاء', governorate: 'صنعاء', sections: {'latest': rows.map((row) => PropertySummary.fromJson({
@@ -110,7 +113,7 @@ Future<GoRouter> _pumpHome(
             'currency': row.currency, 'purpose': row.purpose ?? 'sale', 'type': row.type ?? 'house',
             'address': row.address, 'latitude': row.latitude, 'longitude': row.longitude,
             'price_display_note': row.priceDisplayNote, 'monthly_rent': row.monthlyRent,
-          })).toList()});
+          })).toList(), ...sections});
         })),
       ],
       child: MaterialApp.router(
@@ -188,7 +191,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final entry in ['home-search', 'home-map']) {
+  testWidgets('home shows latest and recent rails with the revised regional title', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(412, 915);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    PropertySummary listing(int id, String title) => PropertySummary.fromJson({
+      'id': id, 'title': title, 'purpose': 'sale', 'type': 'house', 'status': 'published',
+      'price': 1000000, 'currency': 'YER', 'latitude': 15.3, 'longitude': 44.2,
+    });
+    final router = await _pumpHome(tester, sections: {
+      'latest': [listing(51, 'آخر إعلان أول'), listing(52, 'آخر إعلان ثانٍ')],
+      'sale': [listing(53, 'إعلان في المنطقة')],
+      'rent': [listing(54, 'إعلان قسم الإيجار السابق')],
+    }, recent: [listing(55, 'إعلان من السجل المحلي')]);
+    await tester.pumpAndSettle();
+
+    final homeScroll = find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')),
+      matching: find.byType(Scrollable)).first;
+    final latest = find.byKey(const PageStorageKey('home-properties-latest'));
+    await tester.scrollUntilVisible(latest, 140, scrollable: homeScroll);
+    expect(tester.widget<SingleChildScrollView>(latest).scrollDirection, Axis.horizontal);
+    final latestScroll = find.descendant(of: latest, matching: find.byType(Scrollable));
+    expect(tester.state<ScrollableState>(latestScroll).position.maxScrollExtent, greaterThan(0));
+
+    final sale = find.text('بالقرب منك');
+    await tester.scrollUntilVisible(sale, 140, scrollable: homeScroll);
+    expect(sale, findsOneWidget);
+    expect(find.text('تملّك في منطقتك'), findsNothing);
+
+    final recent = find.byKey(const PageStorageKey('home-properties-recent'));
+    await tester.scrollUntilVisible(recent, 140, scrollable: homeScroll);
+    expect(find.descendant(of: recent, matching: find.byKey(const ValueKey('home-property-55'))), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-property-54')), findsNothing);
+    final recentHeader = find.ancestor(of: find.text('شوهد مؤخرًا'), matching: find.byType(EbrokerTitleHeader));
+    final seeAll = find.descendant(of: recentHeader, matching: find.text('رؤية الكل'));
+    await tester.ensureVisible(seeAll);
+    await tester.pumpAndSettle();
+    await tester.tap(seeAll);
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/recent');
+  });
+
+  for (final entry in ['home-search', 'floating-map-search']) {
     testWidgets('$entry keeps anonymous map discovery accessible',
         (tester) async {
       final router = await _pumpHome(tester);
@@ -233,8 +278,7 @@ void main() {
     await tester.scrollUntilVisible(find.text('لا توجد عقارات في هذه المنطقة الآن'), 250, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     expect(find.text('لا توجد عقارات في هذه المنطقة الآن'), findsOneWidget);
-    final action = find.byKey(const ValueKey('home-map'));
-    await tester.scrollUntilVisible(action, -300, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
+    final action = find.byKey(const ValueKey('floating-map-search'));
     await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
@@ -286,7 +330,7 @@ void main() {
       'phone_verified_at': '2026-10-11T00:00:00Z',
       'profile_completed_at': '2026-10-11T00:00:00Z',
     });
-    final router = await _pumpHome(tester, advertiser: true, user: user);
+    final router = await _pumpHome(tester, user: user);
     await tester.pumpAndSettle();
     expect(find.text('إضافة عقار'), findsNothing);
     expect(find.text('إدارة عملي'), findsNothing);

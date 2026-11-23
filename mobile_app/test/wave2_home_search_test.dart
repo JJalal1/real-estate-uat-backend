@@ -12,6 +12,7 @@ import 'package:real_estate_mobile/features/discovery/presentation/marketplace_h
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
+import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'support/owner_ux_fixtures.dart';
@@ -259,6 +260,8 @@ void main() {
     open(); await tester.pumpAndSettle();
     expect(scope.read(marketplaceMapResultsProvider).filters.values['search'],'ش');
     final element=tester.element(find.byKey(const ValueKey('w2-native-canvas')));
+    await tester.tap(find.byKey(const ValueKey('map-open-search')));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('map-published-search-input')),'شقة'); await uxFrames(tester);
     expect(find.byKey(const ValueKey('published-suggestion-1')),findsOneWidget);
     await uxPreview(tester,boundary,'w2-C-map-suggestions');
@@ -267,7 +270,10 @@ void main() {
     expect(pins,scope.read(marketplaceMapResultsProvider).rows.map((r)=>r.id));
     await uxPreview(tester,boundary,'w2-D-map-results');
     select(5); await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('map-result-5')),findsOneWidget);
+    expect(find.byKey(const ValueKey('map-marker-preview-5')).hitTestable(), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-results-handle')), findsNothing);
+    tester.widget<PropertyMapResultsSheet>(find.byType(PropertyMapResultsSheet)).onDismissMarker!();
+    await tester.pumpAndSettle();
     await tester.drag(find.byKey(const ValueKey('map-results-handle')),const Offset(0,-400)); await tester.pumpAndSettle();
     expect(tester.element(find.byKey(const ValueKey('w2-native-canvas'))),same(element));
     final sheet=tester.widget<DraggableScrollableSheet>(find.byKey(const ValueKey('map-results-sheet')));

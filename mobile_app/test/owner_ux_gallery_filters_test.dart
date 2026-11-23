@@ -99,11 +99,13 @@ void main() {
           title: 'منزل للبيع في إب', price: '999999999999', currency: 'YER', imageFirst: true,
           imageUrl: _images.first.url, onTap: () {}))), size: const Size(320, 568), scale: scale, dark: dark, boundary: boundary);
         final price = tester.widget<AppPropertyPrice>(find.byType(AppPropertyPrice));
-        expect(price.compact, isTrue); expect(price.price, '999999999999');
+        expect(price.compact, isFalse); expect(price.price, '999999999999');
         final text = tester.widget<Text>(find.descendant(of: find.byType(AppPropertyPrice), matching: find.byType(Text)));
         final amount = (text.textSpan! as TextSpan).children!.first as TextSpan;
-        expect(amount.style!.fontSize! / 18, closeTo(.75, .001));
-        expect(text.maxLines, 1); expect(text.overflow, TextOverflow.ellipsis);
+        expect(amount.style!.fontSize, 22);
+        expect(amount.style!.fontWeight, FontWeight.w700);
+        expect(text.maxLines, isNull);
+        expect(text.overflow, TextOverflow.clip);
         final badge = tester.getRect(find.byKey(const ValueKey('property-photo-price')));
         expect(badge.left, greaterThanOrEqualTo(0)); expect(badge.right, lessThanOrEqualTo(320));
         await uxPreview(tester, boundary, 'price-${dark ? 'dark' : 'light'}-$scale');

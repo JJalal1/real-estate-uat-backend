@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/offline/offline_connection.dart';
+import '../../../core/offline/offline_http.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
@@ -101,6 +102,51 @@ class MarketplaceRepository {
   final _cache = <({HomeFeedQuery query, int revision}), ({DateTime at, MarketplaceFeed feed})>{};
   int _cacheEpoch = 0;
   void invalidateFeed(HomeFeedQuery query) { _cacheEpoch++; _cache.removeWhere((key, _) => key.query == query); }
+
+  Map<String, dynamic> _queryParameters(HomeFeedQuery query, Map<String, dynamic> filters) => {
+    ...filters,
+    if (!query.device && query.governorate != null) 'governorate': query.governorate,
+    if (!query.device && query.governorateCode != null) 'governorate_code': query.governorateCode,
+    if (query.device) ...{'latitude': query.latitude, 'longitude': query.longitude,
+      if (query.accuracyMetres != null) 'accuracy_m': query.accuracyMetres},
+  };
+
+  Map<String, dynamic> _readFeedBody(Response response, Map<String, dynamic> filters) {
+    ensurePropertyFilterContract(response, filters, requireAcknowledgement: filters.keys.any((key) => !const ['type', 'purpose'].contains(key)));
+    final data = response.data;
+    final body = data is Map ? data['data'] : null;
+    if (body is! Map) throw StateError('Invalid marketplace response.');
+    return Map<String, dynamic>.from(body);
+  }
+
+  bool _matchesPurpose(MarketplaceFeed feed, Object? purpose) =>
+      purpose == null || feed.sections.values.expand((rows) => rows).every((row) => row.purpose == purpose);
+
+  Future<MarketplaceFeed?> initialSnapshot(HomeFeedQuery query) async {
+    final snapshots = _dio.interceptors.whereType<OfflineHttpInterceptor>().firstOrNull;
+    if (snapshots == null) return null;
+    try {
+      final filters = query.effectiveFilters.apiFilters;
+      final request = Options(method: 'GET', listFormat: ListFormat.multiCompatible).compose(
+        _dio.options, '/marketplace', queryParameters: _queryParameters(query, filters));
+      final response = await snapshots.readExactPublicMarketplace(request);
+      if (response == null) return null;
+      final body = _readFeedBody(response, filters);
+      final context = body['context'];
+      if (context is! Map || body['sections'] is! Map) return null;
+      if (!query.device) {
+        if (query.governorateCode != null && context['governorate_code'] != query.governorateCode) return null;
+        if (query.governorateCode == null && query.governorate != null && context['governorate'] != query.governorate) return null;
+      }
+      final purpose = filters['purpose'];
+      if (purpose != null && context['purpose'] != purpose) return null;
+      final feed = MarketplaceFeed.fromJson(body);
+      return _matchesPurpose(feed, purpose) ? feed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<MarketplaceFeed> feed(HomeFeedQuery query, {CancelToken? cancelToken, int cacheRevision = 0}) async {
     if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     final key = (query: query, revision: cacheRevision), now = _now(), epoch = _cacheEpoch;
@@ -108,17 +154,11 @@ class MarketplaceRepository {
     final cached = _cache[key];
     if (cached != null) return cached.feed;
     final filters = query.effectiveFilters.apiFilters;
-    final r = await _dio.get<Map<String, dynamic>>('/marketplace', queryParameters: {
-      ...filters,
-      if (!query.device && query.governorate != null) 'governorate': query.governorate,
-      if (!query.device && query.governorateCode != null) 'governorate_code': query.governorateCode,
-      if (query.device) ...{'latitude': query.latitude, 'longitude': query.longitude,
-        if (query.accuracyMetres != null) 'accuracy_m': query.accuracyMetres},
-    }, cancelToken: cancelToken, options: Options(listFormat: ListFormat.multiCompatible));
-    ensurePropertyFilterContract(r, filters, requireAcknowledgement: filters.keys.any((key) => !const ['type', 'purpose'].contains(key)));
-    final body = r.data?['data'];
-    if (body is! Map) throw StateError('Invalid marketplace response.');
-    var feed = MarketplaceFeed.fromJson(Map<String, dynamic>.from(body));
+    final r = await _dio.get<Map<String, dynamic>>('/marketplace',
+      queryParameters: _queryParameters(query, filters), cancelToken: cancelToken,
+      options: Options(listFormat: ListFormat.multiCompatible, extra: {OfflineHttpInterceptor.preferLive: true}));
+    final body = _readFeedBody(r, filters);
+    var feed = MarketplaceFeed.fromJson(body);
     final purpose = filters['purpose'];
     if (purpose != null && brokerMap(body['context'])['purpose'] != purpose) {
       // Older UAT servers do not accept a purpose on /marketplace. Obtain all
@@ -138,10 +178,10 @@ class MarketplaceRepository {
       feed = MarketplaceFeed(label: feed.label, governorate: feed.governorate, source: feed.source,
         brokers: feed.brokers, sections: Map.fromEntries(sections), sectionOrder: keys);
     }
-    if (purpose != null && feed.sections.values.expand((rows) => rows).any((row) => row.purpose != purpose)) {
+    if (!_matchesPurpose(feed, purpose)) {
       throw StateError('The public server returned properties for another purpose.');
     }
-    if (cancelToken?.isCancelled != true && epoch == _cacheEpoch) {
+    if (r.extra['offline_snapshot'] != true && cancelToken?.isCancelled != true && epoch == _cacheEpoch) {
       _cache[key] = (at: _now(), feed: feed);
       while (_cache.length > 8) { _cache.remove(_cache.keys.first); }
     }
@@ -180,6 +220,8 @@ final marketplaceRepositoryProvider = Provider<MarketplaceRepository>((ref) => M
 final homeLocationProvider = StateProvider<HomeLocation>((ref) => const HomeLocation());
 final homeLocationAttemptedProvider = StateProvider<bool>((ref) => false);
 final homeLocationsProvider = FutureProvider<List<HomeLocation>>((ref) => ref.watch(marketplaceRepositoryProvider).locations());
+final marketplaceInitialSnapshotProvider = FutureProvider.autoDispose.family<MarketplaceFeed?, HomeFeedQuery>(
+  (ref, query) => ref.watch(marketplaceRepositoryProvider).initialSnapshot(query));
 final marketplaceFeedProvider = FutureProvider.autoDispose.family<MarketplaceFeed, HomeFeedQuery>((ref, query) async {
   final int revision = ref.watch<int>(propertyDataRevisionProvider) + ref.watch<int>(offlineResumeRevisionProvider);
   final transfer = CancelToken();

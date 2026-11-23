@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 
 void main() {
   test('light theme implements the accepted Material role contract', () {
@@ -46,17 +47,17 @@ void main() {
     expect(scheme.primary, AppTheme.brandSeed);
   });
 
-  test('purchased Manrope uses template 1.3 metrics and platform Arabic fallback', () {
+  test('Cairo is bundled with the approved text and property scale', () {
     final text = AppTheme.light.textTheme;
     final scale = <(TextStyle?, double, double, FontWeight)>[
-      (text.headlineLarge, 24, 31.2, FontWeight.w700),
-      (text.headlineMedium, 24, 31.2, FontWeight.w700),
-      (text.headlineSmall, 22, 28.6, FontWeight.w600),
-      (text.titleLarge, 18, 23.4, FontWeight.w600),
-      (text.titleMedium, 18, 23.4, FontWeight.w600),
-      (text.titleSmall, 16, 20.8, FontWeight.w600),
-      (text.bodyLarge, 16, 20.8, FontWeight.w400),
-      (text.bodyMedium, 14, 18.2, FontWeight.w400),
+      (text.headlineLarge, 22, 28.6, FontWeight.w700),
+      (text.headlineMedium, 22, 28.6, FontWeight.w700),
+      (text.headlineSmall, 22, 28.6, FontWeight.w700),
+      (text.titleLarge, 19, 24.7, FontWeight.w700),
+      (text.titleMedium, 19, 24.7, FontWeight.w700),
+      (text.titleSmall, 17, 22.1, FontWeight.w600),
+      (text.bodyLarge, 15, 19.5, FontWeight.w400),
+      (text.bodyMedium, 15, 19.5, FontWeight.w400),
       (text.bodySmall, 12, 15.6, FontWeight.w400),
       (text.labelLarge, 16, 20.8, FontWeight.w600),
       (text.labelMedium, 14, 18.2, FontWeight.w600),
@@ -67,11 +68,18 @@ void main() {
       expect(style.height! * size, closeTo(lineHeight, 0.000001));
       expect(style.fontWeight, weight);
       expect(style.letterSpacing, 0);
-      expect(style.fontFamily, 'PrimaryFont');
-      expect(style.fontFamilyFallback, ['sans-serif']);
+      expect(style.fontFamily, 'Cairo');
+      expect(style.fontFamilyFallback, ['NotoSansArabic', 'PrimaryFont', 'sans-serif']);
       expect(style.color, const Color(0xFF192F48));
     }
-    expect(AppTypography.bodyLarge.fontFamily, isNull);
+    expect(AppTypography.propertyPrice.fontSize, 22);
+    expect(AppTypography.propertyPrice.fontWeight, FontWeight.w700);
+    expect(AppTypography.propertyName.fontSize, 17);
+    expect(AppTypography.propertyName.fontWeight, FontWeight.w600);
+    expect(AppTypography.propertySecondary.fontSize, 14);
+    expect(AppTypography.propertySecondary.fontWeight, FontWeight.w400);
+    expect(AppTypography.dealBadge.fontSize, 13);
+    expect(AppTypography.dealBadge.fontWeight, FontWeight.w600);
     for (final style in [
       text.displayLarge,
       text.displayMedium,
@@ -79,6 +87,34 @@ void main() {
     ]) {
       expect(style!.letterSpacing, 0);
     }
+  });
+
+  testWidgets('R3 deal badges use the original sale and rent colors in both themes', (tester) async {
+    for (final theme in [AppTheme.light, AppTheme.dark]) {
+      final semantic = theme.extension<AppSemanticColors>()!;
+      for (final (label, fill, ink) in [
+        ('للبيع', semantic.infoContainer, semantic.onInfoContainer),
+        ('للإيجار', semantic.warningContainer, semantic.onWarningContainer),
+      ]) {
+        await tester.pumpWidget(MaterialApp(
+          theme: theme,
+          themeAnimationDuration: Duration.zero,
+          home: Scaffold(body: EbrokerPurposeLabel(label)),
+        ));
+        final badge = find.byType(EbrokerPurposeLabel);
+        final box = tester.widget<Container>(find.descendant(of: badge, matching: find.byType(Container)));
+        final decoration = box.decoration! as BoxDecoration;
+        final text = tester.widget<Text>(find.text(label));
+        expect(decoration.color, fill);
+        expect(decoration.borderRadius, BorderRadius.circular(8));
+        expect(text.style!.color, ink);
+        expect(text.style!.fontSize, 13);
+      }
+    }
+    final dark = AppTheme.dark.colorScheme;
+    expect(dark.primary, const Color(0xFF75D5D0));
+    expect(dark.secondary, const Color(0xFFB8CAE0));
+    expect(dark.surface, const Color(0xFF121B22));
   });
 
   test('enabled semantic and Material text pairs meet accepted contrast', () {

@@ -10,6 +10,7 @@ import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/core/offline/offline_connection.dart';
 import 'package:real_estate_mobile/core/offline/offline_http.dart';
 import 'package:real_estate_mobile/core/offline/offline_store.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 
 // Opaque in-memory fake for the native cipher contract. Android Keystore itself
 // is a separate native/device gate; this fake never claims cryptographic proof.
@@ -81,6 +82,53 @@ void main() {
     await root.delete(recursive: true);
   });
 
+  test('Home reads an exact snapshot while a live refresh replaces it', () async {
+    const query = HomeFeedQuery(latitude: 14.54, longitude: 44.40,
+        governorate: 'ذمار', governorateCode: 'DHAMAR', device: false);
+    const other = HomeFeedQuery(latitude: 14.54, longitude: 44.40,
+        governorate: 'إب', governorateCode: 'IBB', device: false);
+    const filtered = HomeFeedQuery(latitude: 14.54, longitude: 44.40,
+        governorate: 'ذمار', governorateCode: 'DHAMAR', purpose: 'rent', device: false);
+    ResponseBody marketplace(int id) => ResponseBody.fromString(jsonEncode({
+      'data': {
+        'context': {'label': 'ذمار', 'governorate': 'ذمار', 'governorate_code': 'DHAMAR'},
+        'sections': {'latest': [{'id': id, 'title': 'عقار $id', 'purpose': 'sale', 'type': 'apartment', 'price': 100000}]},
+      },
+    }), 200, headers: {'content-type': ['application/json']});
+    wire.response = (_) => marketplace(1);
+    await MarketplaceRepository(dio).feed(query);
+
+    final restartedConnection = OfflineConnectionController();
+    final restartedWire = _Wire();
+    final restarted = client(storage(), restartedConnection, restartedWire);
+    addTearDown(() {
+      restarted.close(force: true);
+      restartedConnection.dispose();
+    });
+    final repository = MarketplaceRepository(restarted);
+    final pending = Completer<ResponseBody>();
+    final requested = Completer<void>();
+    restartedWire.response = (_) {
+      requested.complete();
+      return pending.future;
+    };
+    final refreshed = repository.feed(query);
+    await requested.future.timeout(const Duration(seconds: 2));
+    expect((await repository.initialSnapshot(query))?.sections['latest']?.single.id, 1);
+    expect(await repository.initialSnapshot(other), isNull);
+    expect(await repository.initialSnapshot(filtered), isNull);
+    expect(restartedConnection.usedSnapshot, isFalse);
+
+    pending.complete(marketplace(2));
+    expect((await refreshed).sections['latest']?.single.id, 2);
+    expect((await repository.initialSnapshot(query))?.sections['latest']?.single.id, 2);
+
+    restartedConnection.offline();
+    repository.invalidateFeed(query);
+    expect((await repository.feed(query)).sections['latest']?.single.id, 2);
+    expect(restartedWire.calls, hasLength(1));
+  });
+
   test(
       'private GET survives process recreation; exact token, query and endpoint stay bound',
       () async {
@@ -140,8 +188,9 @@ void main() {
         requestOptions: r, type: DioExceptionType.connectionError);
     expect((await dio.get<dynamic>('/properties/7')).extra['offline_snapshot'],
         true);
-    expect(connection.current, OfflineConnection.unavailable);
-    connection.online();
+    await connection.check(force: true);
+    // No failing health probe or lost Android route confirmed an outage.
+    expect(connection.current, OfflineConnection.online);
     wire.response = (_) =>
         ResponseBody.fromString('{"message":"unavailable"}', 503, headers: {
           'content-type': ['application/json']

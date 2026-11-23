@@ -578,7 +578,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       toolbarHeight: AppSizes.appBarMinHeight,
-      title: EbrokerText(title, size: 18, weight: FontWeight.w500, maxLines: 1),
+      title: Text(title, style: AppTypography.screenTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
       titleSpacing: leading == null ? 16 : 0,
       actions: actions,
       leading: leading,
@@ -780,12 +780,21 @@ class AppPropertyPrice extends StatelessWidget {
   final String? suffix;
   final bool compact;
   @override
-  Widget build(BuildContext context) => Text.rich(TextSpan(children: [
-    TextSpan(text: formatMoneyAmount(price), style: Theme.of(context).textTheme.titleLarge?.copyWith(
-      fontSize: compact ? 13.5 : 18, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800)),
-    TextSpan(text: ' ${currencyLabel(currency)}', style: Theme.of(context).textTheme.labelSmall?.copyWith(fontSize: compact ? 9 : 11)),
-    if (suffix != null) TextSpan(text: ' $suffix', style: Theme.of(context).textTheme.bodySmall),
-  ]), maxLines: compact ? 1 : null, overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip);
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final supporting = AppTypography.propertySecondary.copyWith(
+      color: scheme.onSurface,
+    );
+    return Text.rich(
+      TextSpan(children: [
+        TextSpan(text: formatMoneyAmount(price), style: AppTypography.propertyPrice.copyWith(color: scheme.primary)),
+        TextSpan(text: ' ${currencyLabel(currency)}', style: supporting),
+        if (suffix != null) TextSpan(text: ' $suffix', style: supporting),
+      ]),
+      maxLines: compact ? 1 : null,
+      overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
+    );
+  }
 }
 
 class AppPropertyFacts extends StatelessWidget {

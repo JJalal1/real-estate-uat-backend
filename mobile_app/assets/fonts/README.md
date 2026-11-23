@@ -9,3 +9,8 @@ Bundled weights: 400, 500, 600, 700
 License file: `OFL.txt` in this directory.
 
 The Phase 1 CI verifies these files are present before Flutter analysis, tests, and APK build. The application must not depend on downloading fonts at runtime.
+
+The design branch uses Cairo for the shared Arabic and Latin typography.
+Cairo is bundled as static instances of the Cairo variable font used in the
+approved visual comparison. The weights are 400, 500, 600, 700 and 800.
+The Cairo Project's SIL Open Font License is in `OFL-Cairo.txt`.

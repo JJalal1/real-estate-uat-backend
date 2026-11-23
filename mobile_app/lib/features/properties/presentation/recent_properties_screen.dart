@@ -23,7 +23,6 @@ class RecentPropertiesScreen extends ConsumerWidget {
                   ? () async {
                       try {
                         await ref.read(recentPropertiesStoreProvider).clear();
-                        ref.invalidate(recentPropertiesProvider);
                       } catch (_) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(

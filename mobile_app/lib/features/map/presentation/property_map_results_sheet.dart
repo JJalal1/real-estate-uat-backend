@@ -1,27 +1,38 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
-import '../../properties/presentation/adaptive_property_photo.dart';
+import '../../../core/widgets/ebroker_property_card.dart';
 import '../../properties/presentation/property_favorite_status.dart';
 import '../../discovery/presentation/search_result_pagination.dart';
 
 const mapRentColor = Color(0xff147d92);
 const mapSaleColor = Color(0xff0b8a55);
 
+double compactMapResultsHeaderHeight(BuildContext context) {
+  final scaler = MediaQuery.textScalerOf(context);
+  return math.max(48.0, scaler.scale(15) * 1.6 + 12) + MediaQuery.paddingOf(context).bottom;
+}
+
 /// The map and this list receive the same immutable result snapshot. Its
 /// controller resizes first, then scrolls, without rebuilding the native map.
 class PropertyMapResultsSheet extends StatefulWidget {
   const PropertyMapResultsSheet({required this.items, required this.itemBuilder,
-    this.selectedId, this.loading = false, this.staleResults = false, this.error, this.onRetry, this.onShowList,
+    this.selectedId, this.markerSelection = 0, this.loading = false, this.staleResults = false, this.error, this.onRetry, this.onShowList,
+    this.onMarkerDetails, this.onDismissMarker, this.onAdd, this.total, this.hasDrawnArea = false,
     this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, this.filterPanel, super.key});
   final Widget? filterPanel;
   final List<PropertyMarker> items;
   final Widget Function(PropertyMarker property) itemBuilder;
   final int? selectedId;
+  final int markerSelection;
+  final int? total;
   final bool loading, staleResults, more;
-  final bool collapsed;
+  final bool collapsed, hasDrawnArea;
+  final ValueChanged<PropertyMarker>? onMarkerDetails;
+  final VoidCallback? onDismissMarker, onAdd;
   final double maxExtent;
   final String? error;
   final VoidCallback? onRetry, onShowList, onMore;
@@ -38,7 +49,11 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
   bool _extentUpdateQueued = false;
   bool _keyboardVisible = false;
   @override
-  void initState() { super.initState(); _extent.addListener(_extentChanged); }
+  void initState() {
+    super.initState();
+    _expanded = !widget.collapsed;
+    _extent.addListener(_extentChanged);
+  }
   void _syncKeyboard(BuildContext context) {
     // Scaffold already removes the bottom MediaQuery inset from its body.
     // LayoutBuilder runs again when its usable height changes; read the View.
@@ -93,7 +108,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
         }
       });
     }
-    if (!widget.collapsed && widget.selectedId != null && widget.selectedId != old.selectedId) {
+    if (widget.onMarkerDetails == null && widget.selectedId != null &&
+        (widget.selectedId != old.selectedId || widget.markerSelection != old.markerSelection)) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         if (_extent.isAttached && _extent.size < .5) {
@@ -115,32 +131,42 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
 
   Widget _sheet(BuildContext context, double height) {
     _syncKeyboard(context);
+    final compact = widget.collapsed && widget.filterPanel == null;
     _maximum = widget.filterPanel == null ? widget.maxExtent
       : (1 - 70 / (height > 0 ? height : 1)).clamp(.14, widget.maxExtent).toDouble();
     final titleStyle = Theme.of(context).textTheme.titleSmall;
     final titleHeight = MediaQuery.textScalerOf(context).scale(titleStyle?.fontSize ?? 16) * (titleStyle?.height ?? 1.4);
     final countHeight = titleHeight * (_keyboardVisible ? 1 : 2);
-    _minimum = ((40 + (countHeight > 48 ? countHeight : 48)) /
-      (height > 0 ? height : 1)).clamp(.14, _maximum).toDouble();
-    _initial = (widget.filterPanel == null ? .29 : .55).clamp(_minimum, _maximum).toDouble();
+    final headerHeight = compact ? compactMapResultsHeaderHeight(context) : 40 + math.max(countHeight, 48);
+    _minimum = (headerHeight / math.max(height, 1)).clamp(compact ? .0 : .14, _maximum).toDouble();
+    final openExtent = compact ? .55 : widget.filterPanel == null ? .29 : .55;
+    _initial = openExtent.clamp(_minimum, _maximum).toDouble();
     final selected = widget.items.where((row) => row.id == widget.selectedId);
     final ranked = widget.items.any((row) => row.discoveryMatch != null);
     final rows = ranked ? widget.items : [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
-    final countLabel = widget.staleResults ? '${rows.length} عقار من آخر تحميل'
+    final countLabel = compact ? '${arabicDigits('${widget.total ?? rows.length}')} نتيجة'
+      : widget.staleResults ? '${rows.length} عقار من آخر تحميل'
       : '${rows.length}${widget.more ? '+' : ''} ${ranked ? 'نتيجة' : 'عقار في النطاق'}';
-    return DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
-      controller: _extent, initialChildSize: _initial, minChildSize: _minimum, maxChildSize: _maximum,
-      snap: true, snapSizes: [for (final size in [_initial, widget.filterPanel == null ? .5 : .75]) if (size > _minimum && size < _maximum) size],
+    final sheet = DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),
+      controller: _extent, initialChildSize: widget.collapsed ? _minimum : _initial, minChildSize: _minimum, maxChildSize: _maximum,
+      snap: true, snapSizes: [
+        for (final size in (compact ? [_initial] : [_initial, widget.filterPanel == null ? .5 : .75]))
+          if (size > _minimum && size < _maximum) size,
+      ],
       shouldCloseOnMinExtent: false,
       builder: (context, scroll) {
         _scroll = scroll;
-        return Material(key: const ValueKey('map-search-panel-surface'), color: Theme.of(context).colorScheme.surface, elevation: 8,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)), clipBehavior: Clip.antiAlias,
-          child: Column(children: [
+        return Material(key: const ValueKey('map-search-panel-surface'), color: Theme.of(context).colorScheme.surface, elevation: compact ? 3 : 8,
+          shadowColor: Theme.of(context).shadowColor.withValues(alpha: .18),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(compact ? 13 : 20)), clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: compact ? MediaQuery.paddingOf(context).bottom : 0),
+            child: Column(children: [
             GestureDetector(behavior: HitTestBehavior.opaque,
               onVerticalDragUpdate: (details) => _dragHeader(details.primaryDelta ?? 0, height),
               onVerticalDragEnd: (details) => _snapHeader(details.primaryVelocity ?? 0),
-              child: Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 0), child: Column(children: [
+              child: compact ? _compactHeader(context, countLabel) :
+                Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 0), child: Column(children: [
                 Semantics(label: widget.filterPanel == null
                   ? 'اسحب لتوسيع العقارات أو تصغيرها'
                   : 'اسحب لتوسيع الفلاتر والعقارات أو تصغيرها',
@@ -158,15 +184,15 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                 ]),
               ]))),
             Expanded(child: SearchResultPagination(
-              onLoadMore: ranked && widget.more && !widget.loading && widget.error == null ? widget.onMore : null,
+              onLoadMore: (ranked || widget.hasDrawnArea) && widget.more && !widget.loading && widget.error == null ? widget.onMore : null,
               child: ListView.builder(key: const ValueKey('map-results-list'), controller: scroll,
-              padding: EdgeInsets.fromLTRB(12, 0, 12, 24 + MediaQuery.paddingOf(context).bottom), cacheExtent: 0,
+              padding: EdgeInsets.fromLTRB(12, 0, 12, 24 + (compact ? 0 : MediaQuery.paddingOf(context).bottom)), cacheExtent: 0,
               itemCount: rows.length + 2,
               itemBuilder: (context, index) {
               if (index == 0) { return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 if (widget.filterPanel != null) Padding(padding: const EdgeInsets.only(bottom: 12),
                   child: SizedBox(key: _filterPanelKey, child: widget.filterPanel)),
-                const Wrap(spacing: 16, runSpacing: 4, children: [
+                if (!compact) const Wrap(spacing: 16, runSpacing: 4, children: [
                   _Legend(label: 'للإيجار', color: mapRentColor), _Legend(label: 'للبيع', color: mapSaleColor),
                 ]),
                 if (widget.loading) const Padding(padding: EdgeInsets.only(top: 8),
@@ -176,7 +202,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                     if (rows.isNotEmpty) const Text('هذه آخر نتائج متاحة داخل النطاق؛ أعد المحاولة لتحديثها.'),
                     TextButton(onPressed: widget.onRetry, child: const Text('إعادة المحاولة'))])),
                 if (rows.isEmpty && !widget.loading && widget.error == null)
-                  const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Text('لا توجد عقارات مطابقة في هذا النطاق. حرّك الخريطة أو عدّل الفلاتر.')),
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 24), child: Text(widget.hasDrawnArea
+                    ? 'لا توجد إعلانات داخل المنطقة المحددة' : 'لا توجد عقارات مطابقة في هذا النطاق. حرّك الخريطة أو عدّل الفلاتر.')),
                 const SizedBox(height: 12),
               ]); }
               if (index > rows.length) { return widget.more && !widget.staleResults ? TextButton(onPressed: widget.loading ? null : widget.onMore,
@@ -190,8 +217,84 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                       : row.purpose == 'rent' ? mapRentColor : mapSaleColor)),
                   child: widget.itemBuilder(row))));
             }))),
-          ]));
+          ])));
       });
+    final showPreview = selected.isNotEmpty && widget.onMarkerDetails != null;
+    return Stack(fit: StackFit.expand, children: [
+      Offstage(offstage: showPreview, child: sheet),
+      if (showPreview) Positioned(left: 10, right: 10, bottom: MediaQuery.paddingOf(context).bottom + 8,
+        child: ConstrainedBox(constraints: BoxConstraints(maxHeight: height),
+          child: SingleChildScrollView(child: _MapMarkerPreview(property: selected.first,
+            onTap: () => widget.onMarkerDetails!(selected.first), onDismiss: widget.onDismissMarker)))),
+    ]);
+  }
+
+  Widget _compactHeader(BuildContext context, String count) {
+    final theme = Theme.of(context);
+    final showCollapse = widget.onShowList == null && _expanded;
+    final toggle = widget.onShowList ?? _toggleExtent;
+    final height = compactMapResultsHeaderHeight(context) - MediaQuery.paddingOf(context).bottom;
+    return SizedBox(key: const ValueKey('map-results-handle'), height: height,
+      child: Row(textDirection: TextDirection.rtl, children: [
+        Expanded(child: TextButton.icon(
+          key: widget.onShowList == null ? const ValueKey('map-show-list') : const ValueKey('smart-search-list'),
+          onPressed: toggle, icon: Icon(showCollapse ? Icons.keyboard_arrow_down : Icons.view_list_outlined, size: 18),
+          label: Text(showCollapse ? 'تصغير' : 'قائمة', maxLines: 1),
+          style: TextButton.styleFrom(foregroundColor: theme.colorScheme.onSurface, padding: EdgeInsets.zero))),
+        const VerticalDivider(width: 1, indent: 9, endIndent: 9),
+        Expanded(flex: 2, child: InkWell(onTap: toggle, child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (widget.loading && widget.items.isEmpty)
+            const Padding(padding: EdgeInsetsDirectional.only(end: 5), child: SizedBox.square(dimension: 13,
+              child: CircularProgressIndicator(strokeWidth: 1.5))),
+          Flexible(child: Semantics(liveRegion: true, label: widget.staleResults ? '$count من آخر تحميل' : count,
+            excludeSemantics: true, child: Text(count, key: const ValueKey('map-results-count'),
+              maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+              style: theme.textTheme.labelLarge))),
+        ])))),
+        if (widget.onAdd != null) const VerticalDivider(width: 1, indent: 9, endIndent: 9),
+        Expanded(child: widget.onAdd == null ? const SizedBox.shrink() : TextButton.icon(
+          key: const ValueKey('map-broker-add'), onPressed: widget.onAdd, icon: const Icon(Icons.add_circle, size: 18),
+          label: const Text('إضافة'), style: TextButton.styleFrom(padding: EdgeInsets.zero))),
+      ]));
+  }
+}
+
+class _MapMarkerPreview extends StatelessWidget {
+  const _MapMarkerPreview({required this.property, required this.onTap, this.onDismiss});
+  final PropertyMarker property;
+  final VoidCallback onTap;
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = property;
+    final theme = Theme.of(context);
+    final monthly = p.purpose == 'rent' && p.monthlyRent != null;
+    final facts = [
+      if (p.areaM2 != null) '${p.areaM2} م²',
+      if (p.bedrooms != null) '${p.bedrooms} غرف',
+      if (p.bathrooms != null) '${p.bathrooms} حمامات',
+    ].join('  ·  ');
+    final image = p.mainImage?.isNotEmpty == true ? p.mainImage : p.imageUrls.firstOrNull;
+    return Material(key: ValueKey('map-marker-preview-${p.id}'), color: theme.colorScheme.surface,
+      elevation: 4, borderRadius: BorderRadius.circular(8), clipBehavior: Clip.antiAlias,
+      child: Semantics(button: true, onDismiss: onDismiss, child: InkWell(onTap: onTap,
+        child: LayoutBuilder(builder: (context, bounds) {
+          final photoWidth = (bounds.maxWidth * .34).clamp(72.0, 145.0).toDouble();
+          return Row(textDirection: TextDirection.rtl, children: [
+            Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.titleSmall),
+                AppPropertyPrice(price: (monthly ? p.monthlyRent! : p.price).toString(), currency: p.currency,
+                  suffix: monthly ? 'شهريًا' : null),
+                if (facts.isNotEmpty) Text(arabicDigits(facts), maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall),
+                if (p.address?.isNotEmpty == true) Text(p.address!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              ]))),
+            SizedBox(width: photoWidth, child: AppPropertyMedia(imageUrl: image, propertyType: p.type,
+              height: photoWidth, cacheWidth: (MediaQuery.devicePixelRatioOf(context) * photoWidth).round())),
+          ]);
+        }))));
   }
 }
 
@@ -199,72 +302,39 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
 /// amount as discovery cards. Larger text grows vertically without hiding actions.
 class PropertyMapResultCard extends StatelessWidget {
   const PropertyMapResultCard({required this.property, required this.favorite,
-    required this.onFavorite, required this.onMap, required this.onDetails, this.favoriteStatus, this.compact = false, super.key});
+    required this.onFavorite, required this.onMap, required this.onDetails, this.favoriteStatus, super.key});
   final PropertyMarker property;
-  final bool favorite, compact;
+  final bool favorite;
   final PropertyFavoriteStatus? favoriteStatus;
   final VoidCallback? onFavorite;
   final VoidCallback onMap, onDetails;
   @override
   Widget build(BuildContext context) {
-    final p = property, rent = p.purpose == 'rent', scheme = Theme.of(context).colorScheme;
+    final p = property;
+    final rent = p.purpose == 'rent';
+    final monthly = rent && p.monthlyRent != null;
     final status = favoriteStatus ?? PropertyFavoriteStatus.ready(favorite);
-    final semantic = Theme.of(context).extension<AppSemanticColors>() ??
-      (scheme.brightness == Brightness.dark ? AppSemanticColors.dark : AppSemanticColors.light);
-    final purposeColor = rent ? semantic.info : semantic.success;
-    final photo = p.mainImage ?? (p.imageUrls.isEmpty ? null : p.imageUrls.first);
-    if (compact && MediaQuery.textScalerOf(context).scale(14) <= 24) {
-      return InkWell(onTap: onDetails, borderRadius: BorderRadius.circular(10),
-        child: Padding(padding: const EdgeInsets.all(8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox(width: 64, height: 88,
-            child: photo == null ? ColoredBox(color: scheme.surfaceContainerHighest,
-              child: const Icon(Icons.home_outlined)) : AdaptivePropertyPhoto(url: photo))),
-          const SizedBox(width: 8), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
-            Text('${SmartSearchFilters.types[p.type] ?? 'عقار'} · ${rent ? 'للإيجار' : 'للبيع'}',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: purposeColor)),
-            if (p.address?.isNotEmpty == true) Text(p.address!, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 4),
-            FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart,
-              child: AppPropertyPrice(price: (rent ? p.monthlyRent ?? p.price : p.price).toString(), currency: p.currency,
-                suffix: rent && p.monthlyRent != null ? 'شهريًا' : null)),
-          ])),
-          Column(mainAxisSize: MainAxisSize.min, children: [
-            IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: status.tooltip,
-              onPressed: status.loading ? null : onFavorite, icon: Icon(status.icon)),
-            IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'عرض على الخريطة',
-              onPressed: onMap, icon: const Icon(Icons.location_on_outlined)),
-          ]),
-        ])));
-    }
-    return InkWell(onTap: onDetails, borderRadius: BorderRadius.circular(10),
-      child: Padding(padding: const EdgeInsets.all(8), child: Column(children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ClipRRect(borderRadius: BorderRadius.circular(8), child: SizedBox(width: 88, height: 104,
-            child: photo == null ? ColoredBox(color: scheme.surfaceContainerHighest,
-              child: const Icon(Icons.home_outlined)) : AdaptivePropertyPhoto(url: photo))),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 4),
-            Text(SmartSearchFilters.types[p.type] ?? 'عقار', style: Theme.of(context).textTheme.labelMedium),
-            if (p.address?.isNotEmpty == true) Text(p.address!, maxLines: 2,
-              overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-          ])),
-        ]),
-        Padding(padding: const EdgeInsets.only(top: 8), child: Align(alignment: AlignmentDirectional.centerStart,
-          child: FittedBox(fit: BoxFit.scaleDown, alignment: AlignmentDirectional.centerStart,
-            child: AppPropertyPrice(price: (rent ? p.monthlyRent ?? p.price : p.price).toString(), currency: p.currency,
-              suffix: rent && p.monthlyRent != null ? 'شهريًا' : null)))),
-        Row(children: [Expanded(child: Text(rent ? 'للإيجار' : 'للبيع',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(color: purposeColor))),
-          IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: status.tooltip,
-            onPressed: status.loading ? null : onFavorite, icon: Icon(status.icon)),
-          IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'عرض على الخريطة',
-            onPressed: onMap, icon: const Icon(Icons.location_on_outlined)),
-        ]),
-      ])));
+    return EbrokerPropertyHorizontalCard(
+      title: p.title,
+      price: (monthly ? p.monthlyRent! : p.price).toString(),
+      currency: p.currency,
+      priceSuffix: monthly ? 'شهريًا' : null,
+      categoryLabel: SmartSearchFilters.types[p.type] ?? 'عقار',
+      purposeLabel: rent ? 'للإيجار' : 'للبيع',
+      propertyType: p.type,
+      location: p.address,
+      imageUrl: p.mainImage,
+      imageUrls: p.imageUrls,
+      isSpotlight: p.isSpotlight,
+      embedded: true,
+      onTap: onDetails,
+      trailing: Column(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: status.tooltip,
+          onPressed: status.loading ? null : onFavorite, icon: Icon(status.icon)),
+        IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'إظهار الموقع',
+          onPressed: onMap, icon: const Icon(Icons.location_on_outlined)),
+      ]),
+    );
   }
 }
 

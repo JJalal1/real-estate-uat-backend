@@ -25,7 +25,9 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
   Duration _probeDeadline = const Duration(seconds: 30);
   CancelToken? _activeProbe;
   Future<void>? _checking;
+  bool _forceProbe = false;
   bool _disposed = false;
+  DateTime? _lastApiReceipt;
   int _revision = 0;
   int _lastHardOfflineRevision = -1;
   bool usedSnapshot = false;
@@ -63,6 +65,7 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
   /// Advance even when already online so an older failing probe cannot win.
   void online() {
     if (_disposed) return;
+    _lastApiReceipt = DateTime.now();
     _revision++;
     _cancelProbe();
     if (state != OfflineConnection.online) state = OfflineConnection.online;
@@ -90,23 +93,20 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
         state == OfflineConnection.offline) {
       return;
     }
-    _unavailableIfCurrent(startedRevision);
-    final failureRevision = _revision;
-    final pending = _checking;
-    unawaited(() async {
-      if (pending != null) await pending;
-      if (!_disposed && _revision == failureRevision) {
-        await check(force: true);
-      }
-    }()
-        .catchError((Object _) {}));
+    // An individual transfer can time out while the rest of the API works.
+    // Let the coalesced route and health check decide global availability.
+    unawaited(check(force: true));
   }
 
   Future<void> check({bool force = false}) {
     if (_disposed) return Future.value();
     // Both manual and periodic checks may recover an unvalidated but usable
     // network. Coalesce them, never skip probing because Android did not validate.
-    return _checking ??= _check().whenComplete(() => _checking = null);
+    if (force) _forceProbe = true;
+    return _checking ??= _check().whenComplete(() {
+      _checking = null;
+      _forceProbe = false;
+    });
   }
 
   Future<void> _check() async {
@@ -124,6 +124,13 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
       }
     } catch (_) {/* Other platforms use the API probe. */}
     if (_disposed || startedRevision != _revision) return;
+    // An active API response already verifies the server. Still inspect the
+    // device route above so a recent response cannot conceal a real disconnect.
+    final receipt = _lastApiReceipt;
+    if (!_forceProbe && state == OfflineConnection.online && receipt != null &&
+        DateTime.now().difference(receipt) < const Duration(seconds: 24)) {
+      return;
+    }
     final probe = _probe;
     if (probe == null) return;
     final cancelToken = CancelToken();

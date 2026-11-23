@@ -10,15 +10,16 @@ import '../../../core/widgets/viewport_media.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../../core/branding/aqer_brand.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../../core/widgets/ebroker_screen_sections.dart';
 import '../../properties/presentation/property_summary_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../map/presentation/map_screen.dart';
+import '../../properties/data/recent_properties_store.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
 import '../domain/smart_search_filters.dart';
 import '../data/discovery_location.dart';
-import 'home_ai_search_entry.dart';
 import 'smart_search_assistant.dart';
 import '../data/marketplace_search_session.dart';
 
@@ -46,8 +47,7 @@ final homeAdvertisersProvider = FutureProvider.autoDispose.family<List<HomeAdver
 });
 
 class MarketplaceHomeScreen extends ConsumerStatefulWidget {
-  const MarketplaceHomeScreen({this.showAdvertiserActions = false, super.key});
-  final bool showAdvertiserActions;
+  const MarketplaceHomeScreen({super.key});
   @override
   ConsumerState<MarketplaceHomeScreen> createState() => _MarketplaceHomeState();
 }
@@ -79,8 +79,6 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       final coordinator = ref.read(discoveryLocationCoordinatorProvider);
       if (prompt) { await coordinator.useDevice(); } else {
         await coordinator.initialize();
-        // Restore the saved public region quietly. Location access and the
-        // governorate picker remain explicit actions from the header button.
       }
       if (deviceChosen && mounted && ref.read(homeLocationProvider).device) {
         ref.read(marketplaceSearchControllerProvider.notifier).locationChanged();
@@ -122,8 +120,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     } finally { release(); }
   }
 
-  Future<void> _openSearch({bool filters = false}) => _pushHomeRoute(
-    filters ? '/marketplace-search?filters=1' : '/marketplace-search',
+  Future<void> _openSearch() => _pushHomeRoute(
+    '/marketplace-search',
     () => ref.read(marketplaceSearchControllerProvider.notifier).begin());
 
   Future<void> _openMap() async {
@@ -160,8 +158,12 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     final location = ref.watch(homeLocationProvider), theme = Theme.of(context);
     final background = theme.colorScheme.surfaceContainerLow;
     final selectedTypes = ref.watch(marketplaceSearchControllerProvider).criteria.selectedTypes;
-    final query = _query, purpose = ref.watch(marketplaceSearchControllerProvider).criteria.values['purpose']?.toString();
+    final query = _query;
     final feed = ref.watch(marketplaceFeedProvider(query));
+    final transientError = feed.hasError && isTransientApiFailure(feed.error!);
+    final canShowSnapshot = !feed.hasValue && (feed.hasError ? transientError : feed.isLoading);
+    final snapshot = canShowSnapshot ? ref.watch(marketplaceInitialSnapshotProvider(query)).valueOrNull : null;
+    final recent = ref.watch(recentPropertiesProvider).asData?.value;
     ref.listen(marketplaceFeedProvider(query), (_, next) {
       final governorate = next.asData?.value.governorate;
       final current = ref.read(homeLocationProvider);
@@ -174,7 +176,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         } catch (_) { /* Public region caching never blocks browsing. */ }
       }());
     });
-    final data = feed.asData?.value;
+    final data = feed.hasError && !transientError ? null : feed.valueOrNull ?? snapshot;
     return Scaffold(backgroundColor: background,
       appBar: AppBar(backgroundColor: background, elevation: 0, automaticallyImplyLeading: false,
         toolbarHeight: (58 + (MediaQuery.textScalerOf(context).scale(15) - 15) * 2).clamp(58, 112).toDouble(),
@@ -189,43 +191,36 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text('عقار اليمن', maxLines: 1, overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w700)),
-            Text('بيتك… يبدأ من هنا', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10)),
           ])),
         ]), actions: [IconButton(tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'),
           icon: EbrokerImage('notification', size: 21, color: theme.colorScheme.onSurface))]),
-      body: SmartSearchAssistantLayer(onOpenMap: _openMap, onPressed: () => context.push('/smart-search'), child: RefreshIndicator(onRefresh: () async {
+      body: SmartSearchAssistantLayer(
+        onOpenMap: _openMap,
+        onPressed: () => context.push('/smart-search'),
+        child: RefreshIndicator(onRefresh: () async {
         try { ref.read(marketplaceRepositoryProvider).invalidateFeed(query); ref.invalidate(marketplaceFeedProvider(query));
           await ref.read(marketplaceFeedProvider(query).future); } catch (_) { /* Inline retry retains only this query. */ }
       }, child: CustomScrollView(key: const PageStorageKey('marketplace-home'), controller: _feedScroll,
         cacheExtent: ConditionalImagePrefetch.enabled ? ConditionalImagePrefetch.extent : 0,
         physics: const AlwaysScrollableScrollPhysics(), slivers: [
         SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 0), child: Theme(data: theme, child: Column(children: [
-          Row(children: [
-            _HomeCircleAction(key: const ValueKey('home-filters'), tooltip: 'فلاتر البحث', icon: 'filter',
-              onTap: () => _openSearch(filters: true)),
-            const SizedBox(width: 8), Expanded(child: TextField(key: const ValueKey('home-search'), readOnly: true,
-              style: TextStyle(color: theme.colorScheme.onSurface),
-              onTap: _openSearch, decoration: InputDecoration(hintText: 'ابحث عن عقار أو منطقة…',
-                filled: true, fillColor: theme.colorScheme.surface, hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-                suffixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
-                border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(18)), borderSide: BorderSide.none)))),
-            const SizedBox(width: 8), _HomeCircleAction(key: const ValueKey('home-map'),
-              tooltip: 'الخريطة', icon: 'propertymap', onTap: _openMap),
-          ]),
-          Align(alignment: AlignmentDirectional.centerEnd, child: Wrap(spacing: 4, children: [
-            for (final entry in const {'rent': 'إيجار', 'sale': 'بيع'}.entries)
-              Semantics(button: true, selected: purpose == entry.key, child: InkWell(
-                key: ValueKey('home-purpose-${entry.key}'), borderRadius: BorderRadius.circular(20),
-                onTap: () => ref.read(marketplaceSearchControllerProvider.notifier).choosePurpose(purpose == entry.key ? null : entry.key),
-                child: Padding(padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-                  child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 160),
-                    padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 16),
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(20),
-                      color: purpose == entry.key ? theme.colorScheme.primary : theme.colorScheme.primary.withValues(alpha: .06)),
-                    child: Text(entry.value, style: theme.textTheme.labelMedium?.copyWith(
-                      color: purpose == entry.key ? theme.colorScheme.onPrimary : theme.colorScheme.primary)))))),
-          ])),
-          HomeAiSearchEntry(wide: true, location: data?.governorate ?? location.governorate ?? 'صنعاء', purpose: purpose),
+          TextField(
+            key: const ValueKey('home-search'),
+            readOnly: true,
+            style: TextStyle(color: theme.colorScheme.onSurface),
+            onTap: _openSearch,
+            decoration: InputDecoration(
+              hintText: 'ابحث عن عقار أو منطقة…',
+              filled: true,
+              fillColor: theme.colorScheme.surface,
+              hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+              suffixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ),
+          if (data != null && data.brokers.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _HomeBrokerCarousel(profiles: data.brokers.take(3).toList(growable: false)),
+          ],
         ])))),
         SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'ماذا تبحث عنه؟', onSeeAll: _openMap)),
               SliverToBoxAdapter(child: SizedBox(height: 48 + (MediaQuery.textScalerOf(context).scale(13) - 13) * 2,
@@ -236,53 +231,102 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                       icon: ebrokerCategoryIcon(category.$2), selected: selectedTypes.contains(category.$2),
                       onTap: () => ref.read(marketplaceSearchControllerProvider.notifier).chooseType(category.$2))),
                 ]))),
-        if (feed.hasValue && (feed.isRefreshing || (feed.hasError && isTransientApiFailure(feed.error!))))
+        if (data != null && (feed.isLoading || transientError))
           SliverToBoxAdapter(child: AppRefreshStatus(loading: feed.isLoading,
             error: feed.hasError ? friendlyApiError(feed.error!) : null,
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))),
-        feed.when(skipLoadingOnReload: false, skipError: feed.hasValue && feed.hasError && isTransientApiFailure(feed.error!),
+        if (snapshot != null) _feedSliver(snapshot)
+        else feed.when(skipLoadingOnReload: true, skipError: feed.hasValue && transientError,
           loading: () => const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(18),
             child: AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 8))),
           error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error),
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: _feedSliver),
+         if (recent != null && recent.isNotEmpty)
+           SliverToBoxAdapter(child: Column(children: [
+             EbrokerTitleHeader(title: 'شوهد مؤخرًا', onSeeAll: () => context.push('/recent')),
+             _propertyRail('recent', recent.take(6)),
+           ])),
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ]))),
     );
   }
 
-  Widget _property(PropertySummary row, bool large) => PropertySummaryCard(key: ValueKey('home-property-${row.id}'),
-    property: row, imageFirst: large);
+  Widget _property(PropertySummary row) => PropertySummaryCard(
+    key: ValueKey('home-property-${row.id}'),
+    property: row, imageFirst: true, preview: true);
+
+  Widget _propertyRail(String section, Iterable<PropertySummary> rows) {
+    final width = (MediaQuery.sizeOf(context).width - 64).clamp(250, 380).toDouble();
+    // Keep intrinsic height for large Arabic text. ViewportMedia gates the images.
+    return SingleChildScrollView(
+      key: PageStorageKey('home-properties-$section'),
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (final row in rows)
+          Padding(padding: const EdgeInsetsDirectional.only(end: 12),
+            child: SizedBox(width: width, child: _property(row))),
+      ]),
+    );
+  }
 
   Widget _feedSliver(MarketplaceFeed data) {
     final entries = <WidgetBuilder>[];
     if (data.brokers.isNotEmpty) {
-      entries.add((_) => EbrokerTitleHeader(title: 'أفضل الدلالين في ${data.label}', onSeeAll: () => context.push('/brokers')));
-      entries.add((_) => SingleChildScrollView(scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 18), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          for (final broker in data.brokers) Padding(padding: const EdgeInsetsDirectional.only(end: 10), child: _HomeBrokerCard(profile: broker)),
-        ])));
+      entries.add((context) {
+        final width = (MediaQuery.sizeOf(context).width - 64).clamp(230, 320).toDouble();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            EbrokerTitleHeader(title: 'أفضل الدلالين في ${data.label}',
+              onSeeAll: () => context.push('/brokers')),
+            SingleChildScrollView(
+              key: const ValueKey('home-broker-directory'),
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                for (final broker in data.brokers)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 10),
+                    child: EbrokerAdvertiserCard(
+                      key: ValueKey('home-broker-${broker.id}'),
+                      width: width,
+                      name: broker.name,
+                      identity: broker.typeLabel,
+                      photoUrl: broker.photoUrl,
+                      rating: broker.rating,
+                      ratingCount: broker.ratingCount,
+                      completedDeals: broker.completedDeals,
+                      activeListings: broker.activeListings,
+                      verified: broker.verified,
+                      onTap: () => context.push('/advertisers/${broker.id}'),
+                    ),
+                  ),
+              ]),
+            ),
+          ],
+        );
+      });
     }
-    for (final key in data.sectionOrder) {
+    final sections = [
+      if (data.sectionOrder.contains('latest')) 'latest',
+      ...data.sectionOrder.where((key) => key != 'latest' && key != 'rent'),
+    ];
+    for (final key in sections) {
       final rows = data.sections[key] ?? const <PropertySummary>[];
       if (rows.isEmpty) continue;
-      final title = switch (key) { 'nearby' => 'قريبة منك', 'spotlight' => 'عقارات تستحق نظرة',
-        'sale' => 'تملّك في منطقتك', 'rent' => 'مساحة تناسب حياتك', _ => 'أحدث العقارات' };
+      final title = switch (key) { 'nearby' => 'حول موقعك الحالي', 'spotlight' => 'عقارات تستحق نظرة',
+        'sale' => 'بالقرب منك', _ => 'أحدث العقارات' };
       entries.add((_) => EbrokerTitleHeader(title: title, onSeeAll: () => _section(key, data.governorate)));
-      if (const ['latest', 'nearby'].contains(key)) {
+      if (key == 'nearby') {
         for (final row in rows.take(3)) {
-          entries.add((_) => Padding(padding: const EdgeInsets.fromLTRB(18, 0, 18, 12), child: _property(row, false)));
+          entries.add((_) => Padding(padding: const EdgeInsets.fromLTRB(18, 0, 18, 12), child: _property(row)));
         }
       } else {
-        // Rails are bounded by the feed contract. Keep intrinsic height for
-        // large Arabic text; ViewportMedia gates each horizontal image too.
-        entries.add((_) => SingleChildScrollView(scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 18), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            for (final row in rows) Padding(padding: const EdgeInsetsDirectional.only(end: 12),
-              child: SizedBox(width: (MediaQuery.sizeOf(context).width - 64).clamp(250, 380).toDouble(), child: _property(row, true))),
-          ])));
+        entries.add((_) => _propertyRail(key, rows));
       }
     }
-    if (data.sections.values.every((rows) => rows.isEmpty)) {
+    if (sections.every((key) => data.sections[key]?.isNotEmpty != true)) {
       entries.add((_) => AppEmptyState(title: 'لا توجد عقارات في هذه المنطقة الآن', message: 'استكشف الخريطة أو اختر منطقة أخرى.',
         actionLabel: 'تغيير المنطقة', onAction: _chooseLocation));
     }
@@ -290,23 +334,212 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   }
 }
 
+class _HomeBrokerCarousel extends StatefulWidget {
+  const _HomeBrokerCarousel({required this.profiles});
+  final List<BrokerProfile> profiles;
+
+  @override
+  State<_HomeBrokerCarousel> createState() => _HomeBrokerCarouselState();
+}
+
+class _HomeBrokerCarouselState extends State<_HomeBrokerCarousel> {
+  late final _pages = PageController(initialPage: _loops ? 1 : 0);
+  bool get _loops => widget.profiles.length > 1;
+  Timer? _timer;
+  int _current = 0;
+  bool _active = true;
+  bool _reducedMotion = false;
+  bool _tickerEnabled = true;
+  ModalRoute<dynamic>? _route;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _reducedMotion = MediaQuery.disableAnimationsOf(context);
+    _tickerEnabled = TickerMode.of(context);
+    _route = ModalRoute.of(context);
+    _schedule();
+  }
+
+  @override
+  void deactivate() {
+    _active = false;
+    _timer?.cancel();
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _active = true;
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(_HomeBrokerCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profiles.length != widget.profiles.length) {
+      _current = _current.clamp(0, widget.profiles.length - 1).toInt();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pages.hasClients) _pages.jumpToPage(_current + (_loops ? 1 : 0));
+      });
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    _timer?.cancel();
+    if (!_active || !_loops || _reducedMotion || !_tickerEnabled) return;
+    _timer = Timer(const Duration(seconds: 4), () {
+      if (!mounted || !_active) return;
+      if (_pages.hasClients && _route?.isCurrent != false) {
+        _moveTo((_pages.page?.round() ?? _current + 1) + 1);
+      } else {
+        _schedule();
+      }
+    });
+  }
+
+  void _moveTo(int page) {
+    if (!_pages.hasClients) return;
+    if (_reducedMotion) {
+      _pages.jumpToPage(page);
+    } else {
+      unawaited(_pages.animateToPage(page,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeOut));
+    }
+  }
+
+  void _onSettled() {
+    if (!_active || !_pages.hasClients) return;
+    final count = widget.profiles.length;
+    final page = _pages.page?.round();
+    if (_loops && (page == 0 || page == count + 1)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_pages.hasClients || _pages.page?.round() != page) return;
+        _pages.jumpToPage(page == 0 ? count : 1);
+      });
+    }
+    _schedule();
+  }
+
+  int _profileIndex(int page) => _loops ? (page - 1) % widget.profiles.length : 0;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pages.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Column(children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 92 + (scaler.scale(19) - 19).clamp(0, double.infinity) * 4,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification.depth != 0) return false;
+              if (notification is ScrollStartNotification) _timer?.cancel();
+              if (notification is ScrollEndNotification) _onSettled();
+              return false;
+            },
+            child: PageView.builder(
+              key: const ValueKey('home-weekly-brokers'),
+              controller: _pages,
+              itemCount: _loops ? widget.profiles.length + 2 : 1,
+              onPageChanged: (page) => setState(() => _current = _profileIndex(page)),
+              itemBuilder: (context, page) => _HomeBrokerCard(profile: widget.profiles[_profileIndex(page)]),
+            ),
+          ),
+        ),
+      ),
+      if (widget.profiles.length > 1)
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (var i = 0; i < widget.profiles.length; i++)
+            Semantics(selected: i == _current, child: IconButton(
+              tooltip: widget.profiles[i].name,
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _moveTo(i + 1),
+              icon: Container(
+                width: i == _current ? 20 : 7, height: 7,
+                decoration: BoxDecoration(
+                  color: i == _current ? scheme.primary : scheme.outline,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            )),
+        ]),
+    ]);
+  }
+}
+
 class _HomeBrokerCard extends StatelessWidget {
   const _HomeBrokerCard({required this.profile});
   final BrokerProfile profile;
+
   @override
-  Widget build(BuildContext context) => SizedBox(width: 238, child: AppSurface(onTap: () => context.push('/advertisers/${profile.id}'), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Row(children: [ClipOval(child: profile.photoUrl == null ? const EbrokerImage('defaultProfileIcon', size: 54)
-      : SizedBox.square(dimension: 54, child: ViewportMedia(builder: (_) => Image.network(profile.photoUrl!, width: 54, height: 54, fit: BoxFit.cover, cacheWidth: 180,
-        errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 54))))), const SizedBox(width: 10),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(profile.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 3), Row(children: [if (profile.verified) ...[EbrokerIcon(Icons.verified_outlined, size: 14, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 3)],
-          Expanded(child: Text(profile.typeLabel, style: Theme.of(context).textTheme.bodySmall))])])),
-    ]), const SizedBox(height: 12),
-    if (profile.ratingCount > 0) Row(children: [const EbrokerIcon(Icons.star_outline, size: 17, color: Colors.amber), const SizedBox(width: 4),
-      Expanded(child: Text('${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييمًا', style: Theme.of(context).textTheme.bodySmall))])
-    else Text('جديد على المنصة', style: Theme.of(context).textTheme.bodySmall),
-    const SizedBox(height: 6), Text('${profile.completedDeals} صفقات مؤكدة', style: Theme.of(context).textTheme.bodySmall),
-  ])));
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final photo = profile.photoUrl;
+    final stats = [
+      if (profile.ratingCount > 0) '${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييمًا',
+      '${profile.completedDeals} صفقات مؤكدة',
+    ].join(' · ');
+    return DecoratedBox(
+      decoration: BoxDecoration(color: scheme.surface),
+      child: Material(type: MaterialType.transparency, child: InkWell(
+        onTap: () => context.push('/advertisers/${profile.id}'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(children: [
+            ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox.square(
+              dimension: 52,
+              child: ColoredBox(color: scheme.surfaceContainerHighest,
+                child: photo == null ? const EbrokerImage('defaultProfileIcon', size: 52)
+                  : ViewportMedia(builder: (_) => Image.network(photo, fit: BoxFit.cover, cacheWidth: 156,
+                    errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 52))),
+              ),
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: const BorderRadius.all(Radius.circular(4)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text('دلالو الأسبوع',
+                      style: theme.textTheme.labelSmall?.copyWith(color: scheme.onPrimaryContainer),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+                Row(children: [
+                  Flexible(child: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(fontSize: 19,
+                      fontWeight: FontWeight.w700, color: scheme.onSurface))),
+                  if (profile.verified) ...[
+                    const SizedBox(width: 5),
+                    Icon(Icons.verified_outlined, color: scheme.primary,
+                      size: 16, semanticLabel: 'موثّق'),
+                  ],
+                ]),
+                Text('${profile.typeLabel} · $stats', maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurface)),
+              ],
+            )),
+          ]),
+        ),
+      )),
+    );
+  }
 }
 
 class MarketplaceLocationSheet extends ConsumerWidget {
@@ -324,15 +557,4 @@ class MarketplaceLocationSheet extends ConsumerWidget {
           key: ValueKey('home-governorate-${row.governorateCode ?? row.governorate}'),
           leading: const EbrokerIcon(Icons.location_on_outlined, size: 22), title: Text(row.label), onTap: () => Navigator.of(context).pop(row))]))),
     ])));
-}
-
-class _HomeCircleAction extends StatelessWidget {
-  const _HomeCircleAction({required this.tooltip, required this.icon, required this.onTap, super.key});
-  final String tooltip, icon;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => IconButton(tooltip: tooltip, onPressed: onTap,
-    style: IconButton.styleFrom(minimumSize: const Size(48, 48),
-      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: .06)),
-    icon: EbrokerImage(icon, size: 22, color: Theme.of(context).colorScheme.primary));
 }

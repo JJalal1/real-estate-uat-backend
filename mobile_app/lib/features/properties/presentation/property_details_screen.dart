@@ -112,7 +112,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       Future<void>.microtask(() async {
         try {
           await recentStore.record(loaded.toSummary());
-          if (mounted) ref.invalidate(recentPropertiesProvider);
         } catch (_) {
           // Recent local history is best-effort: missing storage, denied IO,
           // or a mock platform must not crash property details.

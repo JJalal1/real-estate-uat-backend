@@ -76,6 +76,11 @@ Future<void> loadUxFixtures() async {
     primary.addFont(rootBundle.load('assets/ebroker/fonts/Manrope-$weight.ttf'));
   }
   await primary.load();
+  final cairo = FontLoader('Cairo');
+  for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) {
+    cairo.addFont(rootBundle.load('assets/fonts/Cairo-$weight.ttf'));
+  }
+  await cairo.load();
   final icons = await File('${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
   await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   final recorder = ui.PictureRecorder();

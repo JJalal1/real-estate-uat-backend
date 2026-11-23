@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:real_estate_mobile/core/offline/offline_connection.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
@@ -14,6 +15,8 @@ import 'package:real_estate_mobile/features/agreements/presentation/rental_contr
 import 'package:real_estate_mobile/features/bookings/data/booking_repository.dart';
 import 'package:real_estate_mobile/features/bookings/domain/booking_models.dart';
 import 'package:real_estate_mobile/features/bookings/presentation/bookings_screen.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
 
 DioException _failure([int status = 503]) {
   final request = RequestOptions(path: '/synthetic-buyer-read');
@@ -166,4 +169,121 @@ void main() {
     expect(find.textContaining('سجّل الدخول لطلب مواعيد المعاينة'), findsOneWidget);
     expect(tester.takeException(), isNull);
   }, timeout: const Timeout(Duration(seconds: 45)));
+
+  testWidgets('home keeps listings on reconnect and loads a newly selected governorate separately', (tester) async {
+    tester.view.physicalSize = const Size(430, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    MarketplaceFeed feedFor(String region, int id, String title) => MarketplaceFeed.fromJson({
+      'context': {'label': region, 'governorate': region},
+      'section_order': ['latest'],
+      'sections': {
+        'latest': [
+          {'id': id, 'title': title, 'purpose': 'sale', 'type': 'apartment', 'price': 100000},
+        ],
+      },
+    });
+
+    final refreshed = Completer<MarketplaceFeed>();
+    final otherRegion = Completer<MarketplaceFeed>();
+    final initial = feedFor('ذمار', 11, 'إعلان ذمار الأول');
+    final updated = feedFor('ذمار', 12, 'إعلان ذمار المحدّث');
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        authControllerProvider.overrideWith(_Account.new),
+        homeLocationProvider.overrideWith((ref) => const HomeLocation(
+          label: 'ذمار', governorate: 'ذمار', governorateCode: 'DHAMAR', manual: true,
+        )),
+        marketplaceFeedProvider.overrideWith((ref, query) {
+          final revision = ref.watch(offlineResumeRevisionProvider);
+          if (query.governorateCode == 'IBB') return otherRegion.future;
+          if (revision == 0) return initial;
+          return refreshed.future;
+        }),
+      ],
+      child: const MaterialApp(
+        home: Directionality(textDirection: TextDirection.rtl, child: MarketplaceHomeScreen()),
+      ),
+    ));
+    await tester.pump();
+    final home = find.byType(MarketplaceHomeScreen);
+    final container = ProviderScope.containerOf(tester.element(home), listen: false);
+    const skeleton = ValueKey('home-feed-loading');
+    expect(find.text('إعلان ذمار الأول'), findsOneWidget);
+
+    container.read(offlineResumeRevisionProvider.notifier).state++;
+    await tester.pump();
+    expect(find.text('إعلان ذمار الأول'), findsOneWidget);
+    expect(find.byKey(skeleton), findsNothing);
+    expect(find.byType(AppRefreshStatus), findsOneWidget);
+
+    refreshed.complete(updated);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعلان ذمار المحدّث'), findsOneWidget);
+    expect(find.text('إعلان ذمار الأول'), findsNothing);
+
+    container.read(homeLocationProvider.notifier).state = const HomeLocation(
+      label: 'إب', governorate: 'إب', governorateCode: 'IBB', manual: true,
+    );
+    await tester.pump();
+    expect(find.text('إعلان ذمار المحدّث'), findsNothing);
+    expect(find.byKey(skeleton), findsOneWidget);
+
+    otherRegion.complete(feedFor('إب', 13, 'إعلان إب الجديد'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعلان إب الجديد'), findsOneWidget);
+    expect(find.byKey(skeleton), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home replaces a startup snapshot with live rows and hides it on a definitive error', (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    MarketplaceFeed feedFor(int id, String title) => MarketplaceFeed.fromJson({
+      'context': {'label': 'ذمار'}, 'section_order': ['latest'],
+      'sections': {'latest': [
+        {'id': id, 'title': title, 'purpose': 'sale', 'type': 'apartment', 'price': 100000},
+      ]},
+    });
+    final live = Completer<MarketplaceFeed>();
+    final denied = Completer<MarketplaceFeed>();
+    final snapshot = feedFor(21, 'إعلان محفوظ');
+    await tester.pumpWidget(ProviderScope(overrides: [
+      authControllerProvider.overrideWith(_Account.new),
+      homeLocationProvider.overrideWith((ref) => const HomeLocation(
+        label: 'ذمار', governorate: 'ذمار', governorateCode: 'DHAMAR', manual: true)),
+      marketplaceInitialSnapshotProvider.overrideWith((ref, query) => snapshot),
+      marketplaceFeedProvider.overrideWith((ref, query) => query.governorateCode == 'IBB' ? denied.future : live.future),
+    ], child: const MaterialApp(home: MarketplaceHomeScreen())));
+    await tester.pump();
+    expect(find.text('إعلان محفوظ'), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-feed-loading')), findsNothing);
+    expect(find.byType(AppRefreshStatus), findsOneWidget);
+
+    live.complete(feedFor(22, 'إعلان مباشر'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعلان مباشر'), findsOneWidget);
+    expect(find.text('إعلان محفوظ'), findsNothing);
+
+    final container = ProviderScope.containerOf(tester.element(find.byType(MarketplaceHomeScreen)), listen: false);
+    container.read(homeLocationProvider.notifier).state = const HomeLocation(
+      label: 'إب', governorate: 'إب', governorateCode: 'IBB', manual: true);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعلان محفوظ'), findsOneWidget);
+    denied.completeError(_failure(403));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعلان محفوظ'), findsNothing);
+    expect(find.byType(AppErrorState), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

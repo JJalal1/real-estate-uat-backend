@@ -112,11 +112,15 @@ void main(){
     await tester.enterText(field,'مسودة متابعة لم أرسلها');
     expect(find.byKey(const ValueKey('smart-search-save')),findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('map-open-search')));await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text,'مسودة متابعة لم أرسلها');expect(container.read(smartSearchSessionProvider).filters.values,before);
+    await tester.tap(find.byTooltip('إغلاق البحث'));await tester.pumpAndSettle();
     expect(find.text('15.3694,44.191'),findsOneWidget);
     await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, 500)); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('marker-11')).hitTestable(), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('marker-11')));await tester.pumpAndSettle();expect(find.text('عقار تجريبي 11'),findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('marker-11')));await tester.pumpAndSettle();
+    await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -215)); await tester.pumpAndSettle();
+    expect(find.text('عقار تجريبي 11'),findsOneWidget);
     await tester.drag(find.byKey(const ValueKey('map-results-handle')),const Offset(0,350));await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('map-pan')));await tester.pumpAndSettle();expect(container.read(smartSearchSessionProvider).filters.values['south'],15.2);
     await tester.tap(find.byKey(const ValueKey('smart-search-list')));await tester.pumpAndSettle();expect(tester.widget<TextField>(field).controller!.text,'مسودة متابعة لم أرسلها');
@@ -196,10 +200,14 @@ void main(){
       await tester.enterText(field,'أضف شرطًا آخر');
       await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
       expect(find.byType(MapScreen),findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('map-open-search')));await tester.pumpAndSettle();
       expect(tester.widget<TextField>(field).controller!.text,'أضف شرطًا آخر');
+      await tester.ensureVisible(find.byTooltip('إغلاق البحث'));
+      await tester.tap(find.byTooltip('إغلاق البحث'));await tester.pumpAndSettle();
       await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, 500)); await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('fixture-map-11')).hitTestable(), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('fixture-map-11')));await tester.pumpAndSettle();
+      await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -210)); await tester.pumpAndSettle();
       expect(find.text('عقار تجريبي 11'),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-map-$scale');
       expect(tester.takeException(),isNull);await finishWave6(tester);
@@ -223,8 +231,9 @@ void main(){
     testWidgets('professional home has a compact house-plus CTA and dynamic sections at scale $scale',(tester)async{
       final boundary=GlobalKey();await pumpWave6(tester,const AppShellScreen(),scale:scale,boundary:boundary);
       expect(find.byKey(const ValueKey('home-add-property')),findsOneWidget);expect(find.text('إدارة عملي'),findsNothing);
-      expect(find.text('بحث ذكي'),findsOneWidget);expect(find.descendant(of:find.byType(AppNavigationBar),matching:find.byTooltip('عملي')),findsOneWidget);
+      expect(find.descendant(of:find.byType(AppNavigationBar),matching:find.byTooltip('عملي')),findsOneWidget);
       expect(tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item)=>item.label),['الرئيسية','عملي','العملاء','حسابي']);
+      expect(find.byKey(const ValueKey('home-smart-search')),findsNothing);
       expect(find.byKey(const ValueKey('floating-smart-search')),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-home-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });

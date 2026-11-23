@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
@@ -77,7 +78,7 @@ void main() {
     expect(scope.read(marketplaceMapResultsProvider).filters.apiFilters.containsKey('purpose'), isFalse);
   });
 
-  testWidgets('selected filters remain visible after apply and submit, without a purpose-all chip', (tester) async {
+  testWidgets('selected filters remain accessible in search after apply and submit', (tester) async {
     final listings = Listings(), scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(listings)]);
     scope.read(marketplaceSearchControllerProvider.notifier).enterMap();
     await pumpUx(tester, scope, const Scaffold(body: SingleChildScrollView(child: MarketplaceSearchPanel(onMap: true))));
@@ -89,17 +90,25 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('filter-max_price')));
     await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '٢٥٠٬٠٠٠');
     await _apply(tester);
+    await _tap(tester, 'map-open-search');
     await _tap(tester, 'published-search-submit');
+    await _tap(tester, 'map-open-search');
     expect(find.byKey(const ValueKey('published-selected-min_bedrooms')), findsOneWidget);
     expect(find.byKey(const ValueKey('published-selected-min_bathrooms')), findsOneWidget);
     expect(find.byKey(const ValueKey('published-selected-budget')), findsOneWidget);
     expect(scope.read(marketplaceSearchControllerProvider.notifier).uiFor(onMap: true).criteria.values['max_price'], 250000);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('published-map-filters')), findsOneWidget);
     await _tap(tester, 'published-type-land');
+    await _tap(tester, 'map-open-search');
     expect(find.byKey(const ValueKey('published-selected-min_bedrooms')), findsNothing);
     expect(find.byKey(const ValueKey('published-selected-min_bathrooms')), findsNothing);
     expect(scope.read(marketplaceSearchControllerProvider.notifier).uiFor(onMap: true).criteria.selectedTypes, ['apartment', 'land']);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     await _tap(tester, 'published-type-apartment');
+    await _tap(tester, 'published-map-filters');
     expect(find.byKey(const ValueKey('published-filter-land-use')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await closeUx(tester);
@@ -150,11 +159,58 @@ void main() {
     expect(filters['north'], 16);
     expect(listings.calls.last['area_polygon'], filters['area_polygon']);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('area_polygon'), isFalse);
-    expect(find.byKey(const ValueKey('map-drawn-area')), findsOneWidget);
-    tester.widget<InputChip>(find.byKey(const ValueKey('map-drawn-area'))).onDeleted!();
-    await tester.pumpAndSettle();
+    final drawControl = find.byKey(const ValueKey('map-draw-area'));
+    expect(find.descendant(of: drawControl, matching: find.byIcon(Icons.close_rounded)), findsOneWidget);
+    await _tap(tester, 'map-draw-area');
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('area_polygon'), isFalse);
     expect(scope.read(marketplaceMapResultsProvider).filters.values['south'], filters['south']);
+    expect(listings.calls.last, containsPair('type', 'house'));
+    expect(listings.calls.last, isNot(contains('area_polygon')));
+    expect(find.descendant(of: drawControl, matching: find.byIcon(Icons.gesture_rounded)), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('clearing a drawing restores the earlier province if no viewport was selected', (tester) async {
+    final listings = Listings();
+    var markerCount = 0;
+    final scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(listings),
+      sharedSearchMapBuilderProvider.overrideWithValue((context, rows, pick, viewport) {
+        markerCount = rows.length;
+        return _map;
+      }),
+      sharedSearchMapProjectorProvider.overrideWithValue((pixels) async =>
+        LatLng(14.4 + pixels.y / 10000, 44.3 + pixels.x / 10000)),
+    ]);
+    scope.read(homeLocationProvider.notifier).state = const HomeLocation(
+      latitude: 14.5428, longitude: 44.4051, governorate: 'ذمار',
+      governorateCode: 'DH', label: 'ذمار', manual: true);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
+    await tester.pumpAndSettle();
+    await _tap(tester, 'published-type-house');
+    final before = scope.read(marketplaceMapResultsProvider).filters.values;
+    expect(before, containsPair('governorate_code', 'DH'));
+    expect(before, isNot(contains('south')));
+    final originalMarkerCount = markerCount;
+    expect(originalMarkerCount, greaterThan(0));
+    await _tap(tester, 'map-draw-area');
+    await _stroke(tester);
+    await tester.pumpAndSettle();
+    expect(listings.calls.last['area_polygon'], isA<String>());
+    expect(listings.calls.last, isNot(contains('south')));
+    expect(listings.calls.last, isNot(contains('governorate_code')));
+    expect(markerCount, 0);
+    scope.read(marketplaceSearchControllerProvider.notifier).setChoice('purpose', 'rent', onMap: true);
+    await tester.pumpAndSettle();
+    await _tap(tester, 'map-draw-area');
+    final restored = listings.calls.last;
+    expect(restored, containsPair('governorate_code', 'DH'));
+    expect(restored, containsPair('type', 'house'));
+    expect(restored, containsPair('purpose', 'rent'));
+    expect(restored, isNot(contains('area_polygon')));
+    expect(restored, isNot(contains('south')));
+    expect(markerCount, originalMarkerCount);
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });
@@ -169,7 +225,8 @@ void main() {
     await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
     await tester.pumpAndSettle();
     final before = listings.calls.length;
-    await _tap(tester, 'map-draw-area');
+    await _tap(tester, 'published-map-filters');
+    await _tap(tester, 'map-filter-draw-area');
     await _stroke(tester);
     await tester.tap(find.text('إلغاء'));
     await tester.pumpAndSettle();
@@ -199,6 +256,7 @@ void main() {
     expect(controller.isMapJourneyCurrent(mapToken), isTrue);
     expect(find.byType(AssistedSearchScreen), findsOneWidget);
     expect(scope.read(smartSearchSessionProvider).filters.values['south'], 15);
+    await _tap(tester, 'map-open-search');
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'خفض السعر');
     await _tap(tester, 'smart-search-send');
     expect(ai.requests.single.filters['min_bedrooms'], 3);
@@ -226,7 +284,9 @@ void main() {
     await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
     await tester.pumpAndSettle();
     await _tap(tester, 'published-type-apartment');
-    await _tap(tester, 'map-smart-search');
+    await _tap(tester, 'map-open-search');
+    await _tap(tester, 'map-search-editor-assistant');
+    await _tap(tester, 'map-open-search');
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'خفض السعر');
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));
     await tester.tap(find.byKey(const ValueKey('smart-search-send')));
@@ -259,10 +319,9 @@ void main() {
           size: scale == 1 ? const Size(412,820) : const Size(320,568), dark: dark, scale: scale);
         await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('published-purpose-all')), findsNothing);
-        expect(find.byKey(const ValueKey('published-selected-min_bedrooms')), findsOneWidget);
-        expect(find.byKey(const ValueKey('published-selected-has_parking')), findsOneWidget);
-        expect(find.byKey(const ValueKey('map-draw-area')), findsOneWidget);
-        expect(find.byKey(const ValueKey('map-smart-search')), findsOneWidget);
+        expect(find.byKey(const ValueKey('published-selected-min_bedrooms')), findsNothing);
+        expect(find.byKey(const ValueKey('map-my-location')), findsOneWidget);
+        expect(find.byKey(const ValueKey('map-open-search')), findsOneWidget);
         final region = tester.getRect(find.byKey(const ValueKey('map-top-search-region')));
         final list = tester.getRect(find.byKey(const ValueKey('map-results-list')));
         final surface = tester.getRect(find.byKey(const ValueKey('map-search-panel-surface')));
@@ -270,11 +329,14 @@ void main() {
         expect(region.bottom, lessThanOrEqualTo(map.top + 1));
         expect(surface.top - map.top, greaterThanOrEqualTo(70));
         expect(list.top, greaterThan(surface.top));
+        expect(list.height, lessThan(1));
         expect(find.descendant(of: find.byKey(const ValueKey('map-results-sheet')),
           matching: find.byType(MarketplaceSearchPanel)), findsNothing);
         final floating = tester.getRect(find.byKey(const ValueKey('map-floating-search-actions')));
-        expect(floating.left, closeTo(map.left + 16, 1));
+        expect(floating.left, closeTo(map.left + 10, 1));
         expect(floating.bottom, lessThanOrEqualTo(surface.top - 8));
+        await _tap(tester, 'map-open-search');
+        expect(find.byKey(const ValueKey('published-selected-has_parking')), findsOneWidget);
         for (final key in ['published-selected-min_bedrooms', 'published-selected-min_bathrooms']) {
           await tester.ensureVisible(find.byKey(ValueKey(key)));
           await tester.pumpAndSettle();
@@ -283,7 +345,10 @@ void main() {
           expect(paragraph.getMaxIntrinsicWidth(double.infinity), lessThanOrEqualTo(paragraph.size.width + 1));
         }
         expect(find.byKey(const ValueKey('published-filter-max-price')), findsNothing);
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
         await _tap(tester, 'published-map-filters');
+        expect(find.byKey(const ValueKey('map-filter-draw-area')), findsOneWidget);
         final maximum = find.byKey(const ValueKey('filter-max_price'));
         await tester.ensureVisible(maximum);
         await tester.pumpAndSettle();
