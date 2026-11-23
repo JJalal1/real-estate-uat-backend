@@ -160,7 +160,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('smart-search-map'))); await tester.pumpAndSettle();
     expect(tester.widget<MapScreen>(find.byType(MapScreen)).cameraCenterHint!.latitude, closeTo(13.58, 1e-9));
     expect(tester.widget<MapScreen>(find.byType(MapScreen)).cameraCenterHint!.longitude, closeTo(44.02, 1e-9));
-    await tester.tap(find.byKey(const ValueKey('map-smart-search'))); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('map-open-search'))); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('smart-search-list')), findsOneWidget);
     expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
     await tester.tap(find.byKey(const ValueKey('smart-search-list'))); await tester.pumpAndSettle();
@@ -206,12 +206,16 @@ void main() {
     map.updateViewport(south: bounds['south']!, west: bounds['west']!, north: bounds['north']!, east: bounds['east']!);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('map-smart-search')));
+    await tester.tap(find.byKey(const ValueKey('map-open-search')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('map-search-editor-assistant')));
     await tester.pumpAndSettle();
     final listMode = find.byKey(const ValueKey('smart-search-list'));
     expect(listMode, findsOneWidget);
     final field = find.byKey(_description);
     const typed = 'أبحث عن شقة للإيجار بثلاث غرف';
+    await tester.tap(find.byKey(const ValueKey('map-open-search')));
+    await tester.pumpAndSettle();
     await tester.enterText(field, typed);
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
@@ -343,7 +347,8 @@ void main() {
       expect(scope.read(marketplaceMapResultsProvider), same(parent));
 
       await back();
-      expect(find.text('البحث على الخريطة'), findsOneWidget);
+      expect(find.byType(MarketplaceSearchMapScreen), findsOneWidget);
+      expect(find.text('البحث على الخريطة'), findsNothing);
       expect(scope.read(marketplaceMapResultsProvider), same(parent));
       expect(scope.read(smartSearchSessionProvider).started, isFalse);
       expect(tester.takeException(), isNull);

@@ -259,6 +259,8 @@ void main() {
     open(); await tester.pumpAndSettle();
     expect(scope.read(marketplaceMapResultsProvider).filters.values['search'],'ش');
     final element=tester.element(find.byKey(const ValueKey('w2-native-canvas')));
+    await tester.tap(find.byKey(const ValueKey('map-open-search')));
+    await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('map-published-search-input')),'شقة'); await uxFrames(tester);
     expect(find.byKey(const ValueKey('published-suggestion-1')),findsOneWidget);
     await uxPreview(tester,boundary,'w2-C-map-suggestions');

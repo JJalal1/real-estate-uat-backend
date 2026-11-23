@@ -255,14 +255,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('home-ai-description')), findsNothing);
       expect(find.byKey(const ValueKey('home-ai-voice')), findsNothing);
-      expect(find.text('بحث ذكي'), findsOneWidget);
-      // Wave3 restores the approved wide smart-search strip with its explanatory text.
-      final smartBar = tester.getSize(find.byKey(const ValueKey('home-smart-search')));
-      expect(smartBar.width, closeTo(tester.view.physicalSize.width / tester.view.devicePixelRatio - 36, .1));
-      expect(smartBar.height, lessThan(180));
-      expect(find.text('صف ما تحتاجه بالنص أو الصوت'), findsOneWidget);
+      expect(find.byKey(const ValueKey('home-smart-search')), findsNothing);
+      final assistant = find.byKey(const ValueKey('floating-smart-search'));
+      expect(tester.getSize(assistant).width, lessThan(64));
       await preview(tester, boundary, scale == 1 ? 'wave5-home' : 'wave5-home-large');
-      await tester.tap(find.byKey(const ValueKey('home-smart-search'))); await tester.pumpAndSettle();
+      await tester.tap(assistant); await tester.pumpAndSettle();
       expect(find.byType(AssistedSearchScreen), findsOneWidget);
       final filters = {...currentFilters, 'max_price': 125000};
       container.read(smartSearchSessionProvider.notifier).replaceManually(SmartSearchFilters.fromMap(filters));

@@ -1,33 +1,76 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import 'smart_search_assistant.dart';
 
 /// Home and My Account open a new assistant journey without copying Home edits.
 class HomeAiSearchEntry extends StatelessWidget {
-  const HomeAiSearchEntry({this.location = 'صنعاء', this.type, this.purpose, this.wide = false, super.key});
+  const HomeAiSearchEntry({this.location = 'صنعاء', this.type, this.purpose, this.wide = false, this.onPressed, super.key});
 
   final String location;
   final String? type;
   final String? purpose;
   final bool wide;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
     void open() {
-      context.push('/smart-search');
+      if (onPressed case final action?) {
+        action();
+      } else {
+        context.push('/smart-search');
+      }
     }
     if (wide) {
-      return Material(color: color.withValues(alpha: .07), borderRadius: BorderRadius.circular(16),
-      child: InkWell(key: const ValueKey('home-smart-search'), onTap: open, borderRadius: BorderRadius.circular(16),
-        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12), child: Row(children: [
-          Icon(Icons.chevron_right, color: color, size: 22), const SizedBox(width: 8),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('بحث ذكي', style: Theme.of(context).textTheme.titleSmall?.copyWith(color: color)),
-            Text('صف ما تحتاجه بالنص أو الصوت', style: Theme.of(context).textTheme.bodySmall),
-          ])), const SizedBox(width: 8), const SmartSearchRobotIcon(size: 30),
-        ]))));
+      final theme = Theme.of(context);
+      final scheme = theme.colorScheme;
+      final radius = BorderRadius.circular(AppRadii.control);
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          color: color.withValues(alpha: .07),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            key: const ValueKey('home-smart-search'),
+            onTap: open,
+            borderRadius: radius,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(7),
+                    child: SmartSearchRobotIcon(size: 28, color: scheme.onPrimaryContainer),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Text('بحث ذكي', style: theme.textTheme.titleSmall?.copyWith(
+                  color: color, fontWeight: FontWeight.w700,
+                ))),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(9)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Text('جرّب الآن', style: theme.textTheme.labelMedium?.copyWith(color: scheme.onPrimary)),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      );
     }
     return TextButton.icon(
       key: const ValueKey('home-smart-search'),
