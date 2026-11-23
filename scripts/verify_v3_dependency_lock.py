@@ -32,6 +32,8 @@ MAP_LISTING_BRANCH = "work/map-listing-readiness-1827-20261120"
 MAP_LAYERS_BRANCH = "work/map-layers-1828-20261120"
 MAP_SEARCH_TOOLBAR_BRANCH = "work/map-search-toolbar-1829-20261120"
 APPROVED_UAT_1829_SHA = "eb4df35101387bdb0cc969224cdd28f5d5b913d9"
+# The approved design adds the Cairo font assets and their license to the 1829 manifest.
+APPROVED_CAIRO_MANIFEST_SHA256 = "c30ebd1d03da47c843ccf863b684f1f450de1807e0e61e9c2541af992d90c84c"
 GOOGLE_MAPS_BASE_SHA = "2ff278bb27e25fcae8292a88128f58b3da04bc80"
 GOOGLE_MAPS_PACKAGES = {
     "csslib": "1.0.2",
@@ -314,9 +316,13 @@ def verify_approved_uat1829(resolved):
         for path in inputs:
             expected = subprocess.check_output(["git", "show", f"{APPROVED_UAT_1829_SHA}:{path}"], cwd=ROOT)
             committed = subprocess.check_output(["git", "show", f"HEAD:{path}"], cwd=ROOT)
-            if committed != expected:
+            cairo_manifest = (
+                path == "mobile_app/pubspec.yaml"
+                and hashlib.sha256(committed).hexdigest() == APPROVED_CAIRO_MANIFEST_SHA256
+            )
+            if committed != expected and not cairo_manifest:
                 raise ValueError(f"Approved UAT 1829 dependency input changed: {path}")
-            if path != "mobile_app/pubspec.lock" and (ROOT / path).read_bytes() != expected:
+            if path != "mobile_app/pubspec.lock" and (ROOT / path).read_bytes() != committed:
                 raise ValueError(f"Working dependency input differs from UAT 1829: {path}")
         overrides = (ROOT / inputs[2]).read_bytes()
         if (ROOT / "mobile_app/pubspec_overrides.yaml").read_bytes() != overrides:
