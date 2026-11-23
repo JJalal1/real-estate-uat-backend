@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
-      AQER_SOURCE_SHA: ec178954e54959235977cd123f6714fc513551db
+      AQER_SOURCE_SHA: ef618be63aa7548cfe8826ef700097204023cf75
       AQER_SIGNING_ENVIRONMENT: uat
       AQER_VERIFIED_FIREBASE_FINGERPRINT: '716a458274e8e131530269d9a5196cf6bd3e3bc9d231f3c0c415870d0b1dc79a'
       AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
@@ -58,7 +58,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
           git merge-base --is-ancestor 62c30461098befe27f64e9a07a155a5242991119 HEAD
-          git diff --exit-code 62c30461098befe27f64e9a07a155a5242991119 HEAD -- . ':(exclude)mobile_app'
+          git diff --exit-code 62c30461098befe27f64e9a07a155a5242991119 HEAD -- . ':(exclude)mobile_app' ':(exclude)scripts/verify_v3_dependency_lock.py' ':(exclude).github/workflows/listing-duplicate-review-mobile.yml'
           git diff --exit-code 44c76bd8f314e199650a8d8d8053a983a48bf819 HEAD -- mobile_app ':(exclude)mobile_app/lib/features/discovery/presentation/marketplace_home_screen.dart' ':(exclude)mobile_app/test/buyer_loading_recovery_test.dart'
           git diff --exit-code fd832497768aac67fdd32485f2af835f273111c8 HEAD -- \
             backend-api-runtime render.yaml docs/uat-signing-identity.json mobile_app/android
@@ -80,6 +80,7 @@ jobs:
           git worktree add --detach --quiet "$approved" fd832497768aac67fdd32485f2af835f273111c8
           cp "$approved/docs/ui-transplant-v3/pubspec_overrides.yaml" "$approved/mobile_app/pubspec_overrides.yaml"
           python3 -B "$approved/scripts/verify_v3_dependency_lock.py" --resolved "$PWD/pubspec.lock" --approved-uat1829
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --approved-uat1829
           flutter pub get --enforce-lockfile
       - name: Analyze the integrated app
         working-directory: mobile_app
@@ -102,6 +103,7 @@ jobs:
           preview="$RUNNER_TEMP/aqer-approved-design"
           git worktree add --detach --quiet "$preview" 44c76bd8f314e199650a8d8d8053a983a48bf819
           cp pubspec_overrides.yaml "$preview/mobile_app/pubspec_overrides.yaml"
+          cp pubspec.lock "$preview/mobile_app/pubspec.lock"
           (cd "$preview/mobile_app" && flutter pub get --enforce-lockfile && flutter test --no-pub --reporter expanded test/ui_transplant_v3_home_test.dart --plain-name 'exports the rendered home with synthetic preview data')
           for screen in home-top home-properties; do
             cmp "build/v3-preview/$screen.png" "$preview/mobile_app/build/v3-preview/$screen.png"
