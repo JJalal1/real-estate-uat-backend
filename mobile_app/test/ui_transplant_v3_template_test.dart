@@ -295,7 +295,7 @@ void main() {
     final material = tester.widget<MaterialButton>(find.byType(MaterialButton));
     expect(material.height, 52);
     expect(material.elevation, 0);
-    expect((material.shape! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(16));
+    expect((material.shape! as RoundedRectangleBorder).borderRadius, BorderRadius.circular(10));
     await tester.tap(find.text('متابعة'));
     expect(taps, 1);
     await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(
