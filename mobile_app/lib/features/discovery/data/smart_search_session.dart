@@ -67,7 +67,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     if (initialResults != null && initialResults.started && !initialResults.loading &&
         initialResults.resultsError == null && initialResults.page > 0 && initialResults.filters.sameAs(filters)) {
       _usingDefaultLocation = false;
-      state = SmartSearchState(filters: filters, rows: initialResults.rows, page: initialResults.page,
+      state = SmartSearchState(filters: filters, rows: _insideDrawnArea(filters, initialResults.rows), page: initialResults.page,
         more: initialResults.more, started: true, revision: state.revision);
     } else {
       replaceManually(filters);
@@ -145,8 +145,13 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
   List<PropertySummary> _insideDrawnArea(SmartSearchFilters filters, List<PropertySummary> rows) {
     final ring = filters.values['area_polygon'];
     if (ring is! String || rows.isEmpty) return rows;
-    final polygon = MapAreaGeometry.fromEncodedRing(ring);
-    return rows.where((row) => polygon.contains(row.latitude, row.longitude)).toList(growable: false);
+    try {
+      final polygon = MapAreaGeometry.fromEncodedRing(ring);
+      return rows.where((row) => polygon.contains(row.latitude, row.longitude)).toList(growable: false);
+    } on FormatException {
+      // Discard out-of-scope cached results while the API validates the ring.
+      return const [];
+    }
   }
 
   void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.', String? draftText,

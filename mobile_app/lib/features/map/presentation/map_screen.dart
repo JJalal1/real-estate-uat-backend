@@ -1584,6 +1584,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
 
   void _openAddProperty() {
+    if (ref.read(authControllerProvider).asData?.value?.isBroker != true) return;
     context.push('/add-property');
   }
 

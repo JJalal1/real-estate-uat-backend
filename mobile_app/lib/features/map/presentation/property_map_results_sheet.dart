@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import '../../../core/formatters/money.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
