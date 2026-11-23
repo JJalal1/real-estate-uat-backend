@@ -9,7 +9,7 @@ import '../../account/data/auth_controller.dart';
 
 final recentHistoryDirectoryProvider = Provider<Future<Directory> Function()>((ref) => getApplicationSupportDirectory);
 
-final recentPropertiesStoreProvider = Provider<RecentPropertiesStore>((ref) {
+final Provider<RecentPropertiesStore> recentPropertiesStoreProvider = Provider((ref) {
   final scope = ref.watch(authControllerProvider.select((state) =>
     (state.asData?.value?.id, !state.isLoading && !state.hasError)));
   var active = true;
@@ -20,7 +20,7 @@ final recentPropertiesStoreProvider = Provider<RecentPropertiesStore>((ref) {
     });
 });
 
-final recentPropertiesProvider = FutureProvider<List<PropertySummary>>((ref) {
+final FutureProvider<List<PropertySummary>> recentPropertiesProvider = FutureProvider((ref) {
   return ref.watch(recentPropertiesStoreProvider).load();
 });
 
