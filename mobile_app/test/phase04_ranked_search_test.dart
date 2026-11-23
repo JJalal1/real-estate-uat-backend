@@ -143,6 +143,7 @@ void main() {
     for (final page in [1, 2]) {
       final result = await repo.searchListings({'area_polygon': ring}, page: page);
       expect(result.$2, page == 1);
+      expect((result.$1 as PropertySearchPageRows).total, 21);
     }
     for (final q in requests) {
       expect(q.queryParameters['area_polygon'], ring);

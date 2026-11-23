@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,6 +34,12 @@ void ensurePropertyFilterContract(Response response, Map<String, dynamic> filter
       response.headers.value('x-aqer-filter-contract') != '2') {
     throw StateError('تعذّر تطبيق شروط البحث المختارة حاليًا. أعد المحاولة لاحقًا.');
   }
+}
+
+/// Immutable results from one page and the full matching count from the same response.
+class PropertySearchPageRows extends UnmodifiableListView<PropertySummary> {
+  PropertySearchPageRows(super.rows, this.total);
+  final int total;
 }
 
 class PropertyRepository {
@@ -239,7 +246,7 @@ class PropertyRepository {
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
       final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken,
         options: Options(listFormat: ListFormat.multiCompatible));
-      ensurePropertyFilterContract(response, params);
+      ensurePropertyFilterContract(response, params, requireAcknowledgement: filters.containsKey('area_polygon'));
       if (ranked && !const ['1', '2'].contains(response.headers.value('x-aqer-ranked-contract'))) {
         throw StateError('تعذّر تطبيق ترتيب البحث حاليًا. أعد المحاولة لاحقًا.');
       }
@@ -257,7 +264,10 @@ class PropertyRepository {
           (meta['exact_total'] as int) + (meta['alternative_total'] as int) != meta['total'])) {
         throw const FormatException('Invalid ranked pagination metadata.');
       }
-      return (rows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
+      final total = meta['total'];
+      final List<PropertySummary> pageRows = total is int && total >= rows.length
+        ? PropertySearchPageRows(rows, total) : rows;
+      return (pageRows, (meta['current_page'] as num? ?? 1) < (meta['last_page'] as num? ?? 1));
     }, refresh: refresh, cancelToken: cancelToken);
   }
 

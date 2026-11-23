@@ -246,6 +246,16 @@ void main() {
     expect(wire.calls, isEmpty);
   });
 
+  test('recent live data avoids a duplicate health request while manual retry still probes', () async {
+    final wire = _Wire();
+    final active = _controller(_client(wire));
+    active.online();
+    await active.check();
+    expect(wire.calls, isEmpty);
+    await active.check(force: true);
+    expect(wire.calls, hasLength(1));
+  });
+
   test('one slow request does not flash the global unavailable state on a reachable network', () async {
     final response = Completer<ResponseBody>();
     final wire = _Wire()..reply = (_) => response.future;

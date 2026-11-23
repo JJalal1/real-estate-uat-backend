@@ -26,6 +26,7 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
   CancelToken? _activeProbe;
   Future<void>? _checking;
   bool _disposed = false;
+  DateTime? _lastApiReceipt;
   int _revision = 0;
   int _lastHardOfflineRevision = -1;
   bool usedSnapshot = false;
@@ -63,6 +64,7 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
   /// Advance even when already online so an older failing probe cannot win.
   void online() {
     if (_disposed) return;
+    _lastApiReceipt = DateTime.now();
     _revision++;
     _cancelProbe();
     if (state != OfflineConnection.online) state = OfflineConnection.online;
@@ -99,10 +101,10 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
     if (_disposed) return Future.value();
     // Both manual and periodic checks may recover an unvalidated but usable
     // network. Coalesce them, never skip probing because Android did not validate.
-    return _checking ??= _check().whenComplete(() => _checking = null);
+    return _checking ??= _check(force: force).whenComplete(() => _checking = null);
   }
 
-  Future<void> _check() async {
+  Future<void> _check({required bool force}) async {
     final startedRevision = _revision;
     try {
       final snapshot =
@@ -117,6 +119,11 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
       }
     } catch (_) {/* Other platforms use the API probe. */}
     if (_disposed || startedRevision != _revision) return;
+    // An active API response already verifies the server. Still inspect the
+    // device route above so a recent response cannot conceal a real disconnect.
+    final receipt = _lastApiReceipt;
+    if (!force && state == OfflineConnection.online && receipt != null &&
+        DateTime.now().difference(receipt) < const Duration(seconds: 24)) return;
     final probe = _probe;
     if (probe == null) return;
     final cancelToken = CancelToken();

@@ -21,13 +21,14 @@ double compactMapResultsHeaderHeight(BuildContext context) {
 class PropertyMapResultsSheet extends StatefulWidget {
   const PropertyMapResultsSheet({required this.items, required this.itemBuilder,
     this.selectedId, this.markerSelection = 0, this.loading = false, this.staleResults = false, this.error, this.onRetry, this.onShowList,
-    this.onMarkerDetails, this.onDismissMarker, this.onAdd, this.hasDrawnArea = false,
+    this.onMarkerDetails, this.onDismissMarker, this.onAdd, this.total, this.hasDrawnArea = false,
     this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, this.filterPanel, super.key});
   final Widget? filterPanel;
   final List<PropertyMarker> items;
   final Widget Function(PropertyMarker property) itemBuilder;
   final int? selectedId;
   final int markerSelection;
+  final int? total;
   final bool loading, staleResults, more;
   final bool collapsed, hasDrawnArea;
   final ValueChanged<PropertyMarker>? onMarkerDetails;
@@ -143,7 +144,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
     final selected = widget.items.where((row) => row.id == widget.selectedId);
     final ranked = widget.items.any((row) => row.discoveryMatch != null);
     final rows = ranked ? widget.items : [...selected, ...widget.items.where((row) => row.id != widget.selectedId)];
-    final countLabel = compact ? '${arabicDigits('${rows.length}')} نتيجة'
+    final countLabel = compact ? '${arabicDigits('${widget.total ?? rows.length}')} نتيجة'
       : widget.staleResults ? '${rows.length} عقار من آخر تحميل'
       : '${rows.length}${widget.more ? '+' : ''} ${ranked ? 'نتيجة' : 'عقار في النطاق'}';
     final sheet = DraggableScrollableSheet(key: const ValueKey('map-results-sheet'),

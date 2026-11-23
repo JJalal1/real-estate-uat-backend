@@ -1893,7 +1893,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           if (!_selectingArea) Offstage(offstage: !showResults, child: OverflowBox(
             alignment: Alignment.bottomCenter, minHeight: sheetHeight, maxHeight: sheetHeight,
             child: SizedBox(height: sheetHeight, child: PropertyMapResultsSheet(
-            items: rows, selectedId: _selected?.id, markerSelection: _markerSelection, loading: state.loading,
+            items: rows, total: state.total, selectedId: _selected?.id, markerSelection: _markerSelection, loading: state.loading,
             hasDrawnArea: _selectedAreaGeometry != null, onMarkerDetails: _openDetails, onDismissMarker: _dismissMarker,
             onAdd: user?.isBroker == true ? _openAddProperty : null,
             staleResults: state.resultsError != null && rows.isNotEmpty,

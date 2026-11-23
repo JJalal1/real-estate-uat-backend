@@ -15,22 +15,23 @@ import 'marketplace_repository.dart';
 
 class SmartSearchState {
   const SmartSearchState({this.filters = const SmartSearchFilters(), this.rows = const [], this.revision = 0,
-    this.page = 0, this.more = false, this.interpreting = false, this.loading = false, this.started = false,
+    this.page = 0, this.total, this.more = false, this.interpreting = false, this.loading = false, this.started = false,
     this.message = '', this.lastRequest = '', this.draftText = '', this.aiError, this.resultsError});
   final SmartSearchFilters filters;
   final List<PropertySummary> rows;
   final int revision, page;
+  final int? total;
   final bool more, interpreting, loading, started;
   final String message, lastRequest, draftText;
   final String? aiError, resultsError;
   bool get canLoadMore => more && !loading && resultsError == null;
   bool get hasRankedResults => rows.isNotEmpty && rows.first.discoveryMatch != null;
 
-  SmartSearchState copyWith({SmartSearchFilters? filters, List<PropertySummary>? rows, int? revision, int? page,
+  SmartSearchState copyWith({SmartSearchFilters? filters, List<PropertySummary>? rows, int? revision, int? page, int? total,
     bool? more, bool? interpreting, bool? loading, bool? started, String? message, String? lastRequest, String? draftText, String? aiError,
     String? resultsError, bool clearAiError = false, bool clearResultsError = false}) => SmartSearchState(
       filters: filters ?? this.filters, rows: rows ?? this.rows, revision: revision ?? this.revision,
-      page: page ?? this.page, more: more ?? this.more, interpreting: interpreting ?? this.interpreting,
+      page: page ?? this.page, total: total ?? this.total, more: more ?? this.more, interpreting: interpreting ?? this.interpreting,
       loading: loading ?? this.loading, started: started ?? this.started, message: message ?? this.message, lastRequest: lastRequest ?? this.lastRequest, draftText: draftText ?? this.draftText,
       aiError: clearAiError ? null : aiError ?? this.aiError,
       resultsError: clearResultsError ? null : resultsError ?? this.resultsError);
@@ -68,7 +69,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
         initialResults.resultsError == null && initialResults.page > 0 && initialResults.filters.sameAs(filters)) {
       _usingDefaultLocation = false;
       state = SmartSearchState(filters: filters, rows: _insideDrawnArea(filters, initialResults.rows), page: initialResults.page,
-        more: initialResults.more, started: true, revision: state.revision);
+        more: initialResults.more, total: initialResults.total, started: true, revision: state.revision);
     } else {
       replaceManually(filters);
     }
@@ -197,8 +198,12 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       final rows = more ? List<PropertySummary>.of(state.rows) : <PropertySummary>[];
       // Keep the server's order across pages regardless of classification.
       final ids = rows.map((row) => row.id).toSet();
-      rows.addAll(_insideDrawnArea(filters, result.$1).where((row) => ids.add(row.id)));
-      state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
+      final pageRows = result.$1;
+      final inside = _insideDrawnArea(filters, pageRows);
+      rows.addAll(inside.where((row) => ids.add(row.id)));
+      final total = !result.$2 ? rows.length
+        : inside.length == pageRows.length && pageRows is PropertySearchPageRows ? pageRows.total : rows.length;
+      state = state.copyWith(rows: List.unmodifiable(rows), page: page, total: total, more: result.$2, loading: false);
       timing?.mark(UatMapPhase.resultsApplied);
     } catch (error) {
       if (_acceptResultsDelivery(request, revision, epoch)) {
@@ -207,7 +212,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
         final retainRows = isTransientApiFailure(error) ||
             (retainMapRowsOnUnknownFailure && error is DioException &&
               error.type == DioExceptionType.unknown && error.response == null);
-        state = state.copyWith(loading: false, rows: retainRows ? null : const [],
+        state = state.copyWith(loading: false, rows: retainRows ? null : const [], total: retainRows ? state.total : 0,
           resultsError: friendlyApiError(error));
         timing?.mark(UatMapPhase.resultsFailed);
       }
