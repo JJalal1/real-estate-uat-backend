@@ -6,7 +6,7 @@ services:
     runtime: docker
     plan: 0.5c-512mb
     region: frankfurt
-    branch: work/wave2-review-current
+    branch: work/uat-fcm-frankfurt-20261123
     rootDir: backend-api-runtime
     dockerfilePath: ./Dockerfile.queue-worker
     dockerContext: .
@@ -43,7 +43,7 @@ services:
       - key: FCM_PROJECT_ID
         value: aqer-yemen
       - key: FCM_ANDROID_PACKAGE
-        value: com.aqer.yemen.uat
+        value: com.aqer.yemen.uat.offline
       - key: FCM_SERVICE_ACCOUNT_FILE
         value: /etc/secrets/fcm-uat-service-account.json
       - key: UAT_RUN_MIGRATIONS

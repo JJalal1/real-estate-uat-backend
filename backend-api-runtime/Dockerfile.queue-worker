@@ -13,5 +13,8 @@ RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framewor
     && composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod +x docker/push-worker-entrypoint.sh
+# Render mounts secret files with group ID 1000.
+RUN (getent group 1000 >/dev/null || groupadd --gid 1000 render-secrets) \
+    && usermod --append --groups 1000 www-data
 USER www-data
 ENTRYPOINT ["/var/www/html/docker/push-worker-entrypoint.sh"]

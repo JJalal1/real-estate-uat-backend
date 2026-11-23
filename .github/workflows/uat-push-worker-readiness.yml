@@ -1,0 +1,69 @@
+name: UAT push worker readiness
+on:
+  push:
+    branches: [work/uat-fcm-frankfurt-20261123]
+    paths:
+      - '.github/workflows/uat-push-worker-readiness.yml'
+      - 'backend-api-runtime/.dockerignore'
+      - 'backend-api-runtime/Dockerfile.queue-worker'
+      - 'docs/operations/render-push-worker.example.yaml'
+permissions:
+  contents: read
+jobs:
+  worker:
+    name: Verify Docker secret handling and push readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build the worker with a synthetic file in the Render build context
+        run: |
+          set -euo pipefail
+          fixture=fcm-uat-service-account.json
+          test ! -e "$fixture"
+          trap 'rm -f -- "$fixture"' EXIT
+          printf '{"synthetic_fixture":true}\n' > "$fixture"
+          docker build --file Dockerfile.queue-worker --tag aqer-uat-push-readiness .
+      - name: Verify a mounted key and isolated queue without network access
+        run: |
+          set -euo pipefail
+          fixture="$(mktemp -d "$RUNNER_TEMP/aqer-push-fixture.XXXXXX")"
+          trap 'rm -rf -- "$fixture"' EXIT
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$fixture/synthetic.pem" 2>/dev/null
+          python3 - "$fixture" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          directory = Path(sys.argv[1])
+          (directory / "fcm-uat-service-account.json").write_text(json.dumps({
+              "type": "service_account",
+              "project_id": "aqer-yemen",
+              "client_email": "aqer-uat-ci-fixture@aqer-yemen.iam.gserviceaccount.com",
+              "private_key": (directory / "synthetic.pem").read_text(),
+          }))
+          PY
+          secret="$fixture/fcm-uat-service-account.json"
+          sudo chown root:1000 "$secret"
+          sudo chmod 0440 "$secret"
+          app_key="base64:$(openssl rand -base64 32)"
+          docker run --rm --network none --entrypoint sh \
+            --env APP_ENV=staging --env "APP_KEY=$app_key" --env LOG_CHANNEL=stderr \
+            --env DB_CONNECTION=sqlite --env DB_DATABASE=/tmp/aqer-push-readiness.sqlite \
+            --env PUSH_NOTIFICATIONS_ENABLED=true --env FCM_PROJECT_ID=aqer-yemen \
+            --env FCM_ANDROID_PACKAGE=com.aqer.yemen.uat.offline \
+            --env FCM_SERVICE_ACCOUNT_FILE=/etc/secrets/fcm-uat-service-account.json \
+            --mount "type=bind,src=$secret,dst=/etc/secrets/fcm-uat-service-account.json,readonly" \
+            aqer-uat-push-readiness -ec '
+              test ! -e /var/www/html/fcm-uat-service-account.json
+              test -r "$FCM_SERVICE_ACCOUNT_FILE"
+              touch "$DB_DATABASE"
+              php artisan migrate --path=database/migrations/0001_01_01_000002_create_jobs_table.php --force --no-interaction
+              php artisan push:readiness --no-interaction
+            '
