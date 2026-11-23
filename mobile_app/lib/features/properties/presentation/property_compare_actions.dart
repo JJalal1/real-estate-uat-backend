@@ -55,16 +55,15 @@ class PropertyCompareTray extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ids = ref.watch(propertyCompareSelectionProvider);
     if (ids.isEmpty) return const SizedBox.shrink();
-    final scheme = Theme.of(context).colorScheme;
-    return Material(color: scheme.secondary, borderRadius: BorderRadius.circular(20),
+    return Material(color: Theme.of(context).colorScheme.secondary, borderRadius: BorderRadius.circular(20),
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
         TextButton.icon(key: const ValueKey('open-property-comparison'),
-          style: TextButton.styleFrom(foregroundColor: scheme.onSecondary, disabledForegroundColor: scheme.onSecondary.withValues(alpha: .7)),
+          style: TextButton.styleFrom(foregroundColor: Colors.white, disabledForegroundColor: Colors.white70),
           onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(
             builder: (_) => PropertyCompareScreen(propertyIds: ids.toList(growable: false)))),
           icon: const Icon(Icons.compare_arrows, size: 20), label: Text(ids.length == 1 ? 'اختر العقار الثاني (١/٢)' : 'قارن العقارين (٢/٢)')),
         IconButton(key: const ValueKey('clear-property-comparison'), onPressed: () => ref.read(propertyCompareSelectionProvider.notifier).clear(),
-          tooltip: 'مسح اختيارات المقارنة', icon: Icon(Icons.close, size: 18, color: scheme.onSecondary)),
+          tooltip: 'مسح اختيارات المقارنة', icon: const Icon(Icons.close, size: 18, color: Colors.white70)),
       ])),
     );
   }

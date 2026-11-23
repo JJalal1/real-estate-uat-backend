@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/formatters/money.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../properties/domain/property_marker.dart';
@@ -9,8 +8,8 @@ import '../../../core/widgets/ebroker_property_card.dart';
 import '../../properties/presentation/property_favorite_status.dart';
 import '../../discovery/presentation/search_result_pagination.dart';
 
-const mapRentColor = AppPalette.sand;
-const mapSaleColor = AppPalette.petrol;
+const mapRentColor = Color(0xff147d92);
+const mapSaleColor = Color(0xff0b8a55);
 
 double compactMapResultsHeaderHeight(BuildContext context) {
   final scaler = MediaQuery.textScalerOf(context);
@@ -154,7 +153,7 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
       builder: (context, scroll) {
         _scroll = scroll;
         return Material(key: const ValueKey('map-search-panel-surface'), color: Theme.of(context).colorScheme.surface, elevation: compact ? 3 : 8,
-          shadowColor: AppPalette.charcoal.withValues(alpha: .18),
+          shadowColor: Theme.of(context).shadowColor.withValues(alpha: .18),
           borderRadius: BorderRadius.vertical(top: Radius.circular(compact ? 13 : 20)), clipBehavior: Clip.antiAlias,
           child: Padding(
             padding: EdgeInsets.only(bottom: compact ? MediaQuery.paddingOf(context).bottom : 0),
@@ -209,8 +208,8 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
                 key: ValueKey('map-result-${row.id}'), padding: const EdgeInsets.only(bottom: 12),
                 child: DecoratedBox(decoration: BoxDecoration(borderRadius: BorderRadius.circular(10),
                   border: Border.all(width: row.id == widget.selectedId ? 2 : 1,
-                    color: row.id == widget.selectedId ? Theme.of(context).colorScheme.secondary
-                      : Theme.of(context).colorScheme.outlineVariant)),
+                    color: row.id == widget.selectedId ? Theme.of(context).colorScheme.primary
+                      : row.purpose == 'rent' ? mapRentColor : mapSaleColor)),
                   child: widget.itemBuilder(row))));
             }))),
           ])));

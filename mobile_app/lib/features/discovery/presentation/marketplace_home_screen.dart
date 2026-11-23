@@ -6,7 +6,6 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/network/conditional_image_prefetch.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/viewport_media.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../../core/branding/aqer_brand.dart';
@@ -212,7 +211,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               filled: true,
               fillColor: theme.colorScheme.surface,
               hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-              suffixIcon: Icon(Icons.search, color: theme.colorScheme.tertiary),
+              suffixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
           if (data != null && data.brokers.isNotEmpty) ...[
@@ -451,7 +450,7 @@ class _HomeBrokerCarouselState extends State<_HomeBrokerCarousel> {
               icon: Container(
                 width: i == _current ? 20 : 7, height: 7,
                 decoration: BoxDecoration(
-                  color: i == _current ? scheme.secondary : scheme.outline,
+                  color: i == _current ? scheme.primary : scheme.outline,
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
@@ -468,17 +467,14 @@ class _HomeBrokerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final photo = profile.photoUrl;
     final stats = [
       if (profile.ratingCount > 0) '${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييمًا',
       '${profile.completedDeals} صفقات مؤكدة',
     ].join(' · ');
     return DecoratedBox(
-      decoration: const BoxDecoration(gradient: LinearGradient(
-        begin: AlignmentDirectional.centerStart,
-        end: AlignmentDirectional.centerEnd,
-        colors: [AppPalette.petrol, AppPalette.turquoise],
-      )),
+      decoration: BoxDecoration(color: scheme.surface),
       child: Material(type: MaterialType.transparency, child: InkWell(
         onTap: () => context.push('/advertisers/${profile.id}'),
         child: Padding(
@@ -486,7 +482,7 @@ class _HomeBrokerCard extends StatelessWidget {
           child: Row(children: [
             ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox.square(
               dimension: 52,
-              child: ColoredBox(color: AppPalette.paleTurquoise,
+              child: ColoredBox(color: scheme.surfaceContainerHighest,
                 child: photo == null ? const EbrokerImage('defaultProfileIcon', size: 52)
                   : ViewportMedia(builder: (_) => Image.network(photo, fit: BoxFit.cover, cacheWidth: 156,
                     errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 52))),
@@ -496,29 +492,29 @@ class _HomeBrokerCard extends StatelessWidget {
             Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start, children: [
                 DecoratedBox(
-                  decoration: const BoxDecoration(
-                    color: AppPalette.yellow,
-                    borderRadius: BorderRadius.all(Radius.circular(4)),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: const BorderRadius.all(Radius.circular(4)),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Text('دلالو الأسبوع',
-                      style: theme.textTheme.labelSmall?.copyWith(color: AppPalette.charcoal),
+                      style: theme.textTheme.labelSmall?.copyWith(color: scheme.onPrimaryContainer),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                 ),
                 Row(children: [
                   Flexible(child: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(fontSize: 19,
-                      fontWeight: FontWeight.w700, color: AppPalette.paper))),
+                      fontWeight: FontWeight.w700, color: scheme.onSurface))),
                   if (profile.verified) ...[
                     const SizedBox(width: 5),
-                    const Icon(Icons.verified_outlined, color: AppPalette.sand,
+                    Icon(Icons.verified_outlined, color: scheme.primary,
                       size: 16, semanticLabel: 'موثّق'),
                   ],
                 ]),
                 Text('${profile.typeLabel} · $stats', maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(color: AppPalette.paper)),
+                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurface)),
               ],
             )),
           ]),

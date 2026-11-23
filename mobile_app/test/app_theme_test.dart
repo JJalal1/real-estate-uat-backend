@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 
 void main() {
   test('light theme implements the accepted Material role contract', () {
@@ -9,28 +10,24 @@ void main() {
     expect(theme.useMaterial3, isTrue);
     expect(scheme.brightness, Brightness.light);
     final roles = <(Color, int)>[
-      (scheme.primary, 0xFF123F42),
-      (scheme.primaryContainer, 0xFFE0F3F0),
-      (scheme.onPrimaryContainer, 0xFF0B2D30),
-      (scheme.secondary, 0xFF0B817A),
-      (scheme.secondaryContainer, 0xFFE0F3F0),
-      (scheme.onSecondaryContainer, 0xFF123F42),
-      (scheme.tertiary, 0xFFE86A43),
-      (scheme.onTertiary, 0xFF202C2D),
-      (scheme.tertiaryContainer, 0xFFFFEEE7),
-      (scheme.onTertiaryContainer, 0xFFB4482C),
-      (scheme.onSurface, 0xFF202C2D),
-      (scheme.onSurfaceVariant, 0xFF5F6B6D),
-      (scheme.surfaceContainerLow, 0xFFF7F4EE),
-      (scheme.surfaceContainer, 0xFFF1EEE7),
-      (scheme.surfaceContainerHigh, 0xFFE7EFEC),
-      (scheme.surfaceContainerHighest, 0xFFE3E0D8),
-      (scheme.outline, 0xFF7A8784),
-      (scheme.outlineVariant, 0xFFE3E0D8),
+      (scheme.primary, 0xFF087C7C),
+      (scheme.primaryContainer, 0xFFE6F2F2),
+      (scheme.onPrimaryContainer, 0xFF065858),
+      (scheme.secondary, 0xFF203A56),
+      (scheme.secondaryContainer, 0xFFEAF0F7),
+      (scheme.onSecondaryContainer, 0xFF203A56),
+      (scheme.onSurface, 0xFF192F48),
+      (scheme.onSurfaceVariant, 0xFF64748B),
+      (scheme.surfaceContainerLow, 0xFFF5F7FA),
+      (scheme.surfaceContainer, 0xFFF0F4F8),
+      (scheme.surfaceContainerHigh, 0xFFEAF0F5),
+      (scheme.surfaceContainerHighest, 0xFFE3EAF1),
+      (scheme.outline, 0xFF7A8797),
+      (scheme.outlineVariant, 0xFFE3EAF1),
       (scheme.error, 0xFFB3261E),
       (scheme.errorContainer, 0xFFF9DEDC),
       (scheme.onErrorContainer, 0xFF410E0B),
-      (scheme.inverseSurface, 0xFF123F42),
+      (scheme.inverseSurface, 0xFF192F48),
     ];
     for (final (actual, expected) in roles) {
       expect(actual, Color(expected));
@@ -73,7 +70,7 @@ void main() {
       expect(style.letterSpacing, 0);
       expect(style.fontFamily, 'Cairo');
       expect(style.fontFamilyFallback, ['NotoSansArabic', 'PrimaryFont', 'sans-serif']);
-      expect(style.color, const Color(0xFF202C2D));
+      expect(style.color, const Color(0xFF192F48));
     }
     expect(AppTypography.propertyPrice.fontSize, 22);
     expect(AppTypography.propertyPrice.fontWeight, FontWeight.w700);
@@ -92,6 +89,34 @@ void main() {
     }
   });
 
+  testWidgets('R3 deal badges use the original sale and rent colors in both themes', (tester) async {
+    for (final theme in [AppTheme.light, AppTheme.dark]) {
+      final semantic = theme.extension<AppSemanticColors>()!;
+      for (final (label, fill, ink) in [
+        ('للبيع', semantic.infoContainer, semantic.onInfoContainer),
+        ('للإيجار', semantic.warningContainer, semantic.onWarningContainer),
+      ]) {
+        await tester.pumpWidget(MaterialApp(
+          theme: theme,
+          themeAnimationDuration: Duration.zero,
+          home: Scaffold(body: EbrokerPurposeLabel(label)),
+        ));
+        final badge = find.byType(EbrokerPurposeLabel);
+        final box = tester.widget<Container>(find.descendant(of: badge, matching: find.byType(Container)));
+        final decoration = box.decoration! as BoxDecoration;
+        final text = tester.widget<Text>(find.text(label));
+        expect(decoration.color, fill);
+        expect(decoration.borderRadius, BorderRadius.circular(8));
+        expect(text.style!.color, ink);
+        expect(text.style!.fontSize, 13);
+      }
+    }
+    final dark = AppTheme.dark.colorScheme;
+    expect(dark.primary, const Color(0xFF75D5D0));
+    expect(dark.secondary, const Color(0xFFB8CAE0));
+    expect(dark.surface, const Color(0xFF121B22));
+  });
+
   test('enabled semantic and Material text pairs meet accepted contrast', () {
     final scheme = AppTheme.light.colorScheme;
     const semantic = AppSemanticColors.light;
@@ -100,8 +125,6 @@ void main() {
       (scheme.onPrimaryContainer, scheme.primaryContainer),
       (scheme.onSecondary, scheme.secondary),
       (scheme.onSecondaryContainer, scheme.secondaryContainer),
-      (scheme.onTertiary, scheme.tertiary),
-      (scheme.onTertiaryContainer, scheme.tertiaryContainer),
       (scheme.onSurface, scheme.surface),
       (scheme.onSurfaceVariant, scheme.surface),
       (scheme.primary, scheme.surface),
@@ -120,18 +143,6 @@ void main() {
       expect(_contrast(foreground, background), greaterThanOrEqualTo(4.5));
     }
     expect(_contrast(scheme.outline, scheme.surface), greaterThanOrEqualTo(3));
-  });
-
-  test('yellow accents stay readable on their dedicated surfaces', () {
-    for (final (foreground, background) in [
-      (AppPalette.charcoal, AppPalette.yellow),
-      (AppPalette.charcoal, AppPalette.paleYellow),
-      (AppPalette.yellow, AppPalette.petrol),
-      for (final scheme in [AppTheme.light.colorScheme, AppTheme.dark.colorScheme])
-        (scheme.onSurface, Color.alphaBlend(AppPalette.yellow.withValues(alpha: .16), scheme.surface)),
-    ]) {
-      expect(_contrast(foreground, background), greaterThanOrEqualTo(4.5));
-    }
   });
 
   test('semantic copyWith preserves omitted fields and replaces every role', () {
@@ -223,17 +234,17 @@ void main() {
       AppTheme.warning,
     ];
     expect(legacy, const [
-      Color(0xFF123F42),
-      Color(0xFF0B2D30),
-      Color(0xFFE0F3F0),
-      Color(0xFF0B817A),
-      Color(0xFFE0F3F0),
-      Color(0xFFF7F4EE),
+      Color(0xFF087C7C),
+      Color(0xFF065858),
+      Color(0xFFE6F2F2),
+      Color(0xFF203A56),
+      Color(0xFFEAF0F7),
+      Color(0xFFF5F7FA),
       Colors.white,
-      Color(0xFFE3E0D8),
-      Color(0xFF202C2D),
-      Color(0xFF5F6B6D),
-      Color(0xFFC5A46D),
+      Color(0xFFE3EAF1),
+      Color(0xFF192F48),
+      Color(0xFF64748B),
+      Color(0xFFC88700),
     ]);
   });
 

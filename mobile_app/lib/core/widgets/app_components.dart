@@ -640,7 +640,7 @@ class AppNavigationBar extends StatelessWidget {
         ));
       }
       final item = destinations[index], active = index == selectedIndex;
-      final color = active ? Theme.of(context).colorScheme.secondary : Theme.of(context).colorScheme.onSurfaceVariant;
+      final color = active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant;
       items.add(Expanded(
         child: Semantics(button: true, selected: active, label: item.label, excludeSemantics: true,
           child: Tooltip(message: item.label, child: GestureDetector(
@@ -783,7 +783,7 @@ class AppPropertyPrice extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final supporting = AppTypography.propertySecondary.copyWith(
-      color: scheme.onSurfaceVariant,
+      color: scheme.onSurface,
     );
     return Text.rich(
       TextSpan(children: [

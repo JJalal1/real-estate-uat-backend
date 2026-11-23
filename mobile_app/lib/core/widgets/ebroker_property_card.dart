@@ -46,7 +46,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
       if (!preview) ...[const SizedBox(height: 4), Wrap(spacing: 7, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center, children: [
         Row(mainAxisSize: MainAxisSize.min, children: [PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
           const SizedBox(width: 4), Text(categoryLabel, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))]),
-        if (purposeLabel != null) Text(purposeLabel!, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: purposeLabel!.contains('إيجار') ? scheme.onSurfaceVariant : scheme.primary)),
+        if (purposeLabel != null) Text(purposeLabel!, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.primary)),
       ])],
       if (facts.isNotEmpty) ...[const SizedBox(height: 6), Wrap(spacing: 9, runSpacing: 4, children: [
         for (final fact in facts) Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 14, color: scheme.onSurfaceVariant),

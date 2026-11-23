@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import '../data/auth_controller.dart';
 import '../../../core/branding/aqer_brand.dart';
-import '../../../core/theme/app_theme.dart';
 
 class Stage6AuthGate extends ConsumerStatefulWidget {
   const Stage6AuthGate({
@@ -164,11 +163,11 @@ class _GateIllustration extends StatelessWidget {
       children: [
         DecoratedBox(
           decoration: BoxDecoration(
-            color: colors.secondaryContainer, borderRadius: BorderRadius.circular(22),
+            color: colors.primaryContainer, borderRadius: BorderRadius.circular(22),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Icon(icon, size: 44, color: colors.onSecondaryContainer),
+            child: Icon(icon, size: 44, color: colors.onPrimaryContainer),
           ),
         ),
         if (icon == Icons.chat_bubble_outline || icon == Icons.inventory_2_outlined)
@@ -176,7 +175,7 @@ class _GateIllustration extends StatelessWidget {
             end: -3, top: -3,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: icon == Icons.chat_bubble_outline ? colors.tertiary : AppPalette.sand,
+                color: colors.primary,
                 shape: BoxShape.circle,
                 border: Border.all(width: 2, color: Theme.of(context).scaffoldBackgroundColor),
               ),

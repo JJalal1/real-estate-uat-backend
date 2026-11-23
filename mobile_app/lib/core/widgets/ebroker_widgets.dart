@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/ebroker_design.dart';
 import '../theme/app_tokens.dart';
+import '../theme/app_semantic_colors.dart';
 import 'property_type_icon.dart';
 
 class EbrokerIcon extends StatelessWidget {
@@ -381,7 +382,7 @@ class EbrokerTitleHeader extends StatelessWidget {
       Expanded(child: Text(title, style: AppTypography.sectionTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
       if (onSeeAll != null) TextButton(
         onPressed: onSeeAll,
-        style: TextButton.styleFrom(textStyle: AppTypography.labelMedium),
+        style: TextButton.styleFrom(textStyle: AppTypography.labelMedium, foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant),
         child: Text(action),
       ),
     ]),
@@ -417,11 +418,14 @@ class EbrokerPurposeLabel extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final semantic = theme.extension<AppSemanticColors>() ??
+        (theme.brightness == Brightness.dark ? AppSemanticColors.dark : AppSemanticColors.light);
     final rent = label.contains('إيجار');
-    final color = rent ? AppPalette.charcoal : AppPalette.paper;
+    final color = rent ? semantic.onWarningContainer : semantic.onInfoContainer;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: rent ? AppPalette.sand : AppPalette.petrol,
+      decoration: BoxDecoration(color: rent ? semantic.warningContainer : semantic.infoContainer,
         borderRadius: BorderRadius.circular(AppRadii.small)),
       child: Text(label, style: AppTypography.dealBadge.copyWith(color: color)),
     );

@@ -96,8 +96,10 @@ Future<Uint8List> renderMapPropertyPriceImage(
   required bool rent,
 }) async {
   const renderScale = 2.0;
-  final background = selected ? AppPalette.turquoise : rent ? AppPalette.sand : AppPalette.petrol;
-  final foreground = !selected && rent ? AppPalette.charcoal : AppPalette.paper;
+  const selectedColor = Color(0xFF246BFD);
+  final borderColor = selected ? selectedColor : rent ? mapRentColor : mapSaleColor;
+  final background = selected ? selectedColor : Colors.white;
+  final foreground = selected ? Colors.white : borderColor;
   const height = 32.0;
   final localized = arabicDigits(label.replaceAll('.', '٫'));
   final textPainter = TextPainter(
@@ -123,9 +125,9 @@ Future<Uint8List> renderMapPropertyPriceImage(
     Path()..moveTo(center - 5, 24)..lineTo(center, 29)..lineTo(center + 5, 24)..close(),
   );
 
-  canvas.drawShadow(marker, AppPalette.charcoal.withValues(alpha: .6), 2, true);
+  canvas.drawShadow(marker, const Color(0x26000000), 2, true);
   canvas.drawPath(marker, Paint()..color = background);
-  canvas.drawPath(marker, Paint()..color = AppPalette.paper
+  canvas.drawPath(marker, Paint()..color = borderColor
     ..style = PaintingStyle.stroke..strokeWidth = 1.8);
 
   textPainter.paint(canvas, Offset((width - textPainter.width) / 2, (27 - textPainter.height) / 2));
@@ -160,7 +162,7 @@ Future<Uint8List> renderMapPropertyClusterImage(int count, {bool nearby = false,
   final mixed = nearbyCount > 0 && nearbyCount < count;
   final diameter = nearby || nearbyCount == count || count >= 100 ? 48.0 : 40.0;
   final painter = TextPainter(text: TextSpan(text: arabicDigits(label),
-    style: const TextStyle(fontFamily: AppTypography.fontFamily, color: AppPalette.paper,
+    style: const TextStyle(fontFamily: AppTypography.fontFamily, color: Colors.white,
       fontSize: 13, fontWeight: FontWeight.w700, height: 1)),
     textDirection: TextDirection.ltr)..layout();
   final width = mixed ? math.max(72.0, painter.width + 20) : diameter;
@@ -174,7 +176,7 @@ Future<Uint8List> renderMapPropertyClusterImage(int count, {bool nearby = false,
       ..color = const Color(0x26000000)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
   );
-  canvas.drawRRect(shape, Paint()..color = mixed || nearby ? AppPalette.turquoise : AppPalette.petrol);
+  canvas.drawRRect(shape, Paint()..color = mapSaleColor);
   canvas.drawRRect(
     shape.deflate(1),
     Paint()
@@ -1930,11 +1932,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Widget _compactMapTools(MapSearchActions actions, {required bool horizontal}) {
     final colors = Theme.of(context).colorScheme;
     Widget button(Widget child, {bool active = false}) => Material(
-      color: active ? colors.primaryContainer : colors.secondaryContainer, elevation: 2,
-      shadowColor: AppPalette.charcoal.withValues(alpha: .14),
+      color: active ? colors.primaryContainer : colors.surface, elevation: 2,
+      shadowColor: colors.shadow.withValues(alpha: .14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9),
         side: BorderSide(color: colors.outlineVariant)),
-      child: IconTheme(data: IconThemeData(color: colors.onSecondaryContainer, size: 23),
+      child: IconTheme(data: IconThemeData(color: colors.primary, size: 23),
         child: SizedBox.square(dimension: 44, child: child)),
     );
     final children = [

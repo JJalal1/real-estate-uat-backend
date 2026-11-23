@@ -244,7 +244,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
           if (appliedChips.isNotEmpty) _ChipRail(children: appliedChips),
           const SizedBox(height: 8),
           FilledButton(key: const ValueKey('published-search-submit'),
-            style: FilledButton.styleFrom(backgroundColor: scheme.tertiary, foregroundColor: scheme.onTertiary),
+            style: FilledButton.styleFrom(backgroundColor: scheme.primary, foregroundColor: scheme.onPrimary),
             onPressed: () => unawaited(_submit()), child: const Text('بحث')),
           Wrap(spacing: 8, children: [
             if (addressAction != null) TextButton.icon(

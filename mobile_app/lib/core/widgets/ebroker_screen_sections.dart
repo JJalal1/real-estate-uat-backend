@@ -166,8 +166,8 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                         : ViewportMedia(builder: (_) => Image.network(photoUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => EbrokerImage('defaultProfileIcon', size: 28.rw(context), color: primary))))),
                   if (verified) Positioned(bottom: -5.rh(context),
                     child: Container(width: 22.rw(context), height: 22.rh(context), alignment: Alignment.center,
-                      decoration: const BoxDecoration(color: AppPalette.petrol, shape: BoxShape.circle),
-                      child: EbrokerImage('agent_badge', size: 13.rw(context), color: AppPalette.paper))),
+                      decoration: const BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                      child: EbrokerImage('agent_badge', size: 13.rw(context), color: Colors.white))),
                 ])),
             ])),
             SizedBox(height: 10.rh(context)),
@@ -178,8 +178,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
             SizedBox(height: 10.rh(context)),
             Container(padding: EdgeInsets.symmetric(vertical: 8.rh(context), horizontal: 6.rw(context)),
               decoration: BoxDecoration(
-                color: ratingCount > 0 ? AppPalette.yellow.withValues(alpha: .16)
-                  : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .08),
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(8.rw(context))),
               child: Row(children: [
                 Expanded(child: EbrokerText(ratingCount == 0 ? 'لا توجد تقييمات بعد' : 'التقييم: ${rating.toStringAsFixed(1)}',

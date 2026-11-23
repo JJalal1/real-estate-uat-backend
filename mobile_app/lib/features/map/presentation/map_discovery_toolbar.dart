@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_theme.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 
 class MapDiscoveryToolbar extends StatelessWidget {
@@ -51,15 +50,15 @@ class MapDiscoveryToolbar extends StatelessWidget {
     final controlsHeight = math.max(44.0, scaler.scale(14) * 1.4 + 8);
     final categoriesHeight = math.max(42.0, scaler.scale(13) * 1.4 + 8);
     final saleBackground =
-        both || selected == 'sale' ? colors.secondaryContainer : colors.surface;
+        both || selected == 'sale' ? colors.primaryContainer : colors.surface;
     final rentBackground =
-        both || selected == 'rent' ? AppPalette.sand : colors.surface;
+        both || selected == 'rent' ? colors.primaryContainer : colors.surface;
     final neutralInk = colors.onSurface;
 
     return Material(
       color: colors.surface,
       elevation: 2,
-      shadowColor: AppPalette.charcoal.withValues(alpha: .15),
+      shadowColor: colors.shadow.withValues(alpha: .15),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(13),
         side: BorderSide(color: colors.outlineVariant),
@@ -93,10 +92,10 @@ class MapDiscoveryToolbar extends StatelessWidget {
                     background: saleBackground,
                     foreground: saleBackground == colors.surface
                         ? neutralInk
-                        : colors.onSecondaryContainer,
+                        : colors.onPrimaryContainer,
                     outline: saleBackground == colors.surface
                         ? colors.outlineVariant
-                        : colors.secondary,
+                        : colors.primary,
                     onPressed: () =>
                         onPurpose(selected == 'sale' ? null : 'sale'),
                   )),
@@ -109,10 +108,10 @@ class MapDiscoveryToolbar extends StatelessWidget {
                     background: rentBackground,
                     foreground: rentBackground == colors.surface
                         ? neutralInk
-                        : AppPalette.charcoal,
+                        : colors.onPrimaryContainer,
                     outline: rentBackground == colors.surface
                         ? colors.outlineVariant
-                        : AppPalette.sand,
+                        : colors.primary,
                     onPressed: () =>
                         onPurpose(selected == 'rent' ? null : 'rent'),
                   )),
@@ -126,8 +125,8 @@ class MapDiscoveryToolbar extends StatelessWidget {
                         tooltip: 'بحث',
                         padding: EdgeInsets.zero,
                         style: IconButton.styleFrom(
-                          backgroundColor: colors.tertiary,
-                          foregroundColor: colors.onTertiary,
+                          backgroundColor: colors.primary,
+                          foregroundColor: colors.onPrimary,
                           shape: const RoundedRectangleBorder(
                               borderRadius: _radius),
                         ),
@@ -157,13 +156,13 @@ class MapDiscoveryToolbar extends StatelessWidget {
                             fontSize: 13,
                             selected: filters.selectedTypes.contains(type.key),
                             background: filters.selectedTypes.contains(type.key)
-                                ? colors.secondary
+                                ? colors.primary
                                 : colors.surface,
                             foreground: filters.selectedTypes.contains(type.key)
-                                ? colors.onSecondary
+                                ? colors.onPrimary
                                 : neutralInk,
                             outline: filters.selectedTypes.contains(type.key)
-                                ? colors.secondary
+                                ? colors.primary
                                 : colors.outlineVariant,
                             onPressed: () => onType(type.key),
                           )),
@@ -180,14 +179,14 @@ class MapDiscoveryToolbar extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         style: IconButton.styleFrom(
                           backgroundColor: activeFilters
-                              ? colors.secondary
-                              : colors.secondaryContainer,
+                              ? colors.primary
+                              : colors.primaryContainer,
                           foregroundColor: activeFilters
-                              ? colors.onSecondary
-                              : colors.onSecondaryContainer,
+                              ? colors.onPrimary
+                              : colors.onPrimaryContainer,
                           side: BorderSide(
                               color: activeFilters
-                                  ? colors.secondary
+                                  ? colors.primary
                                   : colors.outlineVariant),
                           shape: const RoundedRectangleBorder(
                               borderRadius: _radius),

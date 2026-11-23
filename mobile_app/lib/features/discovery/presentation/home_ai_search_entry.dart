@@ -31,11 +31,7 @@ class HomeAiSearchEntry extends StatelessWidget {
       return DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: radius,
-          gradient: const LinearGradient(
-            begin: AlignmentDirectional.centerStart,
-            end: AlignmentDirectional.centerEnd,
-            colors: [AppPalette.petrol, AppPalette.turquoise],
-          ),
+          color: color.withValues(alpha: .07),
         ),
         child: Material(
           type: MaterialType.transparency,
@@ -48,25 +44,25 @@ class HomeAiSearchEntry extends StatelessWidget {
               child: Row(children: [
                 DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppPalette.paleTurquoise,
+                    color: scheme.primaryContainer,
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: const Padding(
-                    padding: EdgeInsets.all(7),
-                    child: SmartSearchRobotIcon(size: 28, color: AppPalette.petrol),
+                  child: Padding(
+                    padding: const EdgeInsets.all(7),
+                    child: SmartSearchRobotIcon(size: 28, color: scheme.onPrimaryContainer),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(child: Text('بحث ذكي', style: theme.textTheme.titleSmall?.copyWith(
-                  color: AppPalette.paper, fontWeight: FontWeight.w700,
+                  color: color, fontWeight: FontWeight.w700,
                 ))),
                 const SizedBox(width: 8),
                 Flexible(
                   child: DecoratedBox(
-                    decoration: BoxDecoration(color: scheme.tertiary, borderRadius: BorderRadius.circular(9)),
+                    decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(9)),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      child: Text('جرّب الآن', style: theme.textTheme.labelMedium?.copyWith(color: scheme.onTertiary)),
+                      child: Text('جرّب الآن', style: theme.textTheme.labelMedium?.copyWith(color: scheme.onPrimary)),
                     ),
                   ),
                 ),

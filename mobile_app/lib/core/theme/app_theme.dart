@@ -10,19 +10,20 @@ export 'app_tokens.dart';
 export 'app_typography.dart';
 
 abstract final class AppTheme {
-  static const brandSeed = AppPalette.petrol;
-  static const brand = AppPalette.petrol;
-  static const brandStrong = AppPalette.pressedPetrol;
-  static const brandSoft = AppPalette.paleTurquoise;
+  // Teal identity with ink accents and soft layered surfaces.
+  static const brandSeed = Color(0xFF087C7C);
+  static const brand = brandSeed;
+  static const brandStrong = Color(0xFF065858);
+  static const brandSoft = Color(0xFFE6F2F2);
   static const brandMint = Color(0xFF9FE4D9);
-  static const accent = AppPalette.turquoise;
-  static const accentSoft = AppPalette.paleTurquoise;
-  static const page = AppPalette.ivory;
-  static const surface = AppPalette.paper;
-  static const outlineSoft = AppPalette.stone;
-  static const textStrong = AppPalette.charcoal;
-  static const textMuted = AppPalette.slate;
-  static const warning = AppPalette.sand;
+  static const accent = Color(0xFF203A56);
+  static const accentSoft = Color(0xFFEAF0F7);
+  static const page = Color(0xFFF5F7FA);
+  static const surface = Color(0xFFFFFFFF);
+  static const outlineSoft = Color(0xFFE3EAF1);
+  static const textStrong = Color(0xFF192F48);
+  static const textMuted = Color(0xFF64748B);
+  static const warning = Color(0xFFC88700);
 
   static ThemeData get light {
     final scheme = ColorScheme.fromSeed(
@@ -36,26 +37,22 @@ abstract final class AppTheme {
       secondary: accent,
       onSecondary: Colors.white,
       secondaryContainer: accentSoft,
-      onSecondaryContainer: brand,
-      tertiary: AppPalette.coral,
-      onTertiary: AppPalette.charcoal,
-      tertiaryContainer: AppPalette.peach,
-      onTertiaryContainer: AppPalette.copper,
+      onSecondaryContainer: accent,
       surface: surface,
-      onSurface: textStrong,
-      onSurfaceVariant: textMuted,
-      surfaceContainerLowest: surface,
-      surfaceContainerLow: page,
-      surfaceContainer: const Color(0xFFF1EEE7),
-      surfaceContainerHigh: AppPalette.mist,
-      surfaceContainerHighest: outlineSoft,
-      outline: AppPalette.inputBorder,
-      outlineVariant: outlineSoft,
+      onSurface: EbrokerDesign.text,
+      onSurfaceVariant: EbrokerDesign.textLight,
+      surfaceContainerLowest: Colors.white,
+      surfaceContainerLow: EbrokerDesign.page,
+      surfaceContainer: const Color(0xFFF0F4F8),
+      surfaceContainerHigh: const Color(0xFFEAF0F5),
+      surfaceContainerHighest: const Color(0xFFE3EAF1),
+      outline: const Color(0xFF7A8797),
+      outlineVariant: EbrokerDesign.border,
       error: const Color(0xFFB3261E),
       onError: Colors.white,
       errorContainer: const Color(0xFFF9DEDC),
       onErrorContainer: const Color(0xFF410E0B),
-      inverseSurface: AppPalette.petrol,
+      inverseSurface: const Color(0xFF192F48),
       onInverseSurface: Colors.white,
     );
 
@@ -67,30 +64,22 @@ abstract final class AppTheme {
       seedColor: brandSeed,
       brightness: Brightness.dark,
     ).copyWith(
-      primary: const Color(0xFF9BD8D2),
-      onPrimary: AppPalette.pressedPetrol,
-      primaryContainer: AppPalette.petrol,
-      onPrimaryContainer: AppPalette.paleTurquoise,
-      secondary: const Color(0xFF73D6CA),
-      onSecondary: AppPalette.pressedPetrol,
-      secondaryContainer: const Color(0xFF234C49),
-      onSecondaryContainer: AppPalette.paleTurquoise,
-      tertiary: AppPalette.coral,
-      onTertiary: AppPalette.charcoal,
-      tertiaryContainer: const Color(0xFF592D21),
-      onTertiaryContainer: const Color(0xFFFFBAA6),
-      surface: const Color(0xFF182728),
-      onSurface: AppPalette.ivory,
-      onSurfaceVariant: const Color(0xFFC0CDCA),
-      surfaceContainerLowest: const Color(0xFF0E1C1D),
-      surfaceContainerLow: const Color(0xFF132223),
-      surfaceContainer: const Color(0xFF1C2D2E),
-      surfaceContainerHigh: const Color(0xFF253839),
-      surfaceContainerHighest: const Color(0xFF2D4243),
-      outline: const Color(0xFF8FA39F),
-      outlineVariant: const Color(0xFF465A58),
-      inverseSurface: AppPalette.ivory,
-      onInverseSurface: AppPalette.charcoal,
+      primary: const Color(0xFF75D5D0),
+      onPrimary: const Color(0xFF003735),
+      primaryContainer: const Color(0xFF084E4D),
+      onPrimaryContainer: const Color(0xFFB2F1ED),
+      secondary: const Color(0xFFB8CAE0),
+      onSecondary: const Color(0xFF213547),
+      surface: const Color(0xFF121B22),
+      onSurface: const Color(0xFFE7EEF3),
+      onSurfaceVariant: const Color(0xFFB7C4CC),
+      surfaceContainerLowest: const Color(0xFF0D1419),
+      surfaceContainerLow: const Color(0xFF162128),
+      surfaceContainer: const Color(0xFF1C282F),
+      surfaceContainerHigh: const Color(0xFF233038),
+      surfaceContainerHighest: const Color(0xFF2A3841),
+      outline: const Color(0xFF83939E),
+      outlineVariant: const Color(0xFF43515A),
       error: const Color(0xFFFFB4AB),
       onError: const Color(0xFF690005),
     );
@@ -245,17 +234,14 @@ abstract final class AppTheme {
         labelStyle: readableTextTheme.labelLarge, indicatorSize: TabBarIndicatorSize.label),
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surface,
-        selectedColor: scheme.secondary,
+        selectedColor: scheme.primaryContainer,
         side: BorderSide(color: scheme.outlineVariant),
-        checkmarkColor: scheme.onSecondary,
+        checkmarkColor: scheme.onPrimaryContainer,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(EbrokerDesign.controlRadius),
         ),
         padding: const EdgeInsetsDirectional.symmetric(horizontal: AppSpacing.s4),
-        labelStyle: readableTextTheme.labelMedium?.copyWith(
-          color: WidgetStateColor.resolveWith((states) =>
-            states.contains(WidgetState.selected) ? scheme.onSecondary : scheme.onSurface),
-        ),
+        labelStyle: readableTextTheme.labelMedium,
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,

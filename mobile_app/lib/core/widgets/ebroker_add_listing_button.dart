@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_tokens.dart';
 import '../theme/ebroker_design.dart';
 import 'ebroker_widgets.dart';
 
@@ -77,7 +76,7 @@ class EbrokerAddListingButton extends StatelessWidget {
                     child: EbrokerImage(
                       'plus_btn',
                       size: 18.rw(context),
-                      color: AppPalette.yellow,
+                      color: Colors.white,
                     ),
                   ),
                 ),
