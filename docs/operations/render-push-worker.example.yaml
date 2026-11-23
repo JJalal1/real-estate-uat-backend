@@ -10,7 +10,7 @@ services:
     rootDir: backend-api-runtime
     dockerfilePath: ./Dockerfile.queue-worker
     dockerContext: .
-    autoDeployTrigger: off
+    autoDeployTrigger: 'off'
     numInstances: 1
     maxShutdownDelaySeconds: 60
     envVars:
@@ -19,13 +19,19 @@ services:
       - key: APP_DEBUG
         value: 'false'
       - key: APP_KEY
-        sync: false
+        fromService:
+          type: web
+          name: real-estate-uat-api-frankfurt
+          envVarKey: APP_KEY
       - key: APP_URL
         value: https://real-estate-uat-api-frankfurt.onrender.com
       - key: DB_CONNECTION
         value: pgsql
       - key: DB_URL
-        sync: false
+        fromService:
+          type: web
+          name: real-estate-uat-api-frankfurt
+          envVarKey: DB_URL
       - key: DB_SSLMODE
         value: require
       - key: DB_PERSISTENT
