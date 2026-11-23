@@ -49,8 +49,20 @@ jobs:
           test/my_listings_pagination_test.dart
           test/offline_message_outbox_test.dart
       - name: Upload synthetic screen previews
+        id: preview-artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: alazzi-broker-preview
           path: mobile_app/build/broker-preview/
           retention-days: 14
+      - name: Retain dashboard and customer previews when artifact upload fails
+        if: steps.preview-artifact.outcome == 'failure'
+        run: |
+          for screen in dashboard customers; do
+            printf '::group::Synthetic preview %s\n' "$screen"
+            printf 'AQER_PREVIEW_BEGIN %s\n' "$screen"
+            base64 -w 4096 "build/broker-preview/$screen.png"
+            printf 'AQER_PREVIEW_END %s\n' "$screen"
+            printf '::endgroup::\n'
+          done
