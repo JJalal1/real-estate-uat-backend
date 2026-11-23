@@ -107,14 +107,21 @@ MyListingsPagesController _controller(Future<MyListingsPage> Function(int) load)
   return controller;
 }
 
-Future<ProviderContainer> _open(WidgetTester tester, _Wire wire) async {
+Future<ProviderContainer> _open(
+  WidgetTester tester,
+  _Wire wire, {
+  bool initiallyNeedsAction = false,
+}) async {
   tester.view.physicalSize = const Size(390, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   final container = await _container(wire);
   await tester.pumpWidget(UncontrolledProviderScope(container: container,
-    child: MaterialApp(theme: AppTheme.light, home: const MyListingsScreen())));
+    child: MaterialApp(
+      theme: AppTheme.light,
+      home: MyListingsScreen(initiallyNeedsAction: initiallyNeedsAction),
+    )));
   await tester.pumpAndSettle();
   return container;
 }
@@ -351,6 +358,19 @@ void main() {
     expect(scroll.pixels, greaterThan(failedOffset - 200));
     expect(find.byKey(const ValueKey('my-listings-more')), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  phase23WidgetTest('dashboard entry starts on the needs-action listings', (tester) async {
+    final wire = _Wire((_) async => _page(1, [
+      _listing(1, title: 'Needs correction', review: 'returned_for_correction'),
+      _listing(2, title: 'Published listing', review: 'approved'),
+    ]));
+    await _open(tester, wire, initiallyNeedsAction: true);
+    expect(find.text('Needs correction'), findsOneWidget);
+    expect(find.text('Published listing'), findsNothing);
+    await tester.tap(find.text('الكل (2)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Published listing'), findsOneWidget);
   });
 
   phase23WidgetTest('empty local filter can reach a match on the next page without false totals', (tester) async {

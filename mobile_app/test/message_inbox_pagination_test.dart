@@ -333,22 +333,30 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  phase23WidgetTest('unread filter requests a fresh server page before claiming empty', (tester) async {
-    final pending = Completer<Map<String, dynamic>>();
-    final wire = _Wire((request) async {
-      if (request.queryParameters['unread_only'] == 1) return _page(1, [_row(300)], total: 1);
-      if (request.queryParameters['page'] == 2) return pending.future;
-      return _page(1, [_row(1, unread: 0)], last: 2, total: 250);
+  for (final compact in [false, true]) {
+    phase23WidgetTest('unread filter requests a fresh server page (compact: $compact)', (tester) async {
+      final pending = Completer<Map<String, dynamic>>();
+      final wire = _Wire((request) async {
+        if (request.queryParameters['unread_only'] == 1) return _page(1, [_row(300)], total: 1);
+        if (request.queryParameters['page'] == 2) return pending.future;
+        return _page(1, [_row(1, unread: 0)], last: 2, total: 250);
+      });
+      await _open(tester, wire, MessagesScreen(embedded: compact, compact: compact));
+      expect(find.text('محادثاتك'), compact ? findsNothing : findsOneWidget);
+      expect(find.text('كل الرسائل مقروءة'), findsNothing);
+      await _more(tester, 'message-threads-more');
+      final filter = find.text('غير المقروء فقط');
+      expect(filter.hitTestable(), findsOneWidget);
+      await tester.tap(filter);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('message-thread-300')), findsOneWidget);
+      expect(wire.requests.last.queryParameters, {'page': 1, 'per_page': 40, 'unread_only': 1});
+      pending.complete(_page(2, [_row(999)], last: 2));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('message-thread-999')), findsNothing);
+      expect(tester.takeException(), isNull);
     });
-    await _open(tester, wire, const MessagesScreen());
-    expect(find.text('كل الرسائل مقروءة'), findsNothing);
-    await _more(tester, 'message-threads-more');
-    await tester.tap(find.text('غير المقروء فقط')); await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('message-thread-300')), findsOneWidget);
-    expect(wire.requests.last.queryParameters, {'page': 1, 'per_page': 40, 'unread_only': 1});
-    pending.complete(_page(2, [_row(999)], last: 2)); await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('message-thread-999')), findsNothing);
-  });
+  }
 
   for (final all in [false, true]) {
     for (final fail in [false, true]) {

@@ -300,8 +300,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/my-listings',
-        builder: (context, state) => const Stage6AuthGate(
-          child: MyListingsScreen(),
+        builder: (context, state) => Stage6AuthGate(
+          child: MyListingsScreen(
+            initiallyNeedsAction: state.uri.queryParameters['needs_action'] == '1',
+          ),
         ),
       ),
       GoRoute(

@@ -15,20 +15,23 @@ import '../domain/message_models.dart';
 import 'conversation_screen.dart';
 
 class MessagesScreen extends ConsumerWidget {
-  const MessagesScreen({this.embedded = false, super.key});
+  const MessagesScreen({this.embedded = false, this.compact = false, super.key});
   final bool embedded;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _MessagesBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch)), embedded: embedded);
+      : _MessagesBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch)),
+          embedded: embedded, compact: compact);
   }
 }
 
 class _MessagesBody extends ConsumerStatefulWidget {
-  const _MessagesBody({required this.embedded, super.key});
+  const _MessagesBody({required this.embedded, required this.compact, super.key});
   final bool embedded;
+  final bool compact;
   @override
   ConsumerState<_MessagesBody> createState() => _MessagesScreenState();
 }
@@ -171,6 +174,12 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
   @override
   void dispose() { _request++; super.dispose(); }
 
+  void _filterUnread(bool value) {
+    if (_unreadOnly == value) return;
+    setState(() => _unreadOnly = value);
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final revision = ref.watch(messageDataRevisionProvider);
@@ -219,15 +228,21 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                     AppLayout.compactPageGutter,
                     0,
                   ),
-                  child: _InboxHeader(
-                    conversations: _total,
-                    unreadOnly: _unreadOnly,
-                    onUnreadChanged: (value) {
-                      if (_unreadOnly == value) return;
-                      setState(() => _unreadOnly = value);
-                      _load();
-                    },
-                  ),
+                  child: widget.compact
+                      ? Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: AppFilterChip(
+                            selected: _unreadOnly,
+                            icon: Icons.mark_email_unread_outlined,
+                            label: 'غير المقروء فقط',
+                            onSelected: _filterUnread,
+                          ),
+                        )
+                      : _InboxHeader(
+                          conversations: _total,
+                          unreadOnly: _unreadOnly,
+                          onUnreadChanged: _filterUnread,
+                        ),
                 ),
               ),
               if (_items.isNotEmpty && (_loading || _error != null))
@@ -249,8 +264,11 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                   hasScrollBody: true,
                   child: AppEmptyState(
                     title: _unreadOnly ? 'ما عندك رسائل غير مقروءة' : 'لا توجد محادثات بعد',
-                    message: _unreadOnly ? 'كل المحادثات مقروءة الآن.' :
-                      'افتح عقارًا منشورًا واضغط «مراسلة» حتى تبدأ محادثة مرتبطة بالعقار.',
+                    message: _unreadOnly
+                        ? 'كل المحادثات مقروءة الآن.'
+                        : widget.compact
+                            ? 'ستظهر هنا رسائلك المرتبطة بالعقارات.'
+                            : 'افتح عقارًا منشورًا واضغط «مراسلة» حتى تبدأ محادثة مرتبطة بالعقار.',
                     icon: _unreadOnly ? Icons.mark_chat_read_outlined : Icons.forum_outlined,
                   ),
                 )
@@ -264,24 +282,26 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                   ),
                   sliver: SliverList.separated(
                     itemCount: _items.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: AppSpacing.s10),
+                    separatorBuilder: (_, __) => SizedBox(
+                      height: widget.compact ? AppSpacing.s8 : AppSpacing.s10,
+                    ),
                     itemBuilder: (context, index) {
                       final item = _items[index];
                       return _ConversationCard(
-                      key: ValueKey('message-thread-${item.id}'),
-                      item: item,
-                      onTap: () async {
-                        await Navigator.of(context).push<void>(
-                          MaterialPageRoute<void>(
-                            builder: (_) => ConversationScreen(
-                              threadId: item.id,
+                        key: ValueKey('message-thread-${item.id}'),
+                        item: item,
+                        compact: widget.compact,
+                        onTap: () async {
+                          await Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => ConversationScreen(
+                                threadId: item.id,
+                              ),
                             ),
-                          ),
-                        );
-                        await _load();
-                      },
-                    );
+                          );
+                          await _load();
+                        },
+                      );
                     },
                   ),
                 ),
@@ -378,14 +398,18 @@ class _InboxHeader extends StatelessWidget {
 }
 
 class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({required this.item, required this.onTap, super.key});
+  const _ConversationCard({
+    required this.item, required this.onTap, required this.compact, super.key,
+  });
 
   final MessageThreadSummary item;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final unread = item.unreadCount > 0;
     final firstLetter = item.otherUserName.trim().isEmpty
         ? '?'
@@ -397,12 +421,12 @@ class _ConversationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsetsDirectional.all(AppSpacing.s12),
+          padding: EdgeInsetsDirectional.all(compact ? AppSpacing.s10 : AppSpacing.s12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               CircleAvatar(
-                radius: 24,
+                radius: compact ? 17 : 24,
                 backgroundColor: unread
                     ? scheme.primaryContainer
                     : scheme.surfaceContainerHighest,
@@ -414,7 +438,7 @@ class _ConversationCard extends StatelessWidget {
                       ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.s12),
+              SizedBox(width: compact ? AppSpacing.s8 : AppSpacing.s12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -426,7 +450,7 @@ class _ConversationCard extends StatelessWidget {
                             item.otherUserName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            style: (compact ? textTheme.titleSmall : textTheme.titleMedium)?.copyWith(
                                   fontWeight:
                                       unread ? FontWeight.w700 : FontWeight.w600,
                                 ),
@@ -442,7 +466,7 @@ class _ConversationCard extends StatelessWidget {
                       ],
                     ),
                     if (item.propertyTitle != null) ...[
-                      const SizedBox(height: AppSpacing.s4),
+                      if (!compact) const SizedBox(height: AppSpacing.s4),
                       Row(
                         children: [
                           EbrokerIcon(
@@ -465,12 +489,12 @@ class _ConversationCard extends StatelessWidget {
                         ],
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.s6),
+                    SizedBox(height: compact ? AppSpacing.s4 : AppSpacing.s6),
                     Text(
                       item.lastMessagePreview ?? 'ابدأ المحادثة حول هذا العقار.',
-                      maxLines: 2,
+                      maxLines: compact ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      style: (compact ? textTheme.bodySmall : textTheme.bodyMedium)?.copyWith(
                             color: unread
                                 ? scheme.onSurface
                                 : scheme.onSurfaceVariant,
@@ -479,9 +503,9 @@ class _ConversationCard extends StatelessWidget {
                           ),
                     ),
                     if (item.isPropertyUnavailable) ...[
-                      const SizedBox(height: AppSpacing.s8),
-                      const AppStatusBadge(
-                        label: 'الإعلان غير متاح حاليًا • المحادثة محفوظة',
+                      SizedBox(height: compact ? AppSpacing.s4 : AppSpacing.s8),
+                      AppStatusBadge(
+                        label: compact ? 'الإعلان غير متاح' : 'الإعلان غير متاح حاليًا • المحادثة محفوظة',
                         tone: AppStatusTone.warning,
                         icon: Icons.info_outline,
                       ),
@@ -492,8 +516,11 @@ class _ConversationCard extends StatelessWidget {
               const SizedBox(width: AppSpacing.s8),
               if (unread)
                 Container(
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  constraints: BoxConstraints(
+                    minWidth: compact ? 22 : 28,
+                    minHeight: compact ? 22 : 28,
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 8),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: scheme.primary,
@@ -507,7 +534,7 @@ class _ConversationCard extends StatelessWidget {
                         ),
                   ),
                 )
-              else
+              else if (!compact)
                 EbrokerIcon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
             ],
           ),

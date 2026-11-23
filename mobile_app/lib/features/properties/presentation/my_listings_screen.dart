@@ -33,14 +33,16 @@ final myListingsProvider =
 });
 
 class MyListingsScreen extends ConsumerStatefulWidget {
-  const MyListingsScreen({super.key});
+  const MyListingsScreen({this.initiallyNeedsAction = false, super.key});
+
+  final bool initiallyNeedsAction;
 
   @override
   ConsumerState<MyListingsScreen> createState() => _MyListingsScreenState();
 }
 
 class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
-  String _filter = 'all';
+  late String _filter = widget.initiallyNeedsAction ? 'action' : 'all';
   final Set<int> _updating = {};
 
   Future<void> _availability(PropertyDetails item, String state) async {

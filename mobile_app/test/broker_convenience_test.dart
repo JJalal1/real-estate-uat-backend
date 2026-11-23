@@ -21,7 +21,7 @@ import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_schema.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
-import 'broker_experience_ui_test.dart' show BrokerTestAuth, BrokerTestRepository;
+import 'broker_experience_ui_test.dart' show BrokerTestAuth, BrokerTestRepository, brokerTestWorkspace;
 
 class _Recovery extends ListingRecoveryStore {
   @override
@@ -42,17 +42,36 @@ class _Recovery extends ListingRecoveryStore {
 }
 class _Customers extends BrokerTestRepository {
   final filters = <String?>[];
+  int? savedThreadId;
   String? savedNote;
   DateTime? savedDate;
   @override
   Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) async {
     filters.add(filter);
-    return const BrokerPage(items: [BrokerCustomer(threadId: 19, customerName: 'عميل الاختبار', propertyId: 11,
-      propertyTitle: 'شقة الاختبار', stage: 'new', unreadCount: 1, privateNote: 'ملاحظة خاصة')], page: 1, lastPage: 1);
+    return const BrokerPage(items: [
+      BrokerCustomer(threadId: 19, customerName: 'عميل الاختبار', propertyId: 11,
+        propertyTitle: 'شقة الاختبار', stage: 'new', unreadCount: 1, privateNote: 'ملاحظة خاصة'),
+      BrokerCustomer(threadId: 20, customerName: 'عميل الاختبار', propertyId: 12,
+        propertyTitle: 'بيت الاختبار', stage: 'new', unreadCount: 2),
+    ], page: 1, lastPage: 1);
   }
   @override
-  Future<void> saveFollowup(int threadId, {required String note, DateTime? remindAt}) async { savedNote = note; savedDate = remindAt; }
+  Future<void> saveFollowup(int threadId, {required String note, DateTime? remindAt}) async {
+    savedThreadId = threadId;
+    savedNote = note;
+    savedDate = remindAt;
+  }
 }
+
+class _DashboardTasks extends BrokerTestRepository {
+  @override
+  Future<Map<String, dynamic>> workspace() async {
+    final data = brokerTestWorkspace();
+    (data['needs_attention'] as Map<String, dynamic>)['customer_followups_due'] = 4;
+    return data;
+  }
+}
+
 ViewingBooking _viewing(String title, DateTime at) => ViewingBooking.fromJson({
   'id': at.hour, 'reference': 'DAY-${at.hour}', 'requester_user_id': 2, 'requester_name': 'عميل الاختبار',
   'host_user_id': 1, 'host_name': 'دلال الاختبار', 'message_thread_id': 19, 'target_type': 'property', 'target_id': 11,
@@ -137,27 +156,36 @@ void main() {
     expect(await store.read(1, null), isNull);
     await store.write(1, null, {'step': 2}, []); expect((await store.read(1, null))!['step'], 2);
   });
-  testWidgets('dashboard shortcuts open the exact requested tab and unread filter', (tester) async {
+  testWidgets('dashboard tasks open the matching queues in one tap', (tester) async {
     final router = GoRouter(routes: [
       GoRoute(path: '/', builder: (_, __) => const BrokerDashboardScreen()),
-      GoRoute(path: '/broker/activity', builder: (_, state) => Scaffold(body: Text('selected:${state.uri.queryParameters['tab']}'))),
+      GoRoute(path: '/broker/activity', builder: (_, __) => const Scaffold(body: Text('deals'))),
       GoRoute(path: '/broker/customers', builder: (_, state) => Scaffold(body: Text('filter:${state.uri.queryParameters['filter']}'))),
+      GoRoute(path: '/broker/availability', builder: (_, state) => Scaffold(body: Text('due:${state.uri.queryParameters['due']}'))),
+      GoRoute(path: '/my-listings', builder: (_, state) => Scaffold(body: Text('action:${state.uri.queryParameters['needs_action']}'))),
     ]);
     addTearDown(router.dispose);
     await tester.pumpWidget(ProviderScope(overrides: [listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
-    authControllerProvider.overrideWith(() => BrokerTestAuth(1)), brokerRepositoryProvider.overrideWithValue(BrokerTestRepository())],
+    authControllerProvider.overrideWith(() => BrokerTestAuth(1)), brokerRepositoryProvider.overrideWithValue(_DashboardTasks())],
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle();
     expect(find.textContaining('معاينات للمتابعة'), findsNothing);
-    await tester.tap(find.textContaining('إجراءات أخرى')); await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('تابع نتائج الصفقات التي تنتظر التأكيد')); await tester.pumpAndSettle();
-    await tester.tap(find.text('تابع نتائج الصفقات التي تنتظر التأكيد').hitTestable()); await tester.pumpAndSettle();
-    expect(find.text('selected:null'), findsOneWidget);
-    router.pop(); await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.textContaining('محادثات تحتاج ردك').hitTestable(), -150, scrollable: find.byType(Scrollable).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('محادثات تحتاج ردك').hitTestable()); await tester.pumpAndSettle();
-    expect(find.text('filter:unread'), findsOneWidget);
+    expect(find.textContaining('إجراءات أخرى'), findsNothing);
+    for (final (task, destination) in [
+      ('unread', 'filter:unread'),
+      ('followup-due', 'filter:followup_due'),
+      ('corrections', 'action:1'),
+      ('availability', 'due:1'),
+      ('pending-deals', 'deals'),
+    ]) {
+      final row = find.byKey(ValueKey('broker-priority-$task'));
+      await tester.ensureVisible(row);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(find.text(destination), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+    }
     expect(tester.takeException(), isNull);
   });
   testWidgets('listing editor restores its actual step and autosaves changed text', (tester) async {
@@ -188,13 +216,21 @@ void main() {
     await _pump(tester, const BrokerCustomersScreen(initialFilter: 'unread'), repo: repo, boundary: boundary);
     await _capture(tester, boundary, 'convenience-unread-customers');
     expect(repo.filters.last, 'unread'); expect(find.text('ملاحظة خاصة: ملاحظة خاصة'), findsOneWidget);
-    await tester.tap(find.byTooltip('خيارات البطاقة')); await tester.pumpAndSettle();
+    expect(find.text('عميل الاختبار'), findsNWidgets(2));
+    expect(find.text('شقة الاختبار'), findsOneWidget);
+    expect(find.text('بيت الاختبار'), findsOneWidget);
+    await tester.tap(find.descendant(
+      of: find.byKey(const ValueKey('broker-customer-19')),
+      matching: find.byTooltip('خيارات البطاقة'),
+    ));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('ملاحظة وتذكير')); await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'يفضل موعد العصر');
     await tester.tap(find.text('ذكّرني غدًا')); await tester.pumpAndSettle();
     expect(find.textContaining('الملاحظة والتذكير خاصان'), findsOneWidget);
     await _capture(tester, boundary, 'convenience-private-followup');
     await tester.tap(find.text('حفظ المتابعة')); await tester.pumpAndSettle();
+    expect(repo.savedThreadId, 19);
     expect(repo.savedNote, 'يفضل موعد العصر'); expect(repo.savedDate, isNotNull); expect(repo.savedDate!.hour, 9);
     expect(tester.takeException(), isNull);
   });

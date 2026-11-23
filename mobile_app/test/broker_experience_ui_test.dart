@@ -128,13 +128,21 @@ void main() {
       await font.load();
     }
   });
-  testWidgets('verified broker lands in the marketplace and opens a separate work dashboard', (tester) async {
+  testWidgets('verified broker opens work and the two customer tabs from the marketplace', (tester) async {
     await _pump(tester, const AppShellScreen(), BrokerTestRepository());
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
     expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'عملي', 'العملاء', 'حسابي']);
     expect(nav.onCreate, isNotNull);
-    expect(find.text('يحتاج إجراء منك'), findsNothing);
+    expect(find.text('مهام تحتاج إجراء'), findsNothing);
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
+    nav.onSelected(1);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('broker-priority-unread')), findsOneWidget);
+    nav.onSelected(2);
+    await tester.pumpAndSettle();
+    final tabs = tester.widget<TabBar>(find.byType(TabBar));
+    expect(tabs.tabs.cast<Tab>().map((tab) => tab.text), ['المتابعة', 'المحادثات']);
+    expect(find.text('إدارة العملاء'), findsNothing);
     nav.onSelected(3); await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('لوحة العمل'), 300,
       scrollable: find.descendant(of: find.byType(AccountScreen), matching: find.byType(Scrollable)).first);
@@ -144,7 +152,8 @@ void main() {
   });
   testWidgets('availability update submits selected real listing IDs', (tester) async {
     final repo = BrokerTestRepository();
-    await _pump(tester, const BrokerAvailabilityScreen(), repo);
+    await _pump(tester, const BrokerAvailabilityScreen(initiallyDue: true), repo);
+    expect(find.text('منزل السنينة'), findsNothing);
     final button = find.textContaining('ما زالت متوفرة');
     await tester.ensureVisible(button.last); await tester.tap(button.last); await tester.pumpAndSettle();
     expect(repo.availabilityChanges, hasLength(1));
