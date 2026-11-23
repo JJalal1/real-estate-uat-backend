@@ -232,22 +232,24 @@ class PropertyRepository {
 
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
+    // The polygon endpoint applies ST_Covers before counting and paginating.
+    final ranked = rankedDiscovery && !filters.containsKey('area_polygon');
     final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest',
-      if (rankedDiscovery) ...{'ranked_search': 1, 'ranking_version': 2}};
+      if (ranked) ...{'ranked_search': 1, 'ranking_version': 2}};
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
       final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken,
         options: Options(listFormat: ListFormat.multiCompatible));
       ensurePropertyFilterContract(response, params);
-      if (rankedDiscovery && !const ['1', '2'].contains(response.headers.value('x-aqer-ranked-contract'))) {
+      if (ranked && !const ['1', '2'].contains(response.headers.value('x-aqer-ranked-contract'))) {
         throw StateError('تعذّر تطبيق ترتيب البحث حاليًا. أعد المحاولة لاحقًا.');
       }
       final rows = (response.data?['data'] as List? ?? const []).whereType<Map>()
         .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row))).toList(growable: false);
-      if (rankedDiscovery && rows.any((row) => row.discoveryMatch == null)) {
+      if (ranked && rows.any((row) => row.discoveryMatch == null)) {
         throw const FormatException('Missing discovery classification.');
       }
       final meta = response.data?['meta'] as Map? ?? const {};
-      if (rankedDiscovery && (response.data?['data'] is! List || meta['current_page'] is! int || meta['current_page'] != page ||
+      if (ranked && (response.data?['data'] is! List || meta['current_page'] is! int || meta['current_page'] != page ||
           meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
           meta['total'] is! int || (meta['total'] as int) < 0 ||
           meta['exact_total'] is! int || (meta['exact_total'] as int) < 0 ||

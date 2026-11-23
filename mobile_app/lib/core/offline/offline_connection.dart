@@ -90,16 +90,9 @@ class OfflineConnectionController extends StateNotifier<OfflineConnection> {
         state == OfflineConnection.offline) {
       return;
     }
-    _unavailableIfCurrent(startedRevision);
-    final failureRevision = _revision;
-    final pending = _checking;
-    unawaited(() async {
-      if (pending != null) await pending;
-      if (!_disposed && _revision == failureRevision) {
-        await check(force: true);
-      }
-    }()
-        .catchError((Object _) {}));
+    // An individual transfer can time out while the rest of the API works.
+    // Let the coalesced route and health check decide global availability.
+    unawaited(check(force: true));
   }
 
   Future<void> check({bool force = false}) {

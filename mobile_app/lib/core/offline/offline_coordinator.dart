@@ -282,8 +282,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
     if (actor != null) ref.watch(messageOutboxProvider(actor));
     return Column(children: [
       if (connection == OfflineConnection.offline ||
-          connection == OfflineConnection.unavailable ||
-          connection == OfflineConnection.unknown)
+          connection == OfflineConnection.unavailable)
         Material(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: SafeArea(
@@ -298,9 +297,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
                           child: Text(
                               connection == OfflineConnection.offline
                                   ? 'غير متصل — آخر بيانات محفوظة. الرسائل المعلّقة تنتظر الاتصال.'
-                                  : connection == OfflineConnection.unavailable
-                                      ? 'تعذر الوصول للخادم — نعرض البيانات المحفوظة المتاحة. أعد المحاولة.'
-                                      : 'جارٍ التحقق من الاتصال — قد تظهر آخر بيانات محفوظة.',
+                                  : 'تعذر الوصول للخادم — نعرض البيانات المحفوظة المتاحة. أعد المحاولة.',
                               style: const TextStyle(fontSize: 12))),
                       IconButton(
                           tooltip: 'إعادة الاتصال',

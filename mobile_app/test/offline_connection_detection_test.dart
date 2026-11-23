@@ -246,6 +246,19 @@ void main() {
     expect(wire.calls, isEmpty);
   });
 
+  test('one slow request does not flash the global unavailable state on a reachable network', () async {
+    final response = Completer<ResponseBody>();
+    final wire = _Wire()..reply = (_) => response.future;
+    final monitor = _controller(_client(wire));
+    monitor.online();
+    monitor.transportFailure(monitor.revision);
+    await wire.started.future;
+    expect(monitor.current, OfflineConnection.online);
+    response.complete(_json({'status': 'ok'}));
+    await monitor.check();
+    expect(monitor.current, OfflineConnection.online);
+  });
+
   test('concurrent forced checks share a single health request', () async {
     final wire = _Wire(), response = Completer<ResponseBody>();
     wire.reply = (_) => response.future;

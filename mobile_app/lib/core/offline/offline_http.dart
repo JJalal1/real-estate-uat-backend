@@ -46,6 +46,13 @@ class OfflineHttpInterceptor extends Interceptor {
         RegExp(r'^/listing-editor-drafts/[a-fA-F0-9-]{36}$').hasMatch(path);
   }
 
+  bool _preferSnapshot(RequestOptions request) =>
+      connection.current == OfflineConnection.offline ||
+      connection.current == OfflineConnection.unknown ||
+      (connection.current == OfflineConnection.unavailable && !private(request) &&
+          const {'/marketplace', '/properties', '/properties/nearby'}.contains(
+              request.uri.path.replaceFirst(Uri.parse(request.baseUrl).path, '')));
+
   String identity(RequestOptions r) => offlineRequestIdentity(r);
   bool private(RequestOptions r) =>
       r.headers.keys.any((k) => k.toLowerCase() == 'authorization');
@@ -113,14 +120,12 @@ class OfflineHttpInterceptor extends Interceptor {
         Stage6SecureSessionStore.instance.sessionEpoch;
     options.extra['offline_connection_revision'] = connection.revision;
     if (eligible(options) &&
-        (connection.current == OfflineConnection.offline ||
-            connection.current == OfflineConnection.unknown) &&
+        _preferSnapshot(options) &&
         options.extra['offline_bypass'] != true) {
       final row = await _cached(options);
       if (_current(options) &&
           row != null &&
-          (connection.current == OfflineConnection.offline ||
-              connection.current == OfflineConnection.unknown)) {
+          _preferSnapshot(options)) {
         handler.resolve(_response(options, row));
         return;
       }

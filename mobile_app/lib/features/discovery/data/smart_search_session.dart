@@ -7,6 +7,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/uat_network_trace.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
+import '../../map/domain/map_area_geometry.dart';
 import '../../properties/domain/property_details.dart';
 import '../domain/smart_search_filters.dart';
 import 'ai_repository.dart';
@@ -141,11 +142,18 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     return false;
   }
 
+  List<PropertySummary> _insideDrawnArea(SmartSearchFilters filters, List<PropertySummary> rows) {
+    final ring = filters.values['area_polygon'];
+    if (ring is! String || rows.isEmpty) return rows;
+    final polygon = MapAreaGeometry.fromEncodedRing(ring);
+    return rows.where((row) => polygon.contains(row.latitude, row.longitude)).toList(growable: false);
+  }
+
   void _replace(SmartSearchFilters filters, {String message = 'حدّثنا شروطك. النتائج حسب الاختيارات الحالية.', String? draftText,
     List<PropertySummary> retainedRows = const []}) {
     _inference++; _results++;
     _resultTransfer?.cancel('Search criteria changed');
-    state = SmartSearchState(filters: filters, rows: retainedRows, revision: state.revision + 1,
+    state = SmartSearchState(filters: filters, rows: _insideDrawnArea(filters, retainedRows), revision: state.revision + 1,
       message: message, lastRequest: state.lastRequest, draftText: draftText ?? state.draftText);
   }
 
@@ -184,7 +192,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       final rows = more ? List<PropertySummary>.of(state.rows) : <PropertySummary>[];
       // Keep the server's order across pages regardless of classification.
       final ids = rows.map((row) => row.id).toSet();
-      rows.addAll(result.$1.where((row) => ids.add(row.id)));
+      rows.addAll(_insideDrawnArea(filters, result.$1).where((row) => ids.add(row.id)));
       state = state.copyWith(rows: List.unmodifiable(rows), page: page, more: result.$2, loading: false);
       timing?.mark(UatMapPhase.resultsApplied);
     } catch (error) {
