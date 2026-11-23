@@ -1363,6 +1363,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _beginAreaSelection() {
+    if (!_journeyCurrent) return;
+    FocusScope.of(context).unfocus();
     _areaSelectionGeneration++;
     _viewportGeneration++;
     _mapViewportGesture = false;
@@ -1451,17 +1453,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       });
       Future<void>? sharedSearch;
       if (widget.sharedSearchJourney) {
-        final current = ref.read(_searchSession).filters.values;
-        const bounds = ['south', 'west', 'north', 'east'];
-        final hasViewport = bounds.every((key) => current[key] is num);
-        final values = Map<String, dynamic>.from(current)
-          ..removeWhere((key, _) => SmartSearchFilters.mapFields.contains(key) || const ['governorate', 'governorate_code'].contains(key));
-        values.addAll({'area_polygon': geometry.encodedRing,
-          if (hasViewport) ...{for (final key in bounds) key: current[key]}
-          else ...{'south': geometry.bounds.southwest.latitude, 'west': geometry.bounds.southwest.longitude,
-            'north': geometry.bounds.northeast.latitude, 'east': geometry.bounds.northeast.longitude}});
-        sharedSearch = ref.read(_searchSession.notifier).replaceManually(SmartSearchFilters.fromMap(values),
-          retainedRows: ref.read(_searchSession).rows);
+        sharedSearch = ref.read(_searchSession.notifier).applyDrawnArea(geometry.encodedRing);
       }
       await _renderSelectedAreaAnnotations();
       if (sharedSearch != null) await sharedSearch;
@@ -1565,19 +1557,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _clearSelectedArea() {
+    if (!_journeyCurrent) return;
+    FocusScope.of(context).unfocus();
     _areaSelectionGeneration++;
     _areaAnnotationGeneration++;
     unawaited(_removeAreaAnnotations());
     setState(() {
       _selectedAreaBounds = null;
       _selectedAreaGeometry = null;
+      _convertingArea = false;
       _selected = null;
       _lastMarkerSignature = '';
       _mapMessage = null;
     });
     if (widget.sharedSearchJourney) {
-      unawaited(ref.read(_searchSession.notifier).replaceManually(
-        ref.read(_searchSession).filters.without('area_polygon')));
+      unawaited(ref.read(_searchSession.notifier).clearDrawnArea());
     }
   }
 
@@ -1971,9 +1965,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       )),
       button(IconButton(
         key: const ValueKey('map-draw-area'),
-        onPressed: () { FocusScope.of(context).unfocus(); actions.onDrawArea(); },
-        tooltip: 'رسم منطقة على الخريطة',
-        icon: const Icon(Icons.gesture_rounded),
+        onPressed: actions.hasDrawnArea ? actions.onClearArea : actions.onDrawArea,
+        tooltip: actions.hasDrawnArea ? 'إلغاء المنطقة المرسومة' : 'رسم منطقة على الخريطة',
+        icon: Icon(actions.hasDrawnArea ? Icons.close_rounded : Icons.gesture_rounded),
       ), active: actions.hasDrawnArea),
       button(IconButton(
         key: const ValueKey('map-smart-search'),
@@ -1999,10 +1993,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final scheme = Theme.of(context).colorScheme;
     final draw = Material(color: actions.hasDrawnArea ? scheme.primaryContainer : scheme.surface,
       elevation: 3, shape: const CircleBorder(), child: IconButton(
-        key: const ValueKey('map-draw-area'), tooltip: 'رسم منطقة على الخريطة',
+        key: const ValueKey('map-draw-area'),
+        tooltip: actions.hasDrawnArea ? 'إلغاء المنطقة المرسومة' : 'رسم منطقة على الخريطة',
         constraints: const BoxConstraints(minWidth: 52, minHeight: 52),
-        onPressed: () { FocusScope.of(context).unfocus(); actions.onDrawArea(); },
-        icon: Icon(Icons.gesture_rounded, color: scheme.primary)));
+        onPressed: actions.hasDrawnArea ? actions.onClearArea : actions.onDrawArea,
+        icon: Icon(actions.hasDrawnArea ? Icons.close_rounded : Icons.gesture_rounded, color: scheme.primary)));
     final assistant = Material(color: scheme.surface, elevation: 5,
       shadowColor: scheme.primary.withValues(alpha: .24), shape: const CircleBorder(),
       child: InkWell(key: const ValueKey('map-smart-search'), customBorder: const CircleBorder(),
@@ -2053,6 +2048,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildMapControls() {
+    final hasDrawnArea = _selectedAreaGeometry != null;
     return PositionedDirectional(
       start: 12,
       top: MediaQuery.paddingOf(context).top + 8,
@@ -2067,18 +2063,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(8),
             child: InkWell(
-              onTap: _beginAreaSelection,
+              key: const ValueKey('map-draw-area'),
+              onTap: hasDrawnArea ? _clearSelectedArea : _beginAreaSelection,
               borderRadius: BorderRadius.circular(8),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    EbrokerIcon(Icons.gesture_rounded, color: Theme.of(context).colorScheme.primary),
+                    EbrokerIcon(hasDrawnArea ? Icons.close_rounded : Icons.gesture_rounded,
+                      color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 7),
-                    const Text(
-                      'رسم منطقة',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                    Text(
+                      hasDrawnArea ? 'إلغاء الرسم' : 'رسم منطقة',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),

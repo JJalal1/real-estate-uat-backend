@@ -21,6 +21,7 @@ String offlineRequestIdentity(RequestOptions r) {
 
 class OfflineHttpInterceptor extends Interceptor {
   OfflineHttpInterceptor(this.store, this.connection);
+  static const preferLive = 'offline_prefer_live';
   final OfflineStore store;
   final OfflineConnectionController connection;
   bool eligible(RequestOptions r) {
@@ -48,10 +49,13 @@ class OfflineHttpInterceptor extends Interceptor {
 
   bool _preferSnapshot(RequestOptions request) =>
       connection.current == OfflineConnection.offline ||
-      connection.current == OfflineConnection.unknown ||
-      (connection.current == OfflineConnection.unavailable && !private(request) &&
-          const {'/marketplace', '/properties', '/properties/nearby'}.contains(
-              request.uri.path.replaceFirst(Uri.parse(request.baseUrl).path, '')));
+      (request.extra[preferLive] != true &&
+          (connection.current == OfflineConnection.unknown ||
+              (connection.current == OfflineConnection.unavailable &&
+                  !private(request) &&
+                  const {'/marketplace', '/properties', '/properties/nearby'}
+                      .contains(request.uri.path.replaceFirst(
+                          Uri.parse(request.baseUrl).path, '')))));
 
   String identity(RequestOptions r) => offlineRequestIdentity(r);
   bool private(RequestOptions r) =>
@@ -101,8 +105,21 @@ class OfflineHttpInterceptor extends Interceptor {
     return latest;
   }
 
-  Response<dynamic> _response(RequestOptions r, Map<String, dynamic> cache) {
-    connection.usedSnapshot = true;
+  Future<Response<dynamic>?> readExactPublicMarketplace(
+      RequestOptions request) async {
+    if (request.path != '/marketplace' || !eligible(request) || private(request)) {
+      return null;
+    }
+    final session = Stage6SecureSessionStore.instance;
+    final epoch = session.sessionEpoch;
+    final cache = await store.read(space(request), identity(request), private: true);
+    if (cache == null || epoch != session.sessionEpoch) return null;
+    return _response(request, cache, markUsed: false);
+  }
+
+  Response<dynamic> _response(RequestOptions r, Map<String, dynamic> cache,
+      {bool markUsed = true}) {
+    if (markUsed) connection.usedSnapshot = true;
     return Response<dynamic>(
         requestOptions: r,
         data: cache['body'],

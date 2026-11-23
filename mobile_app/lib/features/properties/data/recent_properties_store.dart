@@ -12,8 +12,12 @@ final recentHistoryDirectoryProvider = Provider<Future<Directory> Function()>((r
 final recentPropertiesStoreProvider = Provider<RecentPropertiesStore>((ref) {
   final scope = ref.watch(authControllerProvider.select((state) =>
     (state.asData?.value?.id, !state.isLoading && !state.hasError)));
+  var active = true;
+  ref.onDispose(() => active = false);
   return RecentPropertiesStore(actorId: scope.$1, enabled: scope.$2,
-    supportDirectory: ref.watch(recentHistoryDirectoryProvider));
+    supportDirectory: ref.watch(recentHistoryDirectoryProvider), onChanged: () {
+      if (active) ref.invalidate(recentPropertiesProvider);
+    });
 });
 
 final recentPropertiesProvider = FutureProvider<List<PropertySummary>>((ref) {
@@ -21,12 +25,15 @@ final recentPropertiesProvider = FutureProvider<List<PropertySummary>>((ref) {
 });
 
 class RecentPropertiesStore {
-  RecentPropertiesStore({int? actorId, this.enabled = true, Future<Directory> Function()? supportDirectory})
+  RecentPropertiesStore({int? actorId, this.enabled = true, Future<Directory> Function()? supportDirectory,
+    void Function()? onChanged})
     : _scope = actorId != null && actorId > 0 ? 'user_$actorId' : 'guest',
-      _supportDirectory = supportDirectory ?? getApplicationSupportDirectory;
+      _supportDirectory = supportDirectory ?? getApplicationSupportDirectory,
+      _onChanged = onChanged;
   final bool enabled;
   final String _scope;
   final Future<Directory> Function() _supportDirectory;
+  final void Function()? _onChanged;
   static const int _limit = 30;
   Future<File>? _fileFuture;
   Future<void> _pending = Future<void>.value();
@@ -74,29 +81,31 @@ class RecentPropertiesStore {
   Future<void> record(PropertySummary property) {
     if (!enabled || property.id <= 0 || property.status != 'published') return Future.value();
     return _serialize(() async {
-    final current = await _read();
-    final next = <PropertySummary>[
-      property,
-      ...current.where((item) => item.id != property.id),
-    ].take(_limit).toList(growable: false);
-    final file = await _file();
-    await file.parent.create(recursive: true);
-    final temporary = File('${file.path}.tmp');
-    await temporary.writeAsString(
-      jsonEncode(next.map(_toJson).toList(growable: false)),
-      flush: true,
-    );
-    try { await temporary.rename(file.path); }
-    catch (_) {
-      try { if (await temporary.exists()) await temporary.delete(); } catch (_) { /* Preserve the write failure. */ }
-      rethrow;
-    }
+      final current = await _read();
+      final next = <PropertySummary>[
+        property,
+        ...current.where((item) => item.id != property.id),
+      ].take(_limit).toList(growable: false);
+      final file = await _file();
+      await file.parent.create(recursive: true);
+      final temporary = File('${file.path}.tmp');
+      await temporary.writeAsString(
+        jsonEncode(next.map(_toJson).toList(growable: false)),
+        flush: true,
+      );
+      try { await temporary.rename(file.path); }
+      catch (_) {
+        try { if (await temporary.exists()) await temporary.delete(); } catch (_) { /* Preserve the write failure. */ }
+        rethrow;
+      }
+      _onChanged?.call();
     });
   }
 
   Future<void> clear() => !enabled ? Future.value() : _serialize(() async {
     final file = await _file();
     if (await file.exists()) await file.delete();
+    _onChanged?.call();
   });
 
   Map<String, dynamic> _toJson(PropertySummary p) => {

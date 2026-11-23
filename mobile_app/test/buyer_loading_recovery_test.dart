@@ -240,4 +240,50 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('home replaces a startup snapshot with live rows and hides it on a definitive error', (tester) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    MarketplaceFeed feedFor(int id, String title) => MarketplaceFeed.fromJson({
+      'context': {'label': 'ذمار'}, 'section_order': ['latest'],
+      'sections': {'latest': [
+        {'id': id, 'title': title, 'purpose': 'sale', 'type': 'apartment', 'price': 100000},
+      ]},
+    });
+    final live = Completer<MarketplaceFeed>();
+    final denied = Completer<MarketplaceFeed>();
+    final snapshot = feedFor(21, 'إعلان محفوظ');
+    await tester.pumpWidget(ProviderScope(overrides: [
+      authControllerProvider.overrideWith(_Account.new),
+      homeLocationProvider.overrideWith((ref) => const HomeLocation(
+        label: 'ذمار', governorate: 'ذمار', governorateCode: 'DHAMAR', manual: true)),
+      marketplaceInitialSnapshotProvider.overrideWith((ref, query) => snapshot),
+      marketplaceFeedProvider.overrideWith((ref, query) => query.governorateCode == 'IBB' ? denied.future : live.future),
+    ], child: const MaterialApp(home: MarketplaceHomeScreen())));
+    await tester.pump();
+    expect(find.text('إعلان محفوظ'), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-feed-loading')), findsNothing);
+    expect(find.byType(AppRefreshStatus), findsOneWidget);
+
+    live.complete(feedFor(22, 'إعلان مباشر'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعلان مباشر'), findsOneWidget);
+    expect(find.text('إعلان محفوظ'), findsNothing);
+
+    final container = ProviderScope.containerOf(tester.element(find.byType(MarketplaceHomeScreen)), listen: false);
+    container.read(homeLocationProvider.notifier).state = const HomeLocation(
+      label: 'إب', governorate: 'إب', governorateCode: 'IBB', manual: true);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعلان محفوظ'), findsOneWidget);
+    denied.completeError(_failure(403));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('إعلان محفوظ'), findsNothing);
+    expect(find.byType(AppErrorState), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

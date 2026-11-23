@@ -14,6 +14,7 @@ import '../../../core/widgets/ebroker_screen_sections.dart';
 import '../../properties/presentation/property_summary_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../map/presentation/map_screen.dart';
+import '../../properties/data/recent_properties_store.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
@@ -159,6 +160,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     final selectedTypes = ref.watch(marketplaceSearchControllerProvider).criteria.selectedTypes;
     final query = _query;
     final feed = ref.watch(marketplaceFeedProvider(query));
+    final transientError = feed.hasError && isTransientApiFailure(feed.error!);
+    final canShowSnapshot = !feed.hasValue && (feed.hasError ? transientError : feed.isLoading);
+    final snapshot = canShowSnapshot ? ref.watch(marketplaceInitialSnapshotProvider(query)).valueOrNull : null;
+    final recent = ref.watch(recentPropertiesProvider).asData?.value;
     ref.listen(marketplaceFeedProvider(query), (_, next) {
       final governorate = next.asData?.value.governorate;
       final current = ref.read(homeLocationProvider);
@@ -171,7 +176,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         } catch (_) { /* Public region caching never blocks browsing. */ }
       }());
     });
-    final data = feed.valueOrNull;
+    final data = feed.hasError && !transientError ? null : feed.valueOrNull ?? snapshot;
     return Scaffold(backgroundColor: background,
       appBar: AppBar(backgroundColor: background, elevation: 0, automaticallyImplyLeading: false,
         toolbarHeight: (58 + (MediaQuery.textScalerOf(context).scale(15) - 15) * 2).clamp(58, 112).toDouble(),
@@ -226,15 +231,21 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                       icon: ebrokerCategoryIcon(category.$2), selected: selectedTypes.contains(category.$2),
                       onTap: () => ref.read(marketplaceSearchControllerProvider.notifier).chooseType(category.$2))),
                 ]))),
-        if (feed.hasValue && (feed.isLoading || (feed.hasError && isTransientApiFailure(feed.error!))))
+        if (data != null && (feed.isLoading || transientError))
           SliverToBoxAdapter(child: AppRefreshStatus(loading: feed.isLoading,
             error: feed.hasError ? friendlyApiError(feed.error!) : null,
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))),
-        feed.when(skipLoadingOnReload: true, skipError: feed.hasValue && feed.hasError && isTransientApiFailure(feed.error!),
+        if (snapshot != null) _feedSliver(snapshot)
+        else feed.when(skipLoadingOnReload: true, skipError: feed.hasValue && transientError,
           loading: () => const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(18),
             child: AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 8))),
           error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error),
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: _feedSliver),
+         if (recent != null && recent.isNotEmpty)
+           SliverToBoxAdapter(child: Column(children: [
+             EbrokerTitleHeader(title: 'شوهد مؤخرًا', onSeeAll: () => context.push('/recent')),
+             _propertyRail('recent', recent.take(6)),
+           ])),
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ]))),
     );
@@ -243,6 +254,21 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   Widget _property(PropertySummary row) => PropertySummaryCard(
     key: ValueKey('home-property-${row.id}'),
     property: row, imageFirst: true, preview: true);
+
+  Widget _propertyRail(String section, Iterable<PropertySummary> rows) {
+    final width = (MediaQuery.sizeOf(context).width - 64).clamp(250, 380).toDouble();
+    // Keep intrinsic height for large Arabic text. ViewportMedia gates the images.
+    return SingleChildScrollView(
+      key: PageStorageKey('home-properties-$section'),
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        for (final row in rows)
+          Padding(padding: const EdgeInsetsDirectional.only(end: 12),
+            child: SizedBox(width: width, child: _property(row))),
+      ]),
+    );
+  }
 
   Widget _feedSliver(MarketplaceFeed data) {
     final entries = <WidgetBuilder>[];
@@ -284,26 +310,20 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     }
     final sections = [
       if (data.sectionOrder.contains('latest')) 'latest',
-      ...data.sectionOrder.where((key) => key != 'latest'),
+      ...data.sectionOrder.where((key) => key != 'latest' && key != 'rent'),
     ];
     for (final key in sections) {
       final rows = data.sections[key] ?? const <PropertySummary>[];
       if (rows.isEmpty) continue;
-      final title = switch (key) { 'nearby' => 'قريبة منك', 'spotlight' => 'عقارات تستحق نظرة',
-        'sale' => 'تملّك في منطقتك', 'rent' => 'مساحة تناسب حياتك', _ => 'أحدث العقارات' };
+      final title = switch (key) { 'nearby' => 'حول موقعك الحالي', 'spotlight' => 'عقارات تستحق نظرة',
+        'sale' => 'بالقرب منك', _ => 'أحدث العقارات' };
       entries.add((_) => EbrokerTitleHeader(title: title, onSeeAll: () => _section(key, data.governorate)));
-      if (const ['latest', 'nearby'].contains(key)) {
+      if (key == 'nearby') {
         for (final row in rows.take(3)) {
           entries.add((_) => Padding(padding: const EdgeInsets.fromLTRB(18, 0, 18, 12), child: _property(row)));
         }
       } else {
-        // Rails are bounded by the feed contract. Keep intrinsic height for
-        // large Arabic text; ViewportMedia gates each horizontal image too.
-        entries.add((_) => SingleChildScrollView(scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 18), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            for (final row in rows) Padding(padding: const EdgeInsetsDirectional.only(end: 12),
-              child: SizedBox(width: (MediaQuery.sizeOf(context).width - 64).clamp(250, 380).toDouble(), child: _property(row))),
-          ])));
+        entries.add((_) => _propertyRail(key, rows));
       }
     }
     if (sections.every((key) => data.sections[key]?.isNotEmpty != true)) {
