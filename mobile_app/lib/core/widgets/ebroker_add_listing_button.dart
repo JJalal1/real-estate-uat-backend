@@ -21,7 +21,7 @@ class EbrokerAddListingButton extends StatelessWidget {
     Duration duration(int milliseconds) => reducedMotion
         ? Duration.zero
         : Duration(milliseconds: milliseconds);
-    final label = isOpen ? 'إغلاق خيارات الإعلان' : 'إضافة عقار';
+    final label = isOpen ? 'إغلاق خيارات الإعلان' : 'إضافة إعلان';
 
     return Semantics(
       button: true,

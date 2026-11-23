@@ -46,7 +46,6 @@ class _TestAuthController extends AuthController {
 Future<GoRouter> _pumpHome(
   WidgetTester tester, {
   Future<List<PropertyMarker>> Function()? load,
-  bool advertiser = false,
   AuthUser? user,
   double scale = 1,
   GlobalKey? boundaryKey,
@@ -55,9 +54,7 @@ Future<GoRouter> _pumpHome(
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, __) => MarketplaceHomeScreen(
-          showAdvertiserActions: advertiser,
-        ),
+        builder: (_, __) => const MarketplaceHomeScreen(),
       ),
       GoRoute(path: '/marketplace-search', builder: (_, __) => const MarketplaceSearchScreen()),
       GoRoute(
@@ -188,7 +185,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final entry in ['home-search', 'home-map']) {
+  for (final entry in ['home-search', 'floating-map-search']) {
     testWidgets('$entry keeps anonymous map discovery accessible',
         (tester) async {
       final router = await _pumpHome(tester);
@@ -233,8 +230,7 @@ void main() {
     await tester.scrollUntilVisible(find.text('لا توجد عقارات في هذه المنطقة الآن'), 250, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
     await tester.pumpAndSettle();
     expect(find.text('لا توجد عقارات في هذه المنطقة الآن'), findsOneWidget);
-    final action = find.byKey(const ValueKey('home-map'));
-    await tester.scrollUntilVisible(action, -300, scrollable: find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')), matching: find.byType(Scrollable)).first);
+    final action = find.byKey(const ValueKey('floating-map-search'));
     await tester.pumpAndSettle();
     await tester.tap(action);
     await tester.pumpAndSettle();
@@ -286,7 +282,7 @@ void main() {
       'phone_verified_at': '2026-10-11T00:00:00Z',
       'profile_completed_at': '2026-10-11T00:00:00Z',
     });
-    final router = await _pumpHome(tester, advertiser: true, user: user);
+    final router = await _pumpHome(tester, user: user);
     await tester.pumpAndSettle();
     expect(find.text('إضافة عقار'), findsNothing);
     expect(find.text('إدارة عملي'), findsNothing);

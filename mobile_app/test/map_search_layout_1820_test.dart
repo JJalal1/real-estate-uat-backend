@@ -94,7 +94,11 @@ void main() {
     failedRefresh.completeError(DioException(requestOptions: request, type: DioExceptionType.unknown));
     await tester.pumpAndSettle();
     expect(pins, [145]);
-    expect(find.text('1 عقار من آخر تحميل'), findsOneWidget);
+    const countKey = ValueKey('map-results-count');
+    expect(tester.widget<Text>(find.byKey(countKey)).data, '١ نتيجة');
+    final staleCount = find.byWidgetPredicate((widget) =>
+      widget is Semantics && widget.properties.label == '١ نتيجة من آخر تحميل');
+    expect(staleCount, findsOneWidget);
 
     await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -230));
     await tester.pumpAndSettle();
@@ -106,7 +110,8 @@ void main() {
     await tester.tap(retry);
     await tester.pumpAndSettle();
     expect(pins, [146]);
-    expect(find.text('1 عقار في النطاق'), findsOneWidget);
+    expect(tester.widget<Text>(find.byKey(countKey)).data, '١ نتيجة');
+    expect(staleCount, findsNothing);
     expect(properties.calls[properties.calls.length - 2], properties.calls.last);
 
     properties.respond = (_, __) async => throw DioException(
@@ -115,7 +120,8 @@ void main() {
     await scope.read(marketplaceMapResultsProvider.notifier).search();
     await tester.pumpAndSettle();
     expect(pins, isEmpty);
-    expect(find.text('1 عقار من آخر تحميل'), findsNothing);
+    expect(tester.widget<Text>(find.byKey(countKey)).data, '٠ نتيجة');
+    expect(staleCount, findsNothing);
     await closeUx(tester);
   });
 
@@ -316,10 +322,23 @@ void main() {
     final purpose = find.byKey(const ValueKey('map-search-purpose'));
     final filters = find.byKey(const ValueKey('published-map-filters'));
     final apartment = find.byKey(const ValueKey('published-type-apartment'));
-    final allTypes = find.byKey(const ValueKey('published-type-all'));
-    expect(tester.getSize(toolbar).height, lessThan(180));
-    expect(tester.getCenter(purpose).dy, closeTo(tester.getCenter(filters).dy, 1));
+    final search = find.byKey(const ValueKey('map-open-search'));
+    final rentChoice = find.byKey(const ValueKey('published-purpose-rent'));
+    final lastType = find.byKey(const ValueKey('published-type-farm'));
+    expect(tester.getSize(toolbar).height, lessThan(125));
+    expect(tester.getCenter(purpose).dy, closeTo(tester.getCenter(search).dy, 1));
+    expect(tester.getCenter(rentChoice).dx, greaterThan(tester.getCenter(search).dx));
+    expect(tester.getSize(rentChoice).height, tester.getSize(search).height);
     expect(tester.getCenter(apartment).dy, greaterThan(tester.getCenter(purpose).dy));
+    expect(tester.getCenter(filters).dy, closeTo(tester.getCenter(apartment).dy, 1));
+    expect(tester.getCenter(filters).dx, lessThan(tester.getCenter(lastType).dx));
+    expect(filters.hitTestable(), findsNothing);
+    expect(find.byKey(const ValueKey('published-type-all')), findsNothing);
+    expect(find.byKey(const ValueKey('map-published-search-input')), findsNothing);
+    expect(find.text('البحث على الخريطة'), findsNothing);
+    expect(find.byKey(const ValueKey('map-draw-area')).hitTestable(), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-smart-search')).hitTestable(), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-my-location')).hitTestable(), findsOneWidget);
     expect(find.byKey(const ValueKey('published-filter-min-price')), findsNothing);
     expect(find.byKey(const ValueKey('filter-min_area_m2')), findsNothing);
     final rent = find.descendant(of: purpose, matching: find.widgetWithText(TextButton, 'إيجار'));
@@ -330,9 +349,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('purpose'), isFalse);
     await _tap(tester, 'published-type-apartment');
-    expect(tester.widget<ChoiceChip>(allTypes).selected, isFalse);
-    await _tap(tester, 'published-type-all');
-    expect(tester.widget<ChoiceChip>(allTypes).selected, isTrue);
+    expect(scope.read(marketplaceMapResultsProvider).filters.selectedTypes, ['apartment']);
+    await _tap(tester, 'published-type-apartment');
+    expect(scope.read(marketplaceMapResultsProvider).filters.selectedTypes, isEmpty);
     await _tap(tester, 'published-map-filters');
     expect(find.byKey(const ValueKey('filter-min_price')), findsOneWidget);
     final area = find.byKey(const ValueKey('filter-min_area_m2'));
@@ -341,6 +360,35 @@ void main() {
     await tester.enterText(area, '١٢٠');
     await _tap(tester, 'filter-apply');
     expect(scope.read(marketplaceMapResultsProvider).filters.apiFilters['min_area_m2'], 120);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('a price pin opens the compact list again after the user collapses it', (tester) async {
+    const listing = PropertySummary(id: 77, title: 'شقة للإيجار', type: 'apartment',
+      purpose: 'rent', price: 120000, currency: 'YER', latitude: 15.4, longitude: 44.2);
+    final properties = Listings()..respond = (_, __) async => ([listing], false);
+    late void Function(int) select;
+    final scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      sharedSearchMapBuilderProvider.overrideWithValue((_, __, pick, ___) {
+        select = pick;
+        return const ColoredBox(color: Colors.teal);
+      }),
+    ]);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen(), size: const Size(360, 640));
+    await tester.pumpAndSettle();
+    final sheet = find.byKey(const ValueKey('map-search-panel-surface'));
+    final collapsedTop = tester.getTopLeft(sheet).dy;
+    select(listing.id);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(sheet).dy, lessThan(collapsedTop));
+    expect(find.byKey(const ValueKey('map-result-77')).hitTestable(), findsOneWidget);
+    await _tap(tester, 'map-show-list');
+    expect(tester.getTopLeft(sheet).dy, closeTo(collapsedTop, 1));
+    select(listing.id);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(sheet).dy, lessThan(collapsedTop));
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });

@@ -4,10 +4,11 @@ import '../domain/smart_search_filters.dart';
 import '../../properties/domain/property_schema.dart';
 
 class SmartSearchFilterEditor extends StatefulWidget {
-  const SmartSearchFilterEditor({required this.initial, this.focus, this.rangesFirst = false, super.key});
+  const SmartSearchFilterEditor({required this.initial, this.focus, this.rangesFirst = false, this.extraActions, super.key});
   final SmartSearchFilters initial;
   final String? focus;
   final bool rangesFirst;
+  final Widget? extraActions;
   @override
   State<SmartSearchFilterEditor> createState() => SmartSearchFilterEditorState();
 }
@@ -185,7 +186,9 @@ class SmartSearchFilterEditorState extends State<SmartSearchFilterEditor> {
     return Directionality(textDirection: TextDirection.rtl, child: Padding(
       padding: EdgeInsets.fromLTRB(18, 18, 18, MediaQuery.viewInsetsOf(context).bottom + 24),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('شروط البحث', style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 18),
+        Text('شروط البحث', style: Theme.of(context).textTheme.titleLarge),
+        if (widget.extraActions != null) widget.extraActions!,
+        const SizedBox(height: 18),
         if (rangesFirst) ...budget,
         if (rangesFirst) _range('المساحة (م²)', 'min_area_m2', 'max_area_m2'),
         _choices('type', 'نوع العقار', SmartSearchFilters.types),

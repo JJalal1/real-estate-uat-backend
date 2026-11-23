@@ -13,9 +13,11 @@ class Stage6AuthGate extends ConsumerStatefulWidget {
     this.requireActive = true,
     this.requireListingEligible = false,
     this.requireProfessional = false,
+    this.guestIcon = Icons.lock_outline,
   });
 
   final Widget child;
+  final IconData guestIcon;
   final bool requireActive;
   final bool requireListingEligible;
   final bool requireProfessional;
@@ -51,7 +53,7 @@ class _Stage6AuthGateState extends ConsumerState<Stage6AuthGate> {
           data: (user) {
             if (user == null) {
               return _GateMessage(
-                icon: Icons.lock_outline,
+                icon: widget.guestIcon,
                 title: 'سجّل الدخول أولاً',
                 message: 'هذه العملية مرتبطة بحسابك الحقيقي.',
                 button: 'تسجيل الدخول',
@@ -129,7 +131,7 @@ class _GateMessage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                EbrokerIcon(icon, size: 68),
+                _GateIllustration(icon: icon),
                 const SizedBox(height: 16),
                 Text(title,
                     style: Theme.of(context)
@@ -145,6 +147,42 @@ class _GateMessage extends StatelessWidget {
           )),
         ),
       ),
+    );
+  }
+}
+
+class _GateIllustration extends StatelessWidget {
+  const _GateIllustration({required this.icon});
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.primaryContainer, borderRadius: BorderRadius.circular(22),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Icon(icon, size: 44, color: colors.onPrimaryContainer),
+          ),
+        ),
+        if (icon == Icons.chat_bubble_outline || icon == Icons.inventory_2_outlined)
+          PositionedDirectional(
+            end: -3, top: -3,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.primary,
+                shape: BoxShape.circle,
+                border: Border.all(width: 2, color: Theme.of(context).scaffoldBackgroundColor),
+              ),
+              child: const SizedBox.square(dimension: 16),
+            ),
+          ),
+      ],
     );
   }
 }

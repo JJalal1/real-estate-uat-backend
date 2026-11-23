@@ -35,23 +35,9 @@ jobs:
           cache: true
       - name: Resolve the approved package lock
         run: |
-          git diff --exit-code eb4df35101387bdb0cc969224cdd28f5d5b913d9 -- \
-            pubspec.yaml pubspec.lock ../docs/ui-transplant-v3/pubspec_overrides.yaml
-          cp pubspec.lock "$RUNNER_TEMP/uat1829-committed.lock"
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
           flutter pub get
-          python3 -B - <<'PY'
-          import os
-          import sys
-          from pathlib import Path
-
-          sys.path.insert(0, "../scripts")
-          from verify_v3_dependency_lock import verify
-
-          baseline = Path(os.environ["RUNNER_TEMP"]) / "uat1829-committed.lock"
-          records = verify(baseline.read_text(), Path("pubspec.lock").read_text())
-          print(f"Verified {records} approved package records from build 1829.")
-          PY
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --approved-uat1829
           flutter pub get --enforce-lockfile
       - name: Strict Flutter analysis
         run: python3 -B ../scripts/check_v3_analysis.py

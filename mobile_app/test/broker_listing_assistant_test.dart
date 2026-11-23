@@ -121,10 +121,18 @@ Future<void> _pump(WidgetTester tester, Widget child, {required _Assistant ai, _
 Future<void> _reveal(WidgetTester tester, String key) async {
   final finder = find.byKey(ValueKey(key));
   if (finder.evaluate().isEmpty) {
-    final sheet = find.byType(ListingAiSheet);
-    final scrollable = sheet.evaluate().isEmpty ? find.byType(Scrollable).first
-      : find.descendant(of: sheet, matching: find.byType(Scrollable)).first;
-    await tester.scrollUntilVisible(finder, 220, scrollable: scrollable);
+    final sheetList = find.byKey(const ValueKey('listing-ai-scroll'));
+    if (sheetList.evaluate().isNotEmpty) {
+      final controller = tester.widget<ListView>(sheetList).controller!;
+      for (var step = 0; step < 50 && finder.evaluate().isEmpty; step++) {
+        final offset = (controller.offset + 220).clamp(0, controller.position.maxScrollExtent).toDouble();
+        if (offset == controller.offset) break;
+        controller.jumpTo(offset);
+        await tester.pumpAndSettle();
+      }
+    } else {
+      await tester.scrollUntilVisible(finder, 220, scrollable: find.byType(Scrollable).first);
+    }
   }
   await tester.ensureVisible(finder); await tester.pumpAndSettle();
 }

@@ -99,7 +99,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
     final mode = _modeFor(user);
-    final shell = _shellFor(mode, user);
+    final shell = _shellFor(mode);
 
     final accountScope = '$mode:${user?.id ?? 'guest'}';
     if (_lastMode != accountScope) {
@@ -179,11 +179,11 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     return 'regular';
   }
 
-  _ShellData _shellFor(String mode, dynamic user) {
+  _ShellData _shellFor(String mode) {
     switch (mode) {
       case 'broker':
         return _ShellData(pages: [
-          MarketplaceHomeScreen(showAdvertiserActions: user.hasVerifiedProfessionalProfile == true),
+          const MarketplaceHomeScreen(),
           const Stage6AuthGate(requireProfessional: true, child: BrokerDashboardScreen()),
           const Stage6AuthGate(requireProfessional: true, child: BrokerConnectionsScreen()),
           const AccountScreen(),
@@ -199,7 +199,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             SupportAgentHomeScreen(),
             SupportTasksScreen(initialScope: 'inbox', title: 'الوارد'),
             SupportTasksScreen(initialScope: 'mine', title: 'مهامي'),
-            Stage6AuthGate(child: MessagesScreen()),
+            Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
             AccountScreen(),
           ],
           items: [
@@ -216,7 +216,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             SupportManagerHomeScreen(),
             SupportTasksScreen(initialScope: 'all', title: 'الأعمال'),
             SupportTeamScreen(),
-            Stage6AuthGate(child: MessagesScreen()),
+            Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
             AccountScreen(),
           ],
           items: [
@@ -246,7 +246,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         );
       case 'advertiser':
         return const _ShellData(pages: [
-          MarketplaceHomeScreen(showAdvertiserActions: true), MarketplaceSearchMapScreen(embedded: true), Stage6AuthGate(child: MessagesScreen()), AccountScreen(),
+          MarketplaceHomeScreen(), MarketplaceSearchMapScreen(embedded: true), Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()), AccountScreen(),
         ], items: [
           _NavItemData(label: 'العقارات', icon: Icons.home_outlined),
           _NavItemData(label: 'الخريطة', icon: Icons.map_outlined),
@@ -257,9 +257,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       default:
         return _ShellData(
           pages: [
-            MarketplaceHomeScreen(showAdvertiserActions: mode == 'advertiser'),
-            const Stage6AuthGate(child: MessagesScreen()),
-            const Stage6AuthGate(requireListingEligible: true, child: MyListingsScreen()),
+            const MarketplaceHomeScreen(),
+            const Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
+            const Stage6AuthGate(requireListingEligible: true, guestIcon: Icons.inventory_2_outlined, child: MyListingsScreen()),
             const AccountScreen(),
           ],
           items: const [

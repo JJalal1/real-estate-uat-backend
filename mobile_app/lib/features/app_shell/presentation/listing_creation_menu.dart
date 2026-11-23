@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_typography.dart';
+
 import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 
@@ -142,7 +144,7 @@ class _ListingCreationMenuState extends State<ListingCreationMenu>
   Size _measure(BuildContext context, String label, double width, double maxWidth) {
     final painter = TextPainter(
       text: TextSpan(text: label, style: DefaultTextStyle.of(context).style.merge(TextStyle(
-        fontFamily: 'PrimaryFont', fontFamilyFallback: const ['sans-serif'],
+        fontFamily: AppTypography.fontFamily, fontFamilyFallback: AppTypography.fontFamilyFallback,
         fontSize: 12.rf(context), fontWeight: FontWeight.w500, height: 1.3,
       ))),
       textDirection: TextDirection.rtl,

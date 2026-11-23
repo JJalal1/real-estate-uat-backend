@@ -1,62 +1,40 @@
 import 'package:flutter/material.dart';
 
-/// Manrope PrimaryFont and 1.3 line height from the purchased eBroker source.
-/// Arabic follows the Android system fallback, as in the purchased template.
+/// Bundled Cairo typography for Arabic and mixed Arabic/Latin text.
 abstract final class AppTypography {
-  static const fontFamily = 'PrimaryFont';
-  static const fontFamilyFallback = <String>['sans-serif'];
+  static const fontFamily = 'Cairo';
+  static const fontFamilyFallback = <String>['NotoSansArabic', 'PrimaryFont', 'sans-serif'];
 
-  static const headlineLarge = TextStyle(
-    fontSize: 24,
-    height: 1.3,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0,
-    fontFamilyFallback: fontFamilyFallback,
-  );
-  static const headlineMedium = TextStyle(
-    fontSize: 24,
-    height: 1.3,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0,
-    fontFamilyFallback: fontFamilyFallback,
-  );
-  static const headlineSmall = TextStyle(
+  static const screenTitle = TextStyle(
     fontSize: 22,
     height: 1.3,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
-  static const titleLarge = TextStyle(
-    fontSize: 18,
+  static const sectionTitle = TextStyle(
+    fontSize: 19,
     height: 1.3,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 0,
-    fontFamilyFallback: fontFamilyFallback,
-  );
-  static const titleMedium = TextStyle(
-    fontSize: 18,
-    height: 1.3,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const titleSmall = TextStyle(
-    fontSize: 16,
+    fontSize: 17,
     height: 1.3,
     fontWeight: FontWeight.w600,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const bodyLarge = TextStyle(
-    fontSize: 16,
+    fontSize: 15,
     height: 1.3,
     fontWeight: FontWeight.w400,
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
   static const bodyMedium = TextStyle(
-    fontSize: 14,
+    fontSize: 15,
     height: 1.3,
     fontWeight: FontWeight.w400,
     letterSpacing: 0,
@@ -90,6 +68,32 @@ abstract final class AppTypography {
     letterSpacing: 0,
     fontFamilyFallback: fontFamilyFallback,
   );
+
+  static const propertyPrice = TextStyle(
+    fontSize: 22,
+    height: 1.3,
+    fontWeight: FontWeight.w700,
+  );
+  static const propertyName = TextStyle(
+    fontSize: 17,
+    height: 1.45,
+    fontWeight: FontWeight.w600,
+  );
+  static const propertySecondary = TextStyle(
+    fontSize: 14,
+    height: 1.45,
+    fontWeight: FontWeight.w400,
+  );
+  static const dealBadge = TextStyle(
+    fontSize: 13,
+    height: 1.3,
+    fontWeight: FontWeight.w600,
+  );
+  static const headlineLarge = screenTitle;
+  static const headlineMedium = screenTitle;
+  static const headlineSmall = screenTitle;
+  static const titleLarge = sectionTitle;
+  static const titleMedium = sectionTitle;
 
   static const textTheme = TextTheme(
     displayLarge: headlineLarge,

@@ -147,7 +147,8 @@ void main() {
     expect(find.text('المبنى والوحدة متطابقان'), findsOneWidget);
 
     final openReview = find.text('متابعة التحقيق');
-    await tester.scrollUntilVisible(openReview, 180, scrollable: _verticalList.first);
+    await tester.scrollUntilVisible(openReview.hitTestable(), 180, scrollable: _verticalList.first);
+    await tester.pumpAndSettle();
     await tester.tap(openReview);
     await tester.pumpAndSettle();
     final reviewPage = find.byType(ListingReviewCaseScreen);

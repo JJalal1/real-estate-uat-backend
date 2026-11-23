@@ -1,3 +1,4 @@
+import 'package:real_estate_mobile/core/formatters/money.dart';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -271,7 +272,11 @@ void main() {
     await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
     await native.emit('map#onStyleLoaded');
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('map-open-search')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('marketplace-map-find-address')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
     expect(native.fits, 1);
     await native.emit('camera#onIdle');
     await uxFrames(tester);
@@ -481,7 +486,7 @@ void main() {
       expect(
           drawer.items.map((row) => (row.id, row.discoveryMatch!.nearby)), all);
       expect(drawer.more, isFalse);
-      expect(find.text('${all.length} نتيجة'), findsOneWidget);
+      expect(find.text('${arabicDigits(all.length.toString())} نتيجة'), findsOneWidget);
 
       if (id == 6) {
         // Moving the map itself still commits a viewport for the current search.
