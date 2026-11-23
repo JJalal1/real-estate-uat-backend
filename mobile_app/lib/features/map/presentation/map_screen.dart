@@ -1182,7 +1182,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _openDetails(PropertyMarker property) async {
     if (!_journeyCurrent) return;
-    setState(() => _selected = property);
     await context.push('/properties/${property.id}', extra: PropertySummary(id: property.id, title: property.title,
       purpose: property.purpose ?? '', type: property.type ?? '', price: property.price, currency: property.currency,
       latitude: property.latitude, longitude: property.longitude, monthlyRent: property.monthlyRent,
@@ -1748,11 +1747,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final search=ref.read(_searchSession), controller=_mapController;
     if(controller==null || !_journeyCurrent)return;
     final values=search.filters.values;
-    if((widget.enforceViewport || search.filters.hasMapArea) && const ['south','west','north','east'].every((key)=>values[key] is num)) {
+    final hasViewport = (widget.enforceViewport || search.filters.hasMapArea) &&
+        const ['south', 'west', 'north', 'east'].every((key) => values[key] is num);
+    final drawnBounds = _selectedAreaGeometry?.bounds;
+    if (hasViewport || drawnBounds != null) {
       // Reopening the same map restores its actual bounds, including an empty
       // result viewport, rather than fitting only its remaining listing pins.
-      final bounds=LatLngBounds(southwest:LatLng((values['south'] as num).toDouble(),(values['west'] as num).toDouble()),
-        northeast:LatLng((values['north'] as num).toDouble(),(values['east'] as num).toDouble()));
+      final bounds = hasViewport
+          ? LatLngBounds(southwest: LatLng((values['south'] as num).toDouble(), (values['west'] as num).toDouble()),
+              northeast: LatLng((values['north'] as num).toDouble(), (values['east'] as num).toDouble()))
+          : drawnBounds!;
       _fittingShared=true;
       try {
         await controller.moveCamera(CameraUpdate.newLatLngBounds(bounds,left:0,top:0,right:0,bottom:0));

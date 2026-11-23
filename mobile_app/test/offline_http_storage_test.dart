@@ -140,8 +140,9 @@ void main() {
         requestOptions: r, type: DioExceptionType.connectionError);
     expect((await dio.get<dynamic>('/properties/7')).extra['offline_snapshot'],
         true);
-    expect(connection.current, OfflineConnection.unavailable);
-    connection.online();
+    await connection.check(force: true);
+    // No failing health probe or lost Android route confirmed an outage.
+    expect(connection.current, OfflineConnection.online);
     wire.response = (_) =>
         ResponseBody.fromString('{"message":"unavailable"}', 503, headers: {
           'content-type': ['application/json']
