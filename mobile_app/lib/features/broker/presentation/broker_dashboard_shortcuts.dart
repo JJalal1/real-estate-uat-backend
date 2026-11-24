@@ -41,7 +41,9 @@ final _resumableDraftProvider = FutureProvider.autoDispose<bool>((ref) async {
     // An unavailable device cache does not rule out a saved account draft.
   }
   if (!current() || connection == OfflineConnection.offline ||
-      connection == OfflineConnection.unavailable) return false;
+      connection == OfflineConnection.unavailable) {
+    return false;
+  }
   final drafts = await ref.read(listingAccountDraftRepositoryProvider)
       .list().timeout(const Duration(seconds: 15));
   return current() && drafts.any((draft) => !draft.isRetired);
@@ -63,7 +65,9 @@ class BrokerDashboardShortcuts extends ConsumerWidget {
     );
     if (property == null || !context.mounted || !scope.isCurrent ||
         Stage6SecureSessionStore.instance.sessionEpoch != epoch ||
-        ref.read(authControllerProvider).asData?.value?.id != actor) return;
+        ref.read(authControllerProvider).asData?.value?.id != actor) {
+      return;
+    }
     await sharePublicProperty(context, property);
   }
 
