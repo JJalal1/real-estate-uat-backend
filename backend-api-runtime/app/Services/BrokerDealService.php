@@ -65,6 +65,7 @@ class BrokerDealService
                     'customer_name'=>User::query()->findOrFail($customerId)->name,
                     'record_kind'=>'external_transaction_result','basis'=>$property->purpose === 'rent' ? 'monthly_rent' : 'sale_price'],
                 'advertiser_confirmed_at'=>now(),
+                'advertiser_attention_revision'=>1,
             ]);
             $this->notifications->create($customerId, 'broker_deal_confirmation', 'هل تمت صفقة هذا العقار؟',
                 'المعلن سجل أن الصفقة تمت خارج التطبيق. أكد النتيجة أو أبلغنا إذا لم تتم.',
@@ -84,6 +85,7 @@ class BrokerDealService
             if ($locked->status === 'confirmed' && $confirmed) return $locked;
             if ($locked->status === 'disputed' && ! $confirmed) return $locked;
             if ($locked->status !== 'pending_customer') throw new ConflictHttpException('نتيجة الصفقة حسمت أو تنتظر مراجعة؛ حدّث الصفحة.');
+            $locked->advertiser_attention_revision = (int) $locked->advertiser_attention_revision + 1;
             if ($confirmed) {
                 $locked->forceFill(['status'=>'confirmed','customer_confirmed_at'=>now(),'confirmed_at'=>now()])->save();
                 $this->freezeFinance($locked, $request);
@@ -125,7 +127,8 @@ class BrokerDealService
             $this->tasks->assertTaskExecution($actor,$claimed,$actingAsAgent);
             abort_unless($claimed->isActive() && $locked->status === 'disputed' && (int)$locked->support_case_id === (int)$case->id,409);
             $locked->forceFill(['status'=>$decision === 'retry' ? 'pending_customer' : 'cancelled',
-                'resolved_by_user_id'=>$actor->id,'resolution_note'=>trim($note),'customer_confirmed_at'=>null,'confirmed_at'=>null])->save();
+                'resolved_by_user_id'=>$actor->id,'resolution_note'=>trim($note),'customer_confirmed_at'=>null,'confirmed_at'=>null,
+                'advertiser_attention_revision'=>(int) $locked->advertiser_attention_revision + 1])->save();
             if ($decision === 'cancel') {
                 // A rejected completion claim can be made available again only by normal advertiser confirmation.
                 $property->forceFill(['availability_status'=>'paused','availability_due_at'=>null,'availability_notified_at'=>null])->saveQuietly();

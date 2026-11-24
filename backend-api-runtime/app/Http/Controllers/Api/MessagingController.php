@@ -396,12 +396,16 @@ class MessagingController extends Controller
         $blocks=app(\App\Services\UserMessagingBlockService::class);
         $state=$other?($this->blockStates[(int)$other->user_id] ?? $blocks->statesFor($user->id,[(int)$other->user_id])[(int)$other->user_id]):['can_send'=>false,'blocked_by_me'=>false];
         $canSend=$state['can_send'];
+        $canManageCustomer = app(\App\Services\ListingAccessService::class)->isProfessional($user)
+            && (int) ($thread->property?->user_id ?? 0) === (int) $user->id
+            && (int) $thread->started_by_user_id !== (int) $user->id;
         return [
             'can_send'=>(bool)$canSend,'blocked_by_me'=>$state['blocked_by_me'],
             'id'=>$thread->id,'context_type'=>str_starts_with((string)$thread->conversation_key,'broker:')?'broker':'property','property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,
             'property_status'=>$thread->property?->status === 'published' && !$thread->property->isPubliclyAvailable() ? 'unavailable' : $thread->property?->status,
-            'can_manage_customer'=>app(\App\Services\ListingAccessService::class)->isProfessional($user) && (int)($thread->property?->user_id ?? 0) === (int)$user->id && (int)$thread->started_by_user_id !== (int)$user->id,
-            'lead_stage'=>$thread->lead_stage,
+            'can_manage_customer'=>$canManageCustomer,
+            'customer_stage_classification_v2'=>$canManageCustomer,
+            'lead_stage'=>$canManageCustomer ? $thread->lead_stage : 'new',
             'other_user'=>['id'=>$other?->user_id,'name'=>$other?->user_name_snapshot??'مستخدم'],
             'can_call_advertiser'=>$canSend && ($thread->property?->isPubliclyAvailable() ?? false) && (int)($thread->property?->user_id??0)!==(int)$user->id,
             'unread_count'=>(int)($unread??0),'last_message_preview'=>$latest?->body?mb_substr($latest->body,0,120):null,

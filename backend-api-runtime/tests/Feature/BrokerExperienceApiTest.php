@@ -352,6 +352,119 @@ class BrokerExperienceApiTest extends TestCase
         $this->withHeaders($bh)->getJson('/api/broker/customers?filter=all')->assertJsonCount(1,'data');
     }
 
+    public function test_customer_classification_is_explicit_private_and_scoped_to_listing(): void
+    {
+        [$broker, $bh] = $this->actor('classification-broker', true);
+        [, $ch] = $this->actor('classification-customer');
+        [, $oh] = $this->actor('classification-outsider', true);
+        $saleThread = $this->conversation($ch, $this->listing($broker));
+        $rent = $this->listing($broker, 'rent');
+        $rentThread = $this->conversation($ch, $rent);
+        $saleStage = '/api/broker/customers/'.$saleThread.'/stage';
+        $rentStage = '/api/broker/customers/'.$rentThread.'/stage';
+
+        $this->withHeaders($ch)->postJson('/api/messages/threads/'.$saleThread.'/messages', [
+            'body' => 'أرغب في الاستفسار', 'client_message_id' => 'classification-first-message',
+        ])->assertCreated();
+        $this->assertDatabaseHas('message_threads', ['id' => $saleThread, 'lead_stage' => 'new', 'lead_updated_at' => null]);
+        $this->withHeaders($bh)->patchJson($rentStage, ['stage' => 'viewing'])->assertOk();
+        $this->withHeaders($bh)->getJson('/api/broker/customers?stage=unclassified')->assertOk()
+            ->assertJsonPath('meta.customer_stage_classification_v2', true)->assertJsonCount(2, 'data');
+        $this->withHeaders($oh)->patchJson($saleStage, ['stage' => 'reserved'])->assertNotFound();
+        $this->withHeaders($bh)->patchJson($saleStage, ['stage' => 'completed'])->assertUnprocessable();
+        $this->withHeaders($bh)->patchJson($saleStage, ['stage' => 'appointment_set'])->assertOk()
+            ->assertJsonPath('data.stage', 'appointment_set');
+        $this->withHeaders($bh)->patchJson($rentStage, ['stage' => 'reserved'])->assertOk()
+            ->assertJsonPath('data.stage', 'reserved');
+        $this->withHeaders($bh)->getJson('/api/broker/customers?stage=reserved')->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.thread_id', $rentThread);
+        $this->withHeaders($bh)->getJson('/api/messages/threads/'.$rentThread)->assertOk()
+            ->assertJsonPath('data.thread.customer_stage_classification_v2', true)
+            ->assertJsonPath('data.thread.lead_stage', 'reserved');
+        $this->withHeaders($ch)->getJson('/api/messages/threads/'.$rentThread)->assertOk()
+            ->assertJsonPath('data.thread.customer_stage_classification_v2', false)
+            ->assertJsonPath('data.thread.lead_stage', 'new');
+        $this->assertDatabaseHas('properties', ['id' => $rent->id, 'availability_status' => 'available']);
+        $this->assertDatabaseCount('broker_deal_outcomes', 0);
+        $this->withHeaders($bh)->patchJson($saleStage, ['stage' => 'new'])->assertOk();
+        $this->withHeaders($bh)->getJson('/api/broker/customers?stage=unclassified')->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.thread_id', $saleThread);
+    }
+
+    public function test_deal_view_only_clears_the_revision_seen_by_the_advertiser(): void
+    {
+        [$broker, $bh] = $this->actor('unseen-broker', true);
+        [, $ch] = $this->actor('unseen-customer');
+        [, $oh] = $this->actor('unseen-outsider', true);
+        $thread = $this->conversation($ch, $this->listing($broker));
+        $dealId = $this->withHeaders($bh)->postJson('/api/broker/customers/'.$thread.'/completed-deal', [])
+            ->assertCreated()->json('data.id');
+        $url = '/api/broker/deals/'.$dealId;
+        $this->withHeaders($bh)->getJson('/api/broker/workspace')->assertOk()
+            ->assertJsonPath('data.capabilities.broker_deal_view_tracking', true)
+            ->assertJsonPath('data.needs_attention.unseen_deal_count', 1)
+            ->assertJsonPath('data.needs_attention.outstanding_receivables_count', 0)
+            ->assertJsonPath('data.achievements.first_confirmed_deal', false);
+        $this->withHeaders($oh)->getJson('/api/broker/workspace')->assertOk()
+            ->assertJsonPath('data.needs_attention.unseen_deal_count', 0);
+        $this->withHeaders($ch)->getJson($url)->assertOk()->assertJsonPath('data.advertiser_view_revision', null);
+        $this->withHeaders($ch)->postJson($url.'/seen', ['revision' => 1])->assertNotFound();
+        $this->withHeaders($bh)->getJson($url)->assertOk()->assertJsonPath('data.advertiser_view_revision', 1);
+        $this->withHeaders($bh)->postJson($url.'/seen', ['revision' => 1])->assertNoContent();
+        $this->withHeaders($bh)->getJson('/api/broker/workspace')->assertOk()
+            ->assertJsonPath('data.needs_attention.unseen_deal_count', 0);
+
+        $this->withHeaders($ch)->postJson($url.'/decision', ['confirmed' => true])->assertOk();
+        $this->withHeaders($bh)->postJson($url.'/seen', ['revision' => 1])->assertNoContent();
+        $this->withHeaders($bh)->getJson($url)->assertOk()->assertJsonPath('data.advertiser_view_revision', 2);
+        $this->withHeaders($bh)->getJson('/api/broker/workspace')->assertOk()
+            ->assertJsonPath('data.needs_attention.unseen_deal_count', 1)
+            ->assertJsonPath('data.needs_attention.outstanding_receivables_count', 1)
+            ->assertJsonPath('data.achievements.first_confirmed_deal', true);
+        $this->withHeaders($bh)->postJson($url.'/seen', ['revision' => 2])->assertNoContent();
+        $this->withHeaders($bh)->postJson($url.'/seen', ['revision' => 2])->assertNoContent();
+        $this->withHeaders($bh)->getJson($url)->assertOk()->assertJsonPath('data.advertiser_view_revision', null);
+        $this->withHeaders($bh)->getJson('/api/broker/workspace')->assertOk()
+            ->assertJsonPath('data.needs_attention.unseen_deal_count', 0);
+    }
+
+    public function test_achievements_count_actual_inquiries_and_unique_replied_customers(): void
+    {
+        $this->travelTo(now('Asia/Aden')->setDate(2026, 11, 10)->setTime(12, 0)->utc());
+        [$broker, $bh] = $this->actor('achievements-broker', true);
+        [, $ch] = $this->actor('achievements-customer');
+        [, $oh] = $this->actor('achievements-other');
+        $sale = $this->listing($broker);
+        $rent = $this->listing($broker, 'rent');
+        $saleThread = $this->conversation($ch, $sale);
+        $rentThread = $this->conversation($ch, $rent);
+        $oldThread = $this->conversation($oh, $sale);
+        $this->conversation($oh, $rent);
+
+        foreach ([$saleThread, $rentThread] as $thread) {
+            $url = '/api/messages/threads/'.$thread.'/messages';
+            $this->withHeaders($ch)->postJson($url, [
+                'body' => 'هل العقار متاح؟', 'client_message_id' => 'achievement-inquiry-'.$thread,
+            ])->assertCreated();
+            $this->withHeaders($bh)->postJson($url, [
+                'body' => 'العقار متاح', 'client_message_id' => 'achievement-reply-'.$thread,
+            ])->assertCreated();
+        }
+        $oldUrl = '/api/messages/threads/'.$oldThread.'/messages';
+        $this->withHeaders($oh)->postJson($oldUrl, [
+            'body' => 'استفسار قديم', 'client_message_id' => 'achievement-earlier-inquiry',
+        ])->assertCreated();
+        DB::table('private_messages')->where('thread_id', $oldThread)->update(['created_at' => now()->subMonth()]);
+        $this->withHeaders($oh)->postJson($oldUrl, [
+            'body' => 'متابعة الاستفسار السابق', 'client_message_id' => 'achievement-earlier-followup',
+        ])->assertCreated();
+
+        $this->withHeaders($bh)->getJson('/api/broker/workspace')->assertOk()
+            ->assertJsonPath('data.achievements.customers_replied_to_this_week', 1)
+            ->assertJsonPath('data.achievements.listing_inquiries_this_month', 2)
+            ->assertJsonPath('data.achievements.customer_ratings_count', 0);
+    }
+
     public function test_retired_broker_viewing_lists_preserve_both_legacy_rows_without_exposing_them(): void
     {
         [$broker,$bh]=$this->actor('daily-viewings',true);

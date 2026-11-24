@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AdvertiserRating;
 use App\Models\BrokerDealOutcome;
 use App\Models\MessageThread;
 use App\Models\Property;
@@ -19,14 +20,19 @@ use App\Services\BrokerDealService;
 use App\Services\BrokerRankingService;
 use App\Services\PropertyFinancialService;
 use App\Services\UserNotificationService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class BrokerExperienceController extends Controller
 {
+    private const EDITABLE_CUSTOMER_STAGES = ['new', 'contacted', 'viewing', 'not_interested', 'appointment_set', 'reserved'];
+
     public function __construct(
         private readonly BrokerAvailabilityService $availability,
         private readonly BrokerDealService $deals,
@@ -132,19 +138,74 @@ class BrokerExperienceController extends Controller
         $original['needs_attention']['customer_followups_due']=BrokerCustomerFollowup::query()->where('user_id',$actor->id)->where('remind_at','<=',now())->whereIn('message_thread_id',(clone $threads)->select('message_threads.id'))->count();
         $original['needs_attention']['availability_count']=$freshness;
         $original['needs_attention']['pending_deal_count']=BrokerDealOutcome::query()->where('advertiser_user_id',$actor->id)->whereIn('status',['pending_customer','disputed'])->count();
+        $original['needs_attention']['unseen_deal_count'] = BrokerDealOutcome::query()
+            ->where('advertiser_user_id', $actor->id)
+            ->whereColumn('advertiser_seen_revision', '<', 'advertiser_attention_revision')
+            ->count();
+        $original['needs_attention']['outstanding_receivables_count'] = PropertyPlatformReceivable::query()
+            ->where('advertiser_user_id', $actor->id)
+            ->whereIn('status', ['open', 'under_review', 'overdue', 'disputed'])
+            ->whereColumn('amount_paid', '<', 'amount_total')
+            ->count();
         $original['financial_summary']=$this->finance->financialSummaryFor($actor);
         $original['best_listing']=(clone $own)->where('status','published')->orderByDesc('view_count')->first(['id','title','view_count']);
+        $original['achievements'] = $this->achievements($actor, $threads, $completed > 0);
+        $original['capabilities'] = [
+            'customer_stage_classification_v2' => true,
+            'broker_deal_view_tracking' => true,
+        ];
         return response()->json(['data'=>$original]);
+    }
+
+    private function achievements(User $actor, Builder $threads, bool $hasConfirmedDeal): array
+    {
+        $localNow = now('Asia/Aden');
+        $weekStart = $localNow->copy()->startOfWeek()->utc();
+        $monthStart = $localNow->copy()->startOfMonth()->utc();
+        $replies = DB::table('private_messages as reply')
+            ->selectRaw('1')
+            ->whereColumn('reply.thread_id', 'message_threads.id')
+            ->where('reply.sender_user_id', $actor->id)
+            ->where('reply.created_at', '>=', $weekStart)
+            ->whereExists($this->customerMessages()->whereColumn('inquiry.id', '<', 'reply.id'));
+
+        return [
+            'first_confirmed_deal' => $hasConfirmedDeal,
+            'customers_replied_to_this_week' => (clone $threads)
+                ->whereExists($replies)->distinct()->count('message_threads.started_by_user_id'),
+            'customer_ratings_count' => AdvertiserRating::query()
+                ->where('advertiser_user_id', $actor->id)->where('status', 'visible')
+                ->confirmedCustomerRatings()->count(),
+            'listing_inquiries_this_month' => (clone $threads)
+                ->whereExists($this->customerMessages()->where('inquiry.created_at', '>=', $monthStart))
+                ->whereNotExists($this->customerMessages()->where('inquiry.created_at', '<', $monthStart))
+                ->count(),
+        ];
+    }
+
+    private function customerMessages(): QueryBuilder
+    {
+        return DB::table('private_messages as inquiry')
+            ->selectRaw('1')
+            ->whereColumn('inquiry.thread_id', 'message_threads.id')
+            ->whereColumn('inquiry.sender_user_id', 'message_threads.started_by_user_id')
+            ->where(fn (QueryBuilder $message) => $message->whereNull('inquiry.client_message_id')
+                ->orWhere('inquiry.client_message_id', 'not like', 'sys-call:%'));
     }
 
     public function customers(Request $request): JsonResponse
     {
         $actor=$request->filled('property_id') ? $this->advertiser($request) : $this->professional($request);
-        $v=$request->validate(['stage'=>['nullable',Rule::in(['new','contacted','viewing','not_interested','completed'])],
+        $v=$request->validate(['stage'=>['nullable',Rule::in([...self::EDITABLE_CUSTOMER_STAGES, 'completed', 'unclassified'])],
             'filter'=>['nullable',Rule::in(['all','unread','followup_due'])], 'page'=>['nullable','integer','min:1'],'property_id'=>['nullable','integer','min:1']]);
         $query=$this->customerQuery($actor)->with(['property:id,title,status,availability_status','participants'])
             ->select('message_threads.*')->selectSub($this->unreadMessages($actor)->selectRaw('COUNT(*)'), 'unread_count');
-        if (!empty($v['stage'])) $query->where('lead_stage',$v['stage']);
+        if (($v['stage'] ?? null) === 'unclassified') {
+            $query->where(fn (Builder $stage) => $stage->whereNull('lead_stage')
+                ->orWhereIn('lead_stage', ['new', 'contacted', 'viewing']));
+        } elseif (!empty($v['stage'])) {
+            $query->where('lead_stage', $v['stage']);
+        }
         if (!empty($v['property_id'])) $query->where('property_id',$v['property_id']);
         if (($v['filter'] ?? null) === 'unread') $query->whereExists($this->unreadMessages($actor)->selectRaw('1'));
         if (($v['filter'] ?? null) === 'followup_due') $query->whereIn('message_threads.id', BrokerCustomerFollowup::query()
@@ -161,7 +222,8 @@ class BrokerExperienceController extends Controller
             'unread_count'=>(int)$thread->unread_count,
             'followup'=>$this->followupData($followups->get($thread->id)),
             'deal'=>$outcomes->has($thread->id) ? $this->outcomeData($outcomes->get($thread->id),$actor) : null,
-        ])->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage()]]);
+        ])->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),
+            'customer_stage_classification_v2'=>true]]);
     }
 
     public function customerFollowup(Request $request, MessageThread $thread): JsonResponse
@@ -213,7 +275,7 @@ class BrokerExperienceController extends Controller
     public function updateCustomer(Request $request, MessageThread $thread): JsonResponse
     {
         $actor=$this->professional($request);
-        $v=$request->validate(['stage'=>['required',Rule::in(['new','contacted','viewing','not_interested'])]]);
+        $v=$request->validate(['stage'=>['required',Rule::in(self::EDITABLE_CUSTOMER_STAGES)]]);
         return DB::transaction(function () use ($actor,$thread,$v,$request): JsonResponse {
             $locked=$this->customerQuery($actor)->whereKey($thread->id)->lockForUpdate()->firstOrFail();
             abort_if(BrokerDealOutcome::query()->where('message_thread_id',$locked->id)->where('status','confirmed')->exists(),409,'العميل مرتبط بصفقة مكتملة مؤكدة.');
@@ -274,6 +336,21 @@ class BrokerExperienceController extends Controller
         $actor=$request->user();
         abort_unless(in_array((int)$actor->id,[(int)$outcome->advertiser_user_id,(int)$outcome->customer_user_id],true),404);
         return response()->json(['data'=>$this->outcomeData($outcome,$actor)]);
+    }
+
+    public function viewDeal(Request $request, BrokerDealOutcome $outcome): Response
+    {
+        $actor = $request->user();
+        abort_unless((int) $outcome->advertiser_user_id === (int) $actor->id, 404);
+        $v = $request->validate(['revision' => ['required', 'integer', 'between:1,2147483647']]);
+        DB::table('broker_deal_outcomes')
+            ->where('id', $outcome->id)
+            ->where('advertiser_user_id', $actor->id)
+            ->where('advertiser_attention_revision', $v['revision'])
+            ->where('advertiser_seen_revision', '<', $v['revision'])
+            ->update(['advertiser_seen_revision' => $v['revision']]);
+
+        return response()->noContent();
     }
 
     public function decideDeal(Request $request, BrokerDealOutcome $outcome): JsonResponse
@@ -345,7 +422,11 @@ class BrokerExperienceController extends Controller
 
     private function outcomeData(BrokerDealOutcome $outcome, User $viewer): array
     {
+        $attentionRevision = (int) $outcome->advertiser_attention_revision;
+        $viewRevision = (int) $viewer->id === (int) $outcome->advertiser_user_id
+            && $attentionRevision > (int) $outcome->advertiser_seen_revision ? $attentionRevision : null;
         return ['id'=>$outcome->id,'reference'=>$outcome->reference,'property_id'=>$outcome->property_id,
+            'advertiser_view_revision'=>$viewRevision,
             'thread_id'=>$outcome->message_thread_id,'advertiser_id'=>$outcome->advertiser_user_id,'customer_id'=>$outcome->customer_user_id,
             'status'=>$outcome->status,'transaction_type'=>$outcome->transaction_type,'basis_amount'=>$outcome->basis_amount,'currency'=>$outcome->currency,
             'property_title'=>$outcome->snapshot['property_title'],'customer_name'=>$outcome->snapshot['customer_name'],

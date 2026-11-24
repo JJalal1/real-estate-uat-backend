@@ -22,6 +22,7 @@ Route::middleware(['auth.api','account.active'])->group(function (): void {
     Route::post('/broker/listings/availability', [BrokerExperienceController::class,'changeAvailability']);
     Route::get('/broker/activity', [BrokerExperienceController::class,'activity']);
     Route::get('/broker/deals/{outcome}', [BrokerExperienceController::class,'deal']);
+    Route::post('/broker/deals/{outcome}/seen', [BrokerExperienceController::class,'viewDeal']);
     Route::post('/broker/deals/{outcome}/decision', [BrokerExperienceController::class,'decideDeal']);
     Route::get('/broker/finance', [BrokerExperienceController::class,'finance']);
 });
