@@ -27,13 +27,25 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     Widget priceWithPurpose({bool fillWidth = true}) {
       final label = purposeLabel;
       if (label == null) return money;
+      final badge = EbrokerPurposeLabel(label, key: const ValueKey('property-price-purpose'));
+      if (largeText) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            money,
+            const SizedBox(height: 4),
+            Align(alignment: AlignmentDirectional.centerEnd, child: badge),
+          ],
+        );
+      }
       return Row(
         textDirection: TextDirection.rtl,
         mainAxisSize: fillWidth ? MainAxisSize.max : MainAxisSize.min,
         children: [
           Flexible(fit: fillWidth ? FlexFit.tight : FlexFit.loose, child: money),
           const SizedBox(width: 8),
-          EbrokerPurposeLabel(label, key: const ValueKey('property-price-purpose')),
+          badge,
         ],
       );
     }

@@ -177,7 +177,14 @@ void main() {
       final price = find.descendant(of: first, matching: find.byType(AppPropertyPrice));
       final gallery = find.descendant(of: first, matching: find.byType(PropertyCardGallery));
       expect(find.descendant(of: purpose, matching: find.text('بيع')), findsOneWidget);
-      expect(tester.getRect(purpose).right, lessThan(tester.getRect(price).left));
+      final priceRect = tester.getRect(price);
+      final purposeRect = tester.getRect(purpose);
+      if (scale == 1.0) {
+        expect(purposeRect.right, lessThan(priceRect.left));
+      } else {
+        expect(purposeRect.top, greaterThan(priceRect.bottom));
+        expect(purposeRect.left, closeTo(priceRect.left, 1));
+      }
       expect(tester.getRect(purpose).top, greaterThan(tester.getRect(gallery).bottom));
       expect(find.descendant(of: first, matching: find.byKey(const ValueKey('property-photo-price'))), findsNothing);
       expect(find.descendant(of: first, matching: find.byKey(const ValueKey('compare-property-11'))), findsNothing);
