@@ -45,6 +45,7 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
   int _currentPage = 0;
   bool _visible = true;
   bool _allowMotion = true;
+  bool _stackCards = false;
   bool _foreground = true;
   bool _scrolling = false;
   bool _hovered = false;
@@ -66,6 +67,15 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
     _visible = TickerMode.of(context);
     _allowMotion = !MediaQuery.disableAnimationsOf(context) &&
         !MediaQuery.accessibleNavigationOf(context);
+    final stackCards = MediaQuery.textScalerOf(context).scale(16) >= 24;
+    if (_stackCards != stackCards) {
+      _stackCards = stackCards;
+      _currentPage = 0;
+      _scrolling = false;
+      _hovered = false;
+      _focused = false;
+      _pointers.clear();
+    }
     _scheduleAdvance();
   }
 
@@ -115,7 +125,7 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
 
   void _scheduleAdvance() {
     _advanceTimer?.cancel();
-    if (!_auto || !_allowMotion || !_visible || !_foreground || _scrolling ||
+    if (!_auto || !_allowMotion || _stackCards || !_visible || !_foreground || _scrolling ||
         _focused || _hovered || _pointers.isNotEmpty || widget.achievements.length < 2) {
       return;
     }
@@ -193,7 +203,7 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
         children: [
           Row(children: [
             Expanded(child: Text('إنجازاتك', style: theme.textTheme.titleMedium)),
-            if (achievements.length > 1 && _allowMotion)
+            if (achievements.length > 1 && _allowMotion && !_stackCards)
               IconButton(
                 key: const ValueKey('broker-achievement-autoplay'),
                 tooltip: _auto ? 'إيقاف التنقل التلقائي' : 'استئناف التنقل التلقائي',
@@ -204,8 +214,20 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
                 },
               ),
           ]),
-          if (achievements.length == 1 || !_allowMotion) const SizedBox(height: 8),
-          SizedBox(
+          if (achievements.length == 1 || !_allowMotion || _stackCards)
+            const SizedBox(height: 8),
+          if (_stackCards)
+            Column(
+              key: const ValueKey('broker-achievement-carousel'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (index, achievement) in achievements.indexed) ...[
+                  if (index > 0) const SizedBox(height: 8),
+                  card(achievement),
+                ],
+              ],
+            )
+          else SizedBox(
             key: const ValueKey('broker-achievement-carousel'),
             height: height,
             child: achievements.length == 1
@@ -293,6 +315,7 @@ class _AchievementCard extends StatelessWidget {
           ),
           const SizedBox(width: 9),
           Expanded(child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

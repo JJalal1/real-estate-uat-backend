@@ -190,6 +190,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     expect(repo.seenDeals, [(4, 7)]);
   });
+  testWidgets('achievement cards advance after six seconds and support pause', (tester) async {
+    await _pump(tester, const BrokerDashboardScreen(), BrokerTestRepository());
+    final pages = tester.widget<PageView>(find.descendant(
+      of: find.byKey(const ValueKey('broker-achievement-carousel')),
+      matching: find.byType(PageView),
+    ));
+    expect(pages.controller!.page, 0);
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pumpAndSettle();
+    expect(pages.controller!.page, 1);
+    await tester.tap(find.byKey(const ValueKey('broker-achievement-autoplay')));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 7));
+    expect(pages.controller!.page, 1);
+  });
   final screens = <String, Widget>{'dashboard': const BrokerDashboardScreen(), 'customers': const BrokerCustomersScreen(),
     'availability': const BrokerAvailabilityScreen(), 'deals': const BrokerScaffold(appBar: AppAppBar(title: 'نشاطي'), body: BrokerDealsList()), 'finance': const BrokerFinanceScreen(),
     'public-profile': const BrokerPublicProfileScreen(id: 1), 'directory': const BrokerDirectoryScreen(), 'account': const AccountScreen()};

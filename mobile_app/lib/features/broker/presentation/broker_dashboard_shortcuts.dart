@@ -31,10 +31,10 @@ final _resumableDraftProvider = FutureProvider.autoDispose<bool>((ref) async {
 
   final store = ref.watch(listingRecoveryStoreProvider);
   try {
-    final device = await store.read(actor, null).timeout(const Duration(seconds: 8));
+    final device = await store.read(actor, null);
     if (!current()) return false;
     if (device != null && device['draft_kind'] != 'retired') return true;
-    final saved = await store.saved(actor).timeout(const Duration(seconds: 8));
+    final saved = await store.saved(actor);
     if (!current()) return false;
     if (saved.any((item) => item['draft_kind'] != 'retired')) return true;
   } catch (_) {
@@ -44,9 +44,13 @@ final _resumableDraftProvider = FutureProvider.autoDispose<bool>((ref) async {
       connection == OfflineConnection.unavailable) {
     return false;
   }
-  final drafts = await ref.read(listingAccountDraftRepositoryProvider)
-      .list().timeout(const Duration(seconds: 15));
-  return current() && drafts.any((draft) => !draft.isRetired);
+  try {
+    final drafts = await ref.read(listingAccountDraftRepositoryProvider).list();
+    return current() && drafts.any((draft) => !draft.isRetired);
+  } catch (_) {
+    // The repository already applies the API client's transport deadlines.
+    return false;
+  }
 });
 
 class BrokerDashboardShortcuts extends ConsumerWidget {
