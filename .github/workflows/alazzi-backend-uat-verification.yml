@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   broker-api:
-    name: Broker stages, deal updates and dashboard counts
+    name: Broker workspace, messaging and public listing APIs
     runs-on: ubuntu-latest
     timeout-minutes: 18
     services:
@@ -47,13 +47,14 @@ jobs:
           php artisan key:generate --force
           psql -h 127.0.0.1 -U postgres -d aqer_broker_test -v ON_ERROR_STOP=1 \
             -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
-      - name: Exercise the broker and messaging APIs on SQLite
+      - name: Exercise the broker, messaging and public listing APIs on SQLite
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php
           tests/Feature/Stage11MessagingNotificationsApiTest.php
           tests/Feature/FinancialV1ApiTest.php
+          tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky
-      - name: Exercise the broker API on PostgreSQL and PostGIS
+      - name: Exercise the broker and public listing APIs on PostgreSQL and PostGIS
         env:
           APP_ENV: testing
           DB_CONNECTION: pgsql
@@ -66,5 +67,6 @@ jobs:
           DB_SEARCH_PATH: public,extensions
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php
+          tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky
 

@@ -51,6 +51,7 @@ class Phase3BuyerDiscoveryFavoritesApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.property.id', $published->id)
+            ->assertJsonPath('data.0.property.published_at', $published->published_at->toIso8601String())
             ->assertJsonMissingPath('data.0.property.review_status')
             ->assertJsonMissingPath('data.0.property.property_asset_id')
             ->assertJsonMissingPath('data.0.property.geo_cell_id');
@@ -105,6 +106,7 @@ class Phase3BuyerDiscoveryFavoritesApiTest extends TestCase
             'price' => 31000000,
             'address' => 'صنعاء حدة',
             'review_status' => 'approved',
+            'published_at' => now()->subDays(9)->startOfSecond(),
             'last_review_reason' => 'internal support note',
         ]);
         $this->property($owner, 'Hidden draft', 'draft', [
@@ -116,7 +118,15 @@ class Phase3BuyerDiscoveryFavoritesApiTest extends TestCase
         $list = $this->getJson('/api/properties?purpose=sale&type=apartment&search=حدة&sort=price_asc');
         $list->assertOk()
             ->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('data.0.id', $published->id);
+            ->assertJsonPath('data.0.id', $published->id)
+            ->assertJsonPath('data.0.published_at', $published->published_at->toIso8601String())
+            ->assertJsonMissingPath('data.0.created_at')
+            ->assertJsonMissingPath('data.0.updated_at');
+
+        $this->getJson('/api/marketplace?purpose=sale&type=apartment')
+            ->assertOk()
+            ->assertJsonPath('data.sections.latest.0.id', $published->id)
+            ->assertJsonPath('data.sections.latest.0.published_at', $published->published_at->toIso8601String());
 
         foreach ([
             'review_status',
@@ -133,7 +143,8 @@ class Phase3BuyerDiscoveryFavoritesApiTest extends TestCase
         $details = $this->getJson("/api/properties/{$published->id}");
         $details->assertOk()
             ->assertJsonPath('data.id', $published->id)
-            ->assertJsonPath('data.status', 'published');
+            ->assertJsonPath('data.status', 'published')
+            ->assertJsonPath('data.published_at', $published->published_at->toIso8601String());
 
         foreach ([
             'review_status',

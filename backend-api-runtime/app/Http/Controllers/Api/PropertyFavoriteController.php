@@ -143,6 +143,7 @@ class PropertyFavoriteController extends Controller
             'latitude' => (float) $property->latitude,
             'longitude' => (float) $property->longitude,
             'status' => $property->status,
+            'published_at' => $property->published_at?->toIso8601String(),
             'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
         ];
     }
