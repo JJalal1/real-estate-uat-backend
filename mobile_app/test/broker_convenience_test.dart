@@ -43,28 +43,22 @@ class _Recovery extends ListingRecoveryStore {
 class _Customers extends BrokerTestRepository {
   final filters = <String?>[];
   final stages = <int, String>{};
-  int? savedThreadId;
-  String? savedNote;
-  DateTime? savedDate;
   @override
-  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) async {
+  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter, bool includeOtherThreads = false}) async {
     filters.add(filter);
-    return BrokerPage(items: [
+    final items = [
       BrokerCustomer(threadId: 19, customerName: 'عميل الاختبار', propertyId: 11,
-        propertyTitle: 'شقة الاختبار', stage: stages[19] ?? 'new', unreadCount: 1, privateNote: 'ملاحظة خاصة'),
+        propertyTitle: 'شقة الاختبار', stage: stages[19] ?? 'new', unreadCount: 1,
+        privateNote: 'ملاحظة خاصة', lastMessagePreview: 'عن الشقة'),
       const BrokerCustomer(threadId: 20, customerName: 'عميل الاختبار', propertyId: 12,
-        propertyTitle: 'بيت الاختبار', stage: 'new', unreadCount: 2),
-    ], page: 1, lastPage: 1, customerStageClassificationV2: true);
+        propertyTitle: 'بيت الاختبار', stage: 'new', unreadCount: 2, lastMessagePreview: 'عن البيت'),
+    ];
+    return BrokerPage(items: items.where((item) => stage == null || item.followupStage == stage).toList(),
+      page: 1, lastPage: 1, customerStageClassificationV2: true);
   }
   @override
   Future<void> updateCustomer(int threadId, String stage) async {
     stages[threadId] = stage;
-  }
-  @override
-  Future<void> saveFollowup(int threadId, {required String note, DateTime? remindAt}) async {
-    savedThreadId = threadId;
-    savedNote = note;
-    savedDate = remindAt;
   }
 }
 
@@ -217,27 +211,16 @@ void main() {
     expect(find.text('4/4'), findsOneWidget); expect(find.text('125000'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('customer shortcut applies unread filter and private followup saves through the existing thread', (tester) async {
+  testWidgets('customer shortcut applies unread filter and keeps follow-up notes private on the list', (tester) async {
     final repo = _Customers(); final boundary = GlobalKey();
     await _pump(tester, const BrokerCustomersScreen(initialFilter: 'unread'), repo: repo, boundary: boundary);
     await _capture(tester, boundary, 'convenience-unread-customers');
-    expect(repo.filters.last, 'unread'); expect(find.text('ملاحظة خاصة: ملاحظة خاصة'), findsOneWidget);
+    expect(repo.filters.last, 'unread');
+    expect(find.textContaining('ملاحظة خاصة'), findsNothing);
     expect(find.text('عميل الاختبار'), findsNWidgets(2));
-    expect(find.text('شقة الاختبار'), findsOneWidget);
-    expect(find.text('بيت الاختبار'), findsOneWidget);
-    await tester.tap(find.descendant(
-      of: find.byKey(const ValueKey('broker-customer-19')),
-      matching: find.byTooltip('خيارات البطاقة'),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('ملاحظة وتذكير')); await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, 'يفضل موعد العصر');
-    await tester.tap(find.text('ذكّرني غدًا')); await tester.pumpAndSettle();
-    expect(find.textContaining('الملاحظة والتذكير خاصان'), findsOneWidget);
-    await _capture(tester, boundary, 'convenience-private-followup');
-    await tester.tap(find.text('حفظ المتابعة')); await tester.pumpAndSettle();
-    expect(repo.savedThreadId, 19);
-    expect(repo.savedNote, 'يفضل موعد العصر'); expect(repo.savedDate, isNotNull); expect(repo.savedDate!.hour, 9);
+    expect(find.text('عن الشقة'), findsOneWidget);
+    expect(find.text('عن البيت'), findsOneWidget);
+    expect(find.byTooltip('خيارات البطاقة'), findsNothing);
     expect(tester.takeException(), isNull);
   });
   testWidgets('customer management stays a small action until its sheet opens and never loads bookings', (tester) async {
@@ -275,9 +258,13 @@ void main() {
     expect(repo.stages, {19: 'reserved'});
     await tester.pumpWidget(const SizedBox.shrink());
     await _pump(tester, const BrokerCustomersScreen(), repo: repo);
-    expect(find.text('تم حجز القطع'), findsOneWidget);
-    expect(find.text('تمت الصفقة'), findsNothing);
-    expect(find.text('تصنيف العميل'), findsOneWidget);
+    final reserved = find.byKey(const ValueKey('broker-message-filter-reserved'));
+    await tester.ensureVisible(reserved);
+    await tester.tap(reserved);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('broker-customer-19')), findsOneWidget);
+    expect(find.byKey(const ValueKey('broker-customer-20')), findsNothing);
+    expect(find.text('تصنيف العميل'), findsNothing);
     expect(tester.takeException(), isNull);
   });
   testWidgets('card secondary actions stay reachable with enlarged Arabic text', (tester) async {

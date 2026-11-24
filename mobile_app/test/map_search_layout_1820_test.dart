@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:real_estate_mobile/core/theme/ebroker_design.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
@@ -322,6 +323,7 @@ void main() {
     final purpose = find.byKey(const ValueKey('map-search-purpose'));
     final filters = find.byKey(const ValueKey('published-map-filters'));
     final apartment = find.byKey(const ValueKey('published-type-apartment'));
+    final house = find.byKey(const ValueKey('published-type-house'));
     final search = find.byKey(const ValueKey('map-open-search'));
     final rentChoice = find.byKey(const ValueKey('published-purpose-rent'));
     final lastType = find.byKey(const ValueKey('published-type-farm'));
@@ -348,10 +350,22 @@ void main() {
     await tester.tap(rent);
     await tester.pumpAndSettle();
     expect(scope.read(marketplaceMapResultsProvider).filters.values.containsKey('purpose'), isFalse);
+    Finder selectedGradient(Finder chip) => find.descendant(of: chip, matching: find.byWidgetPredicate(
+      (widget) => widget is Ink && widget.decoration is BoxDecoration &&
+        (widget.decoration! as BoxDecoration).gradient == EbrokerDesign.propertyTypeSelectionGradient,
+    ));
     await _tap(tester, 'published-type-apartment');
     expect(scope.read(marketplaceMapResultsProvider).filters.selectedTypes, ['apartment']);
-    await _tap(tester, 'published-type-apartment');
+    expect(selectedGradient(apartment), findsOneWidget);
+    expect(selectedGradient(house), findsNothing);
+    expect(tester.widget<TextButton>(apartment).style!.foregroundColor!.resolve({}), Colors.white);
+    await _tap(tester, 'published-type-house');
+    expect(scope.read(marketplaceMapResultsProvider).filters.selectedTypes, ['house']);
+    expect(selectedGradient(apartment), findsNothing);
+    expect(selectedGradient(house), findsOneWidget);
+    await _tap(tester, 'published-type-house');
     expect(scope.read(marketplaceMapResultsProvider).filters.selectedTypes, isEmpty);
+    expect(selectedGradient(house), findsNothing);
     await _tap(tester, 'published-map-filters');
     expect(find.byKey(const ValueKey('filter-min_price')), findsOneWidget);
     final area = find.byKey(const ValueKey('filter-min_area_m2'));

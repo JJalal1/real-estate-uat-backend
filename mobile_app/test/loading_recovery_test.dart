@@ -109,7 +109,7 @@ class _Customers implements BrokerRepository {
   Future<BrokerPage<BrokerCustomer>> Function(int)? onCustomers;
   final pages = <int>[];
   @override
-  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) {
+  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter, bool includeOtherThreads = false}) {
     pages.add(page); return onCustomers!(page);
   }
   @override

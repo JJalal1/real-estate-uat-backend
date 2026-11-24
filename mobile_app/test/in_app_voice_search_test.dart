@@ -255,7 +255,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('home-ai-description')), findsNothing);
       expect(find.byKey(const ValueKey('home-ai-voice')), findsNothing);
-      expect(find.byKey(const ValueKey('home-smart-search')), findsNothing);
+      expect(find.byKey(const ValueKey('home-smart-search')), findsOneWidget);
       final assistant = find.byKey(const ValueKey('floating-smart-search'));
       expect(tester.getSize(assistant).width, lessThan(64));
       await preview(tester, boundary, scale == 1 ? 'wave5-home' : 'wave5-home-large');

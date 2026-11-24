@@ -21,14 +21,6 @@ import 'package:real_estate_mobile/features/properties/presentation/listing_edit
 import 'package:real_estate_mobile/features/properties/presentation/property_location_picker_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_location_address.dart';
-import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
-import 'package:real_estate_mobile/features/account/data/account_request_scope.dart';
-import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
-import 'package:real_estate_mobile/features/broker/data/customer_help_store.dart';
-import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
-import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
-import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
-import 'broker_experience_ui_test.dart' show BrokerTestRepository;
 import 'support/wave6_fakes.dart';
 import 'wave6_product_ui_test.dart' show pumpWave6, editorSnapshot, finishWave6, textField, previewWave6;
 
@@ -40,26 +32,6 @@ class _DescriptionAi extends Wave6Ai {
     source = sourceDescription;
     return result.future;
   }
-}
-
-class _Help extends CustomerHelpStore {
-  final accounts=<int>{};
-  @override
-  Future<bool> seen(int accountId) async => accounts.contains(accountId);
-  @override
-  Future<void> markSeen(int accountId) async { accounts.add(accountId); }
-}
-class _Customers extends BrokerTestRepository {
-  @override
-  Future<BrokerPage<BrokerCustomer>> customers({String? stage,int? propertyId,int page=1,String? filter}) async => const BrokerPage(
-    items:[BrokerCustomer(threadId:11,customerName:'عميل اختبار',propertyId:3,propertyTitle:'شقة',stage:'new')],page:1,lastPage:1);
-}
-class _Account extends AuthController {
-  _Account(this.id);
-  final int id;
-  @override
-  Future<AuthUser?> build() async => AuthUser.fromJson({'id':id,'name':'دلال اختبار','phone':'+967771234567','account_status':'active',
-    'phone_verified_at':'2026-10-12T00:00:00Z','profile_completed_at':'2026-10-12T00:00:00Z','verification_profile':{'type':'broker','status':'approved','reviewed_at':'2026-10-12T00:00:00Z'}});
 }
 
 void main() {
@@ -200,20 +172,6 @@ void main() {
     FocusManager.instance.primaryFocus?.unfocus();await tester.pumpAndSettle();
     await previewWave6(tester,boundary,'new-wave-confirmed-location-1.0');
     expect(tester.takeException(),isNull);await finishWave6(tester);
-  });
-
-  testWidgets('customer help is remembered once for each account', (tester) async {
-    final help=_Help();
-    Future<void> open(int id) => pumpWave6(tester,ProviderScope(overrides:[
-      authControllerProvider.overrideWith(()=>_Account(id)),customerHelpStoreProvider.overrideWithValue(help),
-      accountRequestScopeProvider.overrideWith(createAccountRequestScope),
-      brokerRepositoryProvider.overrideWithValue(_Customers()),
-    ],child:const BrokerCustomersScreen()));
-    await open(1);expect(find.byKey(const ValueKey('customer-help-dismiss')),findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('customer-help-dismiss')));await tester.pumpAndSettle();expect(help.accounts,{1});
-    await finishWave6(tester);await open(1);expect(find.byKey(const ValueKey('customer-help-dismiss')),findsNothing);
-    await finishWave6(tester);await open(2);expect(find.byKey(const ValueKey('customer-help-dismiss')),findsOneWidget);
-    expect(find.textContaining('من أول تواصل'),findsOneWidget);await finishWave6(tester);
   });
 
   for(final scale in [1.0,2.4]) {

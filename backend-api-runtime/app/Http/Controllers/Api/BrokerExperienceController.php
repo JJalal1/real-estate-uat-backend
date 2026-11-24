@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AdvertiserRating;
 use App\Models\BrokerDealOutcome;
 use App\Models\MessageThread;
+use App\Models\PrivateMessage;
 use App\Models\Property;
 use App\Models\PropertyPlatformReceivable;
 use App\Models\SupportTask;
@@ -197,12 +198,32 @@ class BrokerExperienceController extends Controller
     {
         $actor=$request->filled('property_id') ? $this->advertiser($request) : $this->professional($request);
         $v=$request->validate(['stage'=>['nullable',Rule::in([...self::EDITABLE_CUSTOMER_STAGES, 'completed', 'unclassified'])],
-            'filter'=>['nullable',Rule::in(['all','unread','followup_due'])], 'page'=>['nullable','integer','min:1'],'property_id'=>['nullable','integer','min:1']]);
-        $query=$this->customerQuery($actor)->with(['property:id,title,status,availability_status','participants'])
+            'filter'=>['nullable',Rule::in(['all','unread','followup_due'])], 'page'=>['nullable','integer','min:1'],
+            'property_id'=>['nullable','integer','min:1'], 'include_other_threads'=>['sometimes','boolean']]);
+        $includeOtherThreads = $request->boolean('include_other_threads')
+            && empty($v['property_id'])
+            && in_array($v['stage'] ?? null, [null, 'unclassified'], true)
+            && ($v['filter'] ?? null) !== 'followup_due';
+        $managed = $this->customerQuery($actor);
+        $managedIds = (clone $managed)->select('message_threads.id');
+        $query = ($includeOtherThreads
+            ? MessageThread::query()->whereHas('participants', fn (Builder $p) => $p->where('user_id', $actor->id))
+            : $managed)
+            ->with(['property:id,title,status,availability_status','participants'])
             ->select('message_threads.*')->selectSub($this->unreadMessages($actor)->selectRaw('COUNT(*)'), 'unread_count');
+        if ($includeOtherThreads) {
+            $query->selectRaw(
+                'CASE WHEN message_threads.id IN ('.$managedIds->toSql().') THEN 1 ELSE 0 END AS is_managed_customer',
+                $managedIds->getBindings(),
+            )->orderByDesc('is_managed_customer');
+        }
         if (($v['stage'] ?? null) === 'unclassified') {
-            $query->where(fn (Builder $stage) => $stage->whereNull('lead_stage')
-                ->orWhereIn('lead_stage', ['new', 'contacted', 'viewing']));
+            $query->where(function (Builder $stage) use ($includeOtherThreads, $managedIds): void {
+                $stage->whereNull('lead_stage')->orWhereIn('lead_stage', ['new', 'contacted', 'viewing']);
+                if ($includeOtherThreads) {
+                    $stage->orWhereNotIn('message_threads.id', $managedIds);
+                }
+            });
         } elseif (!empty($v['stage'])) {
             $query->where('lead_stage', $v['stage']);
         }
@@ -212,17 +233,51 @@ class BrokerExperienceController extends Controller
             ->where('user_id',$actor->id)->whereNotNull('remind_at')->where('remind_at','<=',now())->select('message_thread_id'));
         $page=$query->orderByDesc('last_message_at')->orderByDesc('id')->paginate(30);
         $rows=collect($page->items());
-        $users=User::query()->whereIn('id',$rows->pluck('started_by_user_id'))->get(['id','name'])->keyBy('id');
-        $outcomes=BrokerDealOutcome::query()->whereIn('message_thread_id',$rows->pluck('id'))->get()->keyBy('message_thread_id');
-        $followups=BrokerCustomerFollowup::query()->where('user_id',$actor->id)->whereIn('message_thread_id',$rows->pluck('id'))->get()->keyBy('message_thread_id');
-        return response()->json(['data'=>$rows->map(fn ($thread) => [
-            'thread_id'=>$thread->id,'customer_id'=>$thread->started_by_user_id,'customer_name'=>$users->get($thread->started_by_user_id)?->name ?? 'عميل',
-            'property_id'=>$thread->property_id,'property_title'=>$thread->property?->title,'stage'=>$thread->lead_stage,
-            'last_message_at'=>$thread->last_message_at?->toIso8601String(),
-            'unread_count'=>(int)$thread->unread_count,
-            'followup'=>$this->followupData($followups->get($thread->id)),
-            'deal'=>$outcomes->has($thread->id) ? $this->outcomeData($outcomes->get($thread->id),$actor) : null,
-        ])->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),
+        $latestTextIds = PrivateMessage::query()->whereIn('thread_id', $rows->pluck('id'))
+            ->where(fn (Builder $message) => $message->whereNull('client_message_id')
+                ->orWhere('client_message_id', 'not like', 'sys-call:%'))
+            ->selectRaw('MAX(id)')->groupBy('thread_id');
+        $lastTexts = PrivateMessage::query()->whereIn('id', $latestTextIds)
+            ->get(['thread_id', 'sender_user_id', 'body', 'created_at'])->keyBy('thread_id');
+        $isManaged = fn (MessageThread $thread) => !$includeOtherThreads || (int) $thread->is_managed_customer === 1;
+        $managedPageIds = $rows->filter($isManaged)->pluck('id');
+        $otherParticipants = $rows->mapWithKeys(fn (MessageThread $thread) => [
+            $thread->id => $thread->participants->first(fn ($p) => (int) $p->user_id !== (int) $actor->id),
+        ]);
+        $customerIdFor = fn (MessageThread $thread) => $isManaged($thread)
+            ? $thread->started_by_user_id : $otherParticipants->get($thread->id)?->user_id;
+        $users = User::query()->whereIn('id', $rows->map($customerIdFor)->filter()->unique())
+            ->get(['id', 'name'])->keyBy('id');
+        $outcomes = BrokerDealOutcome::query()->whereIn('message_thread_id', $managedPageIds)
+            ->get()->keyBy('message_thread_id');
+        $followups = BrokerCustomerFollowup::query()->where('user_id', $actor->id)
+            ->whereIn('message_thread_id', $managedPageIds)->get()->keyBy('message_thread_id');
+        $data = $rows->map(function (MessageThread $thread) use (
+            $actor, $isManaged, $customerIdFor, $otherParticipants, $users, $lastTexts, $followups, $outcomes,
+        ): array {
+            $managed = $isManaged($thread);
+            $customerId = $customerIdFor($thread);
+            $last = $lastTexts->get($thread->id);
+            $outcome = $outcomes->get($thread->id);
+
+            return [
+                'thread_id' => $thread->id,
+                'customer_id' => $customerId,
+                'customer_name' => $users->get($customerId)?->name
+                    ?? $otherParticipants->get($thread->id)?->user_name_snapshot ?? 'عميل',
+                'property_id' => $thread->property_id,
+                'property_title' => $thread->property?->title,
+                'can_manage_customer' => $managed,
+                'stage' => $managed ? $thread->lead_stage : null,
+                'last_message_preview' => $last ? mb_substr($last->body, 0, 120) : null,
+                'last_message_at' => $last?->created_at?->toIso8601String(),
+                'last_message_is_mine' => (int) $last?->sender_user_id === (int) $actor->id,
+                'unread_count' => (int) $thread->unread_count,
+                'followup' => $managed ? $this->followupData($followups->get($thread->id)) : null,
+                'deal' => $outcome ? $this->outcomeData($outcome, $actor) : null,
+            ];
+        });
+        return response()->json(['data'=>$data->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),
             'customer_stage_classification_v2'=>true]]);
     }
 

@@ -193,6 +193,8 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::get('/messages/threads', [MessagingController::class, 'threads']);
     Route::post('/properties/{property}/conversation', [MessagingController::class, 'startForProperty']);
     Route::get('/messages/threads/{thread}', [MessagingController::class, 'show']);
+    Route::match(['get', 'post'], '/messages/threads/{thread}/typing', [MessagingController::class, 'typing'])
+        ->middleware('throttle:120,1,message-typing');
     Route::post('/messages/threads/{thread}/messages', [MessagingController::class, 'send'])->middleware('throttle:60,1,message-send');
     Route::post('/messages/threads/{thread}/external-call', [MessagingController::class, 'startExternalCall'])->middleware('throttle:12,1');
     Route::post('/messages/threads/{thread}/read', [MessagingController::class, 'markRead']);

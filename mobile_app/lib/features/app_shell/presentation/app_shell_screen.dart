@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/messaging_system_navigation.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/presentation/account_screen.dart';
@@ -158,31 +159,34 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             }
           }
         },
-        child: Scaffold(
-          body: Stack(children: [
-            ExcludeSemantics(excluding: _createMenuOpen,
-              child: IndexedStack(index: _index, children: lazyPages)),
-            if (const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode))
-              ListingCreationMenu(isOpen: _createMenuOpen,
-                onClose: _closeCreationMenu, onSelected: _selectCreationMode),
-          ]),
-          bottomNavigationBar: AppNavigationBar(
-            destinations: shell.items
-                .map((item) => AppNavDestination(
-                  label: item.label,
-                  icon: item.icon,
-                  unreadCount: item.showsUnreadMessages ? unreadCount : 0,
-                  decorateIcon: item.showsUnreadMessages
-                      ? (icon) => MessageUnreadBadge(child: icon)
-                      : null,
-                ))
-                .toList(growable: false),
-            selectedIndex: _index,
-            onSelected: _selectTab,
-            onCreate: const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode)
-                ? () => _createListing(checkOwnerLimit: checkOwnerLimit)
-                : null,
-            createExpanded: _createMenuOpen,
+        child: MessagingSystemNavigation(
+          enabled: mode == 'broker' && shell.items[_index].showsUnreadMessages,
+          child: Scaffold(
+            body: Stack(children: [
+              ExcludeSemantics(excluding: _createMenuOpen,
+                child: IndexedStack(index: _index, children: lazyPages)),
+              if (const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode))
+                ListingCreationMenu(isOpen: _createMenuOpen,
+                  onClose: _closeCreationMenu, onSelected: _selectCreationMode),
+            ]),
+            bottomNavigationBar: AppNavigationBar(
+              destinations: shell.items
+                  .map((item) => AppNavDestination(
+                    label: item.label,
+                    icon: item.icon,
+                    unreadCount: item.showsUnreadMessages ? unreadCount : 0,
+                    decorateIcon: item.showsUnreadMessages
+                        ? (icon) => MessageUnreadBadge(child: icon)
+                        : null,
+                  ))
+                  .toList(growable: false),
+              selectedIndex: _index,
+              onSelected: _selectTab,
+              onCreate: const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode)
+                  ? () => _createListing(checkOwnerLimit: checkOwnerLimit)
+                  : null,
+              createExpanded: _createMenuOpen,
+            ),
           ),
         ),
       ),

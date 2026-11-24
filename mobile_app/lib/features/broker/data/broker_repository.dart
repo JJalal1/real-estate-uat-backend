@@ -75,13 +75,25 @@ class BrokerRepository {
       if (accountType != null) 'account_type': accountType, if (minRating != null) 'min_rating': minRating}), BrokerProfile.fromJson);
   Future<BrokerProfile> profile(int id) async => BrokerProfile.fromJson(brokerMap((await _get('/advertisers/$id/profile', public: true))['data']));
   Future<Map<String, dynamic>> workspace() async => brokerMap((await _get('/broker/workspace'))['data']);
-  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) async =>
+  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter,
+      bool includeOtherThreads = false}) async =>
     _page(await _get('/broker/customers', query: {'page': page, if (stage != null) 'stage': stage, if (propertyId != null) 'property_id': propertyId,
-      if (filter != null && filter != 'all') 'filter': filter}), BrokerCustomer.fromJson);
+      if (filter != null && filter != 'all') 'filter': filter,
+      if (includeOtherThreads && propertyId == null) 'include_other_threads': 1}), BrokerCustomer.fromJson);
   Future<Map<String, dynamic>> followup(int threadId) async => brokerMap((await _get('/broker/customers/$threadId/followup'))['data']);
   Future<void> saveFollowup(int threadId, {required String note, DateTime? remindAt}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
     await _dio.patch<void>('/broker/customers/$threadId/followup', data: {'private_note': note.trim(), 'remind_at': remindAt?.toUtc().toIso8601String()},
-      options: await _auth.requiredAuthOptions());
+      options: options);
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
   }
   Future<void> updateCustomer(int threadId, String stage) async {
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;

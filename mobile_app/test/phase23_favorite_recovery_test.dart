@@ -86,6 +86,29 @@ void main() {
     expect(mutations, isEmpty);
   });
 
+  testWidgets('the property-card heart stays red only while saved', (tester) async {
+    final mutations = <String>[];
+    await _show(tester, _Auth(), (_) async {
+      return mutations.isNotEmpty && mutations.last == 'add:26:106' ? {106} : <int>{};
+    }, mutations);
+
+    final heart = find.byKey(const ValueKey('favorite-property-106'));
+    Icon heartIcon() => tester.widget<Icon>(find.descendant(of: heart, matching: find.byType(Icon)));
+    expect(heartIcon().icon, Icons.favorite_border_rounded);
+    expect(heartIcon().color, isNull);
+
+    await tester.tap(heart);
+    await tester.pumpAndSettle();
+    expect(heartIcon().icon, Icons.favorite_rounded);
+    expect(heartIcon().color, PropertyFavoriteStatus.savedColor);
+
+    await tester.tap(heart);
+    await tester.pumpAndSettle();
+    expect(heartIcon().icon, Icons.favorite_border_rounded);
+    expect(heartIcon().color, isNull);
+    expect(mutations, ['add:26:106', 'remove:26:106']);
+  });
+
   test('unknown favorite status never becomes an unsaved state', () {
     final failure = PropertyFavoriteStatus.fromAsync(AsyncError<Set<int>>(StateError('offline'), StackTrace.empty), 106);
     expect(failure.failed, isTrue);

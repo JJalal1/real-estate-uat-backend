@@ -166,7 +166,13 @@ void main() {
       expect(find.byKey(const ValueKey('home-purpose-sale')), findsNothing);
       expect(find.byKey(const ValueKey('home-map')), findsNothing);
       expect(find.byKey(const ValueKey('home-filters')), findsNothing);
-      expect(find.byKey(const ValueKey('home-smart-search')), findsNothing);
+      final assistant = find.byKey(const ValueKey('home-smart-search'));
+      expect(assistant, findsOneWidget);
+      expect(tester.getTopLeft(assistant).dy,
+        greaterThan(tester.getBottomLeft(find.byKey(const ValueKey('home-search'))).dy));
+      final assistantImage = find.descendant(of: assistant, matching: find.byType(Image));
+      final assistantHeading = find.descendant(of: assistant, matching: find.text('بحث ذكي'));
+      expect(tester.getCenter(assistantImage).dx, lessThan(tester.getCenter(assistantHeading).dx));
       expect(find.byKey(const ValueKey('floating-map-search')).hitTestable(), findsOneWidget);
       expect(find.byKey(const ValueKey('floating-smart-search')).hitTestable(), findsOneWidget);
       final apartments = find.byWidgetPredicate((widget) =>
@@ -201,7 +207,16 @@ void main() {
       final broker = find.byKey(const ValueKey('home-broker-7'));
       await tester.scrollUntilVisible(broker, 200, scrollable: home);
       expect(find.descendant(of: broker, matching: find.text('دلال اختبار 1393')), findsOneWidget);
-      expect(find.descendant(of: broker, matching: find.textContaining('3 صفقات مؤكدة')), findsOneWidget);
+      Finder withinBroker(String label) => find.descendant(of: broker, matching: find.text(label));
+      final photo = find.descendant(of: broker, matching: find.byType(AspectRatio));
+      final rating = withinBroker('١٢ تقييمًا');
+      final deals = withinBroker('صفقات مؤكدة');
+      final active = withinBroker('عقارات نشطة');
+      expect(tester.getSize(broker).width, scale == 1 ? 206 : closeTo(281.6, .1));
+      expect(tester.getSize(photo).width, greaterThan(tester.getSize(photo).height));
+      expect(tester.getCenter(rating).dx, greaterThan(tester.getCenter(deals).dx));
+      expect(tester.getCenter(deals).dx, greaterThan(tester.getCenter(active).dx));
+      expect(find.descendant(of: broker, matching: find.byIcon(Icons.verified_rounded)), findsOneWidget);
       expect(find.byWidgetPredicate((w) => w is Hero && w.tag == 'agent-hero-7'), findsNothing);
       await uxPreview(tester, boundary, 'w3-two-broker-$scale');
       final first = find.byKey(const ValueKey('home-property-11'));
@@ -237,37 +252,65 @@ void main() {
     });
   }
 
-  testWidgets('weekly brokers follow the search row, advance and support an RTL swipe', (tester) async {
-    final feed = Wave3MarketplaceFake(onFeed: (_) async => const MarketplaceFeed(
-      label: 'ذمار',
-      sectionOrder: [],
-      brokers: [
-        BrokerProfile(id: 7, name: 'دلال الاختبار الأول', type: 'broker', verified: true,
-          rating: 4.8, ratingCount: 12, completedDeals: 3, activeListings: 7),
-        BrokerProfile(id: 8, name: 'دلال الاختبار الثاني', type: 'broker', verified: true,
-          rating: 4.8, ratingCount: 12, completedDeals: 3, activeListings: 7),
-      ],
-    ));
-    final scope = uxContainer(extra: [marketplaceRepositoryProvider.overrideWithValue(feed)]);
-    await pumpUx(tester, scope, const MarketplaceHomeScreen(), size: const Size(412, 820));
-    await tester.pumpAndSettle();
-    final rail = find.byKey(const ValueKey('home-weekly-brokers'));
-    final controller = tester.widget<PageView>(rail).controller!;
-    final search = find.byKey(const ValueKey('home-search'));
-    expect(tester.getTopLeft(rail).dy, greaterThan(tester.getBottomLeft(search).dy));
-    expect(tester.getSize(rail).height, 92);
-    final brokerName = find.descendant(of: rail, matching: find.text('دلال الاختبار الأول'));
-    expect(tester.widget<Text>(brokerName).style!.fontSize, 17);
-    expect(controller.page, 1);
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pumpAndSettle();
-    expect(controller.page, 2);
-    await tester.drag(rail, const Offset(280, 0));
-    await tester.pumpAndSettle();
-    expect(controller.page, 1);
-    expect(tester.takeException(), isNull);
-    await closeUx(tester);
-  });
+  for (final professional in [false, true]) {
+    testWidgets('Home banner and broker card open the right destinations for professional=$professional', (tester) async {
+      final feed = Wave3MarketplaceFake(onFeed: (_) async => const MarketplaceFeed(
+        label: 'ذمار',
+        sectionOrder: [],
+        brokers: [
+          BrokerProfile(id: 7, name: 'دلال الاختبار', type: 'broker', verified: true,
+            rating: 4.8, ratingCount: 12, completedDeals: 3, activeListings: 7),
+        ],
+      ));
+      final scope = uxContainer(
+        user: uxUser(type: professional ? 'broker' : null),
+        extra: [marketplaceRepositoryProvider.overrideWithValue(feed)],
+      );
+      final router = GoRouter(routes: [
+        GoRoute(path: '/', builder: (_, __) => const MarketplaceHomeScreen()),
+        GoRoute(path: '/smart-search', builder: (_, __) => const Scaffold(body: Text('وجهة البحث'))),
+        GoRoute(path: '/add-property', builder: (_, state) => Scaffold(
+          body: Text('وجهة تجهيز الإعلان ${state.uri.queryParameters['assistant']}'))),
+        GoRoute(path: '/advertisers/:id', builder: (_, state) => Scaffold(
+          body: Text('ملف الدلال ${state.pathParameters['id']}'))),
+      ]);
+      addTearDown(router.dispose);
+      await pumpUx(tester, scope, const SizedBox(), router: router, size: const Size(412, 820));
+      final card = find.byKey(const ValueKey('home-smart-search'));
+      expect(find.byKey(const ValueKey('home-weekly-brokers')), findsNothing);
+      expect(find.text(professional ? 'المساعد الذكي' : 'بحث ذكي'), findsOneWidget);
+      expect(find.text(professional
+        ? 'ابحث عن عقار أو جهّز إعلانك'
+        : 'صف العقار اللي تبحث عنه بالنص أو الصوت'), findsOneWidget);
+      await tester.tapAt(tester.getTopLeft(card) + const Offset(20, 25));
+      await tester.pumpAndSettle();
+      if (professional) {
+        expect(find.byType(BottomSheet), findsOneWidget);
+        expect(find.text('تجهيز إعلان'), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('home-assistant-search')));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('وجهة البحث'), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+      if (professional) {
+        await tester.tap(card);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('home-assistant-listing')));
+        await tester.pumpAndSettle();
+        expect(find.text('وجهة تجهيز الإعلان 1'), findsOneWidget);
+        router.pop();
+        await tester.pumpAndSettle();
+      }
+      final broker = find.byKey(const ValueKey('home-broker-7'));
+      await tester.ensureVisible(broker);
+      await tester.tapAt(tester.getTopLeft(broker) + const Offset(15, 25));
+      await tester.pumpAndSettle();
+      expect(find.text('ملف الدلال 7'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await closeUx(tester);
+    });
+  }
 
   testWidgets('Home search, assistant and heading retain readable contrast on dark narrow screens', (tester) async {
     final scope = uxContainer(), boundary = GlobalKey();

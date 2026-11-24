@@ -41,6 +41,7 @@ class AppIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     this.selected = false,
+    this.iconColor,
     super.key,
   });
 
@@ -48,6 +49,7 @@ class AppIconButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback? onPressed;
   final bool selected;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +64,7 @@ class AppIconButton extends StatelessWidget {
           dimension: AppSizes.touchTarget,
           child: IconButton(
             onPressed: onPressed,
-            icon: EbrokerIcon(icon),
+            icon: EbrokerIcon(icon, color: iconColor),
             style: IconButton.styleFrom(
               backgroundColor: selected ? scheme.primaryContainer : null,
               foregroundColor: selected ? scheme.onPrimaryContainer : null,

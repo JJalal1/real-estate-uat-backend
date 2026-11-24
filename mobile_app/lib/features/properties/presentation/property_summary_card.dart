@@ -128,6 +128,6 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
       icon: Container(width: 32, height: 32, alignment: Alignment.center,
         decoration: BoxDecoration(color: Colors.white.withValues(alpha: .96), shape: BoxShape.circle),
         child: _busy ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
-          : Icon(status.icon, size: 19)));
+          : Icon(status.icon, size: 19, color: status.iconColor)));
   }
 }

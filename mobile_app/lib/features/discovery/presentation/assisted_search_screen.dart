@@ -248,7 +248,12 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         onBack: () => Navigator.of(context).maybePop(),
         onPurpose: (purpose) => unawaited(_session.replaceManually(
           SmartSearchFilters.fromMap({...state.filters.values, 'purpose': purpose}))),
-        onType: (type) => unawaited(_session.replaceManually(state.filters.toggleType(type))),
+        onType: (type) {
+          final filters = Map<String, dynamic>.of(state.filters.values)
+            ..remove('types')
+            ..['type'] = type;
+          unawaited(_session.replaceManually(SmartSearchFilters.fromMap(filters)));
+        },
         onSearch: _focusAssistant,
         onFilters: () => _edit(mapActions: actions),
         extraFilters: actions.hasDrawnArea,

@@ -10,7 +10,7 @@ import '../../../core/widgets/viewport_media.dart';
 import '../../broker/domain/broker_models.dart';
 import '../../../core/branding/aqer_brand.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../../core/widgets/ebroker_screen_sections.dart';
+import '../../account/data/auth_controller.dart';
 import '../../properties/presentation/property_summary_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../map/presentation/map_screen.dart';
@@ -21,6 +21,7 @@ import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
 import '../domain/smart_search_filters.dart';
 import '../data/discovery_location.dart';
+import 'home_ai_search_entry.dart';
 import 'smart_search_assistant.dart';
 import '../data/marketplace_search_session.dart';
 
@@ -159,6 +160,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     final location = ref.watch(homeLocationProvider), theme = Theme.of(context);
     final background = theme.colorScheme.surfaceContainerLow;
     final selectedTypes = ref.watch(marketplaceSearchControllerProvider).criteria.selectedTypes;
+    final professional = ref.watch(authControllerProvider.select((state) =>
+      state.asData?.value?.hasVerifiedProfessionalProfile == true));
     final query = _query;
     final feed = ref.watch(marketplaceFeedProvider(query));
     final transientError = feed.hasError && isTransientApiFailure(feed.error!);
@@ -197,6 +200,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           icon: PlatformNotificationUnreadBadge(
             child: EbrokerImage('notification', size: 21, color: theme.colorScheme.onSurface)))]),
       body: SmartSearchAssistantLayer(
+        showHint: false,
         onOpenMap: _openMap,
         onPressed: () => context.push('/smart-search'),
         child: RefreshIndicator(onRefresh: () async {
@@ -219,10 +223,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               suffixIcon: Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
-          if (data != null && data.brokers.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            _HomeBrokerCarousel(profiles: data.brokers.take(3).toList(growable: false)),
-          ],
+          const SizedBox(height: 8),
+          HomeAiSearchEntry(wide: true, professional: professional),
         ])))),
         SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'ماذا تبحث عنه؟', compact: true, onSeeAll: _openMap)),
               SliverToBoxAdapter(child: SizedBox(height: 48 + (MediaQuery.textScalerOf(context).scale(13) - 13) * 2,
@@ -276,7 +278,9 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     final entries = <WidgetBuilder>[];
     if (data.brokers.isNotEmpty) {
       entries.add((context) {
-        final width = (MediaQuery.sizeOf(context).width - 64).clamp(230, 320).toDouble();
+        final viewportWidth = MediaQuery.sizeOf(context).width;
+        final largeText = MediaQuery.textScalerOf(context).scale(12) > 18;
+        final width = viewportWidth * (largeText ? .88 : .50);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -290,18 +294,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
                 for (final broker in data.brokers)
                   Padding(
                     padding: const EdgeInsetsDirectional.only(end: 10),
-                    child: EbrokerAdvertiserCard(
+                    child: _HomeBrokerCard(
                       key: ValueKey('home-broker-${broker.id}'),
                       width: width,
-                      name: broker.name,
-                      identity: broker.typeLabel,
-                      photoUrl: broker.photoUrl,
-                      rating: broker.rating,
-                      ratingCount: broker.ratingCount,
-                      completedDeals: broker.completedDeals,
-                      activeListings: broker.activeListings,
-                      verified: broker.verified,
-                      onTap: () => context.push('/advertisers/${broker.id}'),
+                      profile: broker,
                     ),
                   ),
               ]),
@@ -336,210 +332,135 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   }
 }
 
-class _HomeBrokerCarousel extends StatefulWidget {
-  const _HomeBrokerCarousel({required this.profiles});
-  final List<BrokerProfile> profiles;
-
-  @override
-  State<_HomeBrokerCarousel> createState() => _HomeBrokerCarouselState();
-}
-
-class _HomeBrokerCarouselState extends State<_HomeBrokerCarousel> {
-  late final _pages = PageController(initialPage: _loops ? 1 : 0);
-  bool get _loops => widget.profiles.length > 1;
-  Timer? _timer;
-  int _current = 0;
-  bool _active = true;
-  bool _reducedMotion = false;
-  bool _tickerEnabled = true;
-  ModalRoute<dynamic>? _route;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _reducedMotion = MediaQuery.disableAnimationsOf(context);
-    _tickerEnabled = TickerMode.of(context);
-    _route = ModalRoute.of(context);
-    _schedule();
-  }
-
-  @override
-  void deactivate() {
-    _active = false;
-    _timer?.cancel();
-    super.deactivate();
-  }
-
-  @override
-  void activate() {
-    super.activate();
-    _active = true;
-    _schedule();
-  }
-
-  @override
-  void didUpdateWidget(_HomeBrokerCarousel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.profiles.length != widget.profiles.length) {
-      _current = _current.clamp(0, widget.profiles.length - 1).toInt();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pages.hasClients) _pages.jumpToPage(_current + (_loops ? 1 : 0));
-      });
-      _schedule();
-    }
-  }
-
-  void _schedule() {
-    _timer?.cancel();
-    if (!_active || !_loops || _reducedMotion || !_tickerEnabled) return;
-    _timer = Timer(const Duration(seconds: 4), () {
-      if (!mounted || !_active) return;
-      if (_pages.hasClients && _route?.isCurrent != false) {
-        _moveTo((_pages.page?.round() ?? _current + 1) + 1);
-      } else {
-        _schedule();
-      }
-    });
-  }
-
-  void _moveTo(int page) {
-    if (!_pages.hasClients) return;
-    if (_reducedMotion) {
-      _pages.jumpToPage(page);
-    } else {
-      unawaited(_pages.animateToPage(page,
-        duration: const Duration(milliseconds: 300), curve: Curves.easeOut));
-    }
-  }
-
-  void _onSettled() {
-    if (!_active || !_pages.hasClients) return;
-    final count = widget.profiles.length;
-    final page = _pages.page?.round();
-    if (_loops && (page == 0 || page == count + 1)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_pages.hasClients || _pages.page?.round() != page) return;
-        _pages.jumpToPage(page == 0 ? count : 1);
-      });
-    }
-    _schedule();
-  }
-
-  int _profileIndex(int page) => _loops ? (page - 1) % widget.profiles.length : 0;
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _pages.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scaler = MediaQuery.textScalerOf(context);
-    final scheme = Theme.of(context).colorScheme;
-    return Column(children: [
-      ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          height: 92 + (scaler.scale(19) - 19).clamp(0, double.infinity) * 4,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification.depth != 0) return false;
-              if (notification is ScrollStartNotification) _timer?.cancel();
-              if (notification is ScrollEndNotification) _onSettled();
-              return false;
-            },
-            child: PageView.builder(
-              key: const ValueKey('home-weekly-brokers'),
-              controller: _pages,
-              itemCount: _loops ? widget.profiles.length + 2 : 1,
-              onPageChanged: (page) => setState(() => _current = _profileIndex(page)),
-              itemBuilder: (context, page) => _HomeBrokerCard(profile: widget.profiles[_profileIndex(page)]),
-            ),
-          ),
-        ),
-      ),
-      if (widget.profiles.length > 1)
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          for (var i = 0; i < widget.profiles.length; i++)
-            Semantics(selected: i == _current, child: IconButton(
-              tooltip: widget.profiles[i].name,
-              visualDensity: VisualDensity.compact,
-              onPressed: () => _moveTo(i + 1),
-              icon: Container(
-                width: i == _current ? 20 : 7, height: 7,
-                decoration: BoxDecoration(
-                  color: i == _current ? scheme.primary : scheme.outline,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            )),
-        ]),
-    ]);
-  }
-}
-
 class _HomeBrokerCard extends StatelessWidget {
-  const _HomeBrokerCard({required this.profile});
+  const _HomeBrokerCard({required this.width, required this.profile, super.key});
+
+  final double width;
   final BrokerProfile profile;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final photo = profile.photoUrl;
-    final stats = [
-      if (profile.ratingCount > 0) '${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييمًا',
-      '${profile.completedDeals} صفقات مؤكدة',
-    ].join(' · ');
-    return DecoratedBox(
-      decoration: BoxDecoration(color: scheme.surface),
-      child: Material(type: MaterialType.transparency, child: InkWell(
-        onTap: () => context.push('/advertisers/${profile.id}'),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(children: [
-            ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox.square(
-              dimension: 52,
-              child: ColoredBox(color: scheme.surfaceContainerHighest,
-                child: photo == null ? const EbrokerImage('defaultProfileIcon', size: 52)
-                  : ViewportMedia(builder: (_) => Image.network(photo, fit: BoxFit.cover, cacheWidth: 156,
-                    errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 52))),
-              ),
-            )),
-            const SizedBox(width: 12),
-            Expanded(child: Column(mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    borderRadius: const BorderRadius.all(Radius.circular(4)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text('دلالو الأسبوع',
-                      style: theme.textTheme.labelSmall?.copyWith(color: scheme.onPrimaryContainer),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                ),
-                Row(children: [
-                  Flexible(child: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700, color: scheme.onSurface))),
-                  if (profile.verified) ...[
-                    const SizedBox(width: 5),
-                    Icon(Icons.verified_outlined, color: scheme.primary,
-                      size: 16, semanticLabel: 'موثّق'),
-                  ],
-                ]),
-                Text('${profile.typeLabel} · $stats', maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurface)),
-              ],
-            )),
-          ]),
+    final photoUrl = profile.photoUrl;
+    final fallback = ColoredBox(
+      color: scheme.surfaceContainerHighest,
+      child: Center(child: EbrokerImage('defaultProfileIcon', size: 36, color: scheme.primary)),
+    );
+    final rating = arabicDigits(profile.rating.toStringAsFixed(1)).replaceAll('.', '٫');
+    final ratingCount = profile.ratingCount;
+    final ratingLabel = switch (ratingCount) {
+      0 => 'بلا تقييمات',
+      1 => 'تقييم واحد',
+      2 => 'تقييمان',
+      <= 10 => '${arabicDigits('$ratingCount')} تقييمات',
+      _ => '${arabicDigits('$ratingCount')} تقييمًا',
+    };
+    final labelStyle = theme.textTheme.bodySmall?.copyWith(fontSize: 9, height: 1.2);
+    final valueStyle = theme.textTheme.bodySmall?.copyWith(fontSize: 13, fontWeight: FontWeight.w700);
+    Widget metric(String value, String label, {Widget? icon}) => Expanded(child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          if (icon != null) icon,
+          Flexible(child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: valueStyle)),
+        ]),
+        Text(label, textAlign: TextAlign.center, style: labelStyle),
+      ]),
+    ));
+    Widget separator() => Container(width: 1, height: 22, color: scheme.outlineVariant);
+
+    return SizedBox(
+      width: width,
+      child: Material(
+        color: scheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: scheme.outlineVariant),
         ),
-      )),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push('/advertisers/${profile.id}'),
+          child: Padding(
+            padding: const EdgeInsets.all(5),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: AspectRatio(
+                  aspectRatio: 1.9,
+                  child: Stack(fit: StackFit.expand, children: [
+                    if (photoUrl == null || photoUrl.isEmpty) fallback
+                    else ViewportMedia(
+                      placeholder: fallback,
+                      builder: (_) => Image.network(photoUrl, fit: BoxFit.cover,
+                        cacheWidth: 640, excludeFromSemantics: true,
+                        errorBuilder: (_, __, ___) => fallback),
+                    ),
+                    const Align(alignment: Alignment.bottomCenter, child: SizedBox(
+                      height: 22, width: double.infinity,
+                      child: DecoratedBox(decoration: BoxDecoration(gradient: LinearGradient(
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Color(0x77007C86)],
+                      ))),
+                    )),
+                    PositionedDirectional(
+                      top: 5,
+                      start: 5,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.group_outlined, size: 12, color: scheme.onPrimaryContainer),
+                            const SizedBox(width: 3),
+                            Text(profile.typeLabel, style: labelStyle?.copyWith(color: scheme.onPrimaryContainer)),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(3, 4, 1, 4),
+                child: Row(children: [
+                  Expanded(child: Row(children: [
+                    Flexible(child: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700))),
+                    if (profile.verified) ...[
+                      const SizedBox(width: 3),
+                      const Icon(Icons.verified_rounded, color: Color(0xFF198CE0), size: 14,
+                        semanticLabel: 'موثّق'),
+                    ],
+                  ])),
+                  Icon(Icons.chevron_left_rounded, textDirection: TextDirection.ltr,
+                    color: scheme.primary, size: 18),
+                ]),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer.withValues(alpha: .55),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    metric(ratingCount == 0 ? '—' : rating, ratingLabel,
+                      icon: Icon(Icons.star_rounded, size: 12, color: scheme.primary)),
+                    separator(),
+                    metric(arabicDigits('${profile.completedDeals}'), 'صفقات مؤكدة'),
+                    separator(),
+                    metric(arabicDigits('${profile.activeListings}'), 'عقارات نشطة'),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 }

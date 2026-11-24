@@ -158,7 +158,7 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
         extraFilters: ui.landUse.isNotEmpty || widget.mapActions?.hasDrawnArea == true,
         onBack: widget.onMapBack,
         onPurpose: (purpose) => controller.setChoice('purpose', purpose, onMap: true),
-        onType: (type) => controller.toggleType(type, onMap: true),
+        onType: (type) => controller.setChoice('type', type, onMap: true),
         onSearch: _showMapSearch,
         onFilters: _editFilters,
       );

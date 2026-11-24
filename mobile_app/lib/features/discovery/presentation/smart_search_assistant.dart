@@ -40,12 +40,13 @@ final assistantHintStoreProvider = Provider<AssistantHintStore>((ref) => Assista
 /// Physical left placement is intentional for the Arabic product reference.
 class SmartSearchAssistantLayer extends ConsumerStatefulWidget {
   const SmartSearchAssistantLayer({required this.child, this.onPressed, this.bottom = 20, this.enabled = true,
-    this.showComparisonTray = true, this.showMapButton = true, this.onOpenMap, this.mapFilters, this.savedSearch, super.key});
+    this.showComparisonTray = true, this.showMapButton = true, this.showHint = true,
+    this.onOpenMap, this.mapFilters, this.savedSearch, super.key});
   final Widget child;
   final VoidCallback? onPressed;
   final double bottom;
   final bool enabled, showComparisonTray;
-  final bool showMapButton;
+  final bool showMapButton, showHint;
   final Future<void> Function()? onOpenMap;
   final SmartSearchFilters? mapFilters;
   final SavedPropertySearch? savedSearch;
@@ -95,7 +96,10 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
       }
     });
     Future<void>.microtask(() async {
-      if (!mounted || !widget.enabled || !await ref.read(assistantHintStoreProvider).take() || !mounted) return;
+      if (!mounted || !widget.enabled || !widget.showHint ||
+          !await ref.read(assistantHintStoreProvider).take() || !mounted) {
+        return;
+      }
       setState(() => _hint = true);
       _hintTimer = Timer(const Duration(seconds: 6), _dismissHint);
     });

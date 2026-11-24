@@ -13,6 +13,11 @@ abstract final class EbrokerDesign {
   static const controlRadius = AppRadii.control;
   static const cardRadius = AppRadii.card;
   static const pageGutter = 18.0;
+  static const propertyTypeSelectionGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF00A5A8), Color(0xFF006D74), Color(0xFF00343D)],
+  );
 }
 
 // Copied device breakpoints/scales from utils/responsive_size.dart.

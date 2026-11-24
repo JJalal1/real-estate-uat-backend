@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/account_request_scope.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../community/data/community_repository.dart';
 import '../../financial/presentation/receivable_payment_screen.dart';
 import '../../financial/data/financial_repository.dart';
@@ -220,8 +221,86 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
 }
 
 class BrokerConversationTools extends ConsumerWidget {
-  const BrokerConversationTools({required this.thread, super.key});
+  const BrokerConversationTools({required this.thread, this.compact = false, super.key});
   final MessageThreadSummary thread;
+  final bool compact;
+
+  Future<void> _openClassification(BuildContext context, WidgetRef ref, String stage) async {
+    final selected = await showActorModalBottomSheet<String>(
+      context: context,
+      ref: ref,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheet) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('تصنيف العميل', style: Theme.of(sheet).textTheme.titleMedium),
+              const SizedBox(height: 10),
+              CustomerStageChoices(
+                stage: stage,
+                supportsClassification: thread.customerStageClassificationV2,
+                onSelected: (value) => Navigator.pop(sheet, value),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected != null && context.mounted) {
+      await saveCustomerStage(context, ref, thread.id, selected);
+    }
+  }
+
+  Widget _compactActions(BuildContext context, WidgetRef ref, String stage) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final iconSpace = MediaQuery.sizeOf(context).width >= 340 &&
+        MediaQuery.textScalerOf(context).scale(11) <= 14;
+    Widget action(String label, String key, VoidCallback? press, {IconData? icon, bool tonal = false}) {
+      final style = OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        foregroundColor: tonal ? scheme.onPrimaryContainer : scheme.primary,
+        backgroundColor: tonal ? scheme.primaryContainer : null,
+        side: BorderSide(color: press == null ? scheme.outlineVariant : scheme.primary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        textStyle: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+      );
+      return Expanded(child: OutlinedButton(
+        key: ValueKey(key),
+        style: style,
+        onPressed: press,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (iconSpace && icon != null) ...[Icon(icon, size: 14), const SizedBox(width: 4)],
+          Flexible(child: Text(label, textAlign: TextAlign.center)),
+        ]),
+      ));
+    }
+
+    return ColoredBox(
+      color: scheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(children: [
+          action('هذا الإعلان', 'conversation-property',
+              () => context.push('/properties/${thread.propertyId}')),
+          const SizedBox(width: 6),
+          action('تصنيف العميل', 'conversation-classification',
+              thread.canManageCustomer && stage != 'completed'
+                  ? () => _openClassification(context, ref, stage) : null,
+              icon: Icons.expand_more),
+          const SizedBox(width: 6),
+          action('ملاحظة وتذكير', 'conversation-followup',
+              thread.canManageCustomer ? () => editCustomerFollowup(context, ref, thread.id) : null,
+              icon: Icons.event_note_outlined, tonal: true),
+        ]),
+      ),
+    );
+  }
 
   Future<void> _openManagement(BuildContext context, WidgetRef ref, BrokerDeal? deal,
       String stage, {required bool dealsLoaded}) async {
@@ -296,9 +375,10 @@ class BrokerConversationTools extends ConsumerWidget {
     if (thread.propertyId == null) return const SizedBox.shrink();
     final dealData = ref.watch(brokerThreadDealProvider(thread.id)).asData;
     final deal = dealData?.value;
+    final stage = deal?.status == 'confirmed' ? 'completed' : thread.leadStage;
+    if (compact) return _compactActions(context, ref, stage);
     if (!thread.canManageCustomer && deal == null) return const SizedBox.shrink();
 
-    final stage = deal?.status == 'confirmed' ? 'completed' : thread.leadStage;
     final stageLabel = brokerLeadLabels[stage];
     return Align(alignment: AlignmentDirectional.centerStart, child: Wrap(
       spacing: 8,

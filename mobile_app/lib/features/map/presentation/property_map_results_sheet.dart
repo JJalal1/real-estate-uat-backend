@@ -330,7 +330,7 @@ class PropertyMapResultCard extends StatelessWidget {
       onTap: onDetails,
       trailing: Column(mainAxisSize: MainAxisSize.min, children: [
         IconButton(key: ValueKey('map-card-favorite-${p.id}'), tooltip: status.tooltip,
-          onPressed: status.loading ? null : onFavorite, icon: Icon(status.icon)),
+          onPressed: status.loading ? null : onFavorite, icon: Icon(status.icon, color: status.iconColor)),
         IconButton(key: ValueKey('map-card-focus-${p.id}'), tooltip: 'إظهار الموقع',
           onPressed: onMap, icon: const Icon(Icons.location_on_outlined)),
       ]),

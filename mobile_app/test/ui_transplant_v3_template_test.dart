@@ -451,7 +451,7 @@ void main() {
     expect(editor.controller!.text, isNotEmpty);
     await tester.enterText(find.byType(TextField), 'سأرد عليك بعد العصر.');
     expect(messages.sent, isEmpty);
-    await tester.tap(find.byWidgetPredicate((w) => w is EbrokerIcon && w.icon == Icons.send));
+    await tester.tap(find.byKey(const ValueKey('broker-conversation-send')));
     await tester.pumpAndSettle();
     expect(messages.sent, ['سأرد عليك بعد العصر.']); expect(messages.sentThreadIds, [19]);
     expect(tester.takeException(), isNull);

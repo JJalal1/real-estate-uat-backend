@@ -74,7 +74,7 @@ class BrokerTestRepository implements BrokerRepository {
   @override
   Future<void> updateAvailability(List<int> ids, String state) async { availabilityChanges.add((List.of(ids), state)); }
   @override
-  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) async => const BrokerPage(items: [
+  Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter, bool includeOtherThreads = false}) async => const BrokerPage(items: [
     BrokerCustomer(threadId: 19, customerName: 'عميل تجريبي', propertyId: 11, propertyTitle: 'شقة حدة', stage: 'new'),
   ], page: 1, lastPage: 1);
   @override
@@ -137,7 +137,7 @@ void main() {
       await font.load();
     }
   });
-  testWidgets('verified broker opens work and the two customer tabs from the marketplace', (tester) async {
+  testWidgets('verified broker opens work and the unified message list from the marketplace', (tester) async {
     await _pump(tester, const AppShellScreen(), BrokerTestRepository());
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
     expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'إعلاناتي', 'الرسائل', 'حسابي']);
@@ -155,9 +155,9 @@ void main() {
     expect(find.byKey(const ValueKey('broker-tool-badge-المستحقات')), findsNothing);
     nav.onSelected(2);
     await tester.pumpAndSettle();
-    final tabs = tester.widget<TabBar>(find.byType(TabBar));
-    expect(tabs.tabs.cast<Tab>().map((tab) => tab.text), ['المتابعة', 'المحادثات']);
-    expect(DefaultTabController.of(tester.element(find.byType(TabBar))).index, 1);
+    expect(find.byType(TabBar), findsNothing);
+    expect(find.text('كل الحالات'), findsOneWidget);
+    expect(find.text('عميل تجريبي'), findsOneWidget);
     expect(find.text('إدارة العملاء'), findsNothing);
     nav.onSelected(3); await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('لوحة العمل'), 300,

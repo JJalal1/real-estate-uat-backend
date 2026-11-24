@@ -404,17 +404,12 @@ class EbrokerCategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const selectedGradient = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [Color(0xFF00A5A8), Color(0xFF006D74), Color(0xFF00343D)],
-    );
     return Semantics(button: true, selected: selected, child: Material(color: Colors.transparent,
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(AppRadii.control),
         child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 180),
           constraints: const BoxConstraints(minHeight: 48), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(color: selected ? null : scheme.surface,
-            gradient: selected ? selectedGradient : null,
+            gradient: selected ? EbrokerDesign.propertyTypeSelectionGradient : null,
             border: Border.all(color: selected ? Colors.transparent : scheme.outlineVariant),
             borderRadius: BorderRadius.circular(AppRadii.control)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [

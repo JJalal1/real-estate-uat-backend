@@ -2703,7 +2703,7 @@ class _PropertyResultCard extends StatelessWidget {
           trailing:
             IconButton(tooltip: favoritePresentation.tooltip, onPressed: favoritePresentation.loading ? null : onFavorite,
               style: IconButton.styleFrom(backgroundColor: scheme.surface, minimumSize: const Size(44,44), shape: const CircleBorder()),
-              icon: Icon(favoritePresentation.icon, size: 19, color: scheme.secondary))),
+              icon: Icon(favoritePresentation.icon, size: 19, color: favoritePresentation.iconColor ?? scheme.secondary))),
         Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: _PropertyFacts(property: property)),
         TextButton.icon(onPressed: onMap,
           icon: EbrokerImage('location', size: 18, color: scheme.primary),

@@ -1,5 +1,4 @@
 import 'dart:async';
-import '../data/customer_help_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,9 +8,7 @@ import '../../../core/offline/offline_connection.dart';
 import '../../account/data/account_request_scope.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
-import '../../../core/widgets/ebroker_card_actions.dart';
 import 'broker_achievement_carousel.dart';
-import 'customer_followup_sheet.dart';
 import '../../account/data/auth_controller.dart';
 import '../../messages/data/message_repository.dart';
 import '../../messages/presentation/unread_inbox_badge.dart';
@@ -254,62 +251,79 @@ class _BrokerToolIcon extends StatelessWidget {
 }
 
 class BrokerCustomersScreen extends ConsumerWidget {
-  const BrokerCustomersScreen({this.propertyId, this.selectForDeal = false, this.initialFilter = 'all', this.embedded = false, super.key});
+  const BrokerCustomersScreen({
+    this.propertyId,
+    this.selectForDeal = false,
+    this.initialFilter = 'all',
+    this.includeOtherThreads = false,
+    super.key,
+  });
+
   final int? propertyId;
   final bool selectForDeal;
-  final bool embedded;
+  final bool includeOtherThreads;
   final String initialFilter;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     final scope = ref.watch(accountRequestScopeProvider);
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _BrokerCustomersBody(key: ValueKey((scope, epoch, actor, propertyId, initialFilter, selectForDeal)), propertyId: propertyId, selectForDeal: selectForDeal,
-        initialFilter: initialFilter, embedded: embedded);
+    if (actor == null) {
+      return const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')));
+    }
+    return _BrokerCustomersBody(
+      key: ValueKey((scope, epoch, actor, propertyId, initialFilter, selectForDeal, includeOtherThreads)),
+      propertyId: propertyId,
+      selectForDeal: selectForDeal,
+      initialFilter: initialFilter,
+      includeOtherThreads: includeOtherThreads,
+    );
   }
 }
+
 class _BrokerCustomersBody extends ConsumerStatefulWidget {
-  const _BrokerCustomersBody({this.propertyId, required this.selectForDeal, required this.initialFilter, required this.embedded, super.key});
+  const _BrokerCustomersBody({
+    this.propertyId,
+    required this.selectForDeal,
+    required this.initialFilter,
+    required this.includeOtherThreads,
+    super.key,
+  });
+
   final int? propertyId;
-  final bool selectForDeal, embedded;
+  final bool selectForDeal;
+  final bool includeOtherThreads;
   final String initialFilter;
+
   @override
   ConsumerState<_BrokerCustomersBody> createState() => _BrokerCustomersState();
 }
-class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
-  final _items = <BrokerCustomer>[];
-  bool _loading = true, _moreBusy = false, _helpReady = false, _helpSeen = true, _helpUsed = false;
-  bool _supportsClassification = false;
-  bool _active = true, _refreshScheduled = false;
-  int? _helpActorId;
 
-  Future<void> _loadHelp() async {
-    try {
-    final actor = await ref.read(authControllerProvider.future);
-    if (!mounted || actor == null) return;
-    final seen = await ref.read(customerHelpStoreProvider).seen(actor.id);
-    if (mounted && ref.read(authControllerProvider).asData?.value?.id == actor.id) setState(() { _helpActorId = actor.id; _helpReady = true; _helpSeen = seen || _helpUsed; });
-    if (_helpUsed) unawaited(_rememberHelp());
-    } catch (_) { /* Help storage must not block customer work. */ }
-  }
-  Future<void> _rememberHelp() async {
-    final id = _helpActorId ?? ref.read(authControllerProvider).asData?.value?.id;
-    if (id == null || ref.read(authControllerProvider).asData?.value?.id != id) return;
-    if (mounted) setState(() { _helpSeen = true; _helpUsed = true; });
-    unawaited(ref.read(customerHelpStoreProvider).markSeen(id));
-  }
+class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
+  static const _statusChips = <String?, String>{
+    null: 'كل الحالات',
+    'appointment_set': 'تم تحديد موعد',
+    'unclassified': 'بلا تصنيف',
+    'reserved': 'تم حجز القطع',
+    'not_interested': 'غير مهتم',
+    'completed': 'تمت الصفقة',
+  };
+  final _items = <BrokerCustomer>[];
+  bool _loading = true, _moreBusy = false, _failedMore = false;
+  bool _active = true, _refreshScheduled = false;
   String? _stage, _error, _query;
-  bool _failedMore = false;
   late String _filter;
   int _page = 1, _lastPage = 1, _request = 0;
+
   @override
   void initState() {
     super.initState();
-    _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all';
+    _filter = const ['unread', 'followup_due'].contains(widget.initialFilter)
+        ? widget.initialFilter
+        : 'all';
     ref.listenManual(messageDataRevisionProvider, (_, __) => _refreshVisible());
     ref.listenManual(offlineResumeRevisionProvider, (_, __) => _refreshVisible());
-    Future.microtask(_loadHelp);
     Future.microtask(_load);
   }
 
@@ -331,83 +345,93 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
   }
 
   @override
-  void dispose() { _request++; super.dispose(); }
+  void dispose() {
+    _request++;
+    super.dispose();
+  }
+
   Future<void> _load({bool more = false}) async {
     if (!mounted || (more && (_loading || _moreBusy || _page >= _lastPage))) return;
     final request = ++_request;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final scope = ref.read(accountRequestScopeProvider);
     bool current() => mounted && request == _request && scope.isCurrent &&
-      epoch == Stage6SecureSessionStore.instance.sessionEpoch;
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
     final query = '${widget.propertyId}:$_stage:$_filter';
     _failedMore = more;
     setState(() {
-      if (_query != query) { _items.clear(); _page = 1; _lastPage = 1; }
-      _query = query; _error = null; _moreBusy = false;
-      if (more) { _moreBusy = true; } else { _loading = true; }
+      if (_query != query) {
+        _items.clear();
+        _page = 1;
+        _lastPage = 1;
+      }
+      _query = query;
+      _error = null;
+      _moreBusy = more;
+      if (!more) _loading = true;
     });
     try {
-      final result = await ref.read(brokerRepositoryProvider).customers(stage: _stage, propertyId: widget.propertyId, filter: _filter, page: more ? _page + 1 : 1);
+      final result = await ref.read(brokerRepositoryProvider).customers(
+        stage: _stage,
+        propertyId: widget.propertyId,
+        filter: _filter,
+        page: more ? _page + 1 : 1,
+        includeOtherThreads: widget.includeOtherThreads && !widget.selectForDeal,
+      );
       if (!current()) return;
-      if (result.items.any((item) => item.stageLabel != null || item.privateNote.isNotEmpty || item.remindAt != null)) { _helpUsed = true; unawaited(_rememberHelp()); }
-      if (!mounted) return;
-      setState(() { final merged = <int, BrokerCustomer>{
-        if (more) for (final item in _items) item.threadId: item,
-        for (final item in result.items) item.threadId: item,
-      }; _items..clear()..addAll(merged.values); _page = result.page; _lastPage = result.lastPage;
-        _supportsClassification = result.customerStageClassificationV2; _loading = false; _moreBusy = false;
+      setState(() {
+        final merged = <int, BrokerCustomer>{
+          if (more) for (final item in _items) item.threadId: item,
+          for (final item in result.items) item.threadId: item,
+        };
+        _items..clear()..addAll(merged.values);
+        _page = result.page;
+        _lastPage = result.lastPage;
+        _loading = false;
+        _moreBusy = false;
       });
-    } catch (error) { if (current()) setState(() { if (!isTransientApiFailure(error)) { _items.clear(); _page = 1; _lastPage = 1; _failedMore = false; } _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
+    } catch (error) {
+      if (!current()) return;
+      setState(() {
+        if (!isTransientApiFailure(error)) {
+          _items.clear();
+          _page = 1;
+          _lastPage = 1;
+          _failedMore = false;
+        }
+        _error = friendlyApiError(error);
+        _loading = false;
+        _moreBusy = false;
+      });
+    }
   }
-  Future<void> _chooseStage(BrokerCustomer item) async {
-    final scope = ref.read(accountRequestScopeProvider);
-    final stage = await AppBottomSheet.show<String>(context, builder: (sheet) => SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('تصنيف العميل', style: Theme.of(sheet).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          CustomerStageChoices(
-            stage: item.followupStage,
-            supportsClassification: _supportsClassification,
-            onSelected: (stage) => Navigator.pop(sheet, stage),
-          ),
-        ]),
-      ),
-    ));
-    if (stage == null || !mounted || !scope.isCurrent) return;
-    final saved = await saveCustomerStage(context, ref, item.threadId, stage);
-    if (saved && mounted) await _rememberHelp();
+
+  void _selectStage(String? stage) {
+    if (stage == _stage && _filter == 'all') return;
+    setState(() {
+      _stage = stage;
+      _filter = 'all';
+    });
+    unawaited(_load());
   }
+
+  Future<void> _openConversation(BrokerCustomer item) async {
+    await context.push('/messages/${item.threadId}');
+    if (mounted) await _load();
+  }
+
   @override
   Widget build(BuildContext context) => BrokerScaffold(
-    appBar: widget.embedded ? null : AppAppBar(
-      title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'متابعة العملاء',
-    ),
+    appBar: AppAppBar(title: widget.selectForDeal ? 'اختر عميل الصفقة' : 'الرسائل'),
     body: RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           if (!widget.selectForDeal) ...[
-            _filters(),
+            _filters(context),
             const SizedBox(height: 8),
-            if (_helpReady && !_helpSeen)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: BrokerPanel(child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('صنّف العميل من بطاقته. تجد الملاحظات والتذكير في الخيارات.'),
-                    TextButton(
-                      key: const ValueKey('customer-help-dismiss'),
-                      onPressed: _rememberHelp,
-                      child: const Text('فهمت'),
-                    ),
-                  ],
-                )),
-              ),
           ],
           if (_loading && _items.isEmpty)
             const AppLoadingState()
@@ -415,17 +439,25 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
             AppErrorState(message: _error!, onRetry: () => _load(more: _failedMore))
           else if (_items.isEmpty)
             BrokerPanel(child: Text(switch (_filter) {
-              'unread' => 'لا توجد محادثات تحتاج ردك.',
+              'unread' => 'لا توجد رسائل غير مقروءة.',
               'followup_due' => 'لا توجد متابعات مستحقة حاليًا.',
-              _ => _stage == null ? 'سيظهر هنا من يتواصل حول إعلاناتك.' : 'لا يوجد عملاء بهذه الحالة.',
+              _ => _stage == null ? 'لا توجد محادثات بعد.' : 'لا توجد محادثات بهذه الحالة.',
             })),
           if (_items.isNotEmpty && (_loading || (_error != null && !_failedMore)))
             AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
-          for (final item in _items) _customerCard(context, item),
+          for (final item in _items)
+            Padding(
+              key: ValueKey('broker-customer-${item.threadId}'),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: widget.selectForDeal
+                  ? _dealCustomerCard(context, item)
+                  : _BrokerMessageCard(item: item, onTap: () => _openConversation(item)),
+            ),
           if (_items.isNotEmpty && (_moreBusy || (_error != null && _failedMore)))
             AppRefreshStatus(
               key: const ValueKey('broker-customers-page-status'),
-              loading: _moreBusy, error: _failedMore ? _error : null,
+              loading: _moreBusy,
+              error: _failedMore ? _error : null,
               onRetry: () => _load(more: true),
             )
           else if (_page < _lastPage)
@@ -439,155 +471,152 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
     ),
   );
 
-  Widget _filters() => Wrap(
-    spacing: 6,
-    runSpacing: 4,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    children: [
-      for (final entry in const {'all': 'الكل', 'unread': 'تحتاج ردك', 'followup_due': 'حان الموعد'}.entries)
-        AppFilterChip(
-          label: entry.value,
-          selected: _filter == entry.key,
-          onSelected: (selected) {
-            if (!selected) return;
-            setState(() => _filter = entry.key);
-            _load();
-          },
-        ),
-      PopupMenuButton<String>(
-        tooltip: 'حالة المتابعة',
-        initialValue: _stage ?? 'all',
-        itemBuilder: (_) => [
-          const PopupMenuItem(value: 'all', child: Text('كل الحالات')),
-          if (_supportsClassification)
-            const PopupMenuItem(value: 'unclassified', child: Text('بلا تصنيف')),
-          for (final entry in brokerLeadLabels.entries)
-            if (_supportsClassification || const {'not_interested', 'completed'}.contains(entry.key))
-              PopupMenuItem(value: entry.key, child: Text(entry.value)),
-        ],
-        onSelected: (value) {
-          final stage = value == 'all' ? null : value;
-          if (stage == _stage) return;
-          setState(() => _stage = stage);
-          _load();
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const EbrokerIcon(Icons.tune_rounded, size: 18),
-            const SizedBox(width: 4),
-            Flexible(child: Text(_stage == 'unclassified' ? 'بلا تصنيف' : brokerLeadLabels[_stage] ?? 'الحالة')),
-          ]),
-        ),
-      ),
-    ],
-  );
-
-  Widget _customerCard(BuildContext context, BrokerCustomer item) {
-    final textTheme = Theme.of(context).textTheme;
-    final completed = item.followupStage == 'completed';
-    final stageLabel = item.stageLabel;
-    final dealStatus = item.deal?.statusLabel;
-    final status = completed ? stageLabel : dealStatus ?? stageLabel;
-    return Padding(
-      key: ValueKey('broker-customer-${item.threadId}'),
-      padding: const EdgeInsets.only(bottom: 8),
-      child: BrokerPanel(child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.customerName, style: textTheme.titleSmall),
-                Text(item.propertyTitle, style: textTheme.bodySmall),
-                if (item.lastMessageAt case final lastMessage? when !widget.selectForDeal)
-                  Text('آخر تواصل · ${followupDateLabel(lastMessage)}',
-                    style: textTheme.bodySmall),
-              ],
-            )),
-            if (!widget.selectForDeal) _customerMenu(context, item),
-          ]),
-          if (widget.selectForDeal) ...[
-            const SizedBox(height: 6),
-            Wrap(spacing: 6, runSpacing: 4, children: [
-              if (status != null) AppStatusBadge(
-                label: status, tone: completed ? AppStatusTone.success : AppStatusTone.info,
+  Widget _filters(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return SingleChildScrollView(
+      key: const ValueKey('broker-message-status-filters'),
+      scrollDirection: Axis.horizontal,
+      child: Row(children: [
+        for (final entry in _statusChips.entries)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(end: 6),
+            child: ChoiceChip(
+              key: ValueKey('broker-message-filter-${entry.key ?? 'all'}'),
+              label: Text(entry.value),
+              selected: _stage == entry.key,
+              onSelected: (_) => _selectStage(entry.key),
+              showCheckmark: false,
+              labelStyle: theme.textTheme.labelSmall?.copyWith(
+                color: _stage == entry.key ? scheme.onPrimaryContainer : scheme.onSurface,
               ),
-              if (item.unreadCount > 0)
-                AppStatusBadge(label: '${item.unreadCount} غير مقروءة', tone: AppStatusTone.info),
-            ]),
-            const SizedBox(height: 8),
-            AppButton(
-              label: 'الصفقة مع هذا العميل', expand: true,
-              onPressed: () => Navigator.of(context).pop(item),
-            ),
-          ] else ...[
-            if (item.remindAt != null)
-              Text(
-                '${item.followupDue ? 'حان موعد المتابعة' : 'المتابعة'}: ${followupDateLabel(item.remindAt!)}',
-                style: textTheme.bodySmall,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+              materialTapTargetSize: MaterialTapTargetSize.padded,
+              visualDensity: VisualDensity.compact,
+              shape: const StadiumBorder(),
+              side: BorderSide(
+                color: _stage == entry.key ? scheme.primary.withValues(alpha: .55) : scheme.outlineVariant,
               ),
-            if (item.privateNote.isNotEmpty)
-              Text('ملاحظة خاصة: ${item.privateNote}', style: textTheme.bodySmall,
-                maxLines: 2, overflow: TextOverflow.ellipsis),
-            Wrap(
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (completed && stageLabel != null)
-                  AppStatusBadge(label: stageLabel, tone: AppStatusTone.success)
-                else Tooltip(
-                  message: 'تحديث حالة المتابعة',
-                  child: ActionChip(
-                    avatar: const EbrokerIcon(Icons.expand_more, size: 16),
-                    label: Text(stageLabel ?? 'تصنيف العميل'),
-                    onPressed: () => _chooseStage(item),
-                  ),
-                ),
-                if (!completed && dealStatus != null)
-                  AppStatusBadge(label: dealStatus, tone: AppStatusTone.info),
-                TextButton.icon(
-                  onPressed: () async {
-                    await context.push('/messages/${item.threadId}');
-                    if (mounted) _load();
-                  },
-                  icon: const EbrokerIcon(Icons.chat_bubble_outline, size: 18),
-                  label: Text(item.unreadCount > 0 ? 'رد (${item.unreadCount})' : 'المحادثة'),
-                ),
-              ],
+              selectedColor: scheme.primaryContainer,
             ),
-          ],
-        ],
-      )),
+          ),
+      ]),
     );
   }
 
-  Widget _customerMenu(BuildContext context, BrokerCustomer item) {
-    final actions = [
-      EbrokerCardAction('ملاحظة وتذكير', () async {
-        final saved = await editCustomerFollowup(context, ref, item.threadId, customer: item);
-        if (!saved || !mounted) return;
-        await _rememberHelp();
-        if (mounted) _load();
-      }, icon: Icons.event_note_outlined),
-      EbrokerCardAction('العقار', () => context.push('/properties/${item.propertyId}'), icon: Icons.home_outlined),
-      if (item.deal != null)
-        EbrokerCardAction('نتيجة الصفقة', () => context.push('/broker/deals/${item.deal!.id}'), icon: Icons.check_circle_outline),
-    ];
-    return PopupMenuButton<EbrokerCardAction>(
-      tooltip: 'خيارات البطاقة',
-      icon: const EbrokerIcon(Icons.more_vert, size: 22),
-      onSelected: (action) => action.onPressed?.call(),
-      itemBuilder: (_) => [
-        for (final action in actions)
-          PopupMenuItem(value: action, child: Row(children: [
-            EbrokerIcon(action.icon, size: 18),
-            const SizedBox(width: 8),
-            Expanded(child: Text(action.label)),
-          ])),
+  Widget _dealCustomerCard(BuildContext context, BrokerCustomer item) {
+    final textTheme = Theme.of(context).textTheme;
+    final completed = item.followupStage == 'completed';
+    final status = completed ? item.stageLabel : item.deal?.statusLabel ?? item.stageLabel;
+    return BrokerPanel(child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(item.customerName, style: textTheme.titleSmall),
+        Text(item.propertyTitle, style: textTheme.bodySmall),
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          if (status != null)
+            AppStatusBadge(label: status, tone: completed ? AppStatusTone.success : AppStatusTone.info),
+          if (item.unreadCount > 0)
+            AppStatusBadge(label: '${item.unreadCount} غير مقروءة', tone: AppStatusTone.info),
+        ]),
+        const SizedBox(height: 8),
+        AppButton(
+          label: 'الصفقة مع هذا العميل',
+          expand: true,
+          onPressed: () => Navigator.of(context).pop(item),
+        ),
       ],
+    ));
+  }
+}
+
+class _BrokerMessageCard extends StatelessWidget {
+  const _BrokerMessageCard({required this.item, required this.onTap});
+
+  final BrokerCustomer item;
+  final VoidCallback onTap;
+
+  static final _spaces = RegExp(r'\s+');
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final message = item.lastMessagePreview?.replaceAll(_spaces, ' ').trim() ?? '';
+    final preview = item.lastMessageIsMine && message.isNotEmpty ? 'أنت: $message' : message;
+    final lastMessage = item.lastMessageAt;
+    final secondary = theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
+    return Material(
+      color: theme.brightness == Brightness.dark ? scheme.surfaceContainerLow : scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 76),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text(
+                    item.customerName,
+                    style: theme.textTheme.titleSmall?.copyWith(fontSize: 15),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )),
+                  if (item.unreadCount > 0)
+                    Badge(
+                      key: ValueKey('broker-message-unread-${item.threadId}'),
+                      label: Text('${item.unreadCount}', semanticsLabel: '${item.unreadCount} رسالة غير مقروءة'),
+                      backgroundColor: const Color(0xffb91c1c),
+                      textColor: Colors.white,
+                    ),
+                ],
+              ),
+              if (preview.isNotEmpty || lastMessage != null) ...[
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(child: Text(
+                      preview,
+                      style: secondary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    )),
+                    if (lastMessage != null) ...[
+                      const SizedBox(width: 10),
+                      Text(
+                        _messageDateLabel(lastMessage),
+                        style: secondary?.copyWith(fontSize: 11),
+                        textDirection: TextDirection.ltr,
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
+  }
+
+  String _messageDateLabel(DateTime sentAt) {
+    final local = sentAt.toLocal();
+    final now = DateTime.now();
+    final days = DateTime.utc(now.year, now.month, now.day)
+        .difference(DateTime.utc(local.year, local.month, local.day)).inDays;
+    if (days >= 0 && days <= 7) {
+      return const ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'][local.weekday - 1];
+    }
+    return '${local.year}/${local.month.toString().padLeft(2, '0')}/${local.day.toString().padLeft(2, '0')}';
   }
 }
 

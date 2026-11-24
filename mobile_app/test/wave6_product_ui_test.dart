@@ -233,7 +233,7 @@ void main(){
       expect(find.byKey(const ValueKey('home-add-property')),findsOneWidget);expect(find.text('إدارة عملي'),findsNothing);
       expect(find.descendant(of:find.byType(AppNavigationBar),matching:find.byTooltip('إعلاناتي')),findsOneWidget);
       expect(tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item)=>item.label),['الرئيسية','إعلاناتي','الرسائل','حسابي']);
-      expect(find.byKey(const ValueKey('home-smart-search')),findsNothing);
+      expect(find.byKey(const ValueKey('home-smart-search')),findsOneWidget);
       expect(find.byKey(const ValueKey('floating-smart-search')),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-home-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });

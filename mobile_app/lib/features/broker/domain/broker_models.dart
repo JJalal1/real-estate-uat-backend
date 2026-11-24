@@ -55,7 +55,7 @@ const brokerLeadLabels = {...brokerEditableLeadLabels, 'completed': 'تمت ال
 class BrokerCustomer {
   const BrokerCustomer({required this.threadId, required this.customerName, required this.propertyId, required this.propertyTitle, required this.stage, this.deal,
     this.unreadCount = 0, this.privateNote = '', this.remindAt, this.followupDue = false,
-    this.lastMessageAt});
+    this.lastMessageAt, this.lastMessagePreview, this.lastMessageIsMine = false});
   final int threadId, propertyId;
   final String customerName, propertyTitle, stage;
   final BrokerDeal? deal;
@@ -63,6 +63,8 @@ class BrokerCustomer {
   final String privateNote;
   final DateTime? remindAt;
   final DateTime? lastMessageAt;
+  final String? lastMessagePreview;
+  final bool lastMessageIsMine;
   final bool followupDue;
   String get followupStage => deal?.status == 'confirmed' ? 'completed' : stage;
   String? get stageLabel => brokerLeadLabels[followupStage];
@@ -71,7 +73,9 @@ class BrokerCustomer {
     deal: j['deal'] is Map ? BrokerDeal.fromJson(brokerMap(j['deal'])) : null,
     unreadCount: brokerInt(j['unread_count']), privateNote: '${brokerMap(j['followup'])['private_note'] ?? ''}',
     remindAt: DateTime.tryParse('${brokerMap(j['followup'])['remind_at'] ?? ''}'), followupDue: brokerMap(j['followup'])['is_due'] == true,
-    lastMessageAt: DateTime.tryParse('${j['last_message_at'] ?? ''}'));
+    lastMessageAt: DateTime.tryParse('${j['last_message_at'] ?? ''}'),
+    lastMessagePreview: j['last_message_preview'] as String?,
+    lastMessageIsMine: j['last_message_is_mine'] == true);
 }
 
 class BrokerAvailability {

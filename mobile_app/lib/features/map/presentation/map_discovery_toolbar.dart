@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/ebroker_design.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 
 class MapDiscoveryToolbar extends StatelessWidget {
@@ -17,8 +18,7 @@ class MapDiscoveryToolbar extends StatelessWidget {
   });
 
   final SmartSearchFilters filters;
-  final ValueChanged<String?> onPurpose;
-  final ValueChanged<String> onType;
+  final ValueChanged<String?> onPurpose, onType;
   final VoidCallback onSearch, onFilters;
   final VoidCallback? onBack;
   final bool extraFilters;
@@ -41,6 +41,7 @@ class MapDiscoveryToolbar extends StatelessWidget {
     final colors = theme.colorScheme;
     final selected = filters.values['purpose'];
     final both = selected == null;
+    final selectedTypes = filters.selectedTypes;
     final activeFilters = extraFilters ||
         filters.chips.any((chip) =>
             !chip.$1.startsWith('type:') &&
@@ -148,24 +149,10 @@ class MapDiscoveryToolbar extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsetsDirectional.only(end: 5),
                       child: SizedBox(
-                          width: chipWidth,
-                          height: categoriesHeight,
-                          child: _label(
-                            key: ValueKey('published-type-${type.key}'),
-                            label: type.value,
-                            fontSize: 13,
-                            selected: filters.selectedTypes.contains(type.key),
-                            background: filters.selectedTypes.contains(type.key)
-                                ? colors.primary
-                                : colors.surface,
-                            foreground: filters.selectedTypes.contains(type.key)
-                                ? colors.onPrimary
-                                : neutralInk,
-                            outline: filters.selectedTypes.contains(type.key)
-                                ? colors.primary
-                                : colors.outlineVariant,
-                            onPressed: () => onType(type.key),
-                          )),
+                        width: chipWidth,
+                        height: categoriesHeight,
+                        child: _typeChip(type, selectedTypes, colors),
+                      ),
                     ),
                   SizedBox(
                       width: 44,
@@ -202,6 +189,23 @@ class MapDiscoveryToolbar extends StatelessWidget {
     );
   }
 
+  Widget _typeChip(MapEntry<String, String> type, List<String> selectedTypes,
+      ColorScheme colors) {
+    final selected = selectedTypes.contains(type.key);
+    return _label(
+      key: ValueKey('published-type-${type.key}'),
+      label: type.value,
+      fontSize: 13,
+      selected: selected,
+      background: selected ? Colors.transparent : colors.surface,
+      foreground: selected ? Colors.white : colors.onSurface,
+      outline: selected ? Colors.transparent : colors.outlineVariant,
+      gradient: selected ? EbrokerDesign.propertyTypeSelectionGradient : null,
+      onPressed: () =>
+          onType(selected && selectedTypes.length == 1 ? null : type.key),
+    );
+  }
+
   Widget _label({
     required Key key,
     required String label,
@@ -211,6 +215,7 @@ class MapDiscoveryToolbar extends StatelessWidget {
     required Color outline,
     required VoidCallback onPressed,
     double fontSize = 14,
+    Gradient? gradient,
   }) =>
       Semantics(
         selected: selected,
@@ -219,6 +224,12 @@ class MapDiscoveryToolbar extends StatelessWidget {
           onPressed: onPressed,
           style: TextButton.styleFrom(
             backgroundColor: background,
+            backgroundBuilder: gradient == null
+                ? null
+                : (_, __, child) => Ink(
+                      decoration: BoxDecoration(gradient: gradient),
+                      child: child,
+                    ),
             foregroundColor: foreground,
             side: BorderSide(color: outline),
             padding: const EdgeInsets.symmetric(horizontal: 3),

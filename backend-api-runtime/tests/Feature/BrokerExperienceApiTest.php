@@ -391,6 +391,99 @@ class BrokerExperienceApiTest extends TestCase
             ->assertJsonCount(1, 'data')->assertJsonPath('data.0.thread_id', $saleThread);
     }
 
+    public function test_customer_rows_report_latest_actual_message_and_direction_without_marking_it_read(): void
+    {
+        [$broker, $bh] = $this->actor('message-preview-broker', true);
+        [$customer, $ch] = $this->actor('message-preview-customer');
+        [, $outsider] = $this->actor('message-preview-outsider', true);
+        $thread = $this->conversation($ch, $this->listing($broker));
+        $messages = "/api/messages/threads/$thread/messages";
+        $customers = '/api/broker/customers';
+
+        $this->withHeaders($bh)->getJson($customers)->assertOk()
+            ->assertJsonPath('data.0.last_message_preview', null)
+            ->assertJsonPath('data.0.last_message_at', null)
+            ->assertJsonPath('data.0.last_message_is_mine', false)
+            ->assertJsonPath('data.0.unread_count', 0);
+        $incoming = $this->withHeaders($ch)->postJson($messages, ['body' => 'هل العقار متاح؟'])
+            ->assertCreated()->json('data.created_at');
+        $this->withHeaders($bh)->getJson($customers)->assertOk()
+            ->assertJsonPath('data.0.last_message_preview', 'هل العقار متاح؟')
+            ->assertJsonPath('data.0.last_message_at', $incoming)
+            ->assertJsonPath('data.0.last_message_is_mine', false)
+            ->assertJsonPath('data.0.unread_count', 1);
+
+        $reply = str_repeat('ن', 130);
+        $outgoing = $this->withHeaders($bh)->postJson($messages, ['body' => $reply])
+            ->assertCreated()->json('data.created_at');
+        DB::table('private_messages')->insert([
+            'thread_id' => $thread,
+            'sender_user_id' => $customer->id,
+            'sender_name_snapshot' => $customer->name,
+            'client_message_id' => 'sys-call:preview-test',
+            'body' => 'System call event',
+            'created_at' => now()->addSecond(),
+        ]);
+        $this->withHeaders($bh)->getJson($customers)->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.last_message_preview', mb_substr($reply, 0, 120))
+            ->assertJsonPath('data.0.last_message_at', $outgoing)
+            ->assertJsonPath('data.0.last_message_is_mine', true)
+            ->assertJsonPath('data.0.unread_count', 2);
+        $this->withHeaders($outsider)->getJson($customers)->assertOk()->assertJsonCount(0, 'data');
+        $this->withHeaders($bh)->getJson("/api/messages/threads/$thread")->assertOk();
+        $this->withHeaders($bh)->getJson($customers)->assertOk()->assertJsonPath('data.0.unread_count', 0);
+    }
+
+    public function test_opt_in_inbox_includes_other_participant_threads_without_crm_details(): void
+    {
+        [$broker, $bh] = $this->actor('inbox-managed-broker', true);
+        [$customer, $ch] = $this->actor('inbox-direct-customer');
+        [$owner, $oh] = $this->actor('inbox-other-owner', true);
+        [, $xh] = $this->actor('inbox-private-outsider');
+        $brokerProperty = $this->listing($broker);
+        $otherProperty = $this->listing($owner);
+        $owned = $this->conversation($ch, $brokerProperty);
+        $direct = $this->withHeaders($ch)->postJson("/api/brokers/{$broker->id}/conversation")
+            ->assertCreated()->json('data.id');
+        $outbound = $this->conversation($bh, $otherProperty);
+        $unrelated = $this->conversation($xh, $otherProperty);
+        $this->withHeaders($bh)->patchJson("/api/broker/customers/$owned/stage", ['stage' => 'reserved'])->assertOk();
+        $this->withHeaders($oh)->patchJson("/api/broker/customers/$outbound/stage", ['stage' => 'reserved'])->assertOk();
+        $this->withHeaders($oh)->patchJson("/api/broker/customers/$outbound/followup", [
+            'private_note' => 'Private note from the other property owner',
+        ])->assertOk();
+        $this->withHeaders($oh)->postJson("/api/messages/threads/$outbound/messages", [
+            'body' => 'رد مالك العقار الآخر',
+        ])->assertCreated();
+        $customers = '/api/broker/customers';
+        $this->withHeaders($bh)->getJson($customers)->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.thread_id', $owned);
+
+        $all = $this->withHeaders($bh)->getJson($customers.'?include_other_threads=1')->assertOk()
+            ->assertJsonCount(3, 'data')->assertJsonPath('data.0.thread_id', $owned)
+            ->assertJsonPath('data.0.can_manage_customer', true)
+            ->assertJsonPath('data.0.stage', 'reserved')
+            ->assertJsonMissing(['thread_id' => $unrelated]);
+        $rows = collect($all->json('data'))->keyBy('thread_id');
+        $this->assertSame($owner->name, $rows[$outbound]['customer_name']);
+        $this->assertSame($customer->name, $rows[$direct]['customer_name']);
+        $this->assertSame('رد مالك العقار الآخر', $rows[$outbound]['last_message_preview']);
+        foreach ([$direct, $outbound] as $threadId) {
+            $this->assertFalse($rows[$threadId]['can_manage_customer']);
+            foreach (['stage', 'followup', 'deal'] as $private) {
+                $this->assertNull($rows[$threadId][$private]);
+            }
+        }
+
+        $this->withHeaders($bh)->getJson($customers.'?include_other_threads=1&stage=unclassified')->assertOk()
+            ->assertJsonCount(2, 'data')->assertJsonMissing(['thread_id' => $owned]);
+        $this->withHeaders($bh)->getJson($customers.'?include_other_threads=1&stage=reserved')->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.thread_id', $owned);
+        $this->withHeaders($bh)->getJson($customers.'?include_other_threads=1&property_id='.$brokerProperty->id)->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.thread_id', $owned);
+    }
+
     public function test_deal_view_only_clears_the_revision_seen_by_the_advertiser(): void
     {
         [$broker, $bh] = $this->actor('unseen-broker', true);

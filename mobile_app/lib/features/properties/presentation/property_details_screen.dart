@@ -140,6 +140,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             if (loaded != null && loaded.status == 'published' && !loaded.isOwner)
               AppIconButton(
                 icon: favoriteStatus.icon,
+                iconColor: favoriteStatus.iconColor,
                 tooltip: favoriteStatus.tooltip,
                 onPressed: _changingFavorite || _consumingPendingFavorite || favoriteStatus.loading
                     ? null

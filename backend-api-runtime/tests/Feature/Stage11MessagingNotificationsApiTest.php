@@ -60,6 +60,54 @@ class Stage11MessagingNotificationsApiTest extends TestCase
         ]);
     }
 
+    public function test_typing_signal_is_ephemeral_thread_scoped_and_hidden_for_blocked_parties(): void
+    {
+        [$advertiser, $adHeaders] = $this->user('s11-typing-ad@example.test', '+967730000021');
+        [$buyer, $buyerHeaders] = $this->user('s11-typing-buyer@example.test', '+967730000022');
+        [, $outsiderHeaders] = $this->user('s11-typing-outsider@example.test', '+967730000023', ['support_manager']);
+        $listing = $this->publishedListing($advertiser, 'Typing signal listing');
+        $secondListing = $this->publishedListing($advertiser, 'Other typing thread listing');
+        $threadId = $this->withHeaders($buyerHeaders)->postJson("/api/properties/{$listing->id}/conversation")->assertCreated()->json('data.id');
+        $secondId = $this->withHeaders($buyerHeaders)->postJson("/api/properties/{$secondListing->id}/conversation")->assertCreated()->json('data.id');
+        $url = "/api/messages/threads/$threadId/typing";
+        $otherUrl = "/api/messages/threads/$secondId/typing";
+        $this->withHeader('Authorization', '')->getJson($url)->assertUnauthorized();
+        $this->withHeaders($outsiderHeaders)->getJson($url)->assertNotFound();
+        $this->withHeaders($outsiderHeaders)->postJson($url, ['typing' => true])->assertNotFound();
+        $this->withHeaders($buyerHeaders)->postJson($url, [])->assertUnprocessable();
+        $response = $this->withHeaders($buyerHeaders)->postJson($url, ['typing' => true])->assertOk()
+            ->assertExactJson(['data' => ['other_typing' => false]]);
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $this->withHeaders($adHeaders)->getJson($url)->assertOk()
+            ->assertExactJson(['data' => ['other_typing' => true]]);
+        $this->withHeaders($adHeaders)->getJson($otherUrl)->assertOk()->assertJsonPath('data.other_typing', false);
+        $this->withHeaders($adHeaders)->postJson($url, ['typing' => true])->assertOk()
+            ->assertJsonPath('data.other_typing', true);
+        $this->withHeaders($buyerHeaders)->getJson($url)->assertOk()->assertJsonPath('data.other_typing', true);
+        $this->assertDatabaseCount('private_messages', 0);
+        $this->assertDatabaseCount('user_notifications', 0);
+
+        $this->withHeaders($buyerHeaders)->postJson($url, ['typing' => false])->assertOk();
+        $this->withHeaders($adHeaders)->getJson($url)->assertOk()->assertJsonPath('data.other_typing', false);
+        $this->travel(6)->seconds();
+        $this->withHeaders($buyerHeaders)->getJson($url)->assertOk()->assertJsonPath('data.other_typing', false);
+
+        $this->withHeaders($buyerHeaders)->postJson($url, ['typing' => true])->assertOk();
+        $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/messages", [
+            'body' => 'رسالة أرسلت بعد الكتابة',
+        ])->assertCreated();
+        $this->withHeaders($adHeaders)->getJson($url)->assertOk()->assertJsonPath('data.other_typing', false);
+        $this->withHeaders($adHeaders)->getJson('/api/notifications/unread-count')->assertOk()->assertJsonPath('data.count', 1);
+
+        $this->withHeaders($buyerHeaders)->postJson($url, ['typing' => true])->assertOk();
+        $this->withHeaders($adHeaders)->putJson("/api/users/{$buyer->id}/messaging-block")->assertOk();
+        $this->withHeaders($adHeaders)->getJson($url)->assertOk()->assertJsonPath('data.other_typing', false);
+        $this->withHeaders($buyerHeaders)->postJson($url, ['typing' => true])->assertForbidden();
+        $this->withHeaders($buyerHeaders)->postJson($url, ['typing' => false])->assertOk()
+            ->assertJsonPath('data.other_typing', false);
+        $this->assertDatabaseCount('private_messages', 1);
+    }
+
     public function test_private_access_history_is_immutable(): void
     {
         $event=PrivateMessageAccessEvent::query()->create(['conversation_report_id'=>999,'thread_id'=>999,'actor_user_id'=>null,'actor_name_snapshot'=>'Snapshot','action'=>'opened_reported_private_content','created_at'=>now()]);

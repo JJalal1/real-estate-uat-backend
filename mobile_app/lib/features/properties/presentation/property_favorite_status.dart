@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A failed account lookup is unknown, never an unsaved property.
 class PropertyFavoriteStatus {
+  static const savedColor = Color(0xFFD3344F);
+
   const PropertyFavoriteStatus.ready(this.selected) : loading = false, failed = false;
   const PropertyFavoriteStatus.loading() : selected = false, loading = true, failed = false;
   const PropertyFavoriteStatus.failed() : selected = false, loading = false, failed = true;
@@ -23,4 +25,5 @@ class PropertyFavoriteStatus {
   IconData get icon => loading ? Icons.hourglass_top_rounded
       : failed ? Icons.refresh_rounded
       : selected ? Icons.favorite_rounded : Icons.favorite_border_rounded;
+  Color? get iconColor => selected ? savedColor : null;
 }
