@@ -1,0 +1,291 @@
+name: UAT 1842 Alazzi design and usability updates
+
+on:
+  push:
+    branches: [work/uat-acceptance-1830-20261121]
+    paths: ['.github/workflows/uat-alazzi-1842.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aqer-alazzi-1842
+  cancel-in-progress: false
+
+jobs:
+  verify-and-build:
+    permissions:
+      contents: write
+    if: ${{ github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      AQER_SOURCE_SHA: 'fa2b3e671529944efdb1534a6ce21b187c200383'
+      AQER_HOME_ASSISTANT_ASSET_PATH: assets/brand/home-smart-assistant.webp
+      AQER_HOME_ASSISTANT_ASSET_SHA256: '0fd0d4726de99e45609a1ed94f76756f7abdb2616c683b97d52dbedd7117617a'
+      AQER_SIGNING_ENVIRONMENT: uat
+      AQER_VERIFIED_FIREBASE_FINGERPRINT: '716a458274e8e131530269d9a5196cf6bd3e3bc9d231f3c0c415870d0b1dc79a'
+      AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
+      ORG_GRADLE_PROJECT_AQER_UAT_APPLICATION_ID: com.aqer.yemen.uat.offline
+      ORG_GRADLE_PROJECT_AQER_UAT_APP_NAME: عقار أوفلاين اختبار
+      ORG_GRADLE_PROJECT_AQER_UAT_COMPRESS_NATIVE_LIBS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.AQER_SOURCE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify UAT 1841 inputs and the approved new assistant artwork
+        run: |
+          test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
+          baseline=0f371163bd9df8c1c9f765557a9a190d76ebce72
+          asset="mobile_app/$AQER_HOME_ASSISTANT_ASSET_PATH"
+          git merge-base --is-ancestor "$baseline" HEAD
+          git diff --exit-code "$baseline" HEAD -- render.yaml scripts docs/uat-signing-identity.json \
+            mobile_app/android mobile_app/ios mobile_app/pubspec.yaml mobile_app/pubspec.lock \
+            mobile_app/assets ":(exclude,top)$asset"
+          test "$(git diff --name-status "$baseline" HEAD -- "$asset")" = "$(printf 'A\t%s' "$asset")"
+          test -f "$asset"
+          test ! -L "$asset"
+          printf '%s  %s\n' "$AQER_HOME_ASSISTANT_ASSET_SHA256" "$asset" | sha256sum --check --strict
+      - name: Verify and import the approved Firebase Android configuration
+        env:
+          AQER_UAT_OFFLINE_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.AQER_UAT_OFFLINE_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AQER_UAT_OFFLINE_GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo 'The Firebase Android configuration is not available to this workflow.'
+            exit 1
+          fi
+          python3 -B scripts/import_ci_uat_firebase.py --package com.aqer.yemen.uat.offline
+          python3 -B - <<'PY'
+          import os
+          from pathlib import Path
+
+          properties = Path('mobile_app/android/firebase-uat.properties').read_text().splitlines()
+          assert 'aqer.uat.firebase.enabled=true' in properties, 'Firebase is disabled for the Android client'
+          assert 'aqer.uat.firebase.packageName=com.aqer.yemen.uat.offline' in properties, 'Firebase package mismatch'
+          expected = 'aqer.uat.firebase.fingerprint=' + os.environ['AQER_VERIFIED_FIREBASE_FINGERPRINT']
+          assert expected in properties, 'Firebase configuration differs from the reviewed configuration'
+          print('The approved Firebase project, Android package and configuration fingerprint match.')
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.3'
+          channel: stable
+          cache: true
+      - name: Resolve the approved package lock
+        working-directory: mobile_app
+        run: |
+          # This manifest differs from UAT 1830 only by the Cairo font assets.
+          test "$(git hash-object pubspec.yaml)" = '4583d88e975281d4d55c0622b48ae1249342d99c'
+          git diff --exit-code fd832497768aac67fdd32485f2af835f273111c8 HEAD -- \
+            pubspec.lock ../docs/ui-transplant-v3/pubspec_overrides.yaml
+          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
+          flutter pub get
+          approved="$RUNNER_TEMP/aqer-approved-dependencies"
+          git worktree add --detach --quiet "$approved" fd832497768aac67fdd32485f2af835f273111c8
+          cp "$approved/docs/ui-transplant-v3/pubspec_overrides.yaml" "$approved/mobile_app/pubspec_overrides.yaml"
+          python3 -B "$approved/scripts/verify_v3_dependency_lock.py" --resolved "$PWD/pubspec.lock" --approved-uat1829
+          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --approved-uat1829
+          flutter pub get --enforce-lockfile
+
+      - name: Check Android map configuration and signing boundaries
+        run: |
+          python3 -B -m unittest discover -s scripts/tests -p 'test_uat_signing_configuration.py'
+          cd mobile_app
+          flutter test --no-pub test/app_theme_test.dart test/map_layers_test.dart test/phase04_ranked_search_test.dart \
+            --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_GOOGLE_MAPS_UAT=true --reporter expanded
+      - name: Test categories, listing entry, location and notification actions
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub --reporter expanded
+          test/marketplace_categories_screen_test.dart
+          test/wave3_personal_listing_test.dart
+          test/owner_ux_location_navigation_test.dart
+          test/uat_notification_actions_test.dart
+      - name: Test the professional Home add-property button
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub --reporter expanded test/wave6_product_ui_test.dart
+          --name 'professional home has a compact house-plus CTA'
+      - name: Test the updated Home, assistant search, map filters and favorites
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub --reporter expanded
+          test/wave3_search_only_1393_test.dart
+          test/assisted_search_entry_1820_test.dart
+          test/map_search_layout_1820_test.dart
+          test/map_dynamic_filters_1430_test.dart
+          test/phase23_favorite_recovery_test.dart
+      - name: Test broker messages, conversation actions and the inbox
+        working-directory: mobile_app
+        run: >-
+          flutter test --no-pub --reporter expanded
+          test/broker_messaging_handoff_test.dart
+          test/broker_message_list_test.dart
+          test/broker_experience_ui_test.dart
+          test/broker_convenience_test.dart
+          test/ui_transplant_v3_template_test.dart
+          test/message_inbox_pagination_test.dart
+          test/private_tail_pagination_test.dart
+          test/loading_recovery_test.dart
+          test/messaging_system_navigation_test.dart
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          log-accepted-android-sdk-licenses: false
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
+      - name: Restore the reviewed public Gradle cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
+          restore-keys: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-
+      - name: Import the approved UAT signer
+        env:
+          AQER_UAT_KEYSTORE_BASE64: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 }}
+          AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
+          AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
+          AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
+          AQER_UAT_SIGNING_CERT_SHA256: ${{ secrets.AQER_UAT_SIGNING_CERT_SHA256 }}
+        run: python3 -B scripts/import_ci_uat_signing.py --required
+      - name: Assemble the signed Android candidate
+        working-directory: mobile_app
+        env:
+          AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
+          AQER_RELEASE_KEY_ALIAS: ${{ secrets.AQER_RELEASE_KEY_ALIAS }}
+          AQER_RELEASE_KEY_PASSWORD: ${{ secrets.AQER_RELEASE_KEY_PASSWORD }}
+          AQER_UAT_GOOGLE_MAPS_ANDROID_KEY: ${{ secrets.AQER_UAT_GOOGLE_MAPS_ANDROID_KEY }}
+        run: |
+          if [ -z "$AQER_UAT_GOOGLE_MAPS_ANDROID_KEY" ]; then
+            echo "The UAT Android Maps credential is missing."
+            exit 1
+          fi
+          flutter build apk --no-pub --flavor uat --release --build-number=1842 \
+            --target-platform=android-arm64 \
+            --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1842 \
+            --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline \
+            --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api \
+            --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
+            --dart-define=AQER_GOOGLE_MAPS_UAT=true --dart-define=AQER_RANKED_DISCOVERY=true --dart-define=AQER_MAP_SEARCH_TRACE=true
+      - name: Verify the APK, restricted Maps configuration and bundled classifier
+        env:
+          AQER_UAT_GOOGLE_MAPS_ANDROID_KEY: ${{ secrets.AQER_UAT_GOOGLE_MAPS_ANDROID_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir uat1842
+          apk=uat1842/AQER-UAT-1842-Alazzi-ARM64.apk
+          cp mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk "$apk"
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          badging="$("$tools/aapt" dump badging "$apk")"
+          grep -F "package: name='com.aqer.yemen.uat.offline' versionCode='1842'" <<< "$badging"
+          grep -Eq "^native-code: 'arm64-v8a'[[:space:]]*$" <<< "$badging"
+          certs="$("$tools/apksigner" verify --print-certs "$apk")"
+          export SIGNER_SHA256="$(awk -F ': ' '/^Signer #1 certificate SHA-256 digest:/ {print $2}' <<< "$certs")"
+          export SIGNER_SHA1="$(awk -F ': ' '/^Signer #1 certificate SHA-1 digest:/ {print $2}' <<< "$certs")"
+          python3 - "$apk" "$tools/aapt" <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from phase23_firebase import verify_compiled_configuration
+          from prepare_uat_firebase import OFFLINE_PACKAGE
+
+          apk = Path(sys.argv[1])
+          identity = json.loads(Path("docs/uat-signing-identity.json").read_text())
+          assert identity["approved_for_delivery"] and identity["github_secret_storage_verified"]
+          assert os.environ["SIGNER_SHA256"] == identity["certificate_sha256"]
+          assert os.environ["SIGNER_SHA1"] == "8716d831c2102bd72dd8c90b18b19b5acaa25ad4", "APK signer differs from the Android Maps restriction"
+          maps_key = os.environ["AQER_UAT_GOOGLE_MAPS_ANDROID_KEY"]
+          manifest = subprocess.check_output([sys.argv[2], "dump", "xmltree", str(apk), "AndroidManifest.xml"], text=True)
+          entries = re.split(r"(?m)^ +E: ", manifest)
+          assert maps_key and any(
+              entry.startswith("meta-data ") and '"com.google.android.geo.API_KEY"' in entry
+              and any("android:value" in line and ('="' + maps_key + '"') in line for line in entry.splitlines())
+              for entry in entries
+          ), "APK is missing its configured Android Maps credential"
+          model = "assets/mlkit_label_default_model/mobile_ica_8bit_with_metadata_tflite"
+          abis = ("arm64-v8a",)
+          with zipfile.ZipFile(apk) as contents:
+              assistant_asset = os.environ["AQER_HOME_ASSISTANT_ASSET_PATH"]
+              assistant_digest = os.environ["AQER_HOME_ASSISTANT_ASSET_SHA256"]
+              bundled_assistant = contents.read("assets/flutter_assets/" + assistant_asset)
+              assert hashlib.sha256(bundled_assistant).hexdigest() == assistant_digest
+              assert bundled_assistant == Path("mobile_app", assistant_asset).read_bytes()
+              for weight in ("Regular", "Medium", "SemiBold", "Bold", "ExtraBold"):
+                  asset = "assets/fonts/Cairo-" + weight + ".ttf"
+                  bundled = contents.read("assets/flutter_assets/" + asset)
+                  assert bundled == Path("mobile_app", asset).read_bytes(), weight
+              actual_abis = {
+                  entry.filename.split("/")[1]
+                  for entry in contents.infolist()
+                  if entry.filename.startswith("lib/") and not entry.is_dir()
+              }
+              assert actual_abis == set(abis), actual_abis
+              assert hashlib.sha256(contents.read(model)).hexdigest() == "4afa3970d3efd6726d147d505e28c7ff1e4fe1c24be7bcda6b5429eb099777a5"
+              for abi in abis:
+                  for lib in ("libflutter.so", "libapp.so"):
+                      assert contents.getinfo(f"lib/{abi}/{lib}").compress_type == zipfile.ZIP_DEFLATED
+                  assert b"https://real-estate-uat-api-frankfurt.onrender.com/api" in contents.read(f"lib/{abi}/libapp.so")
+              firebase = verify_compiled_configuration(
+                  contents, Path("mobile_app/android/firebase-uat.properties"), package=OFFLINE_PACKAGE,
+              )
+          assert firebase["client_configured"] and firebase["client_push_enabled"]
+          assert firebase["compiled_configuration_verified"]
+          assert firebase["config_fingerprint"] == os.environ["AQER_VERIFIED_FIREBASE_FINGERPRINT"]
+          receipt = {
+              "changes": "Alazzi design and usability updates",
+              "size_baseline_build": 1841,
+              "bytes_baseline": 25896048,
+              "cairo_fonts_verified": True,
+              "assistant_asset": {"path": assistant_asset, "sha256": assistant_digest, "bundled_verified": True},
+              "api_base_url": "https://real-estate-uat-api-frankfurt.onrender.com/api",
+              "source": os.environ["AQER_SOURCE_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "package": "com.aqer.yemen.uat.offline",
+              "build": 1842,
+              "certificate_sha256": identity["certificate_sha256"],
+              "bytes": apk.stat().st_size,
+              "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
+              "abis": abis,
+              "google_maps_android_configured": True,
+              "firebase": firebase,
+          }
+          (apk.parent / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          print(json.dumps(receipt))
+          PY
+      - name: Remove temporary signing and Firebase configuration
+        if: always()
+        run: |
+          python3 -B - <<'PY'
+          import os
+          from pathlib import Path
+          Path("mobile_app/android/firebase-uat.properties").unlink(missing_ok=True)
+          folder = Path(os.environ["RUNNER_TEMP"]) / "aqer-uat-signing"
+          (folder / "uat-release.keystore").unlink(missing_ok=True)
+          PY
+      - name: Deliver the verified installer directly to a private draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd uat1842
+          apk=AQER-UAT-1842-Alazzi-ARM64.apk
+          jq -e --arg source "$AQER_SOURCE_SHA" '.source == $source and .build == 1842 and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
+          printf '%s  %s\n' "$(jq -r .sha256 APK_VERIFICATION.json)" "$apk" | sha256sum --check --strict
+          gh release create "uat-alazzi-1842-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            "$apk" APK_VERIFICATION.json --repo "$GITHUB_REPOSITORY" --draft --target "$AQER_SOURCE_SHA" \
+            --title 'AQER UAT 1842 — Alazzi design and usability updates' \
+            --notes "Signed integrated UAT build, verified against source $AQER_SOURCE_SHA."
