@@ -14,9 +14,11 @@ use App\Models\UserNotification;
 use App\Services\AuditLogService;
 use App\Services\SupportCaseService;
 use App\Services\SupportTaskService;
+use App\Services\UserMessagingBlockService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -26,6 +28,7 @@ use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 class MessagingController extends Controller
 {
     private const MESSAGE_PAGE_SIZE = 100;
+    private const TYPING_TTL_SECONDS = 5;
     private array $blockStates=[];
 
     public function __construct(
@@ -185,6 +188,35 @@ class MessagingController extends Controller
         ]]);
     }
 
+    public function typing(
+        Request $request,
+        MessageThread $thread,
+        UserMessagingBlockService $blocks,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $this->participant($thread, $user);
+        $userId = (int) $user->id;
+        $otherId = $thread->participants()->where('user_id', '<>', $userId)->value('user_id');
+        $canSignal = $otherId !== null && $blocks->canSend($userId, (int) $otherId);
+
+        if ($request->isMethod('post')) {
+            $request->validate(['typing' => ['required', 'boolean']]);
+            $key = $this->typingKey((int) $thread->id, $userId);
+            if ($request->boolean('typing')) {
+                abort_unless($canSignal, 403, 'لا يمكن إرسال إشارات الكتابة في هذه المحادثة حاليًا.');
+                Cache::put($key, true, self::TYPING_TTL_SECONDS);
+            } else {
+                Cache::forget($key);
+            }
+        }
+
+        return response()->json(['data' => [
+            'other_typing' => $canSignal
+                && Cache::get($this->typingKey((int) $thread->id, (int) $otherId)) === true,
+        ]])->header('Cache-Control', 'private, no-store');
+    }
+
     public function send(Request $request, MessageThread $thread): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
@@ -219,6 +251,12 @@ class MessagingController extends Controller
             return [$message,true];
         });
         if($created){
+            try {
+                Cache::forget($this->typingKey((int) $thread->id, (int) $user->id));
+            } catch (\Throwable $error) {
+                // The message has committed. The short-lived signal can expire on its own.
+                report($error);
+            }
             $recipients=MessageThreadParticipant::query()->where('thread_id',$thread->id)->where('user_id','<>',$user->id)->pluck('user_id');
             foreach($recipients as $recipientId){
                 $this->notifications->create((int)$recipientId,'message_received','رسالة جديدة من '.$user->name,'لديك رسالة جديدة داخل التطبيق.','message_thread',$thread->id,['thread_id'=>$thread->id]);
@@ -382,6 +420,11 @@ class MessagingController extends Controller
     {
         $participant=MessageThreadParticipant::query()->where('thread_id',$thread->id)->where('user_id',$user->id)->first();
         abort_unless($participant,404);return $participant;
+    }
+
+    private function typingKey(int $threadId, int $userId): string
+    {
+        return 'message-typing:'.hash('sha256', $threadId.':'.$userId);
     }
 
     private function threadSummary(MessageThread $thread, User $user, ?PrivateMessage $latest=null, ?int $unread=null, bool $preloaded=false): array
