@@ -523,7 +523,7 @@ class _HomeBrokerCard extends StatelessWidget {
                 ),
                 Row(children: [
                   Flexible(child: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(fontSize: 19,
+                    style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700, color: scheme.onSurface))),
                   if (profile.verified) ...[
                     const SizedBox(width: 5),

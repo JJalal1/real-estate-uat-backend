@@ -98,16 +98,22 @@ jobs:
           flutter pub get --enforce-lockfile
       - name: Analyze Flutter
         run: python3 -B ../scripts/check_v3_analysis.py
-      - name: Test broker journeys and message regressions
+      - name: Test broker screens, conversations and marketplace cards
         run: >-
           flutter test --no-pub --reporter expanded
           test/broker_experience_ui_test.dart
           test/broker_convenience_test.dart
-          test/broker_dashboard_shortcuts_test.dart
+          test/listing_direct_resume_test.dart
           test/message_inbox_pagination_test.dart
           test/my_listings_pagination_test.dart
           test/offline_message_outbox_test.dart
           test/wave02_assistant_entry_test.dart
+          test/app_components_test.dart
+          test/app_theme_test.dart
+          test/compact_cards_email_login_test.dart
+          test/owner_ux_gallery_filters_test.dart
+          test/phase3_favorites_screen_test.dart
+          test/wave3_search_only_1393_test.dart
       - name: Upload synthetic screen previews
         id: preview-artifact
         continue-on-error: true

@@ -24,29 +24,40 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 21;
     final vertical = preview || imageFirst || largeText;
     final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix);
+    Widget priceWithPurpose({bool fillWidth = true}) {
+      final label = purposeLabel;
+      if (label == null) return money;
+      return Row(
+        textDirection: TextDirection.rtl,
+        mainAxisSize: fillWidth ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          Flexible(fit: fillWidth ? FlexFit.tight : FlexFit.loose, child: money),
+          const SizedBox(width: 8),
+          EbrokerPurposeLabel(label, key: const ValueKey('property-price-purpose')),
+        ],
+      );
+    }
     Widget gallery(double height) => ClipRRect(borderRadius: BorderRadius.circular(12),
       child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, authenticatedImages: authenticatedImages,
         height: height, overlay: vertical ? trailing : null,
-        purposeBadge: preview && purposeLabel != null
-          ? EbrokerPurposeLabel(purposeLabel!, key: const ValueKey('property-photo-purpose'))
-          : null,
+        overlayAtStart: preview && purposeLabel != null,
         priceBadge: imageFirst && !preview ? Container(key: const ValueKey('property-photo-price'),
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           decoration: BoxDecoration(color: scheme.surface.withValues(alpha: .97), borderRadius: BorderRadius.circular(8)),
-          child: money) : null,
+          child: priceWithPurpose(fillWidth: false)) : null,
         propertyType: propertyType ?? propertyTypeFromLabel(categoryLabel)));
     final detail = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-      if (!imageFirst && !preview) ...[money, const SizedBox(height: 4)],
+      if (!imageFirst && !preview) ...[priceWithPurpose(), const SizedBox(height: 4)],
       Text(title, maxLines: largeText ? null : 2, overflow: largeText ? null : TextOverflow.ellipsis,
         style: AppTypography.propertyName),
       if (location?.trim().isNotEmpty == true) ...[const SizedBox(height: 4), Text(location!,
         maxLines: largeText ? null : 1, overflow: largeText ? null : TextOverflow.ellipsis,
         style: AppTypography.propertySecondary.copyWith(color: scheme.onSurfaceVariant))],
-      if (preview) ...[const SizedBox(height: 6), money],
-      if (!preview) ...[const SizedBox(height: 4), Wrap(spacing: 7, runSpacing: 3, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
-          const SizedBox(width: 4), Text(categoryLabel, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))]),
-        if (purposeLabel != null) Text(purposeLabel!, style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.primary)),
+      if (preview) ...[const SizedBox(height: 6), priceWithPurpose()],
+      if (!preview) ...[const SizedBox(height: 4), Row(mainAxisSize: MainAxisSize.min, children: [
+        PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
+        const SizedBox(width: 4), Flexible(child: Text(categoryLabel,
+          style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))),
       ])],
       if (facts.isNotEmpty) ...[const SizedBox(height: 6), Wrap(spacing: 9, runSpacing: 4, children: [
         for (final fact in facts) Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 14, color: scheme.onSurfaceVariant),

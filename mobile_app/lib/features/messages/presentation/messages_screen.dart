@@ -296,6 +296,7 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                             MaterialPageRoute<void>(
                               builder: (_) => ConversationScreen(
                                 threadId: item.id,
+                                compactPropertyContext: widget.compact,
                               ),
                             ),
                           );
@@ -405,12 +406,34 @@ class _ConversationCard extends StatelessWidget {
   final MessageThreadSummary item;
   final VoidCallback onTap;
   final bool compact;
+  static final _lineBreak = RegExp(r'\s*[\r\n\u2028\u2029]+\s*');
+
+  Widget _unreadBadge(ColorScheme scheme, TextTheme textTheme) => Container(
+    constraints: BoxConstraints(
+      minWidth: compact ? 22 : 28,
+      minHeight: compact ? 22 : 28,
+    ),
+    padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 8),
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: scheme.primary,
+      borderRadius: BorderRadius.circular(AppRadii.pill),
+    ),
+    child: Text(
+      item.unreadCount > 99 ? '99+' : '${item.unreadCount}',
+      style: textTheme.labelSmall?.copyWith(
+        color: scheme.onPrimary,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final unread = item.unreadCount > 0;
+    final preview = item.lastMessagePreview ?? 'ابدأ المحادثة حول هذا العقار.';
     final firstLetter = item.otherUserName.trim().isEmpty
         ? '?'
         : item.otherUserName.trim().characters.first;
@@ -463,6 +486,10 @@ class _ConversationCard extends StatelessWidget {
                                   color: scheme.onSurfaceVariant,
                                 ),
                           ),
+                        if (compact && unread) ...[
+                          const SizedBox(width: AppSpacing.s8),
+                          _unreadBadge(scheme, textTheme),
+                        ],
                       ],
                     ),
                     if (item.propertyTitle != null) ...[
@@ -491,8 +518,9 @@ class _ConversationCard extends StatelessWidget {
                     ],
                     SizedBox(height: compact ? AppSpacing.s4 : AppSpacing.s6),
                     Text(
-                      item.lastMessagePreview ?? 'ابدأ المحادثة حول هذا العقار.',
+                      compact ? preview.replaceAll(_lineBreak, ' ').trim() : preview,
                       maxLines: compact ? 1 : 2,
+                      softWrap: !compact,
                       overflow: TextOverflow.ellipsis,
                       style: (compact ? textTheme.bodySmall : textTheme.bodyMedium)?.copyWith(
                             color: unread
@@ -502,10 +530,10 @@ class _ConversationCard extends StatelessWidget {
                                 unread ? FontWeight.w600 : FontWeight.normal,
                           ),
                     ),
-                    if (item.isPropertyUnavailable) ...[
-                      SizedBox(height: compact ? AppSpacing.s4 : AppSpacing.s8),
-                      AppStatusBadge(
-                        label: compact ? 'الإعلان غير متاح' : 'الإعلان غير متاح حاليًا • المحادثة محفوظة',
+                    if (!compact && item.isPropertyUnavailable) ...[
+                      const SizedBox(height: AppSpacing.s8),
+                      const AppStatusBadge(
+                        label: 'الإعلان غير متاح حاليًا • المحادثة محفوظة',
                         tone: AppStatusTone.warning,
                         icon: Icons.info_outline,
                       ),
@@ -513,29 +541,11 @@ class _ConversationCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: AppSpacing.s8),
-              if (unread)
-                Container(
-                  constraints: BoxConstraints(
-                    minWidth: compact ? 22 : 28,
-                    minHeight: compact ? 22 : 28,
-                  ),
-                  padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 8),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: scheme.primary,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Text(
-                    item.unreadCount > 99 ? '99+' : '${item.unreadCount}',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: scheme.onPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                )
-              else if (!compact)
-                EbrokerIcon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+              if (!compact) ...[
+                const SizedBox(width: AppSpacing.s8),
+                if (unread) _unreadBadge(scheme, textTheme)
+                else EbrokerIcon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
+              ],
             ],
           ),
         ),

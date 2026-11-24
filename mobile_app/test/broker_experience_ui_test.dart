@@ -41,7 +41,7 @@ class BrokerTestAuth extends AuthController {
 Map<String, dynamic> brokerTestWorkspace() => {
   'broker_profile': {'id': 1, 'name': exampleBroker.name, 'account_type': 'broker', 'verified': true, 'rating_average': 4.6, 'rating_count': 7,
     'completed_deals': 12, 'active_listings': 8, 'governorate': 'أمانة العاصمة'},
-  'listings': {'published': 8}, 'customer_activity': {'unread_conversations': 3, 'new_customers_this_week': 4, 'active_viewings': 2, 'completed_deals': 12},
+  'listings': {'published': 8, 'draft': 1}, 'customer_activity': {'unread_conversations': 3, 'new_customers_this_week': 4, 'active_viewings': 2, 'completed_deals': 12},
   'needs_attention': {'availability_count': 2, 'correction_listings': [{'id': 3}], 'pending_deal_count': 1},
   'financial_summary': {'listing_creation_blocked': false},
 };
@@ -147,6 +147,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BrokerDashboardScreen), findsOneWidget);
     expect(find.byKey(const ValueKey('broker-achievement-carousel')), findsOneWidget);
+    expect(find.text('أدوات عملك'), findsOneWidget);
+    expect(find.text('أكمل مسودة'), findsNothing);
+    expect(find.text('مشاركة إعلان منشور'), findsNothing);
     expect(find.byKey(const ValueKey('broker-tool-badge-الصفقات')), findsNothing);
     expect(find.byKey(const ValueKey('broker-tool-badge-المستحقات')), findsNothing);
     nav.onSelected(2);
@@ -190,19 +193,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     expect(repo.seenDeals, [(4, 7)]);
   });
-  testWidgets('achievement cards advance after six seconds and support pause', (tester) async {
+  testWidgets('achievement cards advance after four seconds and support pause', (tester) async {
     await _pump(tester, const BrokerDashboardScreen(), BrokerTestRepository());
     final pages = tester.widget<PageView>(find.descendant(
       of: find.byKey(const ValueKey('broker-achievement-carousel')),
       matching: find.byType(PageView),
     ));
     expect(pages.controller!.page, 0);
-    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(const Duration(seconds: 3));
+    expect(pages.controller!.page, 0);
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(pages.controller!.page, 1);
     await tester.tap(find.byKey(const ValueKey('broker-achievement-autoplay')));
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 7));
+    await tester.pump(const Duration(seconds: 5));
     expect(pages.controller!.page, 1);
   });
   final screens = <String, Widget>{'dashboard': const BrokerDashboardScreen(), 'customers': const BrokerCustomersScreen(),

@@ -89,12 +89,15 @@ void main() {
     }
   });
 
-  testWidgets('R3 deal badges use the original sale and rent colors in both themes', (tester) async {
+  testWidgets('property purpose pills use the approved light fills and readable text', (tester) async {
     for (final theme in [AppTheme.light, AppTheme.dark]) {
       final semantic = theme.extension<AppSemanticColors>()!;
-      for (final (label, fill, ink) in [
-        ('للبيع', semantic.infoContainer, semantic.onInfoContainer),
-        ('للإيجار', semantic.warningContainer, semantic.onWarningContainer),
+      final dark = theme.brightness == Brightness.dark;
+      for (final (label, shortLabel, fill, ink) in [
+        ('للبيع', 'بيع', dark ? semantic.infoContainer : const Color(0xFFE8F4FF),
+          dark ? semantic.onInfoContainer : const Color(0xFF32678A)),
+        ('للإيجار', 'إيجار', dark ? semantic.warningContainer : const Color(0xFFFFFAE7),
+          dark ? semantic.onWarningContainer : const Color(0xFF80620D)),
       ]) {
         await tester.pumpWidget(MaterialApp(
           theme: theme,
@@ -104,11 +107,12 @@ void main() {
         final badge = find.byType(EbrokerPurposeLabel);
         final box = tester.widget<Container>(find.descendant(of: badge, matching: find.byType(Container)));
         final decoration = box.decoration! as BoxDecoration;
-        final text = tester.widget<Text>(find.text(label));
+        final text = tester.widget<Text>(find.text(shortLabel));
         expect(decoration.color, fill);
-        expect(decoration.borderRadius, BorderRadius.circular(8));
+        expect(decoration.borderRadius, BorderRadius.circular(999));
         expect(text.style!.color, ink);
-        expect(text.style!.fontSize, 13);
+        expect(text.style!.fontSize, 11);
+        expect(_contrast(ink, fill), greaterThanOrEqualTo(4.5));
       }
     }
     final dark = AppTheme.dark.colorScheme;

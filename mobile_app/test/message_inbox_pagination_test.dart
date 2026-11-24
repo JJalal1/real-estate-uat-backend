@@ -358,6 +358,55 @@ void main() {
     });
   }
 
+  phase23WidgetTest('broker inbox moves an unavailable listing cue into the opened chat', (tester) async {
+    const property = 'عنوان عقار طويل في حي المطار، بجانب السوق والمدرسة والمسجد';
+    const firstLine = 'أرجو إرسال تفاصيل العقار والموقع وطريقة الوصول إليه';
+    const secondLine = 'والوقت المناسب لمواصلة المحادثة حول هذا العقار.';
+    const history = 'رسالة محفوظة في سجل المحادثة.';
+    final messageTime = DateTime.now().subtract(const Duration(days: 8));
+    final row = {
+      ..._row(71, label: 'عميل الاختبار', unread: 3),
+      'property_id': 9,
+      'property_title': property,
+      'property_status': 'paused',
+      'last_message_at': messageTime.toIso8601String(),
+      'last_message_preview': '$firstLine\n$secondLine',
+      'can_send': false,
+    };
+    final wire = _Wire((request) async => switch (request.path) {
+      '/messages/threads' => _page(1, [row]),
+      '/messages/threads/71' => {'data': {
+        'thread': row,
+        'messages': [{'id': 1, 'sender_user_id': 1071, 'sender_name': 'عميل الاختبار', 'body': history}],
+      }},
+      '/broker/activity' => _page(1, []),
+      _ => throw _failure(request, 404),
+    });
+    await _open(tester, wire, const MessagesScreen(embedded: true, compact: true));
+
+    final card = find.byKey(const ValueKey('message-thread-71'));
+    Finder inCard(Finder widget) => find.descendant(of: card, matching: widget);
+    expect(inCard(find.text('عميل الاختبار')), findsOneWidget);
+    expect(inCard(find.text('${messageTime.day}/${messageTime.month}')), findsOneWidget);
+    expect(inCard(find.text('3')), findsOneWidget);
+    expect(inCard(find.textContaining('غير متاح')), findsNothing);
+    final title = tester.widget<Text>(inCard(find.text(property)));
+    final preview = tester.widget<Text>(inCard(find.text('$firstLine $secondLine')));
+    expect(title.maxLines, 1);
+    expect(title.overflow, TextOverflow.ellipsis);
+    expect(preview.maxLines, 1);
+    expect(preview.softWrap, isFalse);
+    expect(preview.overflow, TextOverflow.ellipsis);
+
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+    expect(find.text(property), findsOneWidget);
+    expect(find.text('غير متاح'), findsOneWidget);
+    expect(find.text(history), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final all in [false, true]) {
     for (final fail in [false, true]) {
       phase23WidgetTest('epoch-only pending ${all ? 'read-all' : 'single read'} ${fail ? 'failure' : 'success'} remains retryable', (tester) async {

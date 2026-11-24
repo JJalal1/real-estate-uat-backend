@@ -11,7 +11,6 @@ import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/ebroker_card_actions.dart';
 import 'broker_achievement_carousel.dart';
-import 'broker_dashboard_shortcuts.dart';
 import 'customer_followup_sheet.dart';
 import '../../account/data/auth_controller.dart';
 import '../../messages/data/message_repository.dart';
@@ -180,8 +179,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
                   key: ValueKey(user?.id),
                   achievements: achievements,
                 ),
-                BrokerDashboardShortcuts(legacyDraftCount: brokerInt(listings['draft'])),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Text('أدوات عملك', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 12),
                 LayoutBuilder(builder: (context, size) {

@@ -379,7 +379,9 @@ class EbrokerTitleHeader extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsetsDirectional.only(top: 20, bottom: 16, start: 18, end: 18),
     child: Row(children: [
-      Expanded(child: Text(title, style: AppTypography.sectionTitle, maxLines: 2, overflow: TextOverflow.ellipsis)),
+      Expanded(child: Text(title,
+        style: AppTypography.sectionTitle.copyWith(fontSize: AppTypography.titleSmall.fontSize),
+        maxLines: 2, overflow: TextOverflow.ellipsis)),
       if (onSeeAll != null) TextButton(
         onPressed: onSeeAll,
         style: TextButton.styleFrom(textStyle: AppTypography.labelMedium, foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -398,16 +400,17 @@ class EbrokerCategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    const selectedFill = Color(0xFF008052);
     return Semantics(button: true, selected: selected, child: Material(color: Colors.transparent,
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(AppRadii.control),
         child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 180),
           constraints: const BoxConstraints(minHeight: 48), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(color: selected ? scheme.secondary : scheme.surface,
-            border: Border.all(color: selected ? scheme.secondary : scheme.outlineVariant),
+          decoration: BoxDecoration(color: selected ? selectedFill : scheme.surface,
+            border: Border.all(color: selected ? selectedFill : scheme.outlineVariant),
             borderRadius: BorderRadius.circular(AppRadii.control)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            PropertyTypeIcon(label: label, size: 18, color: selected ? scheme.onSecondary : scheme.primary), const SizedBox(width: 8),
-            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? scheme.onSecondary : scheme.onSurface, maxLines: 1),
+            PropertyTypeIcon(label: label, size: 18, color: selected ? Colors.white : scheme.primary), const SizedBox(width: 8),
+            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? Colors.white : scheme.onSurface, maxLines: 1),
           ])))));
   }
 }
@@ -422,12 +425,22 @@ class EbrokerPurposeLabel extends StatelessWidget {
     final semantic = theme.extension<AppSemanticColors>() ??
         (theme.brightness == Brightness.dark ? AppSemanticColors.dark : AppSemanticColors.light);
     final rent = label.contains('إيجار');
-    final color = rent ? semantic.onWarningContainer : semantic.onInfoContainer;
+    final shortLabel = switch (label) {
+      'للبيع' => 'بيع',
+      'للإيجار' => 'إيجار',
+      _ => label,
+    };
+    final (fill, ink) = theme.brightness == Brightness.dark
+        ? (rent ? semantic.warningContainer : semantic.infoContainer,
+            rent ? semantic.onWarningContainer : semantic.onInfoContainer)
+        : rent
+            ? (const Color(0xFFFFFAE7), const Color(0xFF80620D))
+            : (const Color(0xFFE8F4FF), const Color(0xFF32678A));
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(color: rent ? semantic.warningContainer : semantic.infoContainer,
-        borderRadius: BorderRadius.circular(AppRadii.small)),
-      child: Text(label, style: AppTypography.dealBadge.copyWith(color: color)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(999)),
+      child: Text(shortLabel, style: AppTypography.dealBadge.copyWith(
+        color: ink, fontSize: 11, fontWeight: FontWeight.w400)),
     );
   }
 }

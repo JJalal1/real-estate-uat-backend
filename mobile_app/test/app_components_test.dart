@@ -90,6 +90,9 @@ void main() {
     expect(find.textContaining('صنعاء'), findsOneWidget);
     expect(find.text('420 م²'), findsOneWidget);
     expect(find.text('5 غرف'), findsOneWidget);
+    final purpose = find.byKey(const ValueKey('property-price-purpose'));
+    expect(find.descendant(of: purpose, matching: find.text('بيع')), findsOneWidget);
+    expect(tester.getRect(purpose).right, lessThan(tester.getRect(find.byType(AppPropertyPrice)).left));
     expect(tester.takeException(), isNull);
   });
 

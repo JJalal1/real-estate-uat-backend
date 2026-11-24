@@ -62,7 +62,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('للبيع'), findsOneWidget);
+    expect(find.text('بيع'), findsOneWidget);
     expect(find.text('١٢٠ م²'), findsOneWidget);
     expect(find.byTooltip('إزالة من المفضلة'), findsOneWidget);
   });

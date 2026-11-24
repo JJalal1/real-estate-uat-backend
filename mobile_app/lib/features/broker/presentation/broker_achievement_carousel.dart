@@ -35,8 +35,8 @@ class BrokerAchievementCarousel extends StatefulWidget {
 
 class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
     with WidgetsBindingObserver {
-  static const _interval = Duration(seconds: 6);
-  final _pages = PageController(viewportFraction: .87, keepPage: false);
+  static const _interval = Duration(seconds: 4);
+  final _pages = PageController(viewportFraction: .89, keepPage: false);
   final _pointers = <int>{};
   Timer? _advanceTimer;
   Timer? _highlightTimer;
@@ -188,7 +188,7 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
     final scale = MediaQuery.textScalerOf(context);
     final extraHeight = (scale.scale(16) - 16).clamp(0.0, double.infinity).toDouble();
     final hasRatingGoal = achievements.any((item) => item.kind == BrokerAchievementKind.ratings);
-    final height = (hasRatingGoal ? 100.0 : 76.0) + 6 * extraHeight;
+    final height = (hasRatingGoal ? 110.0 : 86.0) + 6 * extraHeight;
 
     Widget card(BrokerAchievement achievement) => _AchievementCard(
       achievement: achievement,
@@ -302,7 +302,7 @@ class _AchievementCard extends StatelessWidget {
       onTap: achievement.onTap,
       child: AnimatedContainer(
         duration: animate ? const Duration(milliseconds: 240) : Duration.zero,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isNew ? tint.withValues(alpha: .35) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),

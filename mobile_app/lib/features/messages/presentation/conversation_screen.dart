@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../broker/presentation/broker_activity.dart';
 import '../data/message_repository.dart';
@@ -18,18 +19,21 @@ import '../../account/presentation/actor_scoped_page.dart';
 import '../domain/message_models.dart';
 
 class ConversationScreen extends ConsumerWidget {
-  const ConversationScreen({required this.threadId, super.key});
+  const ConversationScreen({required this.threadId, this.compactPropertyContext = false, super.key});
   final int threadId;
+  final bool compactPropertyContext;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return ActorBoundPage(title: 'المحادثة', builder: (_) =>
-      _ConversationBody(key: ValueKey('$actor:$threadId'), threadId: threadId));
+      _ConversationBody(key: ValueKey('$actor:$threadId'), threadId: threadId,
+        compactPropertyContext: compactPropertyContext));
   }
 }
 class _ConversationBody extends ConsumerStatefulWidget {
-  const _ConversationBody({required this.threadId, super.key});
+  const _ConversationBody({required this.threadId, required this.compactPropertyContext, super.key});
   final int threadId;
+  final bool compactPropertyContext;
   @override
   ConsumerState<_ConversationBody> createState() => _ConversationScreenState();
 }
@@ -222,7 +226,37 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
     } finally { if (mounted && _scope.isCurrent) setState(() => _blocking = false); }
   }
 
-  Widget _propertyAvailabilityBanner(MessageThreadSummary thread) {
+  Widget _propertyContext(MessageThreadSummary thread) {
+    final theme = Theme.of(context);
+    final warning = theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    return ColoredBox(
+      color: theme.colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 8),
+        child: Row(
+          children: [
+            EbrokerIcon(Icons.home_work_outlined, size: 16, color: theme.colorScheme.primary),
+            const SizedBox(width: 6),
+            Expanded(child: Text(
+              thread.propertyTitle ?? 'العقار',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall,
+            )),
+            if (thread.isPropertyUnavailable) ...[
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'الإعلان غير متاح حاليًا. سجل المحادثة محفوظ.',
+                child: Text('غير متاح', style: theme.textTheme.labelSmall?.copyWith(color: warning.warning)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _propertyAvailabilityBanner() {
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: const Padding(
@@ -320,6 +354,8 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
   @override
   Widget build(BuildContext context) {
     final thread = _details?.thread;
+    final showPropertyContext = thread?.propertyId != null &&
+        (widget.compactPropertyContext || thread?.canManageCustomer == true);
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -353,7 +389,8 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
           if (!_loading && thread?.canSend == false) Padding(padding: const EdgeInsets.all(12), child: Text(thread!.blockedByMe
             ? 'هذا الحساب محظور لديك. تبقى المحادثة السابقة محفوظة.' : 'الرسائل الجديدة غير متاحة حاليًا. يبقى تاريخ المحادثة والبلاغ متاحين.')),
           if (_blocking) const LinearProgressIndicator(),
-          if (!_loading && thread?.isPropertyUnavailable == true) _propertyAvailabilityBanner(thread!),
+          if (showPropertyContext) _propertyContext(thread!)
+          else if (!_loading && thread?.isPropertyUnavailable == true) _propertyAvailabilityBanner(),
           if (!_loading && thread != null) BrokerConversationTools(thread: thread),
           Expanded(
               child: Container(
