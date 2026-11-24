@@ -3,8 +3,61 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../messages/data/message_repository.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
+
+class CustomerStageChoices extends StatelessWidget {
+  const CustomerStageChoices({required this.stage, required this.supportsClassification,
+    required this.onSelected, super.key});
+
+  final String stage;
+  final bool supportsClassification;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Wrap(spacing: 8, runSpacing: 4, children: [
+        for (final entry in brokerEditableLeadLabels.entries)
+          ChoiceChip(
+            key: ValueKey('customer-stage-${entry.key}'),
+            label: Text(entry.value),
+            selected: stage == entry.key,
+            onSelected: supportsClassification || entry.key == 'not_interested'
+                ? (selected) { if (selected) onSelected(entry.key); }
+                : null,
+          ),
+        if (brokerEditableLeadLabels.containsKey(stage))
+          TextButton(
+            onPressed: () => onSelected('new'),
+            child: const Text('إلغاء التصنيف'),
+          ),
+      ]),
+      if (!supportsClassification)
+        Text('تحديد الموعد والحجز يتطلبان تحديث الخادم.',
+          style: Theme.of(context).textTheme.bodySmall),
+    ],
+  );
+}
+
+Future<bool> saveCustomerStage(BuildContext context, WidgetRef ref, int threadId, String stage) async {
+  final scope = ref.read(accountRequestScopeProvider);
+  try {
+    await ref.read(brokerRepositoryProvider).updateCustomer(threadId, stage);
+    if (!context.mounted || !scope.isCurrent) return false;
+    ref.invalidate(brokerWorkspaceProvider);
+    ref.read(messageDataRevisionProvider.notifier).state++;
+    return true;
+  } catch (error) {
+    if (context.mounted && scope.isCurrent) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    }
+    return false;
+  }
+}
 
 String followupDateLabel(DateTime date) {
   final d = date.toLocal();

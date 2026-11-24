@@ -51,6 +51,8 @@ class BrokerTestRepository implements BrokerRepository {
   final int viewerId;
   final availabilityChanges = <(List<int>, String)>[];
   final decisions = <(int, bool)>[];
+  final seenDeals = <(int, int)>[];
+  int? dealViewRevision;
   String dealStatus = 'pending_customer';
   @override
   Future<Map<String, dynamic>> workspace() async => brokerTestWorkspace();
@@ -76,7 +78,13 @@ class BrokerTestRepository implements BrokerRepository {
   ], page: 1, lastPage: 1);
   @override
   Future<BrokerDeal> deal(int id) async => BrokerDeal(id: id, threadId: 19, propertyId: 11, advertiserId: 1, propertyTitle: 'شقة حدة',
-    customerName: 'عميل تجريبي', advertiserName: exampleBroker.name, status: dealStatus, amount: 100000000, currency: 'YER', canConfirm: viewerId == 2 && dealStatus == 'pending_customer', canRate: viewerId == 2 && dealStatus == 'confirmed');
+    customerName: 'عميل تجريبي', advertiserName: exampleBroker.name, status: dealStatus, amount: 100000000, currency: 'YER',
+    canConfirm: viewerId == 2 && dealStatus == 'pending_customer', canRate: viewerId == 2 && dealStatus == 'confirmed',
+    advertiserViewRevision: viewerId == 1 ? dealViewRevision : null);
+  @override
+  Future<void> markDealSeen(int id, int revision) async {
+    seenDeals.add((id, revision));
+  }
   @override
   Future<BrokerDeal> decide(int id, bool confirmed) async { decisions.add((id, confirmed)); dealStatus = confirmed ? 'confirmed' : 'disputed'; return deal(id); }
   @override
@@ -137,7 +145,10 @@ void main() {
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
     nav.onSelected(1);
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('broker-priority-unread')), findsOneWidget);
+    expect(find.byType(BrokerDashboardScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('broker-achievement-carousel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('broker-tool-badge-الصفقات')), findsNothing);
+    expect(find.byKey(const ValueKey('broker-tool-badge-المستحقات')), findsNothing);
     nav.onSelected(2);
     await tester.pumpAndSettle();
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
@@ -168,7 +179,16 @@ void main() {
     expect(repo.decisions, isEmpty);
     await tester.tap(find.text('نعم، تمت')); await tester.pumpAndSettle();
     expect(repo.decisions, [(4, true)]);
+    expect(repo.seenDeals, isEmpty);
     expect(find.text('تقييم المعلن'), findsOneWidget);
+  });
+  testWidgets('opening a deal records the displayed advertiser revision once', (tester) async {
+    final repo = BrokerTestRepository()..dealViewRevision = 7;
+    await _pump(tester, const BrokerDealScreen(id: 4), repo);
+    expect(find.text('شقة حدة'), findsOneWidget);
+    expect(repo.seenDeals, [(4, 7)]);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(repo.seenDeals, [(4, 7)]);
   });
   final screens = <String, Widget>{'dashboard': const BrokerDashboardScreen(), 'customers': const BrokerCustomersScreen(),
     'availability': const BrokerAvailabilityScreen(), 'deals': const BrokerScaffold(appBar: AppAppBar(title: 'نشاطي'), body: BrokerDealsList()), 'finance': const BrokerFinanceScreen(),

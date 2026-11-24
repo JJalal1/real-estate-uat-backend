@@ -5,12 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
+import '../../../core/offline/offline_connection.dart';
 import '../../account/data/account_request_scope.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/ebroker_card_actions.dart';
+import 'broker_achievement_carousel.dart';
+import 'broker_dashboard_shortcuts.dart';
 import 'customer_followup_sheet.dart';
 import '../../account/data/auth_controller.dart';
+import '../../messages/data/message_repository.dart';
 import '../../properties/data/property_repository.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
@@ -86,42 +90,44 @@ class BrokerDashboardScreen extends ConsumerWidget {
           final listings = brokerMap(data['listings']);
           final activity = brokerMap(data['customer_activity']);
           final attention = brokerMap(data['needs_attention']);
-          final finance = brokerMap(data['financial_summary']);
+          final achievementData = brokerMap(data['achievements']);
           final activeListings = profile?.activeListings ?? brokerInt(listings['published']);
           final completedDeals = brokerInt(activity['completed_deals']);
-          final unread = brokerInt(activity['unread_conversations']);
-          final followups = brokerInt(attention['customer_followups_due']);
-          final corrections = brokerInt(listings['returned_for_correction'] ??
-              brokerRows(attention['correction_listings']).length);
+          final firstDealValue = achievementData['first_confirmed_deal'];
+          final firstDeal = firstDealValue is bool ? firstDealValue : completedDeals > 0;
+          final replies = brokerInt(achievementData['customers_replied_to_this_week']);
+          final ratings = brokerInt(achievementData['customer_ratings_count'] ?? profile?.ratingCount);
+          final inquiries = brokerInt(achievementData['listing_inquiries_this_month']);
           final availability = brokerInt(attention['availability_count']);
-          final pendingDeals = brokerInt(attention['pending_deal_count']);
-          final priorities = <({String id, String label, String route, IconData icon, int? count})>[
-            if (finance['listing_creation_blocked'] == true)
-              (id: 'finance', label: 'تسوية مستحقات المنصة', route: '/broker/finance',
-                icon: Icons.account_balance_wallet_outlined, count: null),
-            if (unread > 0)
-              (id: 'unread', label: 'الرد على المحادثات', route: '/broker/customers?filter=unread',
-                icon: Icons.chat_bubble_outline, count: unread),
-            if (followups > 0)
-              (id: 'followup-due', label: 'متابعة العملاء', route: '/broker/customers?filter=followup_due',
-                icon: Icons.event_note_outlined, count: followups),
-            if (corrections > 0)
-              (id: 'corrections', label: 'تصحيح الإعلانات', route: '/my-listings?corrections=1',
-                icon: Icons.edit_outlined, count: corrections),
-            if (availability > 0)
-              (id: 'availability', label: 'تأكيد توفر الإعلانات', route: '/broker/availability?due=1',
-                icon: Icons.update, count: availability),
-            if (pendingDeals > 0)
-              (id: 'pending-deals', label: 'متابعة الصفقات المعلقة', route: '/broker/activity',
-                icon: Icons.check_circle_outline, count: pendingDeals),
+          final unseenDeals = brokerInt(attention['unseen_deal_count']);
+          final receivables = brokerInt(attention['outstanding_receivables_count']);
+          final achievements = <BrokerAchievement>[
+            if (firstDeal)
+              BrokerAchievement(BrokerAchievementKind.firstDeal, 1,
+                detail: completedDeals > 1 ? 'الصفقات المؤكدة: $completedDeals' : null),
+            if (replies > 0)
+              BrokerAchievement(BrokerAchievementKind.replies, replies, detail: 'هذا الأسبوع'),
+            if (ratings > 0)
+              BrokerAchievement(BrokerAchievementKind.ratings, ratings,
+                onTap: profile != null && profile.id > 0
+                    ? () => context.push('/advertisers/${profile.id}')
+                    : null),
+            if (inquiries > 0)
+              BrokerAchievement(BrokerAchievementKind.inquiries, inquiries, detail: 'هذا الشهر'),
           ];
-          final tools = <({String label, IconData icon, VoidCallback? action})>[
-            (label: 'عقاراتي', icon: Icons.home_work_outlined, action: () => context.push('/my-listings')),
-            (label: 'الصفقات', icon: Icons.handshake_outlined, action: () => context.push('/broker/activity')),
-            (label: 'التوفر', icon: Icons.update, action: () => context.push('/broker/availability')),
-            (label: 'المستحقات', icon: Icons.account_balance_wallet_outlined, action: () => context.push('/broker/finance')),
-            (label: 'الإحصاءات', icon: Icons.bar_chart_outlined, action: () => _statistics(context, profile, listings, activity)),
-            (label: 'ملفي العام', icon: Icons.badge_outlined, action: profile == null ? null : () => context.push('/advertisers/${profile.id}')),
+          final tools = <({String label, IconData icon, int badge, VoidCallback? action})>[
+            (label: 'عقاراتي', icon: Icons.home_work_outlined, badge: 0,
+              action: () => context.push('/my-listings')),
+            (label: 'الصفقات', icon: Icons.handshake_outlined, badge: unseenDeals,
+              action: () => context.push('/broker/activity')),
+            (label: 'التوفر', icon: Icons.update, badge: availability,
+              action: () => context.push(availability > 0 ? '/broker/availability?due=1' : '/broker/availability')),
+            (label: 'المستحقات', icon: Icons.account_balance_wallet_outlined, badge: receivables,
+              action: () => context.push('/broker/finance')),
+            (label: 'الإحصاءات', icon: Icons.bar_chart_outlined, badge: 0,
+              action: () => _statistics(context, profile, listings, activity)),
+            (label: 'ملفي العام', icon: Icons.badge_outlined, badge: 0,
+              action: profile == null ? null : () => context.push('/advertisers/${profile.id}')),
           ];
           return RefreshIndicator(
             onRefresh: () async {
@@ -136,18 +142,18 @@ class BrokerDashboardScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                AppSurface(
-                  padding: const EdgeInsets.all(12),
+                BrokerPanel(
+                  key: const ValueKey('broker-dashboard-profile'),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
                         ClipOval(
                           child: photoUrl == null
-                              ? const EbrokerImage('defaultProfileIcon', size: 36)
+                              ? const EbrokerImage('defaultProfileIcon', size: 44)
                               : Image.network(
-                                  photoUrl, width: 36, height: 36, fit: BoxFit.cover, cacheWidth: 144,
-                                  errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 36),
+                                  photoUrl, width: 44, height: 44, fit: BoxFit.cover, cacheWidth: 160,
+                                  errorBuilder: (_, __, ___) => const EbrokerImage('defaultProfileIcon', size: 44),
                                 ),
                         ),
                         const SizedBox(width: 10),
@@ -163,65 +169,25 @@ class BrokerDashboardScreen extends ConsumerWidget {
                         )),
                       ]),
                       const SizedBox(height: 8),
-                      DefaultTextStyle.merge(
+                      Text(
+                        '$activeListings إعلان نشط',
                         style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-                        child: Wrap(spacing: 12, runSpacing: 4, children: [
-                          Text('$activeListings إعلان نشط'),
-                          Text('$completedDeals صفقة مؤكدة'),
-                          if (profile != null && profile.ratingCount > 0)
-                            Text.rich(TextSpan(children: [
-                              const WidgetSpan(
-                                alignment: PlaceholderAlignment.middle,
-                                child: EbrokerIcon(Icons.star_outline, size: 16, color: Colors.amber),
-                              ),
-                              TextSpan(text: ' ${profile.rating.toStringAsFixed(1)} · ${profile.ratingCount} تقييم'),
-                            ])),
-                        ]),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text('مهام تحتاج إجراء', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
-                AppSurface(
-                  padding: EdgeInsets.zero,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: priorities.isEmpty
-                        ? const ListTile(
-                            leading: Icon(Icons.task_alt),
-                            title: Text('لا توجد مهام معلقة'),
-                          )
-                        : Column(children: [
-                            for (final (index, item) in priorities.indexed) ...[
-                              if (index > 0) const Divider(height: 1, indent: 12, endIndent: 12),
-                              ListTile(
-                                key: ValueKey('broker-priority-${item.id}'),
-                                onTap: () => context.push(item.route),
-                                minTileHeight: 48,
-                                horizontalTitleGap: 8,
-                                minLeadingWidth: 20,
-                                contentPadding: const EdgeInsetsDirectional.fromSTEB(12, 0, 8, 0),
-                                leading: EbrokerIcon(item.icon, size: 19, color: scheme.primary),
-                                title: Text(item.label, style: theme.textTheme.bodyMedium),
-                                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  if (item.count != null)
-                                    AppStatusBadge(label: '${item.count}', tone: AppStatusTone.info),
-                                  const EbrokerIcon(Icons.chevron_left, size: 18),
-                                ]),
-                              ),
-                            ],
-                          ]),
-                  ),
+                BrokerAchievementCarousel(
+                  key: ValueKey(user?.id),
+                  achievements: achievements,
                 ),
+                BrokerDashboardShortcuts(legacyDraftCount: brokerInt(listings['draft'])),
                 const SizedBox(height: 16),
-                Text('أدوات العمل', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
+                Text('أدوات عملك', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 12),
                 LayoutBuilder(builder: (context, size) {
-                  const gap = 8.0;
+                  const gap = 10.0;
                   final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-                  final columns = scale > 1.5 || size.maxWidth < 300 ? 1 : 2;
+                  final columns = scale > 1.7 || size.maxWidth < 320 ? 1 : 2;
                   final width = (size.maxWidth - (columns - 1) * gap) / columns;
                   return Wrap(spacing: gap, runSpacing: gap, children: [
                     for (final tool in tools)
@@ -230,15 +196,11 @@ class BrokerDashboardScreen extends ConsumerWidget {
                         child: AppSurface(
                           key: ValueKey('broker-tool-${tool.label}'),
                           onTap: tool.action,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 32),
-                            child: Row(children: [
-                              EbrokerIcon(tool.icon, size: 20, color: scheme.primary),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(tool.label, style: theme.textTheme.labelLarge)),
-                            ]),
-                          ),
+                          child: Row(children: [
+                            _BrokerToolIcon(count: tool.badge, label: tool.label, icon: tool.icon),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(tool.label, style: theme.textTheme.labelMedium)),
+                          ]),
                         ),
                       ),
                   ]);
@@ -260,6 +222,33 @@ class BrokerDashboardScreen extends ConsumerWidget {
           (count: brokerInt(activity['completed_deals']), label: 'صفقات مكتملة مؤكدة'),
         ]) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [Expanded(child: Text(metric.label)), Text('${metric.count}')])),
       ])));
+  }
+}
+
+class _BrokerToolIcon extends StatelessWidget {
+  const _BrokerToolIcon({required this.count, required this.label, required this.icon});
+
+  final int count;
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final iconTile = Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Icon(icon, size: 23, color: scheme.secondary),
+    );
+    if (count < 1) return iconTile;
+    return Badge(
+      key: ValueKey('broker-tool-badge-$label'),
+      label: Text('$count'),
+      child: iconTile,
+    );
   }
 }
 
@@ -290,6 +279,8 @@ class _BrokerCustomersBody extends ConsumerStatefulWidget {
 class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
   final _items = <BrokerCustomer>[];
   bool _loading = true, _moreBusy = false, _helpReady = false, _helpSeen = true, _helpUsed = false;
+  bool _supportsClassification = false;
+  bool _active = true, _refreshScheduled = false;
   int? _helpActorId;
 
   Future<void> _loadHelp() async {
@@ -312,7 +303,32 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
   late String _filter;
   int _page = 1, _lastPage = 1, _request = 0;
   @override
-  void initState() { super.initState(); _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all'; Future.microtask(_loadHelp); Future.microtask(_load); }
+  void initState() {
+    super.initState();
+    _filter = const ['unread', 'followup_due'].contains(widget.initialFilter) ? widget.initialFilter : 'all';
+    ref.listenManual(messageDataRevisionProvider, (_, __) => _refreshVisible());
+    ref.listenManual(offlineResumeRevisionProvider, (_, __) => _refreshVisible());
+    Future.microtask(_loadHelp);
+    Future.microtask(_load);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final wasActive = _active;
+    _active = TickerMode.of(context);
+    if (!wasActive) _refreshVisible();
+  }
+
+  void _refreshVisible() {
+    if (!mounted || !_active || _refreshScheduled) return;
+    _refreshScheduled = true;
+    unawaited(Future<void>.microtask(() async {
+      _refreshScheduled = false;
+      if (_active) await _load();
+    }));
+  }
+
   @override
   void dispose() { _request++; super.dispose(); }
   Future<void> _load({bool more = false}) async {
@@ -332,28 +348,35 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
     try {
       final result = await ref.read(brokerRepositoryProvider).customers(stage: _stage, propertyId: widget.propertyId, filter: _filter, page: more ? _page + 1 : 1);
       if (!current()) return;
-      if (result.items.any((item) => item.stage != 'new' || item.privateNote.isNotEmpty || item.remindAt != null)) { _helpUsed = true; unawaited(_rememberHelp()); }
+      if (result.items.any((item) => item.stageLabel != null || item.privateNote.isNotEmpty || item.remindAt != null)) { _helpUsed = true; unawaited(_rememberHelp()); }
       if (!mounted) return;
       setState(() { final merged = <int, BrokerCustomer>{
         if (more) for (final item in _items) item.threadId: item,
         for (final item in result.items) item.threadId: item,
-      }; _items..clear()..addAll(merged.values); _page = result.page; _lastPage = result.lastPage; _loading = false; _moreBusy = false; });
+      }; _items..clear()..addAll(merged.values); _page = result.page; _lastPage = result.lastPage;
+        _supportsClassification = result.customerStageClassificationV2; _loading = false; _moreBusy = false;
+      });
     } catch (error) { if (current()) setState(() { if (!isTransientApiFailure(error)) { _items.clear(); _page = 1; _lastPage = 1; _failedMore = false; } _error = friendlyApiError(error); _loading = false; _moreBusy = false; }); }
   }
   Future<void> _chooseStage(BrokerCustomer item) async {
-    final stage = await AppBottomSheet.show<String>(context, builder: (sheet) => Padding(padding: const EdgeInsets.fromLTRB(20,0,20,20),
-      child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('تحديث حالة المتابعة', style: Theme.of(sheet).textTheme.titleLarge), const SizedBox(height: 12),
-        Flexible(child: ListView(shrinkWrap:true, children:[for(final entry in brokerLeadLabels.entries.where((e)=>e.key!='completed')) ListTile(
-          shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14)), selected:item.stage==entry.key,
-          selectedTileColor:Theme.of(sheet).colorScheme.primaryContainer, title:Text(entry.value),
-          trailing:item.stage==entry.key?const Icon(Icons.check_circle_outline):null,onTap:()=>Navigator.pop(sheet,entry.key))])),
-      ])));
-    if (stage != null && mounted) await _change(item, stage);
-  }
-  Future<void> _change(BrokerCustomer item, String stage) async {
-    try { await ref.read(brokerRepositoryProvider).updateCustomer(item.threadId, stage); await _rememberHelp(); refreshBrokerData(ref); await _load(); }
-    catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
+    final scope = ref.read(accountRequestScopeProvider);
+    final stage = await AppBottomSheet.show<String>(context, builder: (sheet) => SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text('تصنيف العميل', style: Theme.of(sheet).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          CustomerStageChoices(
+            stage: item.followupStage,
+            supportsClassification: _supportsClassification,
+            onSelected: (stage) => Navigator.pop(sheet, stage),
+          ),
+        ]),
+      ),
+    ));
+    if (stage == null || !mounted || !scope.isCurrent) return;
+    final saved = await saveCustomerStage(context, ref, item.threadId, stage);
+    if (saved && mounted) await _rememberHelp();
   }
   @override
   Widget build(BuildContext context) => BrokerScaffold(
@@ -375,7 +398,7 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
                 child: BrokerPanel(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('اضغط على الحالة لتحديثها. تجد الملاحظات والتذكير في خيارات العميل.'),
+                    const Text('صنّف العميل من بطاقته. تجد الملاحظات والتذكير في الخيارات.'),
                     TextButton(
                       key: const ValueKey('customer-help-dismiss'),
                       onPressed: _rememberHelp,
@@ -435,8 +458,11 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
         initialValue: _stage ?? 'all',
         itemBuilder: (_) => [
           const PopupMenuItem(value: 'all', child: Text('كل الحالات')),
+          if (_supportsClassification)
+            const PopupMenuItem(value: 'unclassified', child: Text('بلا تصنيف')),
           for (final entry in brokerLeadLabels.entries)
-            PopupMenuItem(value: entry.key, child: Text(entry.value)),
+            if (_supportsClassification || const {'not_interested', 'completed'}.contains(entry.key))
+              PopupMenuItem(value: entry.key, child: Text(entry.value)),
         ],
         onSelected: (value) {
           final stage = value == 'all' ? null : value;
@@ -449,7 +475,7 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             const EbrokerIcon(Icons.tune_rounded, size: 18),
             const SizedBox(width: 4),
-            Flexible(child: Text(brokerLeadLabels[_stage] ?? 'الحالة')),
+            Flexible(child: Text(_stage == 'unclassified' ? 'بلا تصنيف' : brokerLeadLabels[_stage] ?? 'الحالة')),
           ]),
         ),
       ),
@@ -458,11 +484,10 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
 
   Widget _customerCard(BuildContext context, BrokerCustomer item) {
     final textTheme = Theme.of(context).textTheme;
-    final status = item.deal?.statusLabel ?? item.stageLabel;
-    final statusBadge = AppStatusBadge(
-      label: status,
-      tone: item.stage == 'completed' ? AppStatusTone.success : AppStatusTone.info,
-    );
+    final completed = item.followupStage == 'completed';
+    final stageLabel = item.stageLabel;
+    final dealStatus = item.deal?.statusLabel;
+    final status = completed ? stageLabel : dealStatus ?? stageLabel;
     return Padding(
       key: ValueKey('broker-customer-${item.threadId}'),
       padding: const EdgeInsets.only(bottom: 8),
@@ -475,6 +500,9 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
               children: [
                 Text(item.customerName, style: textTheme.titleSmall),
                 Text(item.propertyTitle, style: textTheme.bodySmall),
+                if (item.lastMessageAt case final lastMessage? when !widget.selectForDeal)
+                  Text('آخر تواصل · ${followupDateLabel(lastMessage)}',
+                    style: textTheme.bodySmall),
               ],
             )),
             if (!widget.selectForDeal) _customerMenu(context, item),
@@ -482,7 +510,9 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
           if (widget.selectForDeal) ...[
             const SizedBox(height: 6),
             Wrap(spacing: 6, runSpacing: 4, children: [
-              statusBadge,
+              if (status != null) AppStatusBadge(
+                label: status, tone: completed ? AppStatusTone.success : AppStatusTone.info,
+              ),
               if (item.unreadCount > 0)
                 AppStatusBadge(label: '${item.unreadCount} غير مقروءة', tone: AppStatusTone.info),
             ]),
@@ -504,16 +534,18 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
               spacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                if (item.stage == 'completed') statusBadge
+                if (completed && stageLabel != null)
+                  AppStatusBadge(label: stageLabel, tone: AppStatusTone.success)
                 else Tooltip(
                   message: 'تحديث حالة المتابعة',
                   child: ActionChip(
                     avatar: const EbrokerIcon(Icons.expand_more, size: 16),
-                    label: Text(item.stageLabel),
+                    label: Text(stageLabel ?? 'تصنيف العميل'),
                     onPressed: () => _chooseStage(item),
                   ),
                 ),
-                if (item.stage != 'completed' && item.deal != null) statusBadge,
+                if (!completed && dealStatus != null)
+                  AppStatusBadge(label: dealStatus, tone: AppStatusTone.info),
                 TextButton.icon(
                   onPressed: () async {
                     await context.push('/messages/${item.threadId}');

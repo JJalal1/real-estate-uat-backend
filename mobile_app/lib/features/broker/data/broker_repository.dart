@@ -66,7 +66,8 @@ class BrokerRepository {
   BrokerPage<T> _page<T>(Map<String, dynamic> body, T Function(Map<String, dynamic>) parse) {
     final meta = brokerMap(body['meta']);
     return BrokerPage(items: brokerRows(body['data']).map(parse).toList(), page: brokerInt(meta['current_page']) == 0 ? 1 : brokerInt(meta['current_page']),
-      lastPage: brokerInt(meta['last_page']) == 0 ? 1 : brokerInt(meta['last_page']));
+      lastPage: brokerInt(meta['last_page']) == 0 ? 1 : brokerInt(meta['last_page']),
+      customerStageClassificationV2: meta['customer_stage_classification_v2'] == true);
   }
   Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15, bool regionOnly = false, String? search, String? specialty, String? accountType, double? minRating}) async =>
     _page(await _get('/brokers', public: true, query: {'page': page, 'per_page': perPage, if (governorate != null) 'governorate': governorate, if (regionOnly) 'region_only': 1,
@@ -83,7 +84,16 @@ class BrokerRepository {
       options: await _auth.requiredAuthOptions());
   }
   Future<void> updateCustomer(int threadId, String stage) async {
-    await _dio.patch<void>('/broker/customers/$threadId/stage', data: {'stage': stage}, options: await _auth.requiredAuthOptions());
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    void verify() {
+      _requestScope?.verify();
+      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) { throw StateError('ACCOUNT_CHANGED'); }
+    }
+    verify();
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    verify();
+    await _dio.patch<void>('/broker/customers/$threadId/stage', data: {'stage': stage}, options: options);
+    verify();
   }
   Future<List<BrokerAvailability>> availability() async => brokerRows((await _get('/broker/listings/availability'))['data']).map(BrokerAvailability.fromJson).toList();
   Future<PrivateCollectionPage<BrokerAvailability>> availabilityPage({int page = 1, bool onlyDue = false}) async {
@@ -107,6 +117,16 @@ class BrokerRepository {
   Future<BrokerPage<BrokerDeal>> activity({int? threadId, int page = 1}) async =>
     _page(await _get('/broker/activity', query: {'page': page, if (threadId != null) 'thread_id': threadId}), BrokerDeal.fromJson);
   Future<BrokerDeal> deal(int id) async => BrokerDeal.fromJson(brokerMap((await _get('/broker/deals/$id'))['data']));
+  Future<void> markDealSeen(int id, int revision) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
+    await _dio.post<void>('/broker/deals/$id/seen',
+      data: {'revision': revision}, options: options);
+  }
   Future<BrokerDeal> decide(int id, bool confirmed) async => BrokerDeal.fromJson(brokerMap((await _post('/broker/deals/$id/decision', {'confirmed': confirmed}))['data']));
   Future<Map<String, dynamic>> finance() async => brokerMap((await _get('/broker/finance'))['data']);
   Future<void> updateBio(String bio) async { await _dio.patch<void>('/broker/profile', data: {'bio': bio}, options: await _auth.requiredAuthOptions()); }

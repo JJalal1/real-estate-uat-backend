@@ -42,18 +42,23 @@ class _Recovery extends ListingRecoveryStore {
 }
 class _Customers extends BrokerTestRepository {
   final filters = <String?>[];
+  final stages = <int, String>{};
   int? savedThreadId;
   String? savedNote;
   DateTime? savedDate;
   @override
   Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter}) async {
     filters.add(filter);
-    return const BrokerPage(items: [
+    return BrokerPage(items: [
       BrokerCustomer(threadId: 19, customerName: 'عميل الاختبار', propertyId: 11,
-        propertyTitle: 'شقة الاختبار', stage: 'new', unreadCount: 1, privateNote: 'ملاحظة خاصة'),
-      BrokerCustomer(threadId: 20, customerName: 'عميل الاختبار', propertyId: 12,
+        propertyTitle: 'شقة الاختبار', stage: stages[19] ?? 'new', unreadCount: 1, privateNote: 'ملاحظة خاصة'),
+      const BrokerCustomer(threadId: 20, customerName: 'عميل الاختبار', propertyId: 12,
         propertyTitle: 'بيت الاختبار', stage: 'new', unreadCount: 2),
-    ], page: 1, lastPage: 1);
+    ], page: 1, lastPage: 1, customerStageClassificationV2: true);
+  }
+  @override
+  Future<void> updateCustomer(int threadId, String stage) async {
+    stages[threadId] = stage;
   }
   @override
   Future<void> saveFollowup(int threadId, {required String note, DateTime? remindAt}) async {
@@ -63,12 +68,13 @@ class _Customers extends BrokerTestRepository {
   }
 }
 
-class _DashboardTasks extends BrokerTestRepository {
+class _DashboardTools extends BrokerTestRepository {
   @override
   Future<Map<String, dynamic>> workspace() async {
     final data = brokerTestWorkspace();
-    (data['needs_attention'] as Map<String, dynamic>)['customer_followups_due'] = 4;
-    (data['listings'] as Map<String, dynamic>)['returned_for_correction'] = 12;
+    (data['needs_attention'] as Map<String, dynamic>)
+      ..['outstanding_receivables_count'] = 4
+      ..['unseen_deal_count'] = 3;
     return data;
   }
 }
@@ -157,35 +163,30 @@ void main() {
     expect(await store.read(1, null), isNull);
     await store.write(1, null, {'step': 2}, []); expect((await store.read(1, null))!['step'], 2);
   });
-  testWidgets('dashboard tasks open the matching queues in one tap', (tester) async {
+  testWidgets('dashboard badges show counts on the original tools and open the matching screens', (tester) async {
     final router = GoRouter(routes: [
       GoRoute(path: '/', builder: (_, __) => const BrokerDashboardScreen()),
       GoRoute(path: '/broker/activity', builder: (_, __) => const Scaffold(body: Text('deals'))),
-      GoRoute(path: '/broker/customers', builder: (_, state) => Scaffold(body: Text('filter:${state.uri.queryParameters['filter']}'))),
+      GoRoute(path: '/broker/finance', builder: (_, __) => const Scaffold(body: Text('finance'))),
       GoRoute(path: '/broker/availability', builder: (_, state) => Scaffold(body: Text('due:${state.uri.queryParameters['due']}'))),
-      GoRoute(path: '/my-listings', builder: (_, state) => Scaffold(body: Text('corrections:${state.uri.queryParameters['corrections']}'))),
     ]);
     addTearDown(router.dispose);
     await tester.pumpWidget(ProviderScope(overrides: [listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
-    authControllerProvider.overrideWith(() => BrokerTestAuth(1)), brokerRepositoryProvider.overrideWithValue(_DashboardTasks())],
+    authControllerProvider.overrideWith(() => BrokerTestAuth(1)), brokerRepositoryProvider.overrideWithValue(_DashboardTools())],
       child: MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
     await tester.pumpAndSettle();
-    expect(find.textContaining('معاينات للمتابعة'), findsNothing);
-    expect(find.textContaining('إجراءات أخرى'), findsNothing);
-    expect(find.descendant(
-      of: find.byKey(const ValueKey('broker-priority-corrections')),
-      matching: find.text('12'),
-    ), findsOneWidget);
-    for (final (task, destination) in [
-      ('unread', 'filter:unread'),
-      ('followup-due', 'filter:followup_due'),
-      ('corrections', 'corrections:1'),
-      ('availability', 'due:1'),
-      ('pending-deals', 'deals'),
+    expect(find.text('مهام تحتاج إجراء'), findsNothing);
+    expect(find.byKey(const ValueKey('broker-achievement-carousel')), findsOneWidget);
+    for (final (label, count, destination) in [
+      ('التوفر', '2', 'due:1'),
+      ('المستحقات', '4', 'finance'),
+      ('الصفقات', '3', 'deals'),
     ]) {
-      final row = find.byKey(ValueKey('broker-priority-$task'));
-      await tester.ensureVisible(row);
-      await tester.tap(row);
+      final tool = find.byKey(ValueKey('broker-tool-$label'));
+      final badge = find.byKey(ValueKey('broker-tool-badge-$label'));
+      await tester.ensureVisible(tool);
+      expect(find.descendant(of: badge, matching: find.text(count)), findsOneWidget);
+      await tester.tap(tool);
       await tester.pumpAndSettle();
       expect(find.text(destination), findsOneWidget);
       router.pop();
@@ -256,6 +257,27 @@ void main() {
     expect(find.text('عرض نتيجة الصفقة'), findsOneWidget);
     expect(find.text('تأكيد الموعد'), findsNothing);
     await _capture(tester, boundary, 'wave4-customer-management');
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('a customer can be classified from the conversation and only that listing is updated', (tester) async {
+    final repo = _Customers();
+    const thread = MessageThreadSummary(
+      id: 19, otherUserId: 2, otherUserName: 'عميل الاختبار', unreadCount: 0,
+      propertyId: 11, propertyTitle: 'شقة الاختبار', propertyStatus: 'published',
+      canManageCustomer: true, customerStageClassificationV2: true,
+    );
+    await _pump(tester, const Scaffold(body: BrokerConversationTools(thread: thread)), repo: repo);
+    expect(find.text('عميل جديد'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('conversation-manage-customer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('customer-stage-reserved')));
+    await tester.pumpAndSettle();
+    expect(repo.stages, {19: 'reserved'});
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pump(tester, const BrokerCustomersScreen(), repo: repo);
+    expect(find.text('تم حجز القطع'), findsOneWidget);
+    expect(find.text('تمت الصفقة'), findsNothing);
+    expect(find.text('تصنيف العميل'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets('card secondary actions stay reachable with enlarged Arabic text', (tester) async {

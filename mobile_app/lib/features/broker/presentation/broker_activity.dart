@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../community/data/community_repository.dart';
 import '../../financial/presentation/receivable_payment_screen.dart';
 import '../../financial/data/financial_repository.dart';
@@ -134,6 +138,34 @@ class BrokerDealScreen extends ConsumerStatefulWidget {
 }
 class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
   bool _busy = false;
+  (AccountRequestScope, int, int)? _scheduledView;
+
+  void _recordDisplayedDeal(BrokerDeal deal) {
+    final revision = deal.advertiserViewRevision;
+    if (revision == null || revision <= 0) return;
+    final scope = ref.read(accountRequestScopeProvider);
+    final view = (scope, deal.id, revision);
+    if (_scheduledView == view) return;
+    _scheduledView = view;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.id != deal.id || !scope.isCurrent ||
+          ModalRoute.of(context)?.isCurrent == false) {
+        if (_scheduledView == view) _scheduledView = null;
+        return;
+      }
+      unawaited(_markDealSeen(scope, deal.id, revision));
+    });
+  }
+
+  Future<void> _markDealSeen(AccountRequestScope scope, int id, int revision) async {
+    try {
+      await ref.read(brokerRepositoryProvider).markDealSeen(id, revision);
+      if (mounted && scope.isCurrent) ref.invalidate(brokerWorkspaceProvider);
+    } catch (_) {
+      // An unrecorded view can be retried when the deal is opened again.
+    }
+  }
+
   Future<void> _decide(bool yes) async {
     final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(title: Text(yes ? 'هل تمت الصفقة؟' : 'لم تتم الصفقة؟'),
       content: Text(yes ? 'أكد فقط إن تم البيع أو التأجير بالفعل. سيُحسب الإنجاز ويُفتح التقييم وفق شروط السعي المحفوظة.' : 'سيسجل رفضك ويحيل النتيجة للدعم للمراجعة، دون احتساب صفقة أو مستحق جديد.'),
@@ -168,7 +200,9 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
   @override
   Widget build(BuildContext context) => BrokerScaffold(appBar: const AppAppBar(title: 'نتيجة الصفقة'), body: ref.watch(brokerDealProvider(widget.id)).when(
     loading: () => const AppLoadingState(), error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerDealProvider(widget.id))),
-    data: (deal) => ListView(padding: const EdgeInsets.all(16), children: [
+    data: (deal) {
+      _recordDisplayedDeal(deal);
+      return ListView(padding: const EdgeInsets.all(16), children: [
       BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(deal.propertyTitle, style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 8),
         Text(deal.statusLabel, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
@@ -181,42 +215,107 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
       if (deal.status == 'pending_customer' && !deal.canConfirm) const Text('تم إرسال طلب تأكيد النتيجة للعميل. لن تُحتسب حتى يؤكدها.'),
       if (deal.supportCaseId != null) AppButton(label: 'متابعة مراجعة الدعم', onPressed: () => context.push(deal.canViewSupportCase ? '/support?case=${deal.supportCaseId}' : '/support')),
       const SizedBox(height: 12), AppButton(label: 'فتح المحادثة', icon: Icons.chat_bubble_outline, onPressed: () => context.push('/messages/${deal.threadId}')),
-    ]),
+      ]);
+    },
   ));
 }
 
 class BrokerConversationTools extends ConsumerWidget {
   const BrokerConversationTools({required this.thread, super.key});
   final MessageThreadSummary thread;
+
+  Future<void> _openManagement(BuildContext context, WidgetRef ref, BrokerDeal? deal,
+      String stage, {required bool dealsLoaded}) async {
+    final scope = ref.read(accountRequestScopeProvider);
+    final selected = await AppBottomSheet.show<String>(context, builder: (sheet) => SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(thread.canManageCustomer ? 'إدارة العميل' : 'نتيجة الصفقة',
+              style: Theme.of(sheet).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            if (thread.canManageCustomer && stage != 'completed') ...[
+              Text('تصنيف العميل', style: Theme.of(sheet).textTheme.titleSmall),
+              const SizedBox(height: 6),
+              CustomerStageChoices(
+                stage: stage,
+                supportsClassification: thread.customerStageClassificationV2,
+                onSelected: (stage) => Navigator.pop(sheet, stage),
+              ),
+              const Divider(),
+            ],
+            if (deal != null) ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.handshake_outlined),
+              title: Text(deal.canConfirm ? 'تأكيد نتيجة الصفقة' : 'عرض نتيجة الصفقة'),
+              subtitle: Text(deal.statusLabel),
+              onTap: () {
+                Navigator.pop(sheet);
+                if (context.mounted && scope.isCurrent) context.push('/broker/deals/${deal.id}');
+              },
+            ),
+            if (thread.canManageCustomer) ...[
+              if (dealsLoaded && deal == null && stage != 'completed') ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.check_circle_outline),
+                title: const Text('تسجيل نتيجة الصفقة'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  if (context.mounted && scope.isCurrent) reportBrokerDeal(context, ref, thread.id);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_note_outlined),
+                title: const Text('ملاحظة وتذكير'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  if (context.mounted && scope.isCurrent) editCustomerFollowup(context, ref, thread.id);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.person_outline),
+                title: const Text('متابعة العميل'),
+                onTap: () {
+                  Navigator.pop(sheet);
+                  if (context.mounted && scope.isCurrent) context.push('/broker/customers?property=${thread.propertyId}');
+                },
+              ),
+            ],
+          ]),
+      ),
+    ));
+    if (selected != null && context.mounted && scope.isCurrent) {
+      await saveCustomerStage(context, ref, thread.id, selected);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (thread.propertyId == null) return const SizedBox.shrink();
-    return ref.watch(brokerThreadDealProvider(thread.id)).when(
-      loading: () => const SizedBox.shrink(), error: (_, __) => const SizedBox.shrink(), data: (deal) {
-        if (!thread.canManageCustomer && deal == null) return const SizedBox.shrink();
-        return Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
-          key: const ValueKey('conversation-manage-customer'), icon: const Icon(Icons.tune, size: 18),
+    final dealData = ref.watch(brokerThreadDealProvider(thread.id)).asData;
+    final deal = dealData?.value;
+    if (!thread.canManageCustomer && deal == null) return const SizedBox.shrink();
+
+    final stage = deal?.status == 'confirmed' ? 'completed' : thread.leadStage;
+    final stageLabel = brokerLeadLabels[stage];
+    return Align(alignment: AlignmentDirectional.centerStart, child: Wrap(
+      spacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        TextButton.icon(
+          key: const ValueKey('conversation-manage-customer'),
+          icon: const Icon(Icons.tune, size: 18),
           label: Text(thread.canManageCustomer ? 'إدارة العميل' : 'نتيجة الصفقة'),
-          onPressed: () => showModalBottomSheet<void>(context: context, isScrollControlled: true,
-            builder: (sheet) => SafeArea(child: SingleChildScrollView(child: Padding(
-              padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(thread.canManageCustomer ? 'إدارة العميل' : 'نتيجة الصفقة', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                if (deal != null) ListTile(contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.handshake_outlined), title: Text(deal.canConfirm ? 'تأكيد نتيجة الصفقة' : 'عرض نتيجة الصفقة'),
-                  subtitle: Text(deal.statusLabel), onTap: () { Navigator.pop(sheet); context.push('/broker/deals/${deal.id}'); }),
-                if (thread.canManageCustomer) ...[
-                  if (deal == null) ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.check_circle_outline),
-                    title: const Text('تسجيل نتيجة الصفقة'), onTap: () { Navigator.pop(sheet); reportBrokerDeal(context, ref, thread.id); }),
-                  ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.event_note_outlined), title: const Text('ملاحظة وتذكير'),
-                    onTap: () { Navigator.pop(sheet); editCustomerFollowup(context, ref, thread.id); }),
-                  ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.person_outline), title: const Text('متابعة العميل'),
-                    onTap: () { Navigator.pop(sheet); context.push('/broker/customers?property=${thread.propertyId}'); }),
-                ],
-              ]))))),
-        ));
-      });
+          onPressed: () => _openManagement(context, ref, deal, stage, dealsLoaded: dealData != null),
+        ),
+        if (thread.canManageCustomer && stageLabel != null)
+          AppStatusBadge(label: stageLabel,
+            tone: stage == 'completed' ? AppStatusTone.success : AppStatusTone.info),
+      ],
+    ));
   }
 }
 

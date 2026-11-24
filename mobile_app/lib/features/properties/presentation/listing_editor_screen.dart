@@ -48,12 +48,14 @@ import 'rental_conditions_editor.dart';
 import '../../discovery/data/ai_repository.dart';
 
 class ListingEditorScreen extends ConsumerStatefulWidget {
-  const ListingEditorScreen({super.key, this.existingProperty, this.accountDraft, this.localRecovery, this.startFresh = false, this.startWithAssistant = false});
+  const ListingEditorScreen({super.key, this.existingProperty, this.accountDraft, this.localRecovery,
+    this.startFresh = false, this.startWithAssistant = false, this.resumeSavedProgress = false});
 
   final ListingAccountDraft? accountDraft;
   final Map<String, dynamic>? localRecovery;
   final bool startFresh;
   final bool startWithAssistant;
+  final bool resumeSavedProgress;
 
   final PropertyDetails? existingProperty;
 
@@ -820,7 +822,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final userId = _recoveryUserId;
     if (userId == null) { _recoveryReady = true; super.setState(() {}); return; }
     Map<String,dynamic>? local = widget.localRecovery;
-    if (local == null && !widget.startFresh) {
+    if (local == null && !widget.startFresh &&
+        !(widget.resumeSavedProgress && widget.accountDraft != null)) {
       try { local=await _recoveryStore.read(userId, widget.existingProperty?.id).timeout(const Duration(seconds:8)); }
       catch (_) { _recoveryFailed=true; }
     }
@@ -1006,13 +1009,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool get _entryActorCurrent => mounted && _sessionValid && _recoveryUserId != null &&
     ref.read(authControllerProvider).asData?.value?.id == _recoveryUserId;
 
+  bool get _prepareAssistantOnOpen => widget.startWithAssistant && !widget.resumeSavedProgress;
+
   Future<void> _openRecoveredEditor() async {
     if (_recoveryLoading || !mounted || !_sessionValid) return;
     _recoveryLoading = true;
     if (_recoveryLoadError) {
       setState(() {
         _recoveryLoadError = false;
-        _initialAssistantPending = widget.startWithAssistant;
+        _initialAssistantPending = _prepareAssistantOnOpen;
       });
     }
     try {
@@ -1021,7 +1026,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (mounted && _sessionValid) setState(() => _sessionValid = false);
         return;
       }
-      if (widget.startWithAssistant) {
+      if (_prepareAssistantOnOpen) {
         unawaited(_loadSaiPolicy());
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!_entryActorCurrent) return;
@@ -1064,7 +1069,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         super.setState(() {});
       }
     });
-    _initialAssistantPending = widget.startWithAssistant;
+    _initialAssistantPending = _prepareAssistantOnOpen;
     WidgetsBinding.instance.addObserver(this);
     _descriptionCapture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_descriptionVoiceChanged);
     final retryAt = ref.read(aiRepositoryProvider).descriptionRetryAt;

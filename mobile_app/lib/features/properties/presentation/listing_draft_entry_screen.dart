@@ -2,6 +2,7 @@ import '../../../core/offline/offline_connection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/local/listing_recovery_store.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../account/data/auth_controller.dart';
@@ -13,22 +14,26 @@ import 'listing_editor_screen.dart';
 import 'personal_listing_creation_gate.dart';
 
 class ListingDraftEntryScreen extends ConsumerWidget {
-  const ListingDraftEntryScreen({this.existingProperty, this.startWithAssistant = false, this.showSavedDrafts = false, super.key});
+  const ListingDraftEntryScreen({this.existingProperty, this.startWithAssistant = false,
+    this.showSavedDrafts = false, this.resumeLatest = false, super.key});
   final PropertyDetails? existingProperty;
-  final bool startWithAssistant, showSavedDrafts;
+  final bool startWithAssistant, showSavedDrafts, resumeLatest;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _ListingDraftEntryBody(key: ValueKey(actor), actor: actor, existingProperty: existingProperty,
-        startWithAssistant: startWithAssistant, showSavedDrafts: showSavedDrafts);
+      : _ListingDraftEntryBody(key: ValueKey((actor, epoch)), actor: actor, epoch: epoch,
+        existingProperty: existingProperty, startWithAssistant: startWithAssistant,
+        showSavedDrafts: showSavedDrafts, resumeLatest: resumeLatest);
   }
 }
 class _ListingDraftEntryBody extends ConsumerStatefulWidget {
-  const _ListingDraftEntryBody({required this.actor, this.existingProperty, required this.startWithAssistant, required this.showSavedDrafts, super.key});
-  final int actor;
+  const _ListingDraftEntryBody({required this.actor, required this.epoch, this.existingProperty,
+    required this.startWithAssistant, required this.showSavedDrafts, required this.resumeLatest, super.key});
+  final int actor, epoch;
   final PropertyDetails? existingProperty;
-  final bool startWithAssistant, showSavedDrafts;
+  final bool startWithAssistant, showSavedDrafts, resumeLatest;
   @override
   ConsumerState<_ListingDraftEntryBody> createState() => _ListingDraftEntryState();
 }
@@ -41,12 +46,14 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   bool _sourcesComplete = false;
   bool _confirming = false;
   late bool _showSaved = widget.showSavedDrafts;
+  bool get _directResume => widget.resumeLatest && !_showSaved;
   bool _assistant = false;
   ListingAccountDraft? _selected;
   PropertyDetails? _property;
   String? _error;
   int _request = 0;
-  bool get _current => mounted && ref.read(authControllerProvider).asData?.value?.id == widget.actor;
+  bool get _current => mounted && Stage6SecureSessionStore.instance.sessionEpoch == widget.epoch &&
+    ref.read(authControllerProvider).asData?.value?.id == widget.actor;
   ListingRecoveryStore get _store => ref.read(listingRecoveryStoreProvider);
   ListingAccountDraftRepository get _repository => ref.read(listingAccountDraftRepositoryProvider);
   ListingAccountDraft? get _automatic {
@@ -77,6 +84,11 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       _local = device[0] as Map<String, dynamic>?; _savedLocal = device[1] as List<Map<String, dynamic>>;
       if (const [OfflineConnection.offline, OfflineConnection.unavailable]
           .contains(ref.read(offlineConnectionProvider))) {
+        if (_directResume) {
+          setState(() { _loading = false; _drafts = []; _legacy = []; });
+          await _resumeMostRecent();
+          return;
+        }
         if (widget.existingProperty != null) {
           _property = widget.existingProperty;
           _open = true;
@@ -96,7 +108,11 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       _drafts = (rows[0] as List<ListingAccountDraft>).where((d) => !d.isRetired).toList();
       _legacy = (rows[1] as List<PropertyDetails>).where((p) => p.status == 'draft').toList();
       _sourcesComplete = true;
-      if (widget.existingProperty != null) {
+      if (_directResume) {
+        setState(() => _loading = false);
+        await _resumeMostRecent();
+        return;
+      } else if (widget.existingProperty != null) {
         _property = widget.existingProperty;
         for (final draft in _drafts) { if (draft.propertyId == _property!.id) _selected = draft; }
         _open = true;
@@ -105,7 +121,11 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
         if (_current) { _fresh = true; _assistant = widget.startWithAssistant; _open = true; }
       }
     } catch (e) { if (_current && request == _request) {
-        if (offlineTransportFailure(e) && !_showSaved && !_hasRecoverableWork) {
+        if (_directResume && offlineTransportFailure(e) && (_local != null || _savedLocal.isNotEmpty)) {
+          setState(() { _loading = false; _drafts = []; _legacy = []; });
+          await _resumeMostRecent();
+          return;
+        } else if (offlineTransportFailure(e) && !_showSaved && !_directResume && !_hasRecoverableWork) {
           _fresh = true;
           _assistant = false;
           _open = true;
@@ -123,17 +143,92 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     for (final row in _savedLocal) { if (row['draft_key'] == key) return row; }
     return null;
   }
-  Future<void> _resume(ListingAccountDraft draft) async {
+
+  DateTime? _savedAt(Map<String, dynamic>? data) =>
+      DateTime.tryParse(data?['saved_at']?.toString() ?? '');
+
+  bool _localIsNewer(Map<String, dynamic> local, ListingAccountDraft remote) {
+    final savedAt = _savedAt(local);
+    final updatedAt = remote.updatedAt;
+    if (savedAt != null && updatedAt != null) return !savedAt.isBefore(updatedAt);
+    if (local['draft_key'] == remote.key) {
+      return (local['server_revision'] as num? ?? 0) >= remote.revision;
+    }
+    return savedAt != null && updatedAt == null;
+  }
+
+  bool _canMergeLocal(Map<String, dynamic> local, ListingAccountDraft remote) {
+    final checkpoint = local['account_checkpoint_key'];
+    return (local['server_revision'] as num? ?? 0) >= remote.revision ||
+        (checkpoint is String && checkpoint == remote.payload['checkpoint_key']);
+  }
+
+  Future<void> _protectOtherDeviceDraft(Object? key) async {
+    if (_local != null && _local!['draft_key'] != key) {
+      await _store.pinExplicitSave(widget.actor, preserveUnclassified: true);
+    }
+  }
+
+  Future<void> _resumeMostRecent() async {
+    final editable = _legacy.where((item) => item.canEdit).toList(growable: false);
+    final editableIds = editable.map((item) => item.id).toSet();
+    final remoteDrafts = _drafts.where((draft) => draft.propertyId == null ||
+        editableIds.contains(draft.propertyId)).toList(growable: false);
+    final localDrafts = [if (_local != null) _local!, ..._savedLocal].where((data) =>
+        data['draft_kind'] != 'retired' && (!_sourcesComplete ||
+          data['server_property_id'] == null || editableIds.contains(data['server_property_id'])));
+    Map<String, dynamic>? local;
+    for (final data in localDrafts) {
+      final date = _savedAt(data);
+      final previous = _savedAt(local);
+      if (local == null || (date != null && (previous == null || date.isAfter(previous)))) {
+        local = data;
+      }
+    }
+    final latestRemote = remoteDrafts.firstOrNull;
+    if (local != null && (latestRemote == null || _localIsNewer(local, latestRemote))) {
+      final localKey = local['draft_key'];
+      final matching = remoteDrafts.where((draft) => draft.key == localKey).firstOrNull;
+      if (matching == null || !_canMergeLocal(local, matching)) {
+        try {
+          await _protectOtherDeviceDraft(localKey);
+          _resumeLocal(local);
+        } catch (error) {
+          if (_current) setState(() => _error = friendlyApiError(error));
+        }
+      } else {
+        await _resume(matching, newestLocal: local);
+      }
+    } else if (latestRemote != null) {
+      await _resume(latestRemote);
+    } else if (editable.isNotEmpty) {
+      _resumeProperty(editable.first);
+    }
+  }
+
+  Future<void> _resume(ListingAccountDraft draft, {Map<String, dynamic>? newestLocal}) async {
     if (_working || _loading) return;
     setState(() { _working = true; _error = null; });
     try {
       final current = await _repository.get(draft.key);
       if (!_current) return;
       final property = current.propertyId == null ? null : await ref.read(propertyRepositoryProvider).details(current.propertyId!);
+      if (_directResume && _current && property == null) {
+        await _protectOtherDeviceDraft(current.key);
+      }
       if (_current) {
+        if (_directResume && property != null && (property.status != 'draft' || !property.canEdit)) {
+          setState(() => _error = 'لم تعد هذه المسودة قابلة للتعديل.');
+          return;
+        }
+        final local = _directResume
+            ? (newestLocal != null && _localIsNewer(newestLocal, current) &&
+                    _canMergeLocal(newestLocal, current) ? newestLocal : null)
+            : _localFor(current.key);
         setState(() {
-          _selected = current; _property = property; _editorLocal = _localFor(current.key);
-          _assistant = current.entryMethod == 'assistant' && current.payload['completion_only'] != true;
+          _selected = current; _property = property; _editorLocal = local;
+          final recovery = _directResume ? local ?? current.payload : current.payload;
+          _assistant = recovery['entry_method'] == 'assistant' && recovery['completion_only'] != true;
           _fresh = false; _open = true;
         });
       }
@@ -242,10 +337,11 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
             .contains(ref.watch(offlineConnectionProvider));
     if (_open) {
       final editor = ListingEditorScreen(existingProperty: _property, accountDraft: _selected, localRecovery: _editorLocal,
-        startFresh: _fresh, startWithAssistant: _assistant);
+        startFresh: _fresh, startWithAssistant: _assistant, resumeSavedProgress: widget.resumeLatest);
       return _selected != null || _property != null || _editorLocal != null ? editor : PersonalListingCreationGate(child: editor);
     }
     if (_showSaved) return _saved();
+    if (_directResume) return _resumeStatus(offline);
     final remote = _automatic ?? (_drafts.isEmpty ? null : _drafts.first);
     final local = _localAutomatic ? _local : _automatic != null ? null
       : _local ?? (remote == null && _savedLocal.isNotEmpty ? _savedLocal.first : null);
@@ -289,6 +385,23 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
           TextButton(onPressed: _working ? null : () => Navigator.of(context).maybePop(), child: const Text('رجوع')),
         ])))))));
   }
+
+  Widget _resumeStatus(bool offline) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: Scaffold(
+      appBar: const AppAppBar(title: 'متابعة آخر مسودة'),
+      body: _loading || _working
+          ? const AppLoadingState()
+          : _error != null
+              ? AppErrorState(message: _error!, onRetry: _load)
+              : AppEmptyState(
+                  title: offline ? 'لا توجد مسودة على هذا الجهاز' : 'لا توجد مسودات محفوظة',
+                  message: offline ? 'اتصل بالإنترنت للتحقق من مسودات حسابك.' : '',
+                  icon: Icons.drafts_outlined,
+                ),
+    ),
+  );
+
   Widget _saved() => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
     appBar: AppBar(title: const Text('مسوداتي')), body: ListView(padding: const EdgeInsets.all(18), children: [
       if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working && !_confirming, error: _error, onRetry: _load),

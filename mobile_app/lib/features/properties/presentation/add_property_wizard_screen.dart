@@ -5,20 +5,25 @@ import 'listing_draft_entry_screen.dart';
 /// One entry for all existing Add Property actions. A previously chosen method
 /// enters recovery directly; generic actions choose their method first.
 class AddPropertyWizardScreen extends StatefulWidget {
-  const AddPropertyWizardScreen({super.key, this.existingProperty, this.startWithAssistant, this.showSavedDrafts = false});
+  const AddPropertyWizardScreen({super.key, this.existingProperty, this.startWithAssistant,
+    this.showSavedDrafts = false, this.resumeLatest = false});
   final PropertyDetails? existingProperty;
   final bool? startWithAssistant;
   final bool showSavedDrafts;
+  final bool resumeLatest;
   @override
   State<AddPropertyWizardScreen> createState() => _AddPropertyWizardState();
 }
 class _AddPropertyWizardState extends State<AddPropertyWizardScreen> {
-  late bool? _assistant = widget.existingProperty != null || widget.showSavedDrafts ? false : widget.startWithAssistant;
+  late bool? _assistant = widget.existingProperty != null || widget.showSavedDrafts || widget.resumeLatest
+      ? false
+      : widget.startWithAssistant;
   @override
   Widget build(BuildContext context) {
     if (_assistant != null) {
       return ListingDraftEntryScreen(existingProperty: widget.existingProperty,
-        startWithAssistant: _assistant!, showSavedDrafts: widget.showSavedDrafts);
+        startWithAssistant: _assistant!, showSavedDrafts: widget.showSavedDrafts,
+        resumeLatest: widget.resumeLatest);
     }
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(backgroundColor: Colors.transparent,
       body: Center(child: Dialog(key: const ValueKey('listing-method-choice'), child: Padding(padding: const EdgeInsets.all(20),

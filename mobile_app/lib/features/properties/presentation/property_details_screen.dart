@@ -14,7 +14,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/contact_actions.dart';
-import '../../../core/platform/platform_share.dart';
 import '../../broker/data/broker_repository.dart';
 import '../../community/data/community_repository.dart';
 import '../../community/presentation/community_dialogs.dart';
@@ -24,7 +23,6 @@ import 'property_fullscreen_gallery.dart';
 import '../../../core/local/listing_viewer_key_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
 import '../../community/presentation/listing_community_screen.dart';
@@ -40,6 +38,7 @@ import 'my_listings_screen.dart';
 import 'property_market_context_card.dart';
 import 'property_sai_public_line.dart';
 import 'property_favorite_status.dart';
+import 'property_share.dart';
 
 final propertyDetailsProvider =
     FutureProvider.autoDispose.family<PropertyDetails, int>((ref, propertyId) {
@@ -154,7 +153,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
               icon: Icons.ios_share_outlined,
               tooltip: 'مشاركة العقار',
               onPressed: loaded?.status == 'published' && loaded?.availabilityStatus == 'available'
-                  ? () => _shareProperty(loaded!) : null,
+                  ? () => sharePublicProperty(context, loaded!) : null,
             ),
           ],
         ),
@@ -521,23 +520,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       );
     } finally {
       if (mounted) setState(() => _consumingPendingFavorite = false);
-    }
-  }
-
-  Future<void> _shareProperty(PropertyDetails property) async {
-    final link = propertyPublicShareLink(property.id).toString();
-    final price = property.currency.trim().isEmpty
-        ? property.price.toStringAsFixed(0)
-        : '${property.price.toStringAsFixed(0)} ${property.currency}';
-    final text = 'عقار: ${property.title}\nالسعر: $price\n$link';
-    try {
-      await PlatformShare.text(text: text, subject: property.title);
-    } on PlatformException {
-      await Clipboard.setData(ClipboardData(text: link));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذرت المشاركة المباشرة، فتم نسخ رابط العقار.')),
-      );
     }
   }
 

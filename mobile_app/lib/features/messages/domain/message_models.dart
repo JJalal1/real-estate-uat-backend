@@ -24,6 +24,7 @@ class MessageThreadSummary {
     this.blockedByMe = false,
     this.canManageCustomer = false,
     this.leadStage = 'new',
+    this.customerStageClassificationV2 = false,
     this.propertyId,
     this.propertyTitle,
     this.propertyStatus,
@@ -40,6 +41,7 @@ class MessageThreadSummary {
   final bool blockedByMe;
   final bool canManageCustomer;
   final String leadStage;
+  final bool customerStageClassificationV2;
   final int? propertyId;
   final String? propertyTitle;
   final String? propertyStatus;
@@ -63,6 +65,7 @@ class MessageThreadSummary {
       blockedByMe: json['blocked_by_me'] == true,
       canManageCustomer: json['can_manage_customer'] == true,
       leadStage: json['lead_stage']?.toString() ?? 'new',
+      customerStageClassificationV2: json['customer_stage_classification_v2'] == true,
       propertyId: _asInt(json['property_id']),
       propertyTitle: _nullable(json['property_title']),
       propertyStatus: _nullable(json['property_status']),

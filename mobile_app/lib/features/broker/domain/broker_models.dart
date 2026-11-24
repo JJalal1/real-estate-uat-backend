@@ -27,38 +27,51 @@ class BrokerProfile {
 class BrokerDeal {
   const BrokerDeal({required this.id, required this.threadId, required this.propertyId, required this.advertiserId,
     required this.propertyTitle, required this.customerName, required this.advertiserName, required this.status,
-    required this.amount, required this.currency, required this.canConfirm, required this.canRate, this.canViewSupportCase = false, this.supportCaseId});
+    required this.amount, required this.currency, required this.canConfirm, required this.canRate, this.canViewSupportCase = false, this.supportCaseId,
+    this.advertiserViewRevision});
   final int id, threadId, propertyId, advertiserId;
   final String propertyTitle, customerName, advertiserName, status, currency;
   final double amount;
   final bool canConfirm, canRate;
   final bool canViewSupportCase;
   final int? supportCaseId;
+  final int? advertiserViewRevision;
   String get statusLabel => switch (status) {'confirmed' => 'صفقة مؤكدة', 'disputed' => 'تحتاج مراجعة', 'cancelled' => 'ملغاة', _ => 'بانتظار تأكيد العميل'};
   factory BrokerDeal.fromJson(Map<String, dynamic> j) => BrokerDeal(id: brokerInt(j['id']), threadId: brokerInt(j['thread_id']),
     propertyId: brokerInt(j['property_id']), advertiserId: brokerInt(j['advertiser_id']), propertyTitle: '${j['property_title'] ?? 'العقار'}',
     customerName: '${j['customer_name'] ?? 'العميل'}', advertiserName: '${j['advertiser_name'] ?? 'المعلن'}', status: '${j['status'] ?? 'pending_customer'}',
     amount: brokerNumber(j['basis_amount']), currency: '${j['currency'] ?? 'YER'}', canConfirm: j['can_confirm'] == true,
-    canRate: j['can_rate'] == true, canViewSupportCase: j['can_view_support_case'] == true, supportCaseId: j['support_case_id'] == null ? null : brokerInt(j['support_case_id']));
+    canRate: j['can_rate'] == true, canViewSupportCase: j['can_view_support_case'] == true, supportCaseId: j['support_case_id'] == null ? null : brokerInt(j['support_case_id']),
+    advertiserViewRevision: int.tryParse('${j['advertiser_view_revision'] ?? ''}'));
 }
 
-const brokerLeadLabels = {'new': 'عميل جديد', 'contacted': 'تم التواصل', 'viewing': 'طلب معاينة', 'not_interested': 'غير مهتم', 'completed': 'تمت الصفقة'};
+const brokerEditableLeadLabels = {
+  'appointment_set': 'تم تحديد موعد',
+  'not_interested': 'غير مهتم',
+  'reserved': 'تم حجز القطع',
+};
+const brokerLeadLabels = {...brokerEditableLeadLabels, 'completed': 'تمت الصفقة'};
+
 class BrokerCustomer {
   const BrokerCustomer({required this.threadId, required this.customerName, required this.propertyId, required this.propertyTitle, required this.stage, this.deal,
-    this.unreadCount = 0, this.privateNote = '', this.remindAt, this.followupDue = false});
+    this.unreadCount = 0, this.privateNote = '', this.remindAt, this.followupDue = false,
+    this.lastMessageAt});
   final int threadId, propertyId;
   final String customerName, propertyTitle, stage;
   final BrokerDeal? deal;
   final int unreadCount;
   final String privateNote;
   final DateTime? remindAt;
+  final DateTime? lastMessageAt;
   final bool followupDue;
-  String get stageLabel => brokerLeadLabels[stage] ?? 'عميل جديد';
+  String get followupStage => deal?.status == 'confirmed' ? 'completed' : stage;
+  String? get stageLabel => brokerLeadLabels[followupStage];
   factory BrokerCustomer.fromJson(Map<String, dynamic> j) => BrokerCustomer(threadId: brokerInt(j['thread_id']), customerName: '${j['customer_name'] ?? 'العميل'}',
     propertyId: brokerInt(j['property_id']), propertyTitle: '${j['property_title'] ?? 'العقار'}', stage: '${j['stage'] ?? 'new'}',
     deal: j['deal'] is Map ? BrokerDeal.fromJson(brokerMap(j['deal'])) : null,
     unreadCount: brokerInt(j['unread_count']), privateNote: '${brokerMap(j['followup'])['private_note'] ?? ''}',
-    remindAt: DateTime.tryParse('${brokerMap(j['followup'])['remind_at'] ?? ''}'), followupDue: brokerMap(j['followup'])['is_due'] == true);
+    remindAt: DateTime.tryParse('${brokerMap(j['followup'])['remind_at'] ?? ''}'), followupDue: brokerMap(j['followup'])['is_due'] == true,
+    lastMessageAt: DateTime.tryParse('${j['last_message_at'] ?? ''}'));
 }
 
 class BrokerAvailability {
@@ -75,8 +88,10 @@ class BrokerAvailability {
 }
 
 class BrokerPage<T> {
-  const BrokerPage({required this.items, required this.page, required this.lastPage});
+  const BrokerPage({required this.items, required this.page, required this.lastPage,
+    this.customerStageClassificationV2 = false});
   final List<T> items;
   final int page, lastPage;
+  final bool customerStageClassificationV2;
   bool get hasMore => page < lastPage;
 }

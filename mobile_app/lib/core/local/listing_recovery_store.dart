@@ -41,6 +41,7 @@ class ListingRecoveryStore {
       final raw = decoded['data'];
       if (raw is! Map<String, dynamic>) return null;
       final data = Map<String, dynamic>.from(raw);
+      if (decoded['saved_at'] is String) data['saved_at'] = decoded['saved_at'];
       final images = <String>[];
       final tokens = <String,String>{};
       final keys = (decoded['image_keys'] as List? ?? const []).whereType<String>().toList();
