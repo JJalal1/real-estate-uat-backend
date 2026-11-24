@@ -203,7 +203,7 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     GoRoute(path: '/favorites', builder: (_, __) => const Stage6AuthGate(
       child: FavoritesScreen())),
     GoRoute(path: '/my-listings', builder: (_, __) => const Stage6AuthGate(
-      child: MyListingsScreen())),
+      requireListingEligible: true, child: MyListingsScreen())),
     GoRoute(path: '/add-property', builder: (_, __) => const Stage6AuthGate(
       requireListingEligible: true, child: Scaffold(body: Text('listing destination')))),
     GoRoute(path: '/messages/:id', builder: (_, state) => ConversationScreen(
@@ -334,8 +334,8 @@ void main() {
     testWidgets('$type sees the navigation for its approved identity', (tester) async {
       await _pump(tester, user: _user(verified: true, type: type));
       final labels = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item) => item.label).toList();
-      expect(labels, type == 'broker' ? ['الرئيسية','عملي','العملاء','حسابي']
-        : type == 'office' ? ['العقارات','الخريطة','الرسائل','حسابي'] : ['العقارات','الرسائل','إعلاناتي','حسابي']);
+      expect(labels, type == 'broker' ? ['الرئيسية','إعلاناتي','الرسائل','حسابي']
+        : type == 'office' ? ['العقارات','الخريطة','الرسائل','حسابي'] : ['العقارات','الأقسام','الرسائل','حسابي']);
       expect(labels.contains('حسابي'), isTrue);
       expect(tester.takeException(), isNull);
     });
@@ -404,12 +404,12 @@ void main() {
     });
   }
 
-  testWidgets('consumer partitions use four template tabs and protect own listings', (tester) async {
-    await _pump(tester, user: _user());
+  testWidgets('consumer categories replace the old listing tab and personal listings remain protected', (tester) async {
+    final router = await _pump(tester, user: _user());
     expect(find.byType(MarketplaceHomeScreen), findsOneWidget);
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
-    expect(nav.destinations.map((d) => d.label), ['العقارات', 'الرسائل', 'إعلاناتي', 'حسابي']);
-    await tester.tap(find.text('إعلاناتي'));
+    expect(nav.destinations.map((d) => d.label), ['العقارات', 'الأقسام', 'الرسائل', 'حسابي']);
+    router.push<void>('/my-listings');
     await tester.pumpAndSettle();
     expect(find.text('توثيق نوع الحساب مطلوب'), findsOneWidget);
     expect(find.byType(MyListingsScreen), findsNothing);

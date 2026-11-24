@@ -12,6 +12,7 @@ import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../broker/presentation/broker_activity.dart';
 import '../data/message_repository.dart';
+import '../data/unread_inbox_repository.dart';
 import '../../account/data/account_safety_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
@@ -93,6 +94,8 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> {
         _loading = false;
         _error = null;
       });
+      // Loading the newest page advances the server's read marker.
+      ref.read(unreadInboxRevisionProvider.notifier).state++;
       // A received conversation must not wait for local outbox IO. The list
       // already hides pending rows whose client IDs are present in this receipt;
       // cleanup can finish independently without hiding authoritative messages.

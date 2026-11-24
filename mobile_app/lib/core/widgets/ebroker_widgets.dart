@@ -371,13 +371,17 @@ class EbrokerPropertyPlaceholder extends StatelessWidget {
 
 // home/widgets/header_card.dart::TitleHeader.
 class EbrokerTitleHeader extends StatelessWidget {
-  const EbrokerTitleHeader({required this.title, this.onSeeAll, this.action = 'رؤية الكل', super.key});
+  const EbrokerTitleHeader({required this.title, this.onSeeAll, this.action = 'رؤية الكل',
+    this.compact = false, super.key});
   final String title;
   final VoidCallback? onSeeAll;
   final String action;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsetsDirectional.only(top: 20, bottom: 16, start: 18, end: 18),
+    padding: compact
+      ? const EdgeInsetsDirectional.only(top: 4, start: 18, end: 18)
+      : const EdgeInsetsDirectional.only(top: 20, bottom: 16, start: 18, end: 18),
     child: Row(children: [
       Expanded(child: Text(title,
         style: AppTypography.sectionTitle.copyWith(fontSize: AppTypography.titleSmall.fontSize),
@@ -400,13 +404,18 @@ class EbrokerCategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const selectedFill = Color(0xFF008052);
+    const selectedGradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF00A5A8), Color(0xFF006D74), Color(0xFF00343D)],
+    );
     return Semantics(button: true, selected: selected, child: Material(color: Colors.transparent,
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(AppRadii.control),
         child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 180),
           constraints: const BoxConstraints(minHeight: 48), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(color: selected ? selectedFill : scheme.surface,
-            border: Border.all(color: selected ? selectedFill : scheme.outlineVariant),
+          decoration: BoxDecoration(color: selected ? null : scheme.surface,
+            gradient: selected ? selectedGradient : null,
+            border: Border.all(color: selected ? Colors.transparent : scheme.outlineVariant),
             borderRadius: BorderRadius.circular(AppRadii.control)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             PropertyTypeIcon(label: label, size: 18, color: selected ? Colors.white : scheme.primary), const SizedBox(width: 8),

@@ -14,6 +14,7 @@ import 'broker_achievement_carousel.dart';
 import 'customer_followup_sheet.dart';
 import '../../account/data/auth_controller.dart';
 import '../../messages/data/message_repository.dart';
+import '../../messages/presentation/unread_inbox_badge.dart';
 import '../../properties/data/property_repository.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
@@ -67,7 +68,9 @@ class BrokerDashboardScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'الإشعارات',
             onPressed: () => context.push('/notifications'),
-            icon: const EbrokerImage('notification', size: 22),
+            icon: const PlatformNotificationUnreadBadge(
+              child: EbrokerImage('notification', size: 22),
+            ),
           ),
         ],
       ),

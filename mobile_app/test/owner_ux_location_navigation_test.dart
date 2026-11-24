@@ -152,9 +152,9 @@ void main() {
       await pumpUx(tester, uxContainer(user: uxUser(type: type == 'regular' ? null : type)), const AppShellScreen(), boundary: boundary);
       final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
       expect(nav.destinations.map((d) => d.label), switch (type) {
-        'broker' => ['الرئيسية', 'عملي', 'العملاء', 'حسابي'],
+        'broker' => ['الرئيسية', 'إعلاناتي', 'الرسائل', 'حسابي'],
         'office' => ['العقارات', 'الخريطة', 'الرسائل', 'حسابي'],
-        _ => ['العقارات', 'الرسائل', 'إعلاناتي', 'حسابي'],
+        _ => ['العقارات', 'الأقسام', 'الرسائل', 'حسابي'],
       });
       await uxPreview(tester, boundary, 'navigation-$type');
       expect(tester.takeException(), isNull); await closeUx(tester);
@@ -182,7 +182,7 @@ void main() {
     await pumpUx(tester, uxContainer(auth: auth), const AppShellScreen());
     tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).onSelected(1); await uxFrames(tester);
     auth.change(uxUser(id: 2)); await uxFrames(tester);
-    expect(tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((d) => d.label), ['العقارات', 'الرسائل', 'إعلاناتي', 'حسابي']);
+    expect(tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((d) => d.label), ['العقارات', 'الأقسام', 'الرسائل', 'حسابي']);
     expect(find.text('يحتاج إجراء منك'), findsNothing);
     expect(tester.takeException(), isNull); await closeUx(tester);
   });

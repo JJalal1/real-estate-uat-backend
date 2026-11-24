@@ -31,6 +31,31 @@ List<AppPropertyFact> summaryPropertyFacts(PropertySummary property, {bool essen
   ];
 }
 
+String propertyPublicationAge(DateTime publishedAt, DateTime now) {
+  final elapsed = now.difference(publishedAt);
+  if (elapsed.inMinutes < 1) return 'الآن';
+  if (elapsed.inHours < 1) {
+    return _publicationAgeLabel(elapsed.inMinutes, 'دقيقة', 'دقيقتين', 'دقائق');
+  }
+  if (elapsed.inDays < 1) {
+    return _publicationAgeLabel(elapsed.inHours, 'ساعة', 'ساعتين', 'ساعات');
+  }
+  if (elapsed.inDays < 7) {
+    return _publicationAgeLabel(elapsed.inDays, 'يوم', 'يومين', 'أيام');
+  }
+  if (elapsed.inDays < 30) {
+    return _publicationAgeLabel(elapsed.inDays ~/ 7, 'أسبوع', 'أسبوعين', 'أسابيع');
+  }
+  final months = (elapsed.inDays ~/ 30).clamp(1, 6).toInt();
+  return _publicationAgeLabel(months, 'شهر', 'شهرين', 'أشهر');
+}
+
+String _publicationAgeLabel(int count, String singular, String dual, String plural) => switch (count) {
+  1 => 'قبل $singular',
+  2 => 'قبل $dual',
+  _ => 'قبل ${arabicDigits('$count')} ${count <= 10 ? plural : '$singularً'}',
+};
+
 class PropertySummaryCard extends StatelessWidget {
   const PropertySummaryCard({required this.property, this.imageFirst = false,
     this.preview = false, this.onTap, super.key});
@@ -40,14 +65,16 @@ class PropertySummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = property, monthly = property.purpose == 'rent' && property.monthlyRent != null;
+    final publishedAt = p.publishedAt;
     return EbrokerPropertyHorizontalCard(title: p.title, price: (monthly ? p.monthlyRent! : p.price).toString(), currency: p.currency,
       imageFirst: imageFirst, preview: preview,
       imageUrl: p.mainImage, imageUrls: p.imageUrls, isSpotlight: p.isSpotlight,
       propertyType: p.type, categoryLabel: ebrokerPropertyTypeLabel(p.type), location: p.address,
       purposeLabel: p.purpose == 'rent' ? 'للإيجار' : 'للبيع', priceSuffix: monthly ? 'شهريًا' : null,
+      publicationAge: publishedAt == null ? null : propertyPublicationAge(publishedAt, DateTime.now()),
       facts: summaryPropertyFacts(p, essentialsOnly: preview),
       trailing: PropertyFavoriteAction(propertyId: p.id, enabled: p.status == 'published'),
-      action: preview ? null : PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published'),
+      action: PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published'),
       supportingText: [
         if (!preview && monthly && p.price != p.monthlyRent) '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
       ], onTap: onTap ?? () => context.push('/properties/${p.id}', extra: p));

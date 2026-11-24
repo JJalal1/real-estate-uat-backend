@@ -62,6 +62,7 @@ class PropertySummary {
     this.shopOpenings,
     this.buildingFacade,
     this.address,
+    this.publishedAt,
     this.status = 'published',
     this.mainImage,
     this.imageUrls = const [],
@@ -99,6 +100,7 @@ class PropertySummary {
   final int? shopOpenings;
   final String? buildingFacade;
   final String? address;
+  final DateTime? publishedAt;
   final String status;
   final String? mainImage;
   final List<String> imageUrls;
@@ -138,6 +140,7 @@ class PropertySummary {
       shopOpenings: _asInt(json['shop_openings']),
       buildingFacade: _nullableString(json['building_facade']),
       address: _nullableString(json['address']),
+      publishedAt: DateTime.tryParse(json['published_at']?.toString() ?? ''),
       status: json['status']?.toString() ?? 'published',
       mainImage: _nullableString(json['main_image']),
       imageUrls: List.unmodifiable((json['image_urls'] as List? ?? const []).whereType<String>().where((url) => url.isNotEmpty).take(12)),
@@ -217,6 +220,7 @@ class PropertyDetails {
     this.availabilityStatus = 'available',
     this.availabilityConfirmedAt,
     this.availabilityDueAt,
+    this.publishedAt,
     this.viewCount = 0,
     this.favoriteCount = 0,
     this.conversationCount = 0,
@@ -318,7 +322,7 @@ class PropertyDetails {
   final String? contactWhatsapp;
   final bool isOwner;
   final String availabilityStatus;
-  final DateTime? availabilityConfirmedAt, availabilityDueAt;
+  final DateTime? availabilityConfirmedAt, availabilityDueAt, publishedAt;
   final int viewCount, favoriteCount, conversationCount, viewingCount;
   final String? ownershipDocumentType;
   final String? documentOwnerName;
@@ -372,6 +376,7 @@ class PropertyDetails {
       availabilityStatus: json['availability_status']?.toString() ?? 'available',
       availabilityConfirmedAt: DateTime.tryParse('${json['availability_confirmed_at'] ?? ''}'),
       availabilityDueAt: DateTime.tryParse('${json['availability_due_at'] ?? ''}'),
+      publishedAt: DateTime.tryParse(json['published_at']?.toString() ?? ''),
       viewCount: _asInt(json['view_count']) ?? 0,
       favoriteCount: _asInt(json['favorite_count']) ?? 0,
       conversationCount: _asInt(json['conversation_count']) ?? 0,
@@ -472,6 +477,7 @@ class PropertyDetails {
       shopOpenings: shopOpenings,
       buildingFacade: buildingFacade,
       address: address,
+      publishedAt: publishedAt,
       status: status,
       mainImage: mainImage,
       imageUrls: images.map((image) => image.url).toList(growable: false),

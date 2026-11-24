@@ -26,7 +26,6 @@ class _NotificationsRepository implements MessageRepository {
   Object? failure;
   Completer<void>? pending;
   int singleReads = 0;
-  int allReads = 0;
   bool read = false;
   int listReads = 0;
   Completer<List<AppNotificationItem>>? pendingList;
@@ -57,14 +56,6 @@ class _NotificationsRepository implements MessageRepository {
   @override
   Future<void> readNotification(int id) async {
     singleReads++;
-    if (pending != null) await pending!.future;
-    if (failure != null) throw failure!;
-    read = true;
-  }
-
-  @override
-  Future<void> readAllNotifications() async {
-    allReads++;
     if (pending != null) await pending!.future;
     if (failure != null) throw failure!;
     read = true;
@@ -103,7 +94,7 @@ Future<GoRouter> _mount(
 
 void main() {
   final offline = DioException(
-    requestOptions: RequestOptions(path: '/notifications/read-all'),
+    requestOptions: RequestOptions(path: '/notifications/1/read'),
     type: DioExceptionType.connectionError,
   );
 
@@ -175,7 +166,7 @@ void main() {
 
   testWidgets('read all shows session expiry and remains available for retry',
       (tester) async {
-    final request = RequestOptions(path: '/notifications/read-all');
+    final request = RequestOptions(path: '/notifications/1/read');
     final expired = DioException(
       requestOptions: request,
       type: DioExceptionType.badResponse,
@@ -192,7 +183,7 @@ void main() {
     repository.failure = null;
     await tester.tap(find.text('قراءة الكل'));
     await tester.pumpAndSettle();
-    expect(repository.allReads, 2);
+    expect(repository.singleReads, 2);
     expect(tester.widget<TextButton>(find.byType(TextButton)).onPressed, isNull);
   });
 
@@ -203,7 +194,7 @@ void main() {
     await tester.tap(find.text('قراءة الكل'));
     await tester.pump();
     await tester.tap(find.text('قراءة الكل'));
-    expect(repository.allReads, 1);
+    expect(repository.singleReads, 1);
     await tester.pumpWidget(const SizedBox());
     repository.pending!.complete();
     await tester.pump();

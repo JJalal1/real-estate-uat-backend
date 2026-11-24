@@ -6,7 +6,7 @@ import 'ebroker_widgets.dart';
 
 class PropertyCardGallery extends StatefulWidget {
   const PropertyCardGallery({this.imageUrl, this.imageUrls = const [], this.height = 190,
-    this.overlay, this.priceBadge, this.overlayAtStart = false, this.isSpotlight = false,
+    this.overlay, this.priceBadge, this.purposeBadge, this.overlayAtStart = false, this.isSpotlight = false,
     this.authenticatedImages = false, this.propertyType, super.key});
   final String? imageUrl;
   final String? propertyType;
@@ -14,6 +14,7 @@ class PropertyCardGallery extends StatefulWidget {
   final double height;
   final Widget? overlay;
   final Widget? priceBadge;
+  final Widget? purposeBadge;
   final bool overlayAtStart;
   final bool isSpotlight;
   final bool authenticatedImages;
@@ -70,6 +71,8 @@ class _PropertyCardGalleryState extends State<PropertyCardGallery> {
           child: Row(mainAxisSize: MainAxisSize.min, children: [EbrokerIcon(Icons.auto_awesome_outlined, size: 13, color: Theme.of(context).colorScheme.primary),
             if (size.maxWidth > 180) ...[const SizedBox(width: 3), Text('مميز', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary))],
           ])))),
+      if (widget.purposeBadge != null)
+        PositionedDirectional(top: 10, end: 10, child: IgnorePointer(child: widget.purposeBadge!)),
       if (widget.overlay != null)
         PositionedDirectional(top: 4, start: widget.overlayAtStart ? 4 : null,
           end: widget.overlayAtStart ? null : 4, child: widget.overlay!),

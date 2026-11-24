@@ -11,6 +11,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/message_repository.dart';
+import '../data/unread_inbox_repository.dart';
 import '../domain/message_models.dart';
 import 'conversation_screen.dart';
 
@@ -84,6 +85,11 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
   }
 
   Future<void> _load() => _fetchPage(1);
+
+  Future<void> _refresh() {
+    ref.read(unreadInboxRevisionProvider.notifier).state++;
+    return _load();
+  }
 
   Future<void> _loadMore() async {
     if (_loading || _loadingMore || !_hasMore || _error != null) return;
@@ -199,7 +205,7 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
       child: Scaffold(
         appBar: widget.embedded ? null : const AppAppBar(title: 'الرسائل'),
         body: RefreshIndicator(
-          onRefresh: _load,
+          onRefresh: _refresh,
           child: CustomScrollView(
             key: ValueKey((_actor, _sessionEpoch, _query)),
             physics: const AlwaysScrollableScrollPhysics(),

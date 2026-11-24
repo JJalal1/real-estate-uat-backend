@@ -9,10 +9,10 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   const EbrokerPropertyHorizontalCard({required this.title, required this.price, required this.currency,
     required this.onTap, this.imageUrl, this.location, this.purposeLabel, this.categoryLabel = 'عقار',
     this.facts = const [], this.trailing, this.action, this.unavailable = false, this.embedded = false, this.imageFirst = false, this.preview = false,
-    this.imageUrls = const [], this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, this.supportingText = const [], this.priceSuffix, super.key});
+    this.imageUrls = const [], this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, this.supportingText = const [], this.priceSuffix, this.publicationAge, super.key});
   final String title, price, currency, categoryLabel;
   final VoidCallback onTap;
-  final String? imageUrl, location, purposeLabel, propertyType, priceSuffix;
+  final String? imageUrl, location, purposeLabel, propertyType, priceSuffix, publicationAge;
   final List<String> imageUrls, supportingText;
   final List<AppPropertyFact> facts;
   final Widget? trailing, action;
@@ -53,6 +53,9 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
       child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, authenticatedImages: authenticatedImages,
         height: height, overlay: vertical ? trailing : null,
         overlayAtStart: preview && purposeLabel != null,
+        purposeBadge: preview && purposeLabel != null
+          ? EbrokerPurposeLabel(purposeLabel!, key: const ValueKey('property-photo-purpose'))
+          : null,
         priceBadge: imageFirst && !preview ? Container(key: const ValueKey('property-photo-price'),
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           decoration: BoxDecoration(color: scheme.surface.withValues(alpha: .97), borderRadius: BorderRadius.circular(8)),
@@ -65,7 +68,12 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
       if (location?.trim().isNotEmpty == true) ...[const SizedBox(height: 4), Text(location!,
         maxLines: largeText ? null : 1, overflow: largeText ? null : TextOverflow.ellipsis,
         style: AppTypography.propertySecondary.copyWith(color: scheme.onSurfaceVariant))],
-      if (preview) ...[const SizedBox(height: 6), priceWithPurpose()],
+      if (publicationAge != null) Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Text(publicationAge!, style: theme.textTheme.bodySmall?.copyWith(
+          fontSize: 11, color: scheme.onSurfaceVariant)),
+      ),
+      if (preview) ...[const SizedBox(height: 6), money],
       if (!preview) ...[const SizedBox(height: 4), Row(mainAxisSize: MainAxisSize.min, children: [
         PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
         const SizedBox(width: 4), Flexible(child: Text(categoryLabel,

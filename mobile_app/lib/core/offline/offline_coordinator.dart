@@ -9,6 +9,7 @@ import '../../features/discovery/data/marketplace_repository.dart';
 import '../../features/discovery/data/marketplace_search_session.dart';
 import '../../features/discovery/domain/smart_search_filters.dart';
 import '../../features/messages/data/message_outbox.dart';
+import '../../features/messages/data/unread_inbox_repository.dart';
 import 'offline_connection.dart';
 import 'offline_store.dart';
 
@@ -69,9 +70,13 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
   void _start() {
     _timer?.cancel();
     unawaited(ref.read(offlineConnectionProvider.notifier).check(force: true));
-    _timer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 8), (timer) {
       unawaited(ref.read(offlineConnectionProvider.notifier).check());
       _flush();
+      if (timer.tick % 6 == 0 &&
+          ref.read(offlineConnectionProvider) == OfflineConnection.online) {
+        ref.read(unreadInboxRevisionProvider.notifier).state++;
+      }
     });
   }
 
@@ -259,6 +264,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      ref.read(unreadInboxRevisionProvider.notifier).state++;
       _start();
     } else {
       _timer?.cancel();

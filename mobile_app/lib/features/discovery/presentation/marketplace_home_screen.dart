@@ -14,6 +14,7 @@ import '../../../core/widgets/ebroker_screen_sections.dart';
 import '../../properties/presentation/property_summary_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../map/presentation/map_screen.dart';
+import '../../messages/presentation/unread_inbox_badge.dart';
 import '../../properties/data/recent_properties_store.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/presentation/property_details_screen.dart';
@@ -193,7 +194,8 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
               style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w700)),
           ])),
         ]), actions: [IconButton(tooltip: 'الإشعارات', onPressed: () => context.push('/notifications'),
-          icon: EbrokerImage('notification', size: 21, color: theme.colorScheme.onSurface))]),
+          icon: PlatformNotificationUnreadBadge(
+            child: EbrokerImage('notification', size: 21, color: theme.colorScheme.onSurface)))]),
       body: SmartSearchAssistantLayer(
         onOpenMap: _openMap,
         onPressed: () => context.push('/smart-search'),
@@ -222,7 +224,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             _HomeBrokerCarousel(profiles: data.brokers.take(3).toList(growable: false)),
           ],
         ])))),
-        SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'ماذا تبحث عنه؟', onSeeAll: _openMap)),
+        SliverToBoxAdapter(child: EbrokerTitleHeader(title: 'ماذا تبحث عنه؟', compact: true, onSeeAll: _openMap)),
               SliverToBoxAdapter(child: SizedBox(height: 48 + (MediaQuery.textScalerOf(context).scale(13) - 13) * 2,
                 child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 18), children: [
                   for (final category in const [('شقق', 'apartment'), ('منازل', 'house'), ('فلل', 'villa'),
@@ -278,7 +280,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            EbrokerTitleHeader(title: 'أفضل الدلالين في ${data.label}',
+            EbrokerTitleHeader(title: 'أفضل الدلالين في ${data.label}', compact: true,
               onSeeAll: () => context.push('/brokers')),
             SingleChildScrollView(
               key: const ValueKey('home-broker-directory'),

@@ -134,6 +134,7 @@ class RecentPropertiesStore {
         if (p.shopOpenings != null) 'shop_openings': p.shopOpenings,
         if (p.buildingFacade != null) 'building_facade': p.buildingFacade,
         if (p.address != null) 'address': p.address,
+        if (p.publishedAt != null) 'published_at': p.publishedAt!.toIso8601String(),
         'status': p.status,
         if (p.mainImage != null) 'main_image': p.mainImage,
         'image_urls': p.imageUrls,

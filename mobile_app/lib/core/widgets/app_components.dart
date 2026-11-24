@@ -588,10 +588,12 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
 }
 
 class AppNavDestination {
-  const AppNavDestination({required this.label, required this.icon});
+  const AppNavDestination({required this.label, required this.icon, this.decorateIcon, this.unreadCount = 0});
 
   final String label;
   final IconData icon;
+  final Widget Function(Widget icon)? decorateIcon;
+  final int unreadCount;
 }
 
 class AppNavigationBar extends StatelessWidget {
@@ -641,15 +643,19 @@ class AppNavigationBar extends StatelessWidget {
       }
       final item = destinations[index], active = index == selectedIndex;
       final color = active ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant;
+      final icon = _icon(context, item, active, color, 24.rw(context));
+      final semanticsLabel = item.unreadCount > 0
+          ? '${item.label}، ${arabicDigits(item.unreadCount.toString())} رسالة غير مقروءة'
+          : item.label;
       items.add(Expanded(
-        child: Semantics(button: true, selected: active, label: item.label, excludeSemantics: true,
+        child: Semantics(button: true, selected: active, label: semanticsLabel, excludeSemantics: true,
           child: Tooltip(message: item.label, child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => onSelected(index),
             child: Padding(padding: EdgeInsets.all(4.rh(context)),
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 AnimatedScale(scale: active && !const ['عملي', 'العملاء', 'حسابي'].contains(item.label) ? 1.3 : 1, duration: duration,
-                  child: _icon(context, item, active, color, 24.rw(context))),
+                  child: item.decorateIcon?.call(icon) ?? icon),
                 if (!largeText) ...[
                   SizedBox(height: 4.rh(context)),
                   EbrokerText(item.label, size: 12, color: color, maxLines: 1, align: TextAlign.center),

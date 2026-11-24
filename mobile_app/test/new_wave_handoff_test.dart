@@ -221,7 +221,7 @@ void main() {
     final boundary=GlobalKey();
     await pumpWave6(tester,const AppShellScreen(),boundary:boundary,scale:scale);
     final nav=find.byType(AppNavigationBar);
-    expect(tester.widget<AppNavigationBar>(nav).destinations.map((d)=>d.label),['الرئيسية','عملي','العملاء','حسابي']);
+    expect(tester.widget<AppNavigationBar>(nav).destinations.map((d)=>d.label),['الرئيسية','إعلاناتي','الرسائل','حسابي']);
     final assistant = find.byKey(const ValueKey('floating-smart-search'));
     await tester.ensureVisible(assistant);
     await tester.tap(assistant);await tester.pumpAndSettle();

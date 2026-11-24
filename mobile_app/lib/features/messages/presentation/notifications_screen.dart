@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/message_repository.dart';
+import '../data/unread_inbox_repository.dart';
 import '../domain/message_models.dart';
 import '../domain/notification_destination.dart';
 import 'notification_preferences_screen.dart';
@@ -35,7 +36,6 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
   String? _pageError;
   bool _loadingMore = false;
   int _page = 0;
-  int _total = 0;
   bool _hasMore = false;
   List<AppNotificationItem> _items = const [];
   bool _actionPending = false;
@@ -62,7 +62,6 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
         _sessionEpoch = epoch;
         _items = const [];
         _page = 0;
-        _total = 0;
         _hasMore = false;
         _query = null;
         _error = null;
@@ -76,6 +75,11 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
   }
 
   Future<void> _load() => _fetchPage(1);
+
+  Future<void> _refresh() {
+    ref.read(unreadInboxRevisionProvider.notifier).state++;
+    return _load();
+  }
 
   Future<void> _loadMore() async {
     if (_loading || _loadingMore || !_hasMore || _error != null) return;
@@ -96,7 +100,6 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     setState(() {
       if (_query != query || _actor != actor || _sessionEpoch != epoch) {
         _items = const [];
-        _total = 0;
       }
       _actor = actor;
       _sessionEpoch = epoch;
@@ -119,7 +122,6 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       if (!mounted || request != _request) return;
       setState(() {
         _items = const [];
-        _total = 0;
         _page = 0;
         _hasMore = false;
         _loading = false;
@@ -129,15 +131,20 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       });
     }
     try {
-      final result = await ref.read(messageRepositoryProvider).notificationsPage(page: page);
+      final repo = ref.read(messageRepositoryProvider);
+      var result = await repo.notificationsPage(page: page);
+      var platformItems = result.items.where(_visiblePlatformItem).toList();
+      while (current() && platformItems.isEmpty && result.hasMore) {
+        result = await repo.notificationsPage(page: result.currentPage + 1);
+        platformItems = result.items.where(_visiblePlatformItem).toList();
+      }
       if (!current()) { discardStaleDelivery(); return; }
       setState(() {
         _items = <int, AppNotificationItem>{
           if (append) for (final item in _items) item.id: item,
-          for (final item in result.items) item.id: item,
+          for (final item in platformItems) item.id: item,
         }.values.toList(growable: false);
         _page = result.currentPage;
-        _total = result.total;
         _hasMore = result.hasMore;
         _loading = false;
         _loadingMore = false;
@@ -152,7 +159,6 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
         } else {
           if (!isTransientApiFailure(error)) {
             _items = const [];
-            _total = 0;
           }
           _page = 0;
           _hasMore = false;
@@ -164,6 +170,9 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
 
   @override
   void dispose() { _request++; super.dispose(); }
+
+  bool _visiblePlatformItem(AppNotificationItem item) =>
+      !item.isRead && item.isPlatformNotification;
 
   bool _sameSession(int? actor, int epoch) => mounted &&
       actor == ref.read(authControllerProvider).asData?.value?.id &&
@@ -178,7 +187,6 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       if (stale) {
         _request++;
         _items = const [];
-        _total = 0;
         _page = 0;
         _hasMore = false;
         _loading = false;
@@ -190,17 +198,33 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
   }
 
   Future<void> _readAll() async {
-    if (_actionPending) return;
+    if (_actionPending || _loading || _loadingMore) return;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final generation = ++_actionGeneration;
     setState(() => _actionPending = true);
     try {
-      await ref.read(messageRepositoryProvider).readAllNotifications();
-      if (_sameSession(actor, epoch)) await _load();
+      final repo = ref.read(messageRepositoryProvider);
+      final ids = _items.map((item) => item.id).toSet();
+      // Snapshot IDs before reading any of them, since each read changes the
+      // server's unread pagination. The bulk API also reads private chat alerts.
+      if (_hasMore) {
+        var page = await repo.notificationsPage(perPage: 200);
+        final lastPage = page.lastPage;
+        while (_sameSession(actor, epoch)) {
+          ids.addAll(page.items.where(_visiblePlatformItem).map((item) => item.id));
+          if (!page.hasMore || page.currentPage >= lastPage) break;
+          page = await repo.notificationsPage(page: page.currentPage + 1, perPage: 200);
+        }
+      }
+      for (final id in ids) {
+        if (!_sameSession(actor, epoch)) return;
+        await repo.readNotification(id);
+      }
     } catch (error) {
       if (_sameSession(actor, epoch)) _showActionError(error);
     } finally {
+      if (_sameSession(actor, epoch)) await _refresh();
       _finishAction(generation, actor, epoch);
     }
   }
@@ -232,12 +256,12 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       await ref.read(messageRepositoryProvider).readNotification(item.id);
     }
     if (!mounted || !_sameSession(actor, epoch)) return;
+    ref.read(unreadInboxRevisionProvider.notifier).state++;
     // Reading removes a row from the unread-only dataset. Invalidate any old
     // page before navigation, then reload page one when this screen is visible.
     setState(() {
       _request++;
       _items = _items.where((entry) => entry.id != item.id).toList(growable: false);
-      if (_total > 0) _total--;
       _page = 0;
       _hasMore = false;
       _loading = false;
@@ -261,8 +285,8 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
 
   @override
   Widget build(BuildContext context) {
-    final unread = _total;
-    final visible = _items.where((item) => !item.isRead).toList(growable: false);
+    final unread = _items.length;
+    final canReadAll = !_actionPending && !_loading && !_loadingMore && unread > 0;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -281,14 +305,14 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
             ),
             if (MediaQuery.textScalerOf(context).scale(14) > 20)
               AppIconButton(icon: Icons.mark_email_read_outlined, tooltip: 'قراءة الكل',
-                onPressed: !_actionPending && unread > 0 ? _readAll : null)
+                onPressed: canReadAll ? _readAll : null)
             else
-              TextButton(onPressed: !_actionPending && unread > 0 ? _readAll : null,
+              TextButton(onPressed: canReadAll ? _readAll : null,
                 child: const Text('قراءة الكل')),
           ],
         ),
         body: RefreshIndicator(
-          onRefresh: _load,
+          onRefresh: _refresh,
           child: CustomScrollView(
             key: ValueKey((_actor, _sessionEpoch)),
             physics: const AlwaysScrollableScrollPhysics(),
@@ -301,7 +325,7 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                     AppLayout.compactPageGutter,
                     0,
                   ),
-                  child: Text(_loading || _error != null ? 'تحديثات حسابك' : unread > 0 ? '$unread إشعار جديد' : 'أنت مطّلع على كل شيء',
+                  child: Text(_loading || _error != null || _hasMore ? 'تحديثات حسابك' : unread > 0 ? '$unread إشعار جديد' : 'أنت مطّلع على كل شيء',
                     style: Theme.of(context).textTheme.bodyMedium),
                 ),
               ),
@@ -323,16 +347,8 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                   child: AppEmptyState(
                     title: 'أنت مطّلع على كل شيء',
                     message:
-                        'بتظهر هنا الرسائل والمواعيد والتحديثات المهمة لحسابك.',
+                        'بتظهر هنا تنبيهات المنصة والتحديثات المهمة لحسابك.',
                     icon: Icons.notifications_none_rounded,
-                  ),
-                )
-              else if (visible.isEmpty)
-                const SliverToBoxAdapter(
-                  child: AppEmptyState(
-                    title: 'ما عندك إشعارات غير مقروءة',
-                    message: 'سنُظهر هنا ما يحتاج انتباهك عند وصوله.',
-                    icon: Icons.done_all_rounded,
                   ),
                 )
               else
@@ -344,11 +360,11 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                     AppSpacing.s40,
                   ),
                   sliver: SliverList.separated(
-                    itemCount: visible.length,
+                    itemCount: _items.length,
                     separatorBuilder: (_, __) =>
                         const Divider(height: 1, thickness: .5),
                     itemBuilder: (context, index) {
-                      final item = visible[index];
+                      final item = _items[index];
                       return _NotificationCard(
                         key: ValueKey('notification-${item.id}'),
                         item: item,
@@ -456,9 +472,6 @@ class _NotificationSkeleton extends StatelessWidget {
 (IconData, String, AppStatusTone) _notificationPresentation(String type) {
   if (type == 'listing_duplicate_rejected') {
     return (Icons.content_copy_outlined, 'مراجعة إعلان', AppStatusTone.warning);
-  }
-  if (type == 'message_received') {
-    return (Icons.chat_bubble_outline, 'رسائل', AppStatusTone.info);
   }
   if (type.startsWith('agreement_') || type.startsWith('rental_contract_')) {
     return (Icons.handshake_outlined, 'اتفاق', AppStatusTone.success);

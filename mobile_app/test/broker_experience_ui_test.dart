@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/discovery/presentation/marketplace_categories_screen.dart';
 import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
@@ -139,7 +140,7 @@ void main() {
   testWidgets('verified broker opens work and the two customer tabs from the marketplace', (tester) async {
     await _pump(tester, const AppShellScreen(), BrokerTestRepository());
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
-    expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'عملي', 'العملاء', 'حسابي']);
+    expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'إعلاناتي', 'الرسائل', 'حسابي']);
     expect(nav.onCreate, isNotNull);
     expect(find.text('مهام تحتاج إجراء'), findsNothing);
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
@@ -156,6 +157,7 @@ void main() {
     await tester.pumpAndSettle();
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
     expect(tabs.tabs.cast<Tab>().map((tab) => tab.text), ['المتابعة', 'المحادثات']);
+    expect(DefaultTabController.of(tester.element(find.byType(TabBar))).index, 1);
     expect(find.text('إدارة العملاء'), findsNothing);
     nav.onSelected(3); await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('لوحة العمل'), 300,
@@ -163,6 +165,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('لوحة العمل'), findsOneWidget);
     expect(find.text('إدارة العملاء'), findsOneWidget);
+  });
+  testWidgets('regular account opens categories from the old messages slot', (tester) async {
+    await _pump(tester, const AppShellScreen(), BrokerTestRepository(viewerId: 2), userId: 2);
+    final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
+    expect(nav.destinations.map((destination) => destination.label), ['العقارات', 'الأقسام', 'الرسائل', 'حسابي']);
+    nav.onSelected(1);
+    await tester.pumpAndSettle();
+    expect(find.byType(MarketplaceCategoriesScreen), findsOneWidget);
+    expect(find.text('الإيجارات'), findsOneWidget);
+    expect(find.text('البيع'), findsOneWidget);
   });
   testWidgets('availability update submits selected real listing IDs', (tester) async {
     final repo = BrokerTestRepository();

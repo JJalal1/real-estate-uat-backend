@@ -14,6 +14,8 @@ import 'package:real_estate_mobile/features/discovery/presentation/marketplace_h
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_panel.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_compare_actions.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
 import 'support/owner_ux_fixtures.dart';
 import 'support/wave3_fakes.dart';
@@ -21,6 +23,23 @@ import 'wave2_home_search_test.dart' show Listings, PageResult, row;
 
 void main() {
   setUpAll(loadUxFixtures);
+
+  test('publication age uses the real timestamp and stops advancing at six months', () {
+    final now = DateTime.utc(2026, 11, 25, 9);
+    final listing = PropertySummary.fromJson({
+      'id': 42,
+      'published_at': now.subtract(const Duration(hours: 2)).toIso8601String(),
+      'created_at': now.subtract(const Duration(days: 10)).toIso8601String(),
+    });
+    expect(PropertySummary.fromJson({'id': 42}).publishedAt, isNull);
+    expect(propertyPublicationAge(listing.publishedAt!, now), 'قبل ساعتين');
+    expect(propertyPublicationAge(now, now), 'الآن');
+    expect(propertyPublicationAge(now.subtract(const Duration(minutes: 4)), now), 'قبل ٤ دقائق');
+    expect(propertyPublicationAge(now.subtract(const Duration(days: 1)), now), 'قبل يوم');
+    expect(propertyPublicationAge(now.subtract(const Duration(days: 15)), now), 'قبل أسبوعين');
+    expect(propertyPublicationAge(now.subtract(const Duration(days: 95)), now), 'قبل ٣ أشهر');
+    expect(propertyPublicationAge(now.subtract(const Duration(days: 400)), now), 'قبل ٦ أشهر');
+  });
 
   test('A03 B06 a changed query or purpose clears old rows before an HTTP response', () async {
     final pending = Completer<PageResult>();
@@ -125,7 +144,19 @@ void main() {
       final fake = Wave3MarketplaceFake(onFeed: (query) async => MarketplaceFeed(label: 'صنعاء',
         brokers: const [BrokerProfile(id: 7, name: 'دلال اختبار 1393', type: 'broker', verified: true,
           rating: 4.8, ratingCount: 12, completedDeals: 3, activeListings: 7)],
-        sections: {'latest': [row(11, purpose: query.purpose ?? 'rent'), row(12, purpose: query.purpose ?? 'rent')]},
+        sections: {'latest': [PropertySummary.fromJson({
+          'id': 11,
+          'title': 'شقة منشورة في حدة 11',
+          'purpose': query.purpose ?? 'rent',
+          'type': 'apartment',
+          'price': 45000000,
+          'currency': 'YER',
+          'latitude': 15.36,
+          'longitude': 44.19,
+          'address': 'صنعاء، حدة',
+          'bedrooms': 3,
+          'published_at': DateTime.utc(2020).toIso8601String(),
+        }), row(12, purpose: query.purpose ?? 'rent')]},
         sectionOrder: const ['latest']));
       final scope = uxContainer(extra: [marketplaceRepositoryProvider.overrideWithValue(fake)]);
       await pumpUx(tester, scope, const MarketplaceHomeScreen(), scale: scale,
@@ -149,11 +180,17 @@ void main() {
       expect(tester.widget<PropertyTypeIcon>(apartmentIcon).color, scheme.primary);
       expect(tester.getSize(apartments).height, greaterThanOrEqualTo(48));
       expect(tester.widget<Text>(find.text('ماذا تبحث عنه؟')).style!.fontSize, 17);
+      expect(tester.widget<EbrokerTitleHeader>(find.ancestor(
+        of: find.text('ماذا تبحث عنه؟'), matching: find.byType(EbrokerTitleHeader))).compact, isTrue);
       await tester.ensureVisible(apartments);
       await tester.tap(apartments);
       await tester.pumpAndSettle();
       expect(tester.widget<EbrokerCategoryCard>(apartments).selected, isTrue);
-      expect((tester.widget<AnimatedContainer>(apartmentFill).decoration! as BoxDecoration).color, const Color(0xFF008052));
+      final selectedDecoration = tester.widget<AnimatedContainer>(apartmentFill).decoration! as BoxDecoration;
+      expect(selectedDecoration.gradient, const LinearGradient(
+        begin: Alignment.topCenter, end: Alignment.bottomCenter,
+        colors: [Color(0xFF00A5A8), Color(0xFF006D74), Color(0xFF00343D)],
+      ));
       expect(tester.widget<EbrokerText>(apartmentName).color, Colors.white);
       expect(tester.widget<PropertyTypeIcon>(apartmentIcon).color, Colors.white);
       scope.read(marketplaceSearchControllerProvider.notifier).choosePurpose('sale');
@@ -173,22 +210,29 @@ void main() {
       expect(card.property.purpose, 'sale');
       expect(card.imageFirst, isTrue);
       expect(card.preview, isTrue);
-      final purpose = find.descendant(of: first, matching: find.byKey(const ValueKey('property-price-purpose')));
+      final purpose = find.descendant(of: first, matching: find.byKey(const ValueKey('property-photo-purpose')));
       final price = find.descendant(of: first, matching: find.byType(AppPropertyPrice));
       final gallery = find.descendant(of: first, matching: find.byType(PropertyCardGallery));
+      final compare = find.descendant(of: first, matching: find.byKey(const ValueKey('compare-property-11')));
       expect(find.descendant(of: purpose, matching: find.text('بيع')), findsOneWidget);
-      final priceRect = tester.getRect(price);
+      expect(find.descendant(of: first, matching: find.text('قبل ٦ أشهر')), findsOneWidget);
       final purposeRect = tester.getRect(purpose);
-      if (scale == 1.0) {
-        expect(purposeRect.right, lessThan(priceRect.left));
-      } else {
-        expect(purposeRect.top, greaterThan(priceRect.bottom));
-        expect(purposeRect.left, closeTo(priceRect.left, 1));
-      }
-      expect(tester.getRect(purpose).top, greaterThan(tester.getRect(gallery).bottom));
+      final galleryRect = tester.getRect(gallery);
+      expect(purposeRect.left, closeTo(galleryRect.left + 10, 1));
+      expect(purposeRect.top, closeTo(galleryRect.top + 10, 1));
+      expect(purposeRect.bottom, lessThan(galleryRect.bottom));
+      expect(find.descendant(of: first, matching: find.byKey(const ValueKey('property-price-purpose'))), findsNothing);
       expect(find.descendant(of: first, matching: find.byKey(const ValueKey('property-photo-price'))), findsNothing);
-      expect(find.descendant(of: first, matching: find.byKey(const ValueKey('compare-property-11'))), findsNothing);
+      expect(find.descendant(of: compare, matching: find.text('أضف للمقارنة')), findsOneWidget);
+      expect(tester.getRect(compare).top, greaterThan(tester.getRect(price).bottom));
       await uxPreview(tester, boundary, 'w3-two-cards-$scale');
+      if (scale == 1.0) {
+        await tester.ensureVisible(compare);
+        await tester.tap(compare);
+        await tester.pumpAndSettle();
+        expect(scope.read(propertyCompareSelectionProvider), {11});
+        expect(find.byKey(const ValueKey('open-property-comparison')), findsOneWidget);
+      }
       expect(tester.takeException(), isNull); await closeUx(tester);
     });
   }

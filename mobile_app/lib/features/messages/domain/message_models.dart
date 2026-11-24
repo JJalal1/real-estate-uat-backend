@@ -189,6 +189,8 @@ class AppNotificationItem {
   final bool isRead;
   final DateTime? createdAt;
 
+  bool get isPlatformNotification => type != 'message_received';
+
   int? get bookingId => _asInt(data['booking_id']);
   int? get messageThreadId => _asInt(data['message_thread_id']);
   int? get agreementId => _asInt(data['agreement_id']);

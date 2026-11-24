@@ -13,9 +13,11 @@ import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/messages/data/message_repository.dart';
+import 'package:real_estate_mobile/features/messages/data/unread_inbox_repository.dart';
 import 'package:real_estate_mobile/features/messages/presentation/messages_screen.dart';
 import 'package:real_estate_mobile/features/messages/presentation/notifications_screen.dart';
 import 'package:real_estate_mobile/features/messages/presentation/conversation_reports_screen.dart';
+import 'package:real_estate_mobile/features/messages/presentation/unread_inbox_badge.dart';
 
 import 'support/phase23_widget_tools.dart';
 
@@ -120,6 +122,73 @@ Future<void> _more(WidgetTester tester, String key) async {
 }
 
 void main() {
+  phase23WidgetTest('unread badges sum message counts across pages and isolate platform notices', (tester) async {
+    var cleared = false;
+    final wire = _Wire((request) async {
+      final page = request.queryParameters['page'] as int;
+      if (cleared) return _page(1, []);
+      if (request.path == '/messages/threads') {
+        expect(request.queryParameters['unread_only'], 1);
+        return _page(page, page == 1
+            ? [_row(1, unread: 2), _row(2, unread: 2)]
+            : [_row(2, unread: 2), _row(3, unread: 2)], last: 2, total: 3);
+      }
+      expect(request.path, '/notifications');
+      return _page(page, page == 1
+          ? [_row(11), {..._row(12), 'type': 'message_received'}]
+          : [_row(13), _row(14)], last: 2, total: 4);
+    });
+    final container = await _open(tester, wire, const Scaffold(body: Row(children: [
+      MessageUnreadBadge(child: Icon(Icons.chat_outlined)),
+      PlatformNotificationUnreadBadge(child: Icon(Icons.notifications_outlined)),
+    ])));
+    final messages = find.byKey(const ValueKey('message-unread-total'));
+    final notices = find.byKey(const ValueKey('platform-notification-unread-total'));
+    expect(find.descendant(of: messages, matching: find.text('6')), findsOneWidget);
+    expect(find.descendant(of: notices, matching: find.text('3')), findsOneWidget);
+    cleared = true;
+    container.read(unreadInboxRevisionProvider.notifier).state++;
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(messages, findsNothing);
+    expect(notices, findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  phase23WidgetTest('the bell skips chat alerts and reaches a platform report on later pages', (tester) async {
+    final wire = _Wire((request) async {
+      final page = request.queryParameters['page'] as int;
+      return _page(page, page == 1
+          ? [{..._row(11, label: 'Private chat'), 'type': 'message_received'}]
+          : [{..._row(12, label: 'Platform report'), 'type': 'conversation_report_closed',
+              'entity_type': 'message_thread'}], last: 2, total: 2);
+    });
+    await _open(tester, wire, const NotificationsScreen());
+    expect(find.text('Private chat'), findsNothing);
+    expect(find.text('Platform report'), findsOneWidget);
+    expect(wire.pages, [1, 2]);
+  });
+
+  phase23WidgetTest('reading all in the bell does not read chat alerts', (tester) async {
+    final readPaths = <String>[];
+    final wire = _Wire((request) async {
+      if (request.method == 'POST') {
+        readPaths.add(request.path);
+        return {'data': <String, dynamic>{}};
+      }
+      if (readPaths.length == 2) return _page(1, []);
+      final page = request.queryParameters['page'] as int;
+      return _page(page, page == 1
+          ? [_row(11), {..._row(12), 'type': 'message_received'}]
+          : [_row(13)], last: 2, total: 3);
+    });
+    await _open(tester, wire, const NotificationsScreen());
+    await tester.tap(find.text('قراءة الكل'));
+    await tester.pumpAndSettle();
+    expect(readPaths, ['/notifications/11/read', '/notifications/13/read']);
+    expect(find.byKey(const ValueKey('notification-11')), findsNothing);
+  });
+
   test('all three repositories preserve route, page, filters and metadata', () async {
     final wire = _Wire((_) async => _page(2, [_row(41)], last: 3, total: 81));
     final container = await _container(wire);

@@ -10,11 +10,13 @@ import '../../account/presentation/account_screen.dart';
 import '../../account/presentation/auth_gate.dart';
 import '../../admin/presentation/general_manager_finance_hubs.dart';
 import '../../admin/presentation/general_manager_pages.dart';
+import '../../discovery/presentation/marketplace_categories_screen.dart';
 import '../../discovery/presentation/marketplace_home_screen.dart';
+import '../../messages/data/unread_inbox_repository.dart';
 import '../../messages/presentation/messages_screen.dart';
+import '../../messages/presentation/unread_inbox_badge.dart';
 import '../../broker/presentation/broker_workspaces.dart';
 import '../../broker/presentation/broker_connections_screen.dart';
-import '../../properties/presentation/my_listings_screen.dart';
 import '../../discovery/presentation/marketplace_search_panel.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
 import 'listing_creation_menu.dart';
@@ -63,10 +65,14 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (shouldExit == true && mounted) await SystemNavigator.pop();
   }
 
-  void _createListing() {
+  Future<void> _createListing({required bool checkOwnerLimit}) async {
     if (_openingEditor) return;
     FocusManager.instance.primaryFocus?.unfocus();
     ref.read(brokerAssistantMenuProvider.notifier).state = false;
+    if (checkOwnerLimit) {
+      await _openListingEditor('/add-property');
+      return;
+    }
     setState(() => _createMenuOpen = !_createMenuOpen);
   }
 
@@ -77,9 +83,13 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   Future<void> _selectCreationMode(bool assisted) async {
     if (!_createMenuOpen || _openingEditor) return;
     setState(() => _createMenuOpen = false);
+    await _openListingEditor('/add-property?assistant=${assisted ? 1 : 0}');
+  }
+
+  Future<void> _openListingEditor(String route) async {
     _openingEditor = true;
     try {
-      await context.push('/add-property?assistant=${assisted ? 1 : 0}');
+      await context.push<void>(route);
     } finally {
       _openingEditor = false;
     }
@@ -100,6 +110,10 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     final user = ref.watch(authControllerProvider).asData?.value;
     final mode = _modeFor(user);
     final shell = _shellFor(mode);
+    final checkOwnerLimit = user != null && user.isOwner && user.hasVerifiedPublishingProfile;
+    final unreadCount = shell.items.any((item) => item.showsUnreadMessages)
+        ? ref.watch(messageUnreadCountProvider)
+        : 0;
 
     final accountScope = '$mode:${user?.id ?? 'guest'}';
     if (_lastMode != accountScope) {
@@ -154,11 +168,20 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           ]),
           bottomNavigationBar: AppNavigationBar(
             destinations: shell.items
-                .map((item) => AppNavDestination(label: item.label, icon: item.icon))
+                .map((item) => AppNavDestination(
+                  label: item.label,
+                  icon: item.icon,
+                  unreadCount: item.showsUnreadMessages ? unreadCount : 0,
+                  decorateIcon: item.showsUnreadMessages
+                      ? (icon) => MessageUnreadBadge(child: icon)
+                      : null,
+                ))
                 .toList(growable: false),
             selectedIndex: _index,
             onSelected: _selectTab,
-            onCreate: const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode) ? _createListing : null,
+            onCreate: const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode)
+                ? () => _createListing(checkOwnerLimit: checkOwnerLimit)
+                : null,
             createExpanded: _createMenuOpen,
           ),
         ),
@@ -189,8 +212,8 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           const AccountScreen(),
         ], items: const [
           _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
-          _NavItemData(label: 'عملي', icon: Icons.work_outline),
-          _NavItemData(label: 'العملاء', icon: Icons.people_outline),
+          _NavItemData(label: 'إعلاناتي', icon: Icons.inventory_2_outlined),
+          _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
           _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
         ]);
       case 'agent':
@@ -206,7 +229,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             _NavItemData(label: 'لوحة الدعم', icon: Icons.dashboard_outlined),
             _NavItemData(label: 'الوارد', icon: Icons.inbox_outlined),
             _NavItemData(label: 'مهامي', icon: Icons.assignment_ind_outlined),
-            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
+            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
           ],
         );
@@ -223,7 +246,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             _NavItemData(label: 'لوحة الفريق', icon: Icons.space_dashboard_outlined),
             _NavItemData(label: 'الأعمال', icon: Icons.view_list_outlined),
             _NavItemData(label: 'الفريق', icon: Icons.groups_2_outlined),
-            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
+            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
           ],
         );
@@ -250,22 +273,22 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         ], items: [
           _NavItemData(label: 'العقارات', icon: Icons.home_outlined),
           _NavItemData(label: 'الخريطة', icon: Icons.map_outlined),
-          _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
+          _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
           _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
         ]);
       case 'regular':
       default:
-        return _ShellData(
+        return const _ShellData(
           pages: [
-            const MarketplaceHomeScreen(),
-            const Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
-            const Stage6AuthGate(requireListingEligible: true, guestIcon: Icons.inventory_2_outlined, child: MyListingsScreen()),
-            const AccountScreen(),
+            MarketplaceHomeScreen(),
+            MarketplaceCategoriesScreen(),
+            Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
+            AccountScreen(),
           ],
-          items: const [
+          items: [
             _NavItemData(label: 'العقارات', icon: Icons.travel_explore_outlined),
-            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
-            _NavItemData(label: 'إعلاناتي', icon: Icons.inventory_2_outlined),
+            _NavItemData(label: 'الأقسام', icon: Icons.grid_view_outlined),
+            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
           ],
         );
@@ -280,7 +303,8 @@ class _ShellData {
 }
 
 class _NavItemData {
-  const _NavItemData({required this.label, required this.icon});
+  const _NavItemData({required this.label, required this.icon, this.showsUnreadMessages = false});
   final String label;
   final IconData icon;
+  final bool showsUnreadMessages;
 }

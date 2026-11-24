@@ -35,6 +35,7 @@ import '../features/messages/presentation/notifications_screen.dart';
 import '../features/properties/domain/saved_property_search.dart';
 import '../features/properties/domain/property_details.dart';
 import '../features/discovery/domain/smart_search_filters.dart';
+import '../features/discovery/presentation/marketplace_categories_screen.dart';
 import '../features/discovery/presentation/marketplace_section_screen.dart';
 import '../features/properties/presentation/add_property_wizard_screen.dart';
 import '../features/properties/presentation/favorites_screen.dart';
@@ -78,6 +79,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ? SmartSearchFilters.fromMap(Map<String, dynamic>.from((state.extra as SmartSearchFilters).values)) : null)),
       GoRoute(path: '/marketplace-search', builder: (context, state) => MarketplaceSearchScreen(
         openFilters: state.uri.queryParameters['filters'] == '1')),
+      GoRoute(path: '/marketplace-categories/:purpose', builder: (context, state) =>
+        MarketplaceCategoryTypesScreen(purpose: state.pathParameters['purpose'] ?? '')),
       GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(
         section: state.uri.queryParameters['section'] ?? 'latest',
         governorate: state.uri.queryParameters['governorate'], type: state.uri.queryParameters['type'],

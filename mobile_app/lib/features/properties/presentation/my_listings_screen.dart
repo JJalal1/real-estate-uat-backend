@@ -240,10 +240,8 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   }
 
   Future<void> _create(BuildContext context, WidgetRef ref) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => const AddPropertyWizardScreen()),
-    );
-    _reloadListings(ref);
+    await context.push<void>('/add-property');
+    if (mounted) _reloadListings(ref);
   }
 
   Future<void> _edit(

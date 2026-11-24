@@ -13,6 +13,7 @@ import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/presentation/add_property_wizard_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/personal_listing_creation_gate.dart';
 
@@ -48,11 +49,19 @@ class _Verification implements AccountVerificationRepository {
   }
 }
 
-Future<GoRouter> _gate(WidgetTester tester, {List<PropertyDetails> listings = const [], int? recovered}) async {
+Future<GoRouter> _gate(WidgetTester tester, {List<PropertyDetails> listings = const [], int? recovered, bool startFromListings = false}) async {
   final router = GoRouter(routes: [
-    GoRoute(path: '/', builder: (_, __) => const PersonalListingCreationGate(child: Scaffold(body: Text('editor ready')))),
+    GoRoute(path: '/', builder: (context, _) => startFromListings
+      ? Scaffold(body: FilledButton(onPressed: () => context.push('/add-property'), child: const Text('إضافة عقار')))
+      : const PersonalListingCreationGate(child: Scaffold(body: Text('editor ready')))),
+    GoRoute(path: '/add-property', pageBuilder: (_, state) => CustomTransitionPage<void>(
+      key: state.pageKey,
+      opaque: false,
+      barrierColor: Colors.black38,
+      transitionsBuilder: (_, animation, __, child) => FadeTransition(opacity: animation, child: child),
+      child: const AddPropertyWizardScreen(),
+    )),
     GoRoute(path: '/account-verification', builder: (_, state) => Scaffold(body: Text('upgrade ${state.uri.queryParameters['upgrade']}'))),
-    GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('current property'))),
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(overrides: [
@@ -67,6 +76,8 @@ Future<GoRouter> _gate(WidgetTester tester, {List<PropertyDetails> listings = co
 PropertyDetails _listing(String status) => PropertyDetails.fromJson({'id': 22, 'title': 'عقاري الشخصي', 'type': 'house',
   'purpose': 'sale', 'price': 50000000, 'latitude': 15.3, 'longitude': 44.2, 'status': status, 'review_status': status == 'draft' ? 'draft' : 'approved'});
 
+const _limitNotice = 'مسموح لك بنشر عقار واحد. هل تريد ترقية حسابك إلى دلال؟';
+
 void main() {
   testWidgets('first personal listing opens the editor', (tester) async {
     await _gate(tester);
@@ -76,23 +87,45 @@ void main() {
   testWidgets('second property offers broker review before opening an editor', (tester) async {
     final router = await _gate(tester, listings: [_listing('published')]);
     expect(find.text('editor ready'), findsNothing);
-    await tester.tap(find.text('فعّل حساب دلال'));
+    expect(find.text(_limitNotice), findsOneWidget);
+    await tester.tap(find.text('ترقية الحساب'));
     await tester.pumpAndSettle();
     expect(router.state.uri.queryParameters['upgrade'], 'broker');
     expect(find.text('upgrade broker'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('add property shows the personal limit before any method choice', (tester) async {
+    final router = await _gate(tester, listings: [_listing('published')], startFromListings: true);
+    await tester.tap(find.text('إضافة عقار'));
+    await tester.pumpAndSettle();
+    expect(find.text(_limitNotice), findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-method-choice')), findsNothing);
+    await tester.tap(find.text('رجوع'));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/');
+    expect(find.text('إضافة عقار'), findsOneWidget);
+  });
+
+  testWidgets('an archived personal listing does not hide the creation methods', (tester) async {
+    await _gate(tester, listings: [_listing('archived')], startFromListings: true);
+    await tester.tap(find.text('إضافة عقار'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('listing-method-ai')), findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-method-manual')), findsOneWidget);
+    expect(find.text(_limitNotice), findsNothing);
+  });
+
   testWidgets('interrupted saved personal draft can resume without a second creation', (tester) async {
     await _gate(tester, listings: [_listing('draft')], recovered: 22);
     expect(find.text('editor ready'), findsOneWidget);
-    expect(find.text('فعّل حساب دلال'), findsNothing);
+    expect(find.text('ترقية الحساب'), findsNothing);
   });
 
   testWidgets('recovery for a different server draft cannot bypass the personal limit', (tester) async {
     await _gate(tester, listings: [_listing('draft')], recovered: 99);
     expect(find.text('editor ready'), findsNothing);
-    expect(find.text('فعّل حساب دلال'), findsOneWidget);
+    expect(find.text('ترقية الحساب'), findsOneWidget);
   });
 
   testWidgets('owner upgrade opens broker form and requires fresh identity evidence', (tester) async {
