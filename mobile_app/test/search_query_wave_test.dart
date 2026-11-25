@@ -268,6 +268,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('voice-cancel')));
       await tester.pumpAndSettle();
+      final resultsList = tester.widget<ListView>(find.byType(ListView).first);
+      resultsList.controller!.jumpTo(0);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(_input));
+      await tester.pumpAndSettle();
       expect(_draft(tester), 'منزل للبيع في إب بسعر أكثر من مئة مليون، ثلاث غرف وموقف');
       expect(container.read(smartSearchSessionProvider).filters.values['min_price'], 100000000);
       expect(ai.requests, hasLength(1));
