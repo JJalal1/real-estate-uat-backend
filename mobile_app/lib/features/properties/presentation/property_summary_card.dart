@@ -58,16 +58,16 @@ String _publicationAgeLabel(int count, String singular, String dual, String plur
 
 class PropertySummaryCard extends StatelessWidget {
   const PropertySummaryCard({required this.property, this.imageFirst = false,
-    this.preview = false, this.onTap, super.key});
+    this.preview = false, this.compactPreview = false, this.onTap, super.key});
   final PropertySummary property;
-  final bool imageFirst, preview;
+  final bool imageFirst, preview, compactPreview;
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
     final p = property, monthly = property.purpose == 'rent' && property.monthlyRent != null;
     final publishedAt = p.publishedAt;
     return EbrokerPropertyHorizontalCard(title: p.title, price: (monthly ? p.monthlyRent! : p.price).toString(), currency: p.currency,
-      imageFirst: imageFirst, preview: preview,
+      imageFirst: imageFirst, preview: preview, compactPreview: compactPreview,
       imageUrl: p.mainImage, imageUrls: p.imageUrls, isSpotlight: p.isSpotlight,
       propertyType: p.type, categoryLabel: ebrokerPropertyTypeLabel(p.type), location: p.address,
       purposeLabel: p.purpose == 'rent' ? 'للإيجار' : 'للبيع', priceSuffix: monthly ? 'شهريًا' : null,
