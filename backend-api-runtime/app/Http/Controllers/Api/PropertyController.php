@@ -862,18 +862,24 @@ class PropertyController extends Controller
     ): void
     {
         $files = $request->file('images', []);
+        $images = app(\App\Services\ListingImageService::class);
+        $queues = app(\App\Services\BackgroundQueue::class);
+        $cardFirst = $queues->enabled('images');
         foreach ($files as $index => $file) {
-            $path = app(\App\Services\ListingImageService::class)->store($file, 'listing-originals/' . $property->id);
+            $path = $images->store($file, 'listing-originals/' . $property->id, cardFirst: $cardFirst);
             if (! is_string($path) || $path === '') {
                 throw new \RuntimeException('The uploaded image could not be stored.');
             }
             $storedPaths[] = $path;
-            $property->images()->create([
+            $image = $property->images()->create([
                 'path' => $path,
                 'cdn_url' => null,
                 'sort_order' => $offset + $index,
                 'is_primary' => ($offset + $index) === 0,
             ]);
+            if ($cardFirst && ! $queues->submit('images', new \App\Jobs\PrepareListingImage($image->id, hash('sha256', $path)))) {
+                $images->prepareVariants($path);
+            }
         }
     }
 

@@ -1,0 +1,110 @@
+name: Alazzi background worker preparation
+
+on:
+  push:
+    branches: ['work/alazzi-background-prep-20261125']
+    paths:
+      - 'backend-api-runtime/**'
+      - '.github/workflows/alazzi-background.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  broker-api:
+    name: Broker workspace, messaging and public listing APIs
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: aqer_broker_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aqer_broker_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend-api-runtime
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, pdo_pgsql
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Initialize disposable test credentials and database roles
+        run: |
+          install -m 600 /dev/null .env
+          printf 'APP_KEY=\n' > .env
+          php artisan key:generate --force
+          psql -h 127.0.0.1 -U postgres -d aqer_broker_test -v ON_ERROR_STOP=1 \
+            -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
+      - name: Exercise the broker, messaging and public listing APIs on SQLite
+        run: >-
+          php artisan test tests/Feature/BackgroundPreparationTest.php
+          tests/Feature/ProductExperienceSavedSearchTest.php tests/Feature/PushDeliveryLifecycleTest.php
+          tests/Feature/PushLaunchPrepTest.php tests/Feature/UatGeneralManagerInsightsApiTest.php
+          tests/Feature/BrokerExperienceApiTest.php
+          tests/Feature/Stage11MessagingNotificationsApiTest.php
+          tests/Feature/FinancialV1ApiTest.php
+          tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
+          --display-warnings --fail-on-warning --fail-on-risky
+      - name: Exercise the broker and public listing APIs on PostgreSQL and PostGIS
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: aqer_broker_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: ''
+          DB_URL: ''
+          DB_SEARCH_PATH: public,extensions
+        run: >-
+          php artisan test tests/Feature/BackgroundPreparationTest.php
+          tests/Feature/ProductExperienceSavedSearchTest.php tests/Feature/PushDeliveryLifecycleTest.php
+          tests/Feature/PushLaunchPrepTest.php tests/Feature/UatGeneralManagerInsightsApiTest.php
+          tests/Feature/BrokerExperienceApiTest.php
+          tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
+          --display-warnings --fail-on-warning --fail-on-risky
+
+
+      - name: Consume an isolated report job using the portable worker
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_DATABASE: aqer_broker_test
+          DB_USERNAME: postgres
+          DB_SEARCH_PATH: public,extensions
+          CACHE_STORE: database
+          BG_REPORTS: 'true'
+        run: |
+          set -euo pipefail
+          php artisan migrate --force
+          php artisan background:tick
+          sql() { psql -h 127.0.0.1 -U postgres -d aqer_broker_test -Atqc "$1"; }
+          test "$(sql 'select count(*) from jobs')" = 0
+          php artisan background:work reports > /tmp/aqer-worker.log 2>&1 &
+          worker=$!
+          trap 'kill "$worker" 2>/dev/null || true; cat /tmp/aqer-worker.log' EXIT
+          for n in {1..25}; do
+            test "$(sql "select count(*) from background_workers where queue='reports'")" = 1 && break
+            sleep 1
+          done
+          php artisan background:tick
+          for n in {1..30}; do
+            test "$(sql "select count(*) from cache where key like '%general-manager:insights:v2'")" = 1 && break
+            sleep 1
+          done
+          test "$(sql "select count(*) from cache where key like '%general-manager:insights:v2'")" = 1
+          test "$(sql 'select count(*) from failed_jobs')" = 0
+          php artisan background:status

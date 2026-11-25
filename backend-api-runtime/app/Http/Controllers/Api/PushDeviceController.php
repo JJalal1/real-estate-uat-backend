@@ -12,7 +12,7 @@ class PushDeviceController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
-        abort_unless((bool) config('push.enabled', false), 409, 'Push notifications are not enabled.');
+        abort_unless((bool) config('background.registration', false), 409, 'Push notifications are not enabled.');
 
         $v=$request->validate([
             'platform'=>['required','string','in:android'],
@@ -53,7 +53,7 @@ class PushDeviceController extends Controller
                 'registered'=>true,
                 'user_id'=>(int)$user->id,
                 'device_id'=>$device->id,
-                'push_enabled'=>(bool)config('push.enabled',false),
+                'push_enabled'=>true,
             ],
         ]);
     }

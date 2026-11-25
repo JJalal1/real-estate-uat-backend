@@ -19,7 +19,7 @@ class ListingImageService
         return str_starts_with($path, 'editor-drafts/') || str_starts_with($path, 'listing-originals/');
     }
 
-    public function store(UploadedFile $file, string $directory, ?string $key = null): string
+    public function store(UploadedFile $file, string $directory, ?string $key = null, bool $cardFirst = false): string
     {
         $bytes = file_get_contents($file->getRealPath());
         if (! is_string($bytes)) throw new RuntimeException('Image unavailable.');
@@ -27,7 +27,7 @@ class ListingImageService
         $extension = [IMAGETYPE_JPEG=>'jpg', IMAGETYPE_PNG=>'png', IMAGETYPE_WEBP=>'webp'][$info[2]];
         $path = trim($directory, '/').'/'.($key ?? (string) Str::uuid()).'-'.hash('sha256', $bytes).'.'.$extension;
         // Encode/validate before touching storage. The original is not recompressed or publicly served.
-        $variants = $this->encode($bytes, $info);
+        $variants = $this->encode($bytes, $info, $cardFirst ? ['card'] : null);
         try {
             $this->storage->writePrivate($path, $bytes, $info['mime']);
             foreach ($variants as $variant=>$encoded) $this->storage->writePrivate($this->variantPath($path, $variant), $encoded, 'image/jpeg');
@@ -37,6 +37,19 @@ class ListingImageService
             throw $error;
         }
         return $path;
+    }
+
+    public function prepareVariants(string $path): void
+    {
+        $missing = [];
+        foreach (array_keys(config('listing_media.variants')) as $variant) {
+            if (! $this->storage->existsPrivate($this->variantPath($path, $variant))) $missing[] = $variant;
+        }
+        if ($missing === []) return;
+        $bytes = $this->storage->readBytes($path, self::isPrivate($path));
+        foreach ($this->encode($bytes, $this->inspect($bytes), $missing) as $variant => $jpeg) {
+            $this->storage->writePrivate($this->variantPath($path, $variant), $jpeg, 'image/jpeg');
+        }
     }
 
     public function matches(UploadedFile $file, string $path): bool

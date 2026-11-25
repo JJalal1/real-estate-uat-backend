@@ -112,8 +112,14 @@ class ListingEditorDraftController extends Controller
             if (($draft->payload['media_version'] ?? 0) === 1) abort_unless(in_array($imageKey,$draft->payload['image_order'] ?? [],true),409,'أزيلت هذه الصورة من المسودة.');
             $this->drafts->assertRevision($draft,$request->integer('expected_revision'));
             abort_if(count($images)>=12,422);
-            $path=$storage->store($request->file('image'),'editor-drafts/'.$request->user()->id.'/'.$key,$imageKey);
-            $images[$imageKey]=$path;$draft->images=$images;$draft->revision++;$draft->save();return $draft;
+            $queues = app(\App\Services\BackgroundQueue::class);
+            $cardFirst = $queues->enabled('images');
+            $path=$storage->store($request->file('image'),'editor-drafts/'.$request->user()->id.'/'.$key,$imageKey,$cardFirst);
+            $images[$imageKey]=$path;$draft->images=$images;$draft->revision++;$draft->save();
+            if ($cardFirst && ! $queues->submit('images', new \App\Jobs\PrepareListingImage($draft->id, hash('sha256', $path), $imageKey))) {
+                $storage->prepareVariants($path);
+            }
+            return $draft;
         });}catch(\Throwable $e){if($path)$storage->removeIfUnused($path);throw $e;}
         return response()->json(['data'=>$this->drafts->present($result)]);
     }

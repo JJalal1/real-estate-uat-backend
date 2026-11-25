@@ -145,6 +145,27 @@ class ProductExperienceSavedSearchTest extends TestCase
         ]);
     }
 
+    public function test_background_price_retries_and_late_publication_daily_digest(): void
+    {
+        [$saver, $headers] = $this->user('queue-search@example.test', '+967770002021');
+        [$owner] = $this->user('queue-owner@example.test', '+967770002022');
+        $listing = $this->property('fixture flat', 'rent', 'apartment', 200000, 'published', $owner);
+        PropertyFavorite::create(['user_id'=>$saver->id,'property_id'=>$listing->id]);
+        $this->withHeaders($headers)->postJson('/api/saved-searches', [
+            'name'=>'daily', 'alert_frequency'=>'daily', 'filters'=>['purpose'=>'rent'],
+        ])->assertCreated();
+        $this->travel(2)->hours();
+        $listing->forceFill(['published_at'=>now()])->saveQuietly();
+        $job = new \App\Jobs\NotifyFavoritePrice($listing->id, 200000, 190000, 'one-change', 'YER', now()->timestamp);
+        $job->handle(app(PropertyPriceChangeAlertService::class));
+        $job->handle(app(PropertyPriceChangeAlertService::class));
+        $this->assertSame(1, \App\Models\UserNotification::where('type','favorite_price_changed')->count());
+        $this->travelTo(now('Asia/Aden')->addDay()->startOfDay()->addMinute());
+        $daily = app(SavedSearchAlertService::class);
+        $this->assertSame(1, $daily->sendDailyDigests());
+        $this->assertSame(0, $daily->sendDailyDigests());
+    }
+
     private function user(string $email, string $phone): array
     {
         $user = User::query()->create([
