@@ -130,7 +130,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     return RefreshIndicator(
       onRefresh: controller.refresh,
       child: CustomScrollView(
-        key: ObjectKey(controller),
+        key: ValueKey((controller, _filter, _onlyCorrections)),
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           if (filtered.isEmpty)
@@ -487,9 +487,11 @@ class _ListingFilterChip extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(label, style: theme.textTheme.labelMedium?.copyWith(
-                      color: foreground, fontSize: 12,
-                    )),
+                    Text(label,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: foreground,
+                          fontSize: 12,
+                        )),
                     if (icon != null) ...[
                       const SizedBox(width: 4),
                       Icon(icon, size: 14, color: foreground),
@@ -530,32 +532,41 @@ class _ListingCard extends StatelessWidget {
   List<EbrokerCardAction> _actions({required bool inlineEdit}) {
     final published = property.status == 'published';
     final availability = property.availabilityStatus;
-    final canUpdate = published && property.reviewStatus == 'approved' &&
-        availability != 'sold' && availability != 'rented';
+    final canUpdate = published &&
+        property.reviewStatus == 'approved' &&
+        availability != 'sold' &&
+        availability != 'rented';
     final changeAvailability = onAvailability;
     return [
       if (onSubmit != null)
         EbrokerCardAction(
           _needsCorrection(property) ? 'إعادة الإرسال' : 'إرسال للمراجعة',
-          onSubmit, icon: Icons.send_outlined,
+          onSubmit,
+          icon: Icons.send_outlined,
         ),
       if (onAttest != null)
         EbrokerCardAction('إقرار السعي', onAttest,
-          icon: Icons.verified_user_outlined),
+            icon: Icons.verified_user_outlined),
       if (canUpdate) ...[
         EbrokerCardAction(
           availability == 'confirmation_paused'
               ? 'أكد التوفر لإعادة إظهاره'
               : 'ما زال متوفرًا',
-          changeAvailability == null ? null : () => changeAvailability('available'),
+          changeAvailability == null
+              ? null
+              : () => changeAvailability('available'),
           icon: Icons.check_circle_outline,
         ),
         if (availability == 'available')
-          EbrokerCardAction('إيقاف مؤقت',
-            changeAvailability == null ? null : () => changeAvailability('paused'),
-            icon: Icons.pause_circle_outline),
-        EbrokerCardAction(property.purpose == 'rent' ? 'تم التأجير' : 'تم البيع',
-          onClose, icon: Icons.task_alt),
+          EbrokerCardAction(
+              'إيقاف مؤقت',
+              changeAvailability == null
+                  ? null
+                  : () => changeAvailability('paused'),
+              icon: Icons.pause_circle_outline),
+        EbrokerCardAction(
+            property.purpose == 'rent' ? 'تم التأجير' : 'تم البيع', onClose,
+            icon: Icons.task_alt),
       ],
       if (published && availability == 'available')
         EbrokerCardAction('مشاركة', onShare, icon: Icons.share_outlined),
@@ -590,7 +601,9 @@ class _ListingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  width: (constraints.maxWidth * .28).clamp(70.0, 110.0).toDouble(),
+                  width: (constraints.maxWidth * .28)
+                      .clamp(70.0, 110.0)
+                      .toDouble(),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: PropertyCardGallery(
@@ -611,7 +624,8 @@ class _ListingCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Expanded(child: AppPropertyPrice(
+                          Expanded(
+                              child: AppPropertyPrice(
                             price: property.price.toString(),
                             currency: property.currency,
                             compact: true,
@@ -622,13 +636,15 @@ class _ListingCard extends StatelessWidget {
                       ),
                       Row(
                         children: [
-                          Expanded(child: Text(
+                          Expanded(
+                              child: Text(
                             property.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.propertyName,
                           )),
-                          if (actions.isNotEmpty) _ListingActionsMenu(actions: actions),
+                          if (actions.isNotEmpty)
+                            _ListingActionsMenu(actions: actions),
                         ],
                       ),
                       if (address != null && address.isNotEmpty)
@@ -648,7 +664,8 @@ class _ListingCard extends StatelessWidget {
                       if (state != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 5),
-                          child: AppStatusBadge(label: state.$1, tone: state.$2),
+                          child:
+                              AppStatusBadge(label: state.$1, tone: state.$2),
                         ),
                     ],
                   ),
@@ -675,25 +692,25 @@ class _ListingActionsMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<int>(
-    tooltip: 'خيارات البطاقة',
-    icon: const EbrokerIcon(Icons.more_vert, size: 18),
-    padding: EdgeInsets.zero,
-    onSelected: (index) => actions[index].onPressed?.call(),
-    itemBuilder: (_) => [
-      for (var index = 0; index < actions.length; index++)
-        PopupMenuItem<int>(
-          value: index,
-          enabled: actions[index].onPressed != null,
-          child: Row(
-            children: [
-              EbrokerIcon(actions[index].icon, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Text(actions[index].label)),
-            ],
-          ),
-        ),
-    ],
-  );
+        tooltip: 'خيارات البطاقة',
+        icon: const EbrokerIcon(Icons.more_vert, size: 18),
+        padding: EdgeInsets.zero,
+        onSelected: (index) => actions[index].onPressed?.call(),
+        itemBuilder: (_) => [
+          for (var index = 0; index < actions.length; index++)
+            PopupMenuItem<int>(
+              value: index,
+              enabled: actions[index].onPressed != null,
+              child: Row(
+                children: [
+                  EbrokerIcon(actions[index].icon, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(actions[index].label)),
+                ],
+              ),
+            ),
+        ],
+      );
 }
 
 class _ListingFacts extends StatelessWidget {
@@ -722,14 +739,17 @@ class _ListingFacts extends StatelessWidget {
                             excludeFromSemantics: true,
                             child: Row(
                               children: [
-                                Icon(facts[start + column].icon, size: 13, color: color),
+                                Icon(facts[start + column].icon,
+                                    size: 13, color: color),
                                 const SizedBox(width: 3),
-                                Flexible(child: Text(
+                                Flexible(
+                                    child: Text(
                                   facts[start + column].label,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color: color, fontSize: 10,
+                                    color: color,
+                                    fontSize: 10,
                                   ),
                                 )),
                                 const SizedBox(width: 3),
@@ -780,18 +800,21 @@ class _ListingReviewRow extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 5),
                         child: Row(
                           children: [
-                            Icon(Icons.warning_amber_rounded, size: 15,
-                              color: scheme.onErrorContainer),
+                            Icon(Icons.warning_amber_rounded,
+                                size: 15, color: scheme.onErrorContainer),
                             const SizedBox(width: 4),
-                            Expanded(child: Text(
+                            Expanded(
+                                child: Text(
                               reviewText,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: scheme.onErrorContainer, fontSize: 11,
+                                color: scheme.onErrorContainer,
+                                fontSize: 11,
                               ),
                             )),
                           ],
@@ -808,9 +831,11 @@ class _ListingReviewRow extends StatelessWidget {
                 icon: const Icon(Icons.edit_outlined, size: 15),
                 label: const Text('تعديل الإعلان'),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   minimumSize: const Size(0, 34),
-                  textStyle: theme.textTheme.labelMedium?.copyWith(fontSize: 11),
+                  textStyle:
+                      theme.textTheme.labelMedium?.copyWith(fontSize: 11),
                   side: BorderSide(color: scheme.primary),
                 ),
               ),
@@ -846,17 +871,18 @@ bool _needsCorrection(PropertyDetails item) =>
     item.reviewStatus == 'returned_for_correction';
 
 bool _rejected(PropertyDetails item) => const {
-  'rejected',
-  'rejected_blocked',
-  'rejected_duplicate',
-  'legacy_rejected',
-}.contains(item.reviewStatus);
+      'rejected',
+      'rejected_blocked',
+      'rejected_duplicate',
+      'legacy_rejected',
+    }.contains(item.reviewStatus);
 
 bool _inReview(PropertyDetails item) =>
     item.reviewStatus == 'submitted' || item.reviewStatus == 'under_review';
 
 bool _published(PropertyDetails item) =>
-    item.reviewStatus == 'approved' && item.status == 'published' &&
+    item.reviewStatus == 'approved' &&
+    item.status == 'published' &&
     item.availabilityStatus == 'available';
 
 (String, AppStatusTone)? _listingState(PropertyDetails property) {

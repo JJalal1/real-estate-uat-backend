@@ -154,6 +154,15 @@ void main() {
     expect(mounts, 1);
     expect(disposals, 0);
     expect(listings.calls, hasLength(requests + 1));
+
+    await _tap(tester, 'map-show-list');
+    expect(find.text('نتيجتان'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('قائمة العقارات'), findsNothing);
+    expect(map.isMapJourneyCurrent(journey), isTrue);
+    expect(scope.read(marketplaceMapResultsProvider).filters.sameAs(filters), isTrue);
+    expect(listings.calls, hasLength(requests + 1));
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });

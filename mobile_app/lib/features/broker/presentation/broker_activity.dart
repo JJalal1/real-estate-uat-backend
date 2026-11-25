@@ -330,8 +330,19 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
   @override
   Widget build(BuildContext context) {
     final content = ref.watch(brokerDealProvider(widget.id)).when(
-      loading: () => const AppLoadingState(),
-      error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerDealProvider(widget.id))),
+      loading: () => widget._inDialog
+          ? const SizedBox(height: 72, child: Center(child: CircularProgressIndicator()))
+          : const AppLoadingState(),
+      error: (error, _) {
+        final message = friendlyApiError(error);
+        void retry() => ref.invalidate(brokerDealProvider(widget.id));
+        if (!widget._inDialog) return AppErrorState(message: message, onRetry: retry);
+        return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(message),
+          const SizedBox(height: 8),
+          AppButton(label: 'إعادة المحاولة', onPressed: retry),
+        ]);
+      },
       data: (deal) {
         _recordDisplayedDeal(deal);
         if (widget._inDialog) return _resultDetails(deal);
@@ -356,7 +367,7 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       scrollable: true,
       title: const Text('نتيجة الصفقة'),
-      content: content,
+      content: SizedBox(width: 392, child: content),
       actionsAlignment: MainAxisAlignment.center,
       actions: [AppButton(label: 'إغلاق', onPressed: () => Navigator.pop(context))],
     ));
