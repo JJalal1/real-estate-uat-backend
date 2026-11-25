@@ -77,16 +77,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
     expect(find.byType(ListingAiSheet), findsOneWidget);
-    expect(
-        find.byKey(const ValueKey('listing-draft-assistant-entry'),
-            skipOffstage: false),
-        findsNothing);
+    expect(find.text('نوع الإعلان والعقار', skipOffstage: false), findsNothing);
     properties.release.complete();
     await tester.pump();
     Navigator.of(tester.element(find.byType(ListingAiSheet))).pop();
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('listing-draft-assistant-entry')),
-        findsOneWidget);
+    expect(find.text('نوع الإعلان والعقار'), findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-draft-assistant-entry')), findsNothing);
+    expect(find.text('جهّز إعلانك أسرع'), findsNothing);
     await closeUx(tester);
   });
 
@@ -124,15 +122,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
     expect(find.byType(ListingAiSheet), findsOneWidget);
-    expect(
-        find.byKey(const ValueKey('listing-draft-assistant-entry'),
-            skipOffstage: false),
-        findsNothing);
+    expect(find.text('نوع الإعلان والعقار', skipOffstage: false), findsNothing);
     properties.release.complete();
     Navigator.of(tester.element(find.byType(ListingAiSheet))).pop();
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('listing-draft-assistant-entry')),
-        findsOneWidget);
+    expect(find.text('نوع الإعلان والعقار'), findsOneWidget);
+    expect(find.byKey(const ValueKey('listing-draft-assistant-entry')), findsNothing);
     await closeUx(tester);
   });
 

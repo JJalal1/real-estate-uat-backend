@@ -16,6 +16,9 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.security.KeyStore
@@ -30,6 +33,7 @@ class MainActivity : FlutterActivity() {
         private const val MEDIA_CHANNEL = "real_estate/media"
         private const val SECURE_CHANNEL = "real_estate/secure_store"
         private const val SHARE_CHANNEL = "real_estate/share"
+        private const val LISTING_PREVIEW_NAVIGATION_CHANNEL = "real_estate/listing_preview_navigation"
         private const val PICK_IMAGES_REQUEST = 7419
         private const val TAKE_PHOTO_REQUEST = 7420
         private const val MAX_IMAGES = 12
@@ -45,10 +49,26 @@ class MainActivity : FlutterActivity() {
     private var speechInput: InAppSpeechInput? = null
     private var pushBridge: PushBridge? = null
     private var listingPhotoLabeler: ListingPhotoLabeler? = null
+    private var previousSystemBarsBehavior: Int? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         ContactActions(this, flutterEngine.dartExecutor.binaryMessenger)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LISTING_PREVIEW_NAVIGATION_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method != "setHidden") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val hidden = (call.arguments as? Map<*, *>)?.get("hidden") as? Boolean
+                if (hidden == null) {
+                    result.error("INVALID_ARGUMENT", "Expected a boolean hidden value.", null)
+                    return@setMethodCallHandler
+                }
+                setListingPreviewNavigationHidden(hidden)
+                result.success(null)
+            }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "real_estate/network")
             .setMethodCallHandler { call, result ->
@@ -183,6 +203,23 @@ class MainActivity : FlutterActivity() {
                     result.error("SECURE_STORAGE_FAILED", error.message, null)
                 }
             }
+    }
+
+    private fun setListingPreviewNavigationHidden(hidden: Boolean) {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        val navigationBars = WindowInsetsCompat.Type.navigationBars()
+        if (hidden) {
+            if (previousSystemBarsBehavior == null) {
+                previousSystemBarsBehavior = controller.systemBarsBehavior
+            }
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(navigationBars)
+        } else {
+            val previousBehavior = previousSystemBarsBehavior ?: return
+            controller.show(navigationBars)
+            controller.systemBarsBehavior = previousBehavior
+            previousSystemBarsBehavior = null
+        }
     }
 
     @Synchronized

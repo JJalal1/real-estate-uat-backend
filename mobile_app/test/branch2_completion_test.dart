@@ -23,13 +23,13 @@ void main() {
       await pumpWave6(tester, const ListingEditorScreen(), recovery: recovery, scale: scale, boundary: boundary);
       expect(find.byKey(const ValueKey('listing-completed-summary')), findsOneWidget);
       expect(find.textContaining('4 غرف نوم'), findsOneWidget);
-      expect(textField('غرف النوم *'), findsNothing);
-      expect(textField('الحمامات *'), findsNothing);
-      expect(textField('الإيجار الشهري بالريال اليمني *'), findsNothing);
+      expect(textField('غرف النوم'), findsNothing);
+      expect(textField('الحمامات'), findsNothing);
+      expect(textField('الإيجار الشهري بالريال اليمني'), findsNothing);
       expect(find.byKey(const ValueKey('listing-floor-select')), findsNothing);
       expect(find.text('تأكيد الموقع على الخريطة'), findsOneWidget);
       expect(find.text('ارفع صورًا حقيقية للعقار.'), findsOneWidget);
-      expect(textField('المساحة *'), findsNothing);
+      expect(textField('المساحة'), findsNothing);
       await previewWave6(tester, boundary, 'branch2-missing-only-$scale');
       expect(tester.takeException(), isNull);
       await finishWave6(tester);
@@ -49,12 +49,12 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('listing-review-completed')));
     await tester.tap(find.byKey(const ValueKey('listing-review-completed'))); await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('listing-return-completion')), findsOneWidget);
-    await tester.ensureVisible(textField('عنوان الإعلان *'));
-    await tester.enterText(textField('عنوان الإعلان *'), 'قص');
+    await tester.ensureVisible(textField('عنوان الإعلان'));
+    await tester.enterText(textField('عنوان الإعلان'), 'قص');
     await tester.tap(find.byKey(const ValueKey('listing-return-completion'))); await tester.pumpAndSettle();
     expect(find.text('أكمل الناقص فقط'), findsOneWidget);
-    expect(textField('عنوان الإعلان *'), findsOneWidget);
-    expect(textField('غرف النوم *'), findsNothing);
+    expect(textField('عنوان الإعلان'), findsOneWidget);
+    expect(textField('غرف النوم'), findsNothing);
     await tester.pump(const Duration(seconds: 1)); await tester.pumpAndSettle();
     expect((recovery.snapshot!['fields'] as Map)['monthly_rent'], '100000');
     expect((recovery.snapshot!['fields'] as Map)['description'], 'نص راجعه صاحب الإعلان');
@@ -70,7 +70,7 @@ void main() {
     await tester.binding.handlePopRoute(); await tester.pumpAndSettle();
     expect(find.text('أكمل الناقص فقط'), findsOneWidget);
     expect(find.byType(ListingEditorScreen), findsOneWidget);
-    expect(textField('الإيجار الشهري بالريال اليمني *'), findsNothing);
+    expect(textField('الإيجار الشهري بالريال اليمني'), findsNothing);
     await finishWave6(tester);
   });
   testWidgets('B05 B07 invalid shop structure stays missing while valid numbers do not repeat', (tester) async {
@@ -78,8 +78,8 @@ void main() {
     (data['fields'] as Map)['shop_openings'] = '101';
     await pumpWave6(tester, const ListingEditorScreen(), recovery: Wave6Recovery(data));
     expect(find.byKey(const ValueKey('listing-shop-openings')), findsOneWidget);
-    expect(textField('المساحة بالمتر المربع *'), findsNothing);
-    expect(textField('سعر البيع بالريال اليمني *'), findsNothing);
+    expect(textField('المساحة بالمتر المربع'), findsNothing);
+    expect(textField('سعر البيع بالريال اليمني'), findsNothing);
     expect(find.text('تأكيد الموقع على الخريطة'), findsNothing);
     expect(find.text('إرسال للمراجعة'), findsNothing);
     await finishWave6(tester);

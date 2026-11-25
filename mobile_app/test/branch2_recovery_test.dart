@@ -74,7 +74,7 @@ void main() {
       await previewWave6(tester, boundary, 'branch2-recovery-$scale');
       await tester.ensureVisible(find.byKey(const ValueKey('listing-recovery-resume')));
       await tester.tap(find.byKey(const ValueKey('listing-recovery-resume'))); await tester.pumpAndSettle();
-      expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text, 'وصف كتبه الدلال');
+      expect(tester.widget<TextField>(textField('وصف العقار (اختياري)')).controller!.text, 'وصف كتبه الدلال');
       expect(drafts.drafts[key]!.revision, greaterThanOrEqualTo(2));
       expect(tester.takeException(), isNull); await finishWave6(tester);
     });

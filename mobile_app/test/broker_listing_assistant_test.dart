@@ -115,7 +115,25 @@ Future<void> _pump(WidgetTester tester, Widget child, {required _Assistant ai, _
   ], child: MaterialApp(theme: AppTheme.light,
     builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
       child: RepaintBoundary(key: boundary, child: child!)), home: child)));
-  await tester.pumpAndSettle();
+  if (child is ListingEditorScreen && child.startWithAssistant) {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+  } else {
+    await _settleAssistant(tester);
+  }
+}
+
+Future<void> _settleAssistant(WidgetTester tester) async {
+  await tester.pump();
+  final isAssistantEntry = tester.widgetList<ListingEditorScreen>(
+    find.byType(ListingEditorScreen, skipOffstage: false),
+  ).any((editor) => editor.startWithAssistant);
+  if (isAssistantEntry && find.byType(ListingAiSheet).evaluate().isNotEmpty) {
+    await tester.pump(const Duration(milliseconds: 400));
+  } else {
+    await tester.pumpAndSettle();
+  }
 }
 
 Future<void> _reveal(WidgetTester tester, String key) async {
@@ -128,19 +146,19 @@ Future<void> _reveal(WidgetTester tester, String key) async {
         final offset = (controller.offset + 220).clamp(0, controller.position.maxScrollExtent).toDouble();
         if (offset == controller.offset) break;
         controller.jumpTo(offset);
-        await tester.pumpAndSettle();
+        await _settleAssistant(tester);
       }
     } else {
       await tester.scrollUntilVisible(finder, 220, scrollable: find.byType(Scrollable).first);
     }
   }
-  await tester.ensureVisible(finder); await tester.pumpAndSettle();
+  await tester.ensureVisible(finder); await _settleAssistant(tester);
 }
 
 Future<void> _tap(WidgetTester tester, String key) async {
   await _reveal(tester, key);
   final finder = find.byKey(ValueKey(key));
-  await tester.tap(finder); await tester.pumpAndSettle();
+  await tester.tap(finder); await _settleAssistant(tester);
 }
 
 Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
@@ -267,8 +285,7 @@ void main() {
   testWidgets('editor applies reviewed copy locally, recovers brief and directs to missing location', (tester) async {
     final snapshot = _snapshot()..['step'] = 0..['latitude'] = null..['longitude'] = null;
     final recovery = _Recovery(snapshot), ai = _Assistant();
-    await _pump(tester, const ListingEditorScreen(), ai: ai, recovery: recovery);
-    await _tap(tester, 'listing-draft-assistant');
+    await _pump(tester, const ListingEditorScreen(startWithAssistant: true), ai: ai, recovery: recovery);
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), 'شقة في صنعاء أربع غرف');
     await _tap(tester, 'listing-ai-prepare');
     await _tap(tester, 'listing-ai-apply-draft');
@@ -286,8 +303,7 @@ void main() {
   testWidgets('the complete owner brief populates the canonical editor including rental conditions and explicit Sai', (tester) async {
     final snapshot = _snapshot()..['step'] = 0;
     final recovery = _Recovery(snapshot), ai = _CompleteAssistant();
-    await _pump(tester, const ListingEditorScreen(), ai: ai, recovery: recovery);
-    await _tap(tester, 'listing-draft-assistant');
+    await _pump(tester, const ListingEditorScreen(startWithAssistant: true), ai: ai, recovery: recovery);
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')), ownerBrief);
     await _tap(tester, 'listing-ai-prepare');
     await _tap(tester, 'listing-ai-apply-draft');
@@ -392,7 +408,11 @@ void main() {
   testWidgets('moving to the next full step dismisses typing and starts the new step at its top', (tester) async {
     final snapshot=_snapshot()..['step']=0;
     await _pump(tester,const ListingEditorScreen(),ai:_Assistant(),recovery:_Recovery(snapshot),scale:2.4);
-    final title=find.byWidgetPredicate((widget)=>widget is TextField && widget.decoration?.labelText=='عنوان الإعلان *');
+    tester.view.physicalSize = const Size(390, 700);
+    await tester.pumpAndSettle();
+    expect(find.text('جهّز إعلانك أسرع'), findsNothing);
+    expect(find.text('يُحفظ تقدمك تلقائيًا على حسابك'), findsNothing);
+    final title=find.byWidgetPredicate((widget)=>widget is TextField && widget.decoration?.labelText=='عنوان الإعلان');
     await tester.ensureVisible(title);await tester.pumpAndSettle();
     await tester.tap(title);await tester.pumpAndSettle();
     final scroll=tester.state<ScrollableState>(find.byType(Scrollable).first).position;
@@ -406,8 +426,7 @@ void main() {
     final snapshot=_snapshot()..['step']=0..['latitude']=13.966..['longitude']=44.183;
     (snapshot['fields'] as Map)['governorate']='إب';
     final recovery=_Recovery(snapshot);
-    await _pump(tester,const ListingEditorScreen(),ai:_PinnedAssistant(),recovery:recovery);
-    await _tap(tester,'listing-draft-assistant');
+    await _pump(tester,const ListingEditorScreen(startWithAssistant: true),ai:_PinnedAssistant(),recovery:recovery);
     await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),'منزل للبيع في اب شارع الروضة');
     await _tap(tester,'listing-ai-prepare');await _tap(tester,'listing-ai-apply-draft');
     expect(find.text('نقطة العقار مؤكدة'),findsOneWidget);

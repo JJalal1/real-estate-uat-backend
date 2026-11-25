@@ -1,5 +1,4 @@
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
-import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -27,6 +26,7 @@ import 'package:real_estate_mobile/features/properties/presentation/property_sai
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_draft_entry_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_compare_screen.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
 import 'broker_experience_ui_test.dart' show BrokerTestAuth;
 import 'support/wave3_fakes.dart';
 import 'support/wave6_fakes.dart';
@@ -48,6 +48,7 @@ Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts
     propertyRepositoryProvider.overrideWithValue(Wave6Properties()),aiRepositoryProvider.overrideWithValue(ai??Wave6Ai()),
     listingAccountDraftRepositoryProvider.overrideWithValue(drafts??Wave6Drafts()),listingRecoveryStoreProvider.overrideWithValue(recovery??Wave6Recovery()),
     voiceInputProvider.overrideWithValue(voice??Wave3VoiceFake()),
+    propertyMapPreviewBuilderProvider.overrideWithValue((context, latitude, longitude) => const SizedBox.shrink()),
     homeLocationAttemptedProvider.overrideWith((ref)=>!allowLocation),
     if(locationStore!=null) discoveryLocationStoreProvider.overrideWithValue(locationStore),
     if(locationAccess!=null) discoveryLocationAccessProvider.overrideWithValue(locationAccess),
@@ -58,7 +59,14 @@ Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts
       sections:{'latest':[wave3Property(11)],'rent':[wave3Property(12)]}))),
   ],child:MaterialApp(theme:AppTheme.light,home:child,builder:(context,child)=>MediaQuery(data:MediaQuery.of(context).copyWith(textScaler:TextScaler.linear(scale)),
     child:RepaintBoundary(key:boundary,child:child!)))));
-  await tester.pumpAndSettle();
+  if (child is ListingEditorScreen && child.startWithAssistant) {
+    // The manual editor keeps its loading indicator behind the assistant.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+  } else {
+    await tester.pumpAndSettle();
+  }
 }
 Future<void> finishWave6(WidgetTester tester)async{await tester.pumpWidget(const SizedBox.shrink());await tester.pump(const Duration(seconds:1));}
 Future<void> previewWave6(WidgetTester tester,GlobalKey key,String name)async{
@@ -138,18 +146,47 @@ void main(){
       await tester.scrollUntilVisible(find.text('العقار والمبنى'),300,scrollable:find.byType(Scrollable).first);await tester.pumpAndSettle();await previewWave6(tester,boundary,'wave6-compare-facts-$scale');
       expect(tester.takeException(),isNull);await finishWave6(tester);
     });
-    testWidgets('description is inline and a delayed result cannot replace a manual edit at scale $scale',(tester)async{
-      final ai=Wave6Ai()..descriptionResult=Completer<Map<String,dynamic>>(),drafts=Wave6Drafts(),boundary=GlobalKey();
-      await pumpWave6(tester,const ListingEditorScreen(),ai:ai,drafts:drafts,recovery:Wave6Recovery(editorSnapshot()),scale:scale,boundary:boundary);
-      await tester.ensureVisible(find.byKey(const ValueKey('listing-description-generate')));await tester.tap(find.byKey(const ValueKey('listing-description-generate')));await tester.pump();
-      expect(find.text('جارٍ تجهيز الوصف…'),findsOneWidget);expect(find.byType(BottomSheet),findsNothing);expect(find.byType(Dialog),findsNothing);
-      await previewWave6(tester,boundary,'wave6-description-loading-$scale');
-      await tester.enterText(textField('وصف العقار'),'تعديل الدلال أثناء التجهيز');ai.descriptionResult!.complete({'description':'رد متأخر'});await tester.pumpAndSettle();
-      expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text,'تعديل الدلال أثناء التجهيز');
-      ai.descriptionResult=null;await tester.ensureVisible(find.byKey(const ValueKey('listing-description-generate')));await tester.tap(find.byKey(const ValueKey('listing-description-generate')));await tester.pumpAndSettle();
-      expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text,contains('ثلاث غرف'));
-      await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();expect(drafts.saves,isNotEmpty);expect(drafts.saves.last.containsKey('image_tokens'),isFalse);
-      await previewWave6(tester,boundary,'wave6-description-ready-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
+    testWidgets('compact optional description supports manual editing and dictation at scale $scale', (tester) async {
+      final voice = Wave3VoiceFake(autoComplete: false);
+      final drafts = Wave6Drafts();
+      final boundary = GlobalKey();
+      addTearDown(voice.dispose);
+      await pumpWave6(tester, const ListingEditorScreen(), voice: voice, drafts: drafts,
+        recovery: Wave6Recovery(editorSnapshot()), scale: scale, boundary: boundary);
+      final field = textField('وصف العقار (اختياري)');
+      final dictation = find.byKey(const ValueKey('listing-description-voice'));
+      expect(tester.widget<TextField>(field).maxLines, 3);
+      expect(tester.widget<TextField>(field).controller!.text, 'وصف كتبه الدلال');
+      expect(find.byKey(const ValueKey('listing-description-generate')), findsNothing);
+      expect(find.text('اقتراح وصف من البيانات'), findsNothing);
+      expect(find.text('حسّن الوصف'), findsNothing);
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'مدخل مستقل');
+      await tester.ensureVisible(dictation);
+      await tester.pumpAndSettle();
+      await tester.tap(dictation);
+      await tester.pump();
+      voice.latest.emit(const VoiceEvent('mode', code: 'dictation'));
+      voice.latest.emit(const VoiceEvent('ready'));
+      voice.latest.emit(const VoiceEvent('partial', text: 'ثلاث غرف'));
+      await tester.pump();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.byType(Dialog), findsNothing);
+      final finish = find.byKey(const ValueKey('voice-finish'));
+      await tester.ensureVisible(finish);
+      await tester.pump();
+      await tester.tap(finish);
+      await tester.pump();
+      voice.latest.emit(const VoiceEvent('final', text: 'ثلاث غرف'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).controller!.text, 'مدخل مستقل ثلاث غرف');
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect((drafts.saves.last['fields'] as Map)['description'], 'مدخل مستقل ثلاث غرف');
+      expect(drafts.saves.last.containsKey('image_tokens'), isFalse);
+      await previewWave6(tester, boundary, 'wave6-description-ready-$scale');
+      expect(tester.takeException(), isNull);
+      await finishWave6(tester);
     });
   }
   testWidgets('saved rental draft keeps its manual conditions without a retired AI action',(tester)async{
@@ -239,21 +276,20 @@ void main(){
     });
     testWidgets('voice prepares a reviewed shop draft then asks only for missing point and real photos at scale $scale',(tester)async{
       final voice=Wave3VoiceFake(autoComplete:false),drafts=Wave6Drafts(),boundary=GlobalKey();addTearDown(voice.dispose);
-      await pumpWave6(tester,const ListingEditorScreen(),ai:Wave6Ai(),drafts:drafts,voice:voice,scale:scale,boundary:boundary);
-      await tester.tap(find.byKey(const ValueKey('listing-draft-assistant')));await tester.pumpAndSettle();
+      await pumpWave6(tester,const ListingEditorScreen(startWithAssistant: true),ai:Wave6Ai(),drafts:drafts,voice:voice,scale:scale,boundary:boundary);
       await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-voice')));await tester.tap(find.byKey(const ValueKey('listing-ai-voice')));await tester.pump();
       voice.latest.emit(const VoiceEvent('ready'));voice.latest.emit(const VoiceEvent('partial',text:'وصف لم يكتمل'));await tester.pump(const Duration(seconds:12));
       expect(voice.latest.stops,0);expect(drafts.saves.any((p)=>(p['fields'] as Map)['ai_listing_brief']=='وصف لم يكتمل'),isFalse);
       await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.pump(const Duration(milliseconds:200));expect(find.byKey(const ValueKey('voice-finish')).hitTestable(),findsOneWidget);await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
-      voice.latest.emit(const VoiceEvent('final',text:'محل للإيجار في حدة، المساحة خمسة وستون مترًا والإيجار خمسة وسبعون ألفًا والسعي خمسون بالمئة'));await tester.pumpAndSettle();
+      voice.latest.emit(const VoiceEvent('final',text:'محل للإيجار في حدة، المساحة خمسة وستون مترًا والإيجار خمسة وسبعون ألفًا والسعي خمسون بالمئة'));await tester.pump(const Duration(milliseconds: 400));
       expect(find.byKey(const ValueKey('listing-ai-field-type')),findsNothing);
-      await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-prepare')));await tester.tap(find.byKey(const ValueKey('listing-ai-prepare')));await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-prepare')));await tester.tap(find.byKey(const ValueKey('listing-ai-prepare')));await tester.pump(const Duration(milliseconds: 400));
       final scroll=find.descendant(of:find.byKey(const ValueKey('listing-ai-scroll')),matching:find.byType(Scrollable)).first;
       await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-field-type')),250,scrollable:scroll);
       expect(find.byKey(const ValueKey('listing-ai-field-type')),findsOneWidget);
       await tester.scrollUntilVisible(find.byKey(const ValueKey('listing-ai-apply-draft')),350,scrollable:scroll);await tester.tap(find.byKey(const ValueKey('listing-ai-apply-draft')));await tester.pumpAndSettle();
       expect(find.text('أكمل الناقص فقط'),findsOneWidget);expect(find.text('تأكيد الموقع على الخريطة'),findsOneWidget);
-      expect(find.text('الشقة في الدور *'),findsNothing);expect(textField('الإيجار الشهري بالريال اليمني *'),findsNothing);expect(textField('المساحة بالمتر المربع *'),findsNothing);
+      expect(find.text('الشقة في الدور'),findsNothing);expect(textField('الإيجار الشهري بالريال اليمني'),findsNothing);expect(textField('المساحة بالمتر المربع'),findsNothing);
       await tester.pump(const Duration(seconds:5));await tester.pumpAndSettle();
       // The reviewed AI result is still below the automatic-save threshold.
       expect(drafts.saves,isEmpty);
@@ -268,7 +304,7 @@ void main(){
   }
   testWidgets('shop discards stale hidden state before account autosave',(tester)async{
     final drafts=Wave6Drafts();await pumpWave6(tester,const ListingEditorScreen(),drafts:drafts,recovery:Wave6Recovery(editorSnapshot(type:'shop')));
-    expect(find.text('الشقة في الدور *'),findsNothing);expect(find.text('موقف سيارة *'),findsNothing);expect(find.text('واجهة البناء *'),findsNothing);
+    expect(find.text('الشقة في الدور'),findsNothing);expect(find.text('موقف سيارة'),findsNothing);expect(find.text('واجهة البناء'),findsNothing);
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();expect(drafts.saves,isNotEmpty);
     final last=drafts.saves.last,fields=drafts.saves.last['fields'] as Map;
     expect(fields.containsKey('floor_number'),isFalse);expect(fields.containsKey('unit_number'),isFalse);expect(last.containsKey('parking'),isFalse);expect(last['area_unit'],'sqm');
@@ -284,10 +320,10 @@ void main(){
     await tester.tap(find.byKey(const ValueKey('listing-recovery-new'))); await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
     expect(drafts.drafts[key]!.payload['fields'], editorSnapshot()['fields']);
-    await tester.ensureVisible(textField('عنوان الإعلان *'));await tester.enterText(textField('عنوان الإعلان *'),'إعلان جديد محفوظ');await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
+    await tester.ensureVisible(textField('عنوان الإعلان'));await tester.enterText(textField('عنوان الإعلان'),'إعلان جديد محفوظ');await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(drafts.drafts.containsKey(key),isTrue);expect(drafts.drafts.length,1);
     await finishWave6(tester);
     await pumpWave6(tester,ListingEditorScreen(accountDraft:drafts.drafts[key]),drafts:drafts,recovery:Wave6Recovery());
-    expect(textField('وصف العقار'),findsOneWidget);expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text,'وصف كتبه الدلال');await finishWave6(tester);
+    expect(textField('وصف العقار (اختياري)'),findsOneWidget);expect(tester.widget<TextField>(textField('وصف العقار (اختياري)')).controller!.text,'وصف كتبه الدلال');await finishWave6(tester);
   });
 }

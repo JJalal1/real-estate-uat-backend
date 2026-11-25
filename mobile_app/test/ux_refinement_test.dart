@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'support/wave6_fakes.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
+import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:ui' as ui;
@@ -85,6 +86,17 @@ class _Properties implements PropertyRepository {
       return Future<PropertyDetails>.value(PropertyDetails.fromJson({'id': 500, ...lastInput!, 'status': 'draft', 'review_status': 'draft', 'images': [],
         'units_per_floor': input.unitsPerFloor, 'rental_conditions': lastInput!['rental_conditions'] is String ? jsonDecode(lastInput!['rental_conditions'] as String) : const []}));
     }
+    if (invocation.memberName == #submitListing) {
+      writes.add('submit');
+      return Future<PropertyDetails>.value(PropertyDetails.fromJson({
+        'id': invocation.positionalArguments.single,
+        'title': lastInput!['title'],
+        'purpose': lastInput!['purpose'],
+        'type': lastInput!['type'],
+        'status': 'pending_review',
+        'images': [],
+      }));
+    }
     if (invocation.memberName == #configureSai) {
       deferred = invocation.namedArguments[#deferPlatformTerms] == true;
       writes.add('sai'); payer = invocation.namedArguments[#payer] as String?;
@@ -127,11 +139,11 @@ Map<String, dynamic> _snapshot({int step = 2, String type = 'house'}) => {
 };
 
 Future<void> _pump(WidgetTester tester, Widget child, {Map<String, dynamic>? snapshot, _Properties? properties,
-  _Messages? messages, double scale = 1, GlobalKey? boundary, GoRouter? router}) async {
+  _Messages? messages, double scale = 1, GlobalKey? boundary, GoRouter? router, Wave6Drafts? drafts}) async {
   tester.view.physicalSize = const Size(412, 915); tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides: [
-    listingAccountDraftRepositoryProvider.overrideWithValue(Wave6Drafts()),
+    listingAccountDraftRepositoryProvider.overrideWithValue(drafts ?? Wave6Drafts()),
     authControllerProvider.overrideWith(() => BrokerTestAuth(1)),
     listingRecoveryStoreProvider.overrideWithValue(_Recovery(snapshot)),
     propertyRepositoryProvider.overrideWithValue(properties ?? _Properties()),
@@ -195,11 +207,11 @@ void main() {
     testWidgets('$type asks only meaningful unit and floor questions', (tester) async {
       final key = GlobalKey();
       await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(type: type), boundary: key);
-      expect(find.text('اسم أو رقم المبنى *'), findsNothing);
-      expect(find.text('رقم الشقة أو موضعها داخل الدور *'), type == 'apartment' ? findsOneWidget : findsNothing);
-      expect(find.text('الشقة في الدور *'), type == 'apartment' || type == 'floor' ? findsOneWidget : findsNothing);
+      expect(find.text('اسم أو رقم المبنى'), findsNothing);
+      expect(find.text('رقم الشقة أو موضعها داخل الدور'), type == 'apartment' ? findsOneWidget : findsNothing);
+      expect(find.text('الشقة في الدور'), type == 'apartment' || type == 'floor' ? findsOneWidget : findsNothing);
       if (type == 'floor') await _capture(tester, key, 'floor');
-      if(type=='shop'){expect(find.byType(CheckboxListTile),findsNothing);expect(find.text('موقف سيارة *'),findsNothing);}
+      if(type=='shop'){expect(find.byType(CheckboxListTile),findsNothing);expect(find.text('موقف سيارة'),findsNothing);}
       expect(tester.takeException(), isNull);
     });
   }
@@ -209,8 +221,8 @@ void main() {
     await _pump(tester, const ListingEditorScreen(), snapshot: recovery);
     expect(find.text('الوحدة تشغل الدور كاملًا'), findsNothing);
     expect(find.byKey(const ValueKey('unit-whole-floor')), findsNothing);
-    expect(find.text('رقم الشقة أو موضعها داخل الدور *'), findsOneWidget);
-    expect(find.text('الشقة في الدور *'), findsOneWidget);
+    expect(find.text('رقم الشقة أو موضعها داخل الدور'), findsOneWidget);
+    expect(find.text('الشقة في الدور'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -224,7 +236,7 @@ void main() {
     expect(find.text('وحدة المساحة'), findsNothing);
     expect(find.text('المصعد'), findsNothing);
     expect(find.text('موضع الشقة داخل الدور (اختياري)'), findsOneWidget);
-    expect(find.text('الشقة في الدور *'), findsOneWidget);
+    expect(find.text('الشقة في الدور'), findsOneWidget);
     expect(find.text('الوحدة تشغل الدور كاملًا'), findsNothing);
     await tester.ensureVisible(find.text('التالي')); await tester.tap(find.text('التالي')); await tester.pumpAndSettle();
     expect(find.text('أضف صورًا حقيقية للعقار قبل المتابعة.'), findsOneWidget);
@@ -233,12 +245,21 @@ void main() {
     await tester.scrollUntilVisible(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), 350, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(find.text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'), findsOneWidget);
-    expect(find.text('حسّن الوصف'), findsOneWidget);
+    expect(find.text('حسّن الوصف'), findsNothing);
+    expect(find.text('وصف العقار (اختياري)'), findsOneWidget);
     await _capture(tester, boundary, 'wave4-specifications-content');
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('fourth step shows inline monetary commission and preview never saves', (tester) async {
+    const navigation = MethodChannel('real_estate/listing_preview_navigation');
+    final navigationVisibility = <bool>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(navigation, (call) async {
+      expect(call.method, 'setHidden');
+      navigationVisibility.add((call.arguments as Map)['hidden'] as bool);
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(navigation, null));
     final repository = _Properties(), key = GlobalKey();
     await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(step: 3), properties: repository, boundary: key);
     expect(find.text('4/4'), findsOneWidget); expect(find.text('من يتحمل السعي؟'), findsNothing);
@@ -255,6 +276,68 @@ void main() {
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('معاينة')); await tester.pumpAndSettle();
     expect(find.text('معاينة قبل الإرسال'), findsOneWidget); expect(repository.writes, isEmpty);
+    expect(find.byKey(const ValueKey('listing-copy-text')).hitTestable(), findsOneWidget);
+    expect(navigationVisibility, [true]);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(navigationVisibility, [true, false]);
+    expect(repository.writes, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('empty description advances and review requires an explicit oath', (tester) async {
+    const navigation = MethodChannel('real_estate/listing_preview_navigation');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(navigation, (_) async => null);
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(navigation, null));
+    final repository = _Properties();
+    final payload = _snapshot()..['editor_version'] = 9
+      ..['type_confirmed'] = true..['purpose_confirmed'] = true;
+    (payload['fields'] as Map)['description'] = '';
+    final draft = ListingAccountDraft(
+      key: newListingDraftKey(),
+      revision: 1,
+      payload: payload,
+      images: const {'photo-test': 'https://fixture.invalid/photo-test.jpg'},
+    );
+    final drafts = Wave6Drafts()..drafts[draft.key] = draft;
+    final router = GoRouter(routes: [
+      GoRoute(path: '/', builder: (_, __) => ListingEditorScreen(accountDraft: draft)),
+      GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing'))),
+    ]);
+    addTearDown(router.dispose);
+    await _pump(tester, const SizedBox(), properties: repository, router: router, drafts: drafts);
+    await tester.tap(find.text('التالي'));
+    await tester.pumpAndSettle();
+    expect(find.text('4/4'), findsOneWidget);
+    expect(repository.writes, isEmpty);
+
+    await tester.tap(find.text('إرسال للمراجعة'));
+    await tester.pumpAndSettle();
+    expect(find.text('القسم قبل الإرسال'), findsOneWidget);
+    expect(find.textContaining('سواء من خلال الإعلان أو دون استخدامه'), findsOneWidget);
+    expect(repository.writes, isEmpty);
+    final dialog = find.byType(AlertDialog);
+    await tester.tap(find.descendant(of: dialog, matching: find.text('رجوع')));
+    await tester.pumpAndSettle();
+    expect(repository.writes, isEmpty);
+
+    await tester.tap(find.byTooltip('خيارات المسودة'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('معاينة'));
+    await tester.pumpAndSettle();
+    final sendFromPreview = find.byKey(const ValueKey('listing-preview-submit'));
+    await tester.ensureVisible(sendFromPreview);
+    await tester.tap(sendFromPreview);
+    await tester.pumpAndSettle();
+    expect(find.text('القسم قبل الإرسال'), findsOneWidget);
+    expect(repository.writes, isEmpty);
+    await tester.tap(find.text('أقسم بذلك'));
+    await tester.pumpAndSettle();
+    expect(repository.writes, ['draft', 'sai', 'submit']);
+    expect(repository.lastInput!['description'], isEmpty);
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(find.text('saved listing'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

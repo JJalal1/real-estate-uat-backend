@@ -285,7 +285,7 @@ void main() {
         expect(restored.id, 77); expect(restored.description, 'وصف المسودة القديمة');
         expect(drafts.reads, 0);
       } else {
-        expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text, 'وصف كتبه الدلال');
+        expect(tester.widget<TextField>(textField('وصف العقار (اختياري)')).controller!.text, 'وصف كتبه الدلال');
       }
       expect(tester.takeException(), isNull); await closeUx(tester);
     });

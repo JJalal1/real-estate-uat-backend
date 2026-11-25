@@ -59,11 +59,11 @@ void main() {
       drafts.drafts[key] = draft;
       await pumpWave6(tester, ListingEditorScreen(accountDraft: draft), drafts: drafts);
       try {
-        await tester.ensureVisible(textField('وصف العقار'));
+        await tester.ensureVisible(textField('وصف العقار (اختياري)'));
         final before = drafts.drafts[key]!;
         final savesBefore = drafts.saves.length;
         drafts.online = false;
-        await tester.enterText(textField('وصف العقار'), 'وصف اصطناعي محفوظ دون اتصال');
+        await tester.enterText(textField('وصف العقار (اختياري)'), 'وصف اصطناعي محفوظ دون اتصال');
         await tester.pump(const Duration(seconds: 2));
         await tester.pumpAndSettle();
         expect(drafts.disconnections, greaterThan(0));
@@ -85,7 +85,7 @@ void main() {
           expect(drafts.saves.length, savesBefore);
         } else {
           expect(find.text(conflict), findsNothing);
-          expect(find.text('حُفظ تقدمك وصورك على حسابك'), findsOneWidget);
+          expect(find.textContaining('تعذر الحفظ على الحساب'), findsNothing);
           expect((drafts.drafts[key]!.payload['fields'] as Map)['description'],
             'وصف اصطناعي محفوظ دون اتصال');
           expect(drafts.drafts[key]!.revision, greaterThan(before.revision));

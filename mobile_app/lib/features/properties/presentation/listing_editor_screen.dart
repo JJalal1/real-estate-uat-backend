@@ -45,7 +45,6 @@ import '../../../core/local/stage6_secure_session_store.dart';
 import 'listing_sai_section.dart';
 import 'listing_ai_sheet.dart';
 import 'rental_conditions_editor.dart';
-import '../../discovery/data/ai_repository.dart';
 
 class ListingEditorScreen extends ConsumerStatefulWidget {
   const ListingEditorScreen({super.key, this.existingProperty, this.accountDraft, this.localRecovery,
@@ -130,6 +129,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   String _purpose = 'sale';
   String _type = 'apartment';
   String _areaUnit = 'sqm';
+
+  String get _areaInputLabel => switch (_areaUnit) {
+    'libna_sanaani' || 'libna_dhamari' => 'عدد اللبن',
+    'qasaba_taizi_ashari' || 'qasaba_taizi_hadawi' || 'qasaba_ibbi' => 'عدد القصبات',
+    _ => 'المساحة بالمتر المربع',
+  };
   String? _tenureType;
   String? _parkingChoice;
   String? _elevatorChoice;
@@ -184,16 +189,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool _accountSaved = false, _accountSyncing = false, _accountConflict = false;
   String? _accountError, _descriptionError;
   String? _stepError, _locationError;
-  bool _selectingLocation = false, _showLocationPreview = false;
+  bool _selectingLocation = false;
   bool _locationNeedsSettings = false, _locationServiceDisabled = false;
   late final VoiceCaptureController _descriptionCapture;
   String _descriptionVoiceBase = '';
   String? _unconfirmedVoiceDescription;
   String? _lastDescriptionVoiceBase, _lastDescriptionVoiceText;
   int _descriptionVoiceTurn = 0;
-  bool _descriptionBusy = false, _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false, _reviewingCompleted = false;
-  Timer? _descriptionRetryTimer;
-  bool get _descriptionCoolingDown => ref.read(aiRepositoryProvider).descriptionRetryAt?.isAfter(DateTime.now()) == true;
+  bool _typeConfirmed = false, _purposeConfirmed = false, _completionOnly = false, _reviewingCompleted = false;
   Set<String> _completionFields = {};
   final _remotePhotos = <String, String>{}, _localPhotoKeys = <String, String>{};
   final _removedPhotoKeys = <String>{};
@@ -207,6 +210,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool _needsReconcile = false;
   String? _checkpointKey, _checkpointSignature, _confirmedEditSignature, _initialEditSignature;
   bool _allowExit = false, _exitDialogOpen = false, _disposed = false, _sessionValid = true, _persistStarting = false;
+  bool _previewOpen = false;
+  static const _previewNavigation = MethodChannel('real_estate/listing_preview_navigation');
 
   String get _editSignature {
     final data = _serverSnapshot(_recoverySnapshot())..remove('step')..remove('server_property_id');
@@ -432,39 +437,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final value = _floorNumber.text.trim(), options = DynamicPropertySchema.floorOptionsFor(_type);
     final selected = value.isNotEmpty && (options.containsKey(value) || _type != 'apartment') ? value : null;
     return AppSelectField<String>(key: const ValueKey('listing-floor-select'), value: selected,
-      isExpanded: true, decoration: InputDecoration(labelText: _type == 'apartment' ? 'الشقة في الدور *' : 'الدور *',
+      isExpanded: true, decoration: InputDecoration(labelText: _type == 'apartment' ? 'الشقة في الدور' : 'الدور',
         errorText: _type == 'apartment' && value.isNotEmpty && !options.containsKey(value) ? 'اختر دورًا من الأرضي إلى السابع.' : null),
       items: [for (final entry in options.entries) DropdownMenuItem(value: entry.key, child: Text(entry.value)),
         if (_type != 'apartment' && value.isNotEmpty && !options.containsKey(value)) DropdownMenuItem(value: value, child: Text(value))],
       onChanged: _busy ? null : (value) => setState(() => _floorNumber.text = value ?? ''));
-  }
-
-  Future<void> _generateDescription() async {
-    if (_descriptionBusy || _busy || _descriptionCapture.active || _descriptionCoolingDown) return;
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
-    final facts = _aiFacts(), before = _description.text, signature = jsonEncode(_aiFacts());
-    setState(() { _descriptionBusy = true; _descriptionError = null; });
-    try {
-      final result = await ref.read(aiRepositoryProvider).description(facts,
-        sourceDescription: before,
-        propertyId: _existing?.id ?? _recoveredServerId, draftKey: _draftRevision > 0 ? _draftKey : null);
-      if (!mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
-      if (_description.text != before || jsonEncode(_aiFacts()) != signature) {
-        setState(() => _descriptionError = 'تغيرت بيانات الإعلان أو الوصف أثناء التجهيز. أعد الطلب عند الحاجة.'); return;
-      }
-      final text = result['description'];
-      if (text is! String || text.trim().isEmpty || text.length > 5000) throw StateError('تعذر تجهيز الوصف.');
-      setState(() => _description.text = text);
-    } catch (e) {
-      if (!mounted) return;
-      if (e is DescriptionRateLimit) {
-        _descriptionRetryTimer?.cancel();
-        _descriptionRetryTimer = Timer(e.retryAt.difference(DateTime.now()), () { if (mounted) setState(() {}); });
-      }
-      setState(() => _descriptionError = e is DioException && const [401,403,422].contains(e.response?.statusCode)
-        ? friendlyApiError(e) : 'تعذر إنشاء الوصف الآن، جرّب بعد لحظات');
-    }
-    finally { if (mounted) setState(() => _descriptionBusy = false); }
   }
 
   void _descriptionVoiceChanged() {
@@ -486,7 +463,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     unawaited(_dictateDescription());
   }
   Future<void> _dictateDescription({bool retry = false}) async {
-    if (_busy || _descriptionBusy || _descriptionCapture.active) return;
+    if (_busy || _descriptionCapture.active) return;
     FocusScope.of(context).unfocus();
     _recoveryTimer?.cancel();
     // Retrying an unconfirmed hypothesis must not append it a second time.
@@ -556,27 +533,27 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       choice('purpose','أكد الغرض',_purposeConfirmed ? _purpose : null,const {'sale':'للبيع','rent':'للإيجار'},(v) => setState(() {
         _purpose = v!; _purposeConfirmed = true; _clearHiddenFields(); _completionFields = _missingFields(); unawaited(_loadSaiPolicy()); })),
       if (_typeConfirmed && _purposeConfirmed) ...[
-        text('title',_title,'عنوان الإعلان *'),
-        if (_requiresSaleTenure) choice('tenure_type','نوع الملكية *',_tenureType,const {'freehold':'حر','waqf':'وقف'},(v) => setState(() => _tenureType = v)),
+        text('title',_title,'عنوان الإعلان'),
+        if (_requiresSaleTenure) choice('tenure_type','نوع الملكية',_tenureType,const {'freehold':'حر','waqf':'وقف'},(v) => setState(() => _tenureType = v)),
         if (locationMissing) ...[const SizedBox(height: 12), _locationCard()],
-        text('governorate',_governorate,'المحافظة *'),
+        text('governorate',_governorate,'المحافظة'),
         if (keys.contains('boundary')) TextButton(onPressed: _busy ? null : _pickLandBoundary, child: const Text('تحديد حدود الأرض')),
         if (keys.contains('floor_number') && _unitNeedsFloor) Padding(padding: const EdgeInsets.only(top: 12), child: _floorSelector()),
-        if (_applies('unit_number')) text('unit_number',_unitNumber,'رقم الوحدة أو موضعها *'),
-        if (_applies('area_value')) text('area_value',_area,_type == 'shop' ? 'المساحة بالمتر المربع *' : 'المساحة *',numeric:true),
+        if (_applies('unit_number')) text('unit_number',_unitNumber,'رقم الوحدة أو موضعها'),
+        if (_applies('area_value')) text('area_value',_area,_areaInputLabel,numeric:true),
         if (_applies('floors_count') && (keys.contains('floors_count') || keys.contains('units_per_floor'))) ..._structureFields(),
-        if (_type == 'shop' && keys.contains('shop_openings')) ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
-        if (_requiresResidential) ...[text('bedrooms',_bedrooms,'غرف النوم *',numeric:true),text('bathrooms',_bathrooms,'الحمامات *',numeric:true)],
-        if (_requiresStructure) choice('has_parking','موقف السيارة *',_parkingChoice,const {'yes':'يوجد','no':'لا يوجد'},(v) => setState(() => _parkingChoice = v)),
-        if (_supportsFacade) choice('building_facade','واجهة البناء *',_facade,propertyFacadeLabels,(v) => setState(() => _facade = v)),
-        text('price',_purpose == 'rent' ? _monthlyRent : _price,_purpose == 'rent' ? 'الإيجار الشهري بالريال اليمني *' : 'سعر البيع بالريال اليمني *',numeric:true),
+        if (_type == 'shop' && keys.contains('shop_openings')) ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات', keyboardType: TextInputType.number, enabled: !_busy)],
+        if (_requiresResidential) ...[text('bedrooms',_bedrooms,'غرف النوم',numeric:true),text('bathrooms',_bathrooms,'الحمامات',numeric:true)],
+        if (_requiresStructure) choice('has_parking','موقف السيارة',_parkingChoice,const {'yes':'يوجد','no':'لا يوجد'},(v) => setState(() => _parkingChoice = v)),
+        if (_supportsFacade) choice('building_facade','واجهة البناء',_facade,propertyFacadeLabels,(v) => setState(() => _facade = v)),
+        text('price',_purpose == 'rent' ? _monthlyRent : _price,_purpose == 'rent' ? 'الإيجار الشهري بالريال اليمني' : 'سعر البيع بالريال اليمني',numeric:true),
         if (keys.contains('photos')) ...[const SizedBox(height: 16), _listingPhotos(), const Text('ارفع صورًا حقيقية للعقار.')],
         if (keys.contains('sai')) ListingSaiSection(purpose:_purpose,policy:_saiPolicy,rateController:_saiRate,amountController:_saiAmount,
           basis:_effectivePrice,amountType:_saiAmountType,accepted:_saiAccepted,error:_saiPolicyError,enabled:!_busy,
           onChanged:() => setState(() => _saiTouched = true),onAcceptanceChanged:(v) => setState(() => _saiAccepted = v),
           onAmountTypeChanged:(v) => setState(() { _saiAmountType=v;_saiTouched=true; }),onRetry:_loadSaiPolicy),
         if (keys.contains('contact_phone')) ...[const SizedBox(height: 12),
-          AppTextField(controller: _phone, label: 'رقم الاتصال *', keyboardType: TextInputType.phone, enabled: !_busy, helperText: 'رقم جوال يمني من 9 أرقام'),
+          AppTextField(controller: _phone, label: 'رقم الاتصال', keyboardType: TextInputType.phone, enabled: !_busy, helperText: 'رقم جوال يمني من 9 أرقام'),
           if (_contactPolicy.error(_whatsapp.text) != null) AppTextField(controller: _whatsapp, label: 'رقم اتصال آخر', keyboardType: TextInputType.phone, enabled: !_busy)],
         if (keys.contains('rental_conditions')) RentalConditionsEditor(value: _rentalConditions, enabled: !_busy,
           onChanged: (value) => setState(() => _rentalConditions = value)),
@@ -650,14 +627,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return [
       const SizedBox(height: 12),
       TextField(key: const ValueKey('listing-floors-count'), controller: _floorsCount,
-        decoration: const InputDecoration(labelText: 'عدد الأدوار *'), keyboardType: TextInputType.number, enabled: !_busy,
+        decoration: const InputDecoration(labelText: 'عدد الأدوار'), keyboardType: TextInputType.number, enabled: !_busy,
         onChanged: (_) => setState(() { final next = (_optionalInt(_floorsCount) ?? 0).clamp(0, 50).toInt(); _unitsPerFloor = List.generate(next, (i) => i < _unitsPerFloor.length ? _unitsPerFloor[i] : (_sameFloorUnits && _unitsPerFloor.isNotEmpty ? _unitsPerFloor.first : '')); })),
       if (count > 0) CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('نفس العدد في كل دور'),
         value: _sameFloorUnits, onChanged: _busy ? null : (value) => setState(() { _sameFloorUnits = value ?? false; if (_sameFloorUnits) _unitsPerFloor = List.filled(count, _unitsPerFloor.isEmpty ? '' : _unitsPerFloor.first); })),
       for (var i = 0; i < (_sameFloorUnits && count > 0 ? 1 : count); i++) Padding(padding: const EdgeInsets.only(bottom: 12),
         child: TextFormField(key: ValueKey('listing-units-${_sameFloorUnits ? 'same' : i}-$_unitsGeneration'),
           initialValue: i < _unitsPerFloor.length ? _unitsPerFloor[i] : '', enabled: !_busy, keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: _sameFloorUnits ? 'عدد الوحدات في كل دور *' : 'الوحدات في الدور ${i + 1} *'),
+          decoration: InputDecoration(labelText: _sameFloorUnits ? 'عدد الشقق في كل دور' : 'عدد الشقق في الدور ${i + 1}'),
           onChanged: (value) => setState(() { if (_sameFloorUnits) { _unitsPerFloor = List.filled(count, value); } else { _unitsPerFloor = List.generate(count, (j) => j == i ? value : (j < _unitsPerFloor.length ? _unitsPerFloor[j] : '')); } }))),
     ];
   }
@@ -1072,10 +1049,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _initialAssistantPending = _prepareAssistantOnOpen;
     WidgetsBinding.instance.addObserver(this);
     _descriptionCapture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_descriptionVoiceChanged);
-    final retryAt = ref.read(aiRepositoryProvider).descriptionRetryAt;
-    if (retryAt?.isAfter(DateTime.now()) == true) {
-      _descriptionRetryTimer = Timer(retryAt!.difference(DateTime.now()), () { if (mounted) setState(() {}); });
-    }
     _price.addListener(_onPriceChanged);
     _monthlyRent.addListener(_onPriceChanged);
     _advanceMonths.addListener(_onPriceChanged);
@@ -1162,7 +1135,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _cancelDescriptionVoice();
     _descriptionCapture.removeListener(_descriptionVoiceChanged); _descriptionCapture.dispose();
     _editorScroll.dispose();
-    _descriptionRetryTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _price.removeListener(_onPriceChanged);
     _monthlyRent.removeListener(_onPriceChanged);
@@ -1232,6 +1204,20 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         _existing?.reviewStatus == 'returned_for_correction'
             ? _existing?.lastReviewReason
             : null;
+    String? recoveryMessage;
+    if (_recoveryUserId != null) {
+      if (_recoveryFailed) {
+        recoveryMessage = 'تعذر حفظ نسخة الجهاز. مدخلاتك باقية هنا؛ أعد المحاولة قبل الخروج.';
+      } else if (_accountConflict) {
+        recoveryMessage = 'تغيرت المسودة على جهاز آخر. افتح أحدث نسخة قبل المتابعة.';
+      } else if (_localOnly) {
+        recoveryMessage = _recoverySaved
+            ? 'مدخلاتك وصورك محفوظة على الجهاز. عند توفر الخدمة اضغط الحفظ أو الإرسال لرفعها.'
+            : 'تُحفظ المدخلات على الجهاز؛ الرفع يتطلب توفر الخدمة وضغطة منك.';
+      } else if (_accountError != null) {
+        recoveryMessage = 'تعذر الحفظ على الحساب. ${_recoverySaved ? 'تقدمك محفوظ على الجهاز.' : ''} أعد المحاولة.';
+      }
+    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -1258,13 +1244,11 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               ])))
             : _initialAssistantPending || !_recoveryReady ? const AppLoadingState() : Column(
             children: [
-              if (_recoveryUserId != null) Padding(padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 0), child: Text(
-                _recoveryFailed ? 'تعذر حفظ نسخة الجهاز. مدخلاتك باقية هنا؛ أعد المحاولة قبل الخروج.' : _accountConflict ? 'تغيرت المسودة على جهاز آخر. افتح أحدث نسخة قبل المتابعة.' : _localOnly
-                                                    ? (_recoverySaved
-                                                        ? 'مدخلاتك وصورك محفوظة على الجهاز. عند توفر الخدمة اضغط الحفظ أو الإرسال لرفعها.'
-                                                        : 'تُحفظ المدخلات على الجهاز؛ الرفع يتطلب توفر الخدمة وضغطة منك.')
-                                                    : _accountError != null ? 'تعذر الحفظ على الحساب. ${_recoverySaved ? 'تقدمك محفوظ على الجهاز.' : ''} أعد المحاولة.' : _accountSyncing ? 'جارٍ حفظ تقدمك على حسابك…' : _accountSaved ? 'حُفظ تقدمك وصورك على حسابك' : 'يُحفظ تقدمك تلقائيًا على حسابك',
-                style: Theme.of(context).textTheme.bodySmall)),
+              if (recoveryMessage != null)
+                Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(16, 6, 16, 0),
+                  child: Text(recoveryMessage, style: Theme.of(context).textTheme.bodySmall),
+                ),
               if (_accountError != null && !_accountConflict) TextButton(onPressed: _busy || _accountSyncing ? null : ()=>_saveRecovery(retryFailed:true,manual:true), child: const Text('إعادة محاولة الحفظ')),
               if (correctionReason != null &&
                   correctionReason.trim().isNotEmpty)
@@ -1322,16 +1306,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppSurface(key: const ValueKey('listing-draft-assistant-entry'), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('جهّز إعلانك أسرع', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
-            const Text('صف العقار بالنص أو الصوت، وراجع مسودة مرتبة قبل إكمالها.'),
-            TextButton.icon(key: const ValueKey('listing-draft-assistant'),
-              onPressed: _busy ? null : () => _assist(prepareDraft: true),
-              icon: const EbrokerIcon(Icons.auto_awesome_outlined, size: 20), label: const Text('جهّز الإعلان بالصوت أو المساعد')),
-          ])),
-        const SizedBox(height: AppSpacing.s16),
         const AppSectionHeader(
           title: 'نوع الإعلان والعقار',
           subtitle: 'اختر الغرض والنوع واكتب عنوانًا واضحًا.',
@@ -1405,7 +1379,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           const SizedBox(height: AppSpacing.s16),
           AppSelectField<String>(
             value: _tenureType,
-            decoration: const InputDecoration(labelText: 'نوع الملكية *'),
+            decoration: const InputDecoration(labelText: 'نوع الملكية'),
             items: const [
               DropdownMenuItem(value: 'freehold', child: Text('حر')),
               DropdownMenuItem(value: 'waqf', child: Text('وقف')),
@@ -1417,7 +1391,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const SizedBox(height: AppSpacing.s16),
         AppTextField(
           controller: _title,
-          label: 'عنوان الإعلان *',
+          label: 'عنوان الإعلان',
           hint: 'مثال: شقة واسعة في حي حدة',
           enabled: !_busy,
         ),
@@ -1426,40 +1400,53 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     );
   }
 
-  Widget _locationCard() => AppSurface(
-    key: const ValueKey('listing-location-status'),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        EbrokerIcon(_hasLocation ? Icons.check_circle_outline : Icons.location_on_outlined,
-          color: Theme.of(context).colorScheme.primary),
-        const SizedBox(width: 10),
-        Expanded(child: Text(_hasLocation ? 'تم تحديد موقع العقار على الخريطة' : 'حدد نقطة العقار أولًا',
-          style: Theme.of(context).textTheme.titleSmall)),
+  Widget _locationCard() {
+    final hasLocation = _hasLocation;
+    final selectEnabled = !_busy && !_resolvingLocation && !_selectingLocation;
+    final latitude = _latitude;
+    final longitude = _longitude;
+    final attribution = _addressContext.attribution.trim();
+    return AppSurface(
+      key: const ValueKey('listing-location-status'),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          EbrokerIcon(hasLocation ? Icons.check_circle_outline : Icons.location_on_outlined,
+            color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(hasLocation ? 'تم تحديد موقع العقار على الخريطة' : 'حدد نقطة العقار أولًا',
+            style: Theme.of(context).textTheme.titleSmall)),
+        ]),
+        const SizedBox(height: 8),
+        if (hasLocation && latitude != null && longitude != null) ...[
+          PropertyLocationPreview(
+            key: const ValueKey('listing-location-preview'),
+            latitude: latitude,
+            longitude: longitude,
+            onOpen: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(
+              builder: (_) => PropertyLocationScreen(latitude: latitude, longitude: longitude),
+            )),
+          ),
+          if (attribution.isNotEmpty)
+            Text(attribution, style: Theme.of(context).textTheme.bodySmall),
+        ] else
+          const Text('استخدم موقعك الحالي أو حدد النقطة يدويًا على الخريطة ثم أكدها. بعدها يمكنك تصحيح العنوان.'),
+        const SizedBox(height: 12),
+        AppButton(key: const ValueKey('listing-select-location'),
+          label: hasLocation ? 'تعديل الموقع على الخريطة' : 'تأكيد الموقع على الخريطة',
+          icon: Icons.map_outlined, style: hasLocation ? AppButtonStyle.tonal : AppButtonStyle.filled,
+          onPressed: selectEnabled ? _selectOnMap : null, expand: true),
+        const SizedBox(height: 8),
+        TextButton.icon(key: const ValueKey('listing-current-location'),
+          onPressed: selectEnabled ? () => _selectLocation(useCurrent: true) : null,
+          icon: const Icon(Icons.my_location, size: 19), label: const Text('تحديد موقعي الحالي')),
+        if (_selectingLocation) const LinearProgressIndicator(),
+        if (_locationError != null) Text(_locationError!, style: Theme.of(context).textTheme.bodySmall),
+        if (_locationNeedsSettings) TextButton(key: const ValueKey('listing-location-settings'), onPressed: () => ref.read(appPermissionSettingsProvider)(), child: const Text('فتح إعدادات الإذن')),
+        if (_locationServiceDisabled) TextButton(key: const ValueKey('listing-enable-location-service'), onPressed: () => ref.read(locationServiceSettingsProvider)(), child: const Text('تفعيل خدمة الموقع')),
+        if (hasLocation && _completionOnly) TextButton(onPressed: () => _showFullStep(1), child: const Text('تصحيح العنوان النصي')),
       ]),
-      const SizedBox(height: 8),
-      Text(_hasLocation ? 'النقطة محفوظة عند الرجوع والمعاينة. عدّلها فقط إذا تغيّر موقع العقار.'
-        : 'استخدم موقعك الحالي أو حدد النقطة يدويًا على الخريطة ثم أكدها. بعدها يمكنك تصحيح العنوان.'),
-      if (_hasLocation) Padding(padding: const EdgeInsets.only(top: 8), child: SelectableText(
-        'إحداثيات الدبوس: ${_latitude!.toStringAsFixed(6)}, ${_longitude!.toStringAsFixed(6)}', key: const ValueKey('listing-owner-coordinates'))),
-      if (_hasLocation && _locationMethod == 'gps') Padding(padding: const EdgeInsets.only(top: 8),
-        child: Text(propertyLocationAccuracyLabel(_locationAccuracyMetres, _locationReducedAccuracy), key: const ValueKey('listing-gps-accuracy'))),
-      const SizedBox(height: 12),
-      AppButton(key: const ValueKey('listing-select-location'),
-        label: _hasLocation ? 'تعديل الموقع على الخريطة' : 'تأكيد الموقع على الخريطة',
-        icon: Icons.map_outlined, style: _hasLocation ? AppButtonStyle.tonal : AppButtonStyle.filled,
-        onPressed: _busy || _resolvingLocation || _selectingLocation ? null : _selectOnMap, expand: true),
-      const SizedBox(height: 8),
-      TextButton.icon(key: const ValueKey('listing-current-location'),
-        onPressed: _busy || _resolvingLocation || _selectingLocation ? null : () => _selectLocation(useCurrent: true),
-        icon: const Icon(Icons.my_location, size: 19), label: const Text('تحديد موقعي الحالي')),
-      if (_selectingLocation) const LinearProgressIndicator(),
-      if (_locationError != null) Text(_locationError!, style: Theme.of(context).textTheme.bodySmall),
-      if (_locationNeedsSettings) TextButton(key: const ValueKey('listing-location-settings'), onPressed: () => ref.read(appPermissionSettingsProvider)(), child: const Text('فتح إعدادات الإذن')),
-      if (_locationServiceDisabled) TextButton(key: const ValueKey('listing-enable-location-service'), onPressed: () => ref.read(locationServiceSettingsProvider)(), child: const Text('تفعيل خدمة الموقع')),
-      if (_hasLocation && _showLocationPreview) Padding(padding: const EdgeInsets.only(top: 12), child: PropertyLocationPreview(
-        key: const ValueKey('listing-location-preview'), latitude: _latitude!, longitude: _longitude!, onOpen: _selectOnMap)),
-      if (_hasLocation && _completionOnly) TextButton(onPressed: () => _showFullStep(1), child: const Text('تصحيح العنوان النصي')),
-    ]));
+    );
+  }
 
   Widget _locationStep() {
     final hasLocation = _hasLocation;
@@ -1475,7 +1462,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           const LinearProgressIndicator(),
         ],
         const SizedBox(height: AppSpacing.s16),
-        AppTextField(controller: _governorate, label: 'المحافظة *', enabled: !_busy && hasLocation),
+        AppTextField(controller: _governorate, label: 'المحافظة', enabled: !_busy && hasLocation),
         const SizedBox(height: AppSpacing.s12),
         AppTextField(controller: _city, label: 'المدينة', enabled: !_busy && hasLocation),
         const SizedBox(height: AppSpacing.s12),
@@ -1485,8 +1472,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const SizedBox(height: AppSpacing.s12),
         AppTextField(controller: _street, label: 'الشارع', enabled: !_busy && hasLocation),
         if (hasLocation) ...[
-          const SizedBox(height: 8), const Text('العنوان اقتراح للمنطقة ويحتاج مراجعتك وتصحيح الشارع عند الحاجة.'),
-          if (_addressContext.attribution.isNotEmpty) Text(_addressContext.attribution, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
           TextButton.icon(key: const ValueKey('listing-nearby-landmarks'), onPressed: _busy || _landmarksBusy || _resolvingLocation ? null : _suggestLandmarks,
             icon: const Icon(Icons.near_me_outlined, size: 19), label: Text(_landmarksBusy ? 'نجلب المعالم المسجلة…' : 'اقتراح وصف بمعلم قريب (اختياري)')),
         ],
@@ -1539,17 +1525,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           if (!_wholeFloor) ...[
             const SizedBox(height: 12),
             AppTextField(controller: _unitNumber,
-              label: _type == 'shop' ? 'اسم أو رقم المحل أو موضعه *' : _isRentalApartment ? 'موضع الشقة داخل الدور (اختياري)' : _type == 'apartment' ? 'رقم الشقة أو موضعها داخل الدور *' : 'رقم المكتب أو موضعه *',
+              label: _type == 'shop' ? 'اسم أو رقم المحل أو موضعه' : _isRentalApartment ? 'موضع الشقة داخل الدور (اختياري)' : _type == 'apartment' ? 'رقم الشقة أو موضعها داخل الدور' : 'رقم المكتب أو موضعه',
               hint: _type == 'shop' ? 'مثال: المحل الأمامي بجوار المدخل' : 'مثال: 7 أو شمالية أو أمامية', enabled: !_busy),
           ],
         ],
         const SizedBox(height: AppSpacing.s16),
         if (!_isRentalApartment)
-          _type == 'shop' ? AppTextField(controller: _area, label: 'المساحة بالمتر المربع *',
+          _type == 'shop' ? AppTextField(controller: _area, label: 'المساحة بالمتر المربع',
             keyboardType: const TextInputType.numberWithOptions(decimal: true), enabled: !_busy)
           : LayoutBuilder(builder: (context, constraints) {
             final area = AppTextField(controller: _area,
-              label: _areaUnit == 'sqm' ? 'المساحة *' : 'عدد الوحدات *',
+              label: _areaInputLabel,
               keyboardType: const TextInputType.numberWithOptions(decimal: true), enabled: !_busy);
             final unit = AppSelectField<String>(value: _areaUnit, isExpanded: true,
               decoration: const InputDecoration(labelText: 'وحدة المساحة'),
@@ -1561,7 +1547,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               : Row(children: [Expanded(flex: 2, child: area), const SizedBox(width: 8), Expanded(flex: 3, child: unit)]);
           }),
         if (_applies('floors_count')) ..._structureFields(),
-        if (_type == 'shop') ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات *', keyboardType: TextInputType.number, enabled: !_busy)],
+        if (_type == 'shop') ...[const SizedBox(height: 12), AppTextField(key: const ValueKey('listing-shop-openings'), controller: _shopOpenings, label: 'عدد الفتحات', keyboardType: TextInputType.number, enabled: !_busy)],
         if (_requiresResidential) ...[
           const SizedBox(height: AppSpacing.s12),
           Row(
@@ -1569,7 +1555,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               Expanded(
                 child: AppTextField(
                   controller: _bedrooms,
-                  label: 'غرف النوم *',
+                  label: 'غرف النوم',
                   hint: 'مثال: 3',
                   keyboardType: TextInputType.number,
                   enabled: !_busy,
@@ -1579,7 +1565,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               Expanded(
                 child: AppTextField(
                   controller: _bathrooms,
-                  label: 'الحمامات *',
+                  label: 'الحمامات',
                   hint: 'مثال: 2',
                   keyboardType: TextInputType.number,
                   enabled: !_busy,
@@ -1601,7 +1587,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           const SizedBox(height: AppSpacing.s16),
           AppSelectField<String>(
             value: _parkingChoice, isExpanded: true,
-            decoration: const InputDecoration(labelText: 'موقف سيارة *'),
+            decoration: const InputDecoration(labelText: 'موقف سيارة'),
             items: const [
               DropdownMenuItem(value: 'yes', child: Text('يوجد')),
               DropdownMenuItem(value: 'no', child: Text('لا يوجد')),
@@ -1613,7 +1599,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           const SizedBox(height: AppSpacing.s12),
           AppSelectField<String>(
             value: _facade, isExpanded: true,
-            decoration: const InputDecoration(labelText: 'واجهة البناء *'),
+            decoration: const InputDecoration(labelText: 'واجهة البناء'),
             items: propertyFacadeLabels.entries
                 .map((entry) => DropdownMenuItem(
                     value: entry.key, child: Text(entry.value)))
@@ -1630,27 +1616,22 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const SizedBox(height: 8),
         const Text('يجب أن تكون الصور حقيقية للعقار المعلن عنه.'),
         const SizedBox(height: 20),
-        AppTextField(controller: _description, label: 'وصف العقار',
-          hint: 'اذكر التفاصيل التي لا تظهر في المواصفات: مجلس، حوش، مدخل مستقل، حمام خارجي، سطح…',
-          enabled: !_busy && !_descriptionCapture.active, maxLines: 5),
+        AppTextField(controller: _description, label: 'وصف العقار (اختياري)',
+          enabled: !_busy && !_descriptionCapture.active, maxLines: 3),
         if (_descriptionCapture.active) InlineVoiceCapture(capture: _descriptionCapture,
           listeningLabel: 'جارٍ إملاء الوصف', onCancel: _cancelDescriptionVoice, onRestart: _restartDescriptionVoice),
-        if (!_descriptionCapture.active && !_busy && !_descriptionBusy) Wrap(spacing: 8, children: [
+        if (!_descriptionCapture.active && !_busy) Wrap(spacing: 8, children: [
           if (_lastDescriptionVoiceBase != null && _description.text == _lastDescriptionVoiceText) TextButton(onPressed: _restartDescriptionVoice, child: const Text('ابدأ الإملاء من جديد')),
         ]),
         if (!_descriptionCapture.active) TextButton.icon(key: const ValueKey('listing-description-voice'),
-          onPressed: _busy || _descriptionBusy ? null : _dictateDescription,
+          onPressed: _busy ? null : _dictateDescription,
           icon: const Icon(Icons.mic_none, size: 19), label: const Text('إملاء الوصف')),
         if (_descriptionCapture.error != null) Text(_descriptionCapture.error!, style: Theme.of(context).textTheme.bodySmall),
         if (_descriptionCapture.permissionDenied) TextButton.icon(onPressed:()=>ref.read(appPermissionSettingsProvider)(),
           icon:const Icon(Icons.settings_outlined),label:const Text('فتح إعدادات الميكروفون')),
-        if (_descriptionCapture.canRetry) TextButton(onPressed: _busy || _descriptionBusy ? null : () => _dictateDescription(retry: true),
+        if (_descriptionCapture.canRetry) TextButton(onPressed: _busy ? null : () => _dictateDescription(retry: true),
           child: const Text('إعادة محاولة تفريغ الوصف')),
-        if (_descriptionBusy) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Row(children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Expanded(child: Text('جارٍ تجهيز الوصف…'))])),
         if (_descriptionError != null) Text(_descriptionError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        ValueListenableBuilder<TextEditingValue>(valueListenable: _description, builder: (_, value, __) =>
-          TextButton.icon(key: const ValueKey('listing-description-generate'), onPressed: _busy || _descriptionBusy || _descriptionCapture.active || _descriptionCoolingDown ? null : _generateDescription,
-            icon: const EbrokerIcon(Icons.edit_note_outlined, size: 18), label: Text(value.text.trim().isEmpty ? 'اقتراح وصف من البيانات' : 'حسّن الوصف'))),
         if (_purpose == 'rent') RentalConditionsEditor(value: _rentalConditions, enabled: !_busy,
           onChanged: (value) => setState(() => _rentalConditions = value)),
       ],
@@ -1673,7 +1654,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_purpose == 'sale')
           AppTextField(
             controller: _price,
-            label: 'سعر البيع بالريال اليمني *',
+            label: 'سعر البيع بالريال اليمني',
             hint: '0',
             helperText: amountWords.isEmpty ? null : amountWords,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1682,7 +1663,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         else ...[
           AppTextField(
             controller: _monthlyRent,
-            label: 'الإيجار الشهري بالريال اليمني *',
+            label: 'الإيجار الشهري بالريال اليمني',
             hint: '0',
             helperText: amountWords.isEmpty ? null : amountWords,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1700,7 +1681,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         const SizedBox(height: AppSpacing.s12),
         AppTextField(
           controller: _phone,
-          label: 'رقم الاتصال *',
+          label: 'رقم الاتصال',
           helperText: 'رقم جوال يمني من 9 أرقام',
           onChanged: (_) { if (_validateContacts) setState(() {}); },
           keyboardType: TextInputType.phone,
@@ -1727,7 +1708,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       Text('صور الإعلان ($_effectiveImageCount/12)',style:Theme.of(context).textTheme.titleMedium),
       const SizedBox(height:8),
       AppButton(label:_checkingPhotos ? 'جارٍ فحص الصور…' : 'إضافة صور',icon:Icons.add_photo_alternate_outlined,expand:true,style:AppButtonStyle.tonal,onPressed:_busy?null:_pickImages),
-      if (keys.isEmpty) const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Text('لم تضف صورًا بعد. أضف صورة واضحة للعقار لإرساله للمراجعة.')),
       if (keys.isNotEmpty) ...[
         const SizedBox(height:12),SizedBox(height:height,child:ReorderableListView.builder(scrollDirection:Axis.horizontal,
           itemCount:keys.length,onReorder:_busy ? (_,__) {} : (from,to) => setState(() {
@@ -1754,7 +1734,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               if(state=='failed') TextButton(key:ValueKey('media-retry-$key'),onPressed:_busy || _accountSyncing ? null : ()=>_retryPhoto(key),
                 child:Text(path==null ? 'اختر الملف مجددًا':'إعادة المحاولة')),
             ]));
-          })),const SizedBox(height:6),const Text('اسحب الصور لترتيبها، أو اختر الرئيسية من خيارات الصورة. إعادة المحاولة ترفع الملف المتعثر كاملًا فقط.'),
+          })),
       ],
     ]));
   }
@@ -1946,7 +1926,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (_applies('floors_count')) {
         final count = _optionalInt(_floorsCount) ?? 0;
         if (count < 1 || count > 50) return 'أدخل عدد الأدوار من 1 إلى 50.';
-        if (_unitsPerFloor.length != count || _unitsPerFloor.any((v) => (int.tryParse(v) ?? 0)<1 || (int.tryParse(v) ?? 0)>100)) return 'أدخل عدد الوحدات في كل دور من 1 إلى 100.';
+        if (_unitsPerFloor.length != count || _unitsPerFloor.any((v) => (int.tryParse(v) ?? 0)<1 || (int.tryParse(v) ?? 0)>100)) return 'أدخل عدد الشقق في كل دور من 1 إلى 100.';
       }
       if (_type == 'shop' && ((_optionalInt(_shopOpenings) ?? 0)<1 || (_optionalInt(_shopOpenings) ?? 0)>100)) return 'أدخل عدد فتحات المحل من 1 إلى 100.';
       final areaValue = double.tryParse(_area.text.trim());
@@ -2304,17 +2284,25 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (submit) {
       final confirmed = await AppDialog.show<bool>(
         context,
-        title: 'إرسال الإعلان للمراجعة؟',
-        content: const Text(
-          'سيتم حفظ آخر تعديلاتك أولاً، ثم إرسال نفس الإعلان إلى فريق الدعم. أثناء المراجعة لن يكون قابلاً للتعديل حتى يعود للتصحيح أو يصدر القرار.',
+        title: 'القسم قبل الإرسال',
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('أقسم بالله أن ألتزم بدفع حصة المنصة المستحقة وفق النسبة المعتمدة في التطبيق.'),
+              SizedBox(height: AppSpacing.s12),
+              Text('وتُستحق هذه الحصة فقط عند بيع هذا العقار أو تأجيره عن طريق التطبيق، سواء من خلال الإعلان أو دون استخدامه.'),
+            ],
+          ),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('إلغاء')),
+              child: const Text('رجوع')),
           EbrokerFilledButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('حفظ وإرسال')),
+              child: const Text('أقسم بذلك')),
         ],
       );
       if (confirmed != true || !mounted || !_sessionValid) return;
@@ -2423,104 +2411,162 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _preview() async {
+    if (_previewOpen || _busy || !_sessionValid) return;
     final validation = _validateCore();
     if (validation != null) {
       setState(() => _stepError = validation);
       return;
     }
 
-    final submit = await AppBottomSheet.show<bool>(
-      context,
-      builder: (sheetContext) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(
-            AppLayout.compactPageGutter,
-            AppSpacing.s16,
-            AppLayout.compactPageGutter,
-            MediaQuery.viewInsetsOf(sheetContext).bottom + AppSpacing.s24,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const AppSectionHeader(
-                  title: 'معاينة قبل الإرسال',
-                  subtitle: 'هذه المعاينة لا تحفظ ولا تغيّر حالة الإعلان.',
-                ),
-                const SizedBox(height: AppSpacing.s16),
-                if (_imagePaths.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadii.card),
-                    child: Image.file(
-                      File(_imagePaths.first),
-                      height: 210,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 160,
-                        child: Center(child: EbrokerIcon(Icons.broken_image_outlined)),
-                      ),
-                    ),
-                  )
-                else if (_existing?.mainImage != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadii.card),
-                    child: SizedBox(height: 210, width: double.infinity,
-                      child: AdaptivePropertyPhoto(url: _existing!.mainImage!, authenticated: _existing!.status != 'published')),
-                  ),
-                const SizedBox(height: AppSpacing.s16),
-                Text(_title.text.trim(),
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: AppSpacing.s8),
-                Text(
-                  _priceSummaryText,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                ),
-                const SizedBox(height: AppSpacing.s12),
-                _SummaryRow(
-                    label: 'الغرض',
-                    value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
-                _SummaryRow(label: 'النوع', value: _typeLabels[_type] ?? _type),
-                if (!_isRentalApartment && _area.text.trim().isNotEmpty) _SummaryRow(
-                    label: 'المساحة',
-                    value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
-                _SummaryRow(label: 'السعي', value: _saiDisplayText),
-                _SummaryRow(label: 'الموقع', value: _composedAddress),
-                if (_description.text.trim().isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.s12),
-                  Text(_description.text.trim()),
-                ],
-                if (_purpose == 'rent' && _rentalConditions.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.s12),
-                  Text('شروط الإيجار', style: Theme.of(context).textTheme.titleMedium),
-                  for (final condition in _rentalConditions) Text(rentalConditionSummary(condition)),
-                ],
-                const SizedBox(height: AppSpacing.s20),
-                if (_validateForSubmit() == null) ...[
-                  AppButton(key: const ValueKey('listing-preview-submit'), label: 'إرسال للمراجعة',
-                    onPressed: () => Navigator.pop(sheetContext, true), expand: true),
-                  const SizedBox(height: 8),
-                ],
-                AppButton(
-                  label: 'إغلاق المعاينة',
-                  style: AppButtonStyle.outlined,
-                  onPressed: () => Navigator.pop(sheetContext),
-                  expand: true,
-                ),
-                const SizedBox(height: AppSpacing.s8),
-                TextButton.icon(key: const ValueKey('listing-copy-text'), onPressed: _copyListingText,
-                  icon: const EbrokerIcon(Icons.copy_outlined, size: 18), label: const Text('نسخ نص الإعلان')),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    FocusScope.of(context).unfocus();
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+    _previewOpen = true;
+    bool? submit;
+    var previewClosed = false;
+    Future<void>? hidingNavigation;
+    try {
+      submit = await AppBottomSheet.show<bool>(
+        context,
+        builder: (sheetContext) {
+          if (isAndroid && hidingNavigation == null && !previewClosed) {
+            final route = ModalRoute.of(sheetContext);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (previewClosed || hidingNavigation != null || !mounted ||
+                  !_sessionValid || route?.isCurrent != true) {
+                return;
+              }
+              hidingNavigation = _setPreviewNavigationHidden(true);
+            });
+          }
+          return _previewContent(sheetContext);
+        },
+      );
+    } finally {
+      previewClosed = true;
+      final hiding = hidingNavigation;
+      if (hiding != null) {
+        await hiding;
+        await _setPreviewNavigationHidden(false);
+      }
+      _previewOpen = false;
+    }
     if (mounted && submit == true) await _persist(submit: true);
   }
+
+  Future<void> _setPreviewNavigationHidden(bool hidden) async {
+    try {
+      await _previewNavigation.invokeMethod<void>('setHidden', {'hidden': hidden});
+    } on MissingPluginException {
+      // The preview still uses the safe area if the native channel is absent.
+    } on PlatformException {
+      // A device may leave the system navigation visible in some window modes.
+    }
+  }
+
+  Widget _previewContent(BuildContext sheetContext) => Directionality(
+    textDirection: TextDirection.rtl,
+    child: SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsetsDirectional.fromSTEB(
+          AppLayout.compactPageGutter,
+          AppSpacing.s16,
+          AppLayout.compactPageGutter,
+          MediaQuery.viewInsetsOf(sheetContext).bottom + AppSpacing.s24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: _previewSummary(sheetContext),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s8),
+            TextButton.icon(
+              key: const ValueKey('listing-copy-text'),
+              onPressed: _copyListingText,
+              icon: const EbrokerIcon(Icons.copy_outlined, size: 18),
+              label: const Text('نسخ نص الإعلان'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  List<Widget> _previewSummary(BuildContext sheetContext) => [
+    const AppSectionHeader(
+      title: 'معاينة قبل الإرسال',
+      subtitle: 'هذه المعاينة لا تحفظ ولا تغيّر حالة الإعلان.',
+    ),
+    const SizedBox(height: AppSpacing.s16),
+    if (_imagePaths.isNotEmpty)
+      ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        child: Image.file(
+          File(_imagePaths.first),
+          height: 210,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const SizedBox(
+            height: 160,
+            child: Center(child: EbrokerIcon(Icons.broken_image_outlined)),
+          ),
+        ),
+      )
+    else if (_existing?.mainImage != null)
+      ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        child: SizedBox(height: 210, width: double.infinity,
+          child: AdaptivePropertyPhoto(url: _existing!.mainImage!, authenticated: _existing!.status != 'published')),
+      ),
+    const SizedBox(height: AppSpacing.s16),
+    Text(_title.text.trim(),
+        style: Theme.of(context).textTheme.headlineSmall),
+    const SizedBox(height: AppSpacing.s8),
+    Text(
+      _priceSummaryText,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+          ),
+    ),
+    const SizedBox(height: AppSpacing.s12),
+    _SummaryRow(
+        label: 'الغرض',
+        value: _purpose == 'sale' ? 'للبيع' : 'للإيجار'),
+    _SummaryRow(label: 'النوع', value: _typeLabels[_type] ?? _type),
+    if (!_isRentalApartment && _area.text.trim().isNotEmpty) _SummaryRow(
+        label: 'المساحة',
+        value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
+    _SummaryRow(label: 'السعي', value: _saiDisplayText),
+    _SummaryRow(label: 'الموقع', value: _composedAddress),
+    if (_description.text.trim().isNotEmpty) ...[
+      const SizedBox(height: AppSpacing.s12),
+      Text(_description.text.trim()),
+    ],
+    if (_purpose == 'rent' && _rentalConditions.isNotEmpty) ...[
+      const SizedBox(height: AppSpacing.s12),
+      Text('شروط الإيجار', style: Theme.of(context).textTheme.titleMedium),
+      for (final condition in _rentalConditions) Text(rentalConditionSummary(condition)),
+    ],
+    const SizedBox(height: AppSpacing.s20),
+    if (_validateForSubmit() == null) ...[
+      AppButton(key: const ValueKey('listing-preview-submit'), label: 'إرسال للمراجعة',
+        onPressed: () => Navigator.pop(sheetContext, true), expand: true),
+      const SizedBox(height: 8),
+    ],
+    AppButton(
+      label: 'إغلاق المعاينة',
+      style: AppButtonStyle.outlined,
+      onPressed: () => Navigator.pop(sheetContext),
+      expand: true,
+    ),
+  ];
 
   void _onPriceChanged() {
     if (mounted) setState(() {});
@@ -2771,7 +2817,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         _latitude = point.latitude; _longitude = point.longitude; _stepError = null;
         _locationMethod = useCurrent ? 'gps' : point.method; _locationAccuracyMetres = point.accuracyMetres; _locationReducedAccuracy = point.reducedAccuracy;
         _addressContext = point.address;
-        _showLocationPreview = true;
       });
       await _fillAddress(point.address, point.latitude, point.longitude, resolveMissing: useCurrent);
       if (_locationRequestCurrent(actor, epoch)) { unawaited(_saveRecovery()); }
