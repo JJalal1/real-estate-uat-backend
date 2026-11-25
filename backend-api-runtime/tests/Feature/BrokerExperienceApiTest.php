@@ -405,7 +405,8 @@ class BrokerExperienceApiTest extends TestCase
             'availability_status'=>'paused','financial_hold_at'=>now(),'financial_hold_reason'=>'separate_admin_hold',
         ])->saveQuietly();
         $favorite = "/api/properties/{$other->id}/favorite";
-        $this->withHeaders($customerHeaders)->putJson($favorite)->assertCreated();
+        $this->withHeaders($customerHeaders)->putJson($favorite)->assertOk()
+            ->assertJsonPath('data.is_favorited', true);
 
         $attempts = [];
         foreach ([$sale, $rent] as $property) {
