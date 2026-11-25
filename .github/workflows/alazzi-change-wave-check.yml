@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AQER_VERIFIED_SOURCE: '49421753c7a0b60a38a355c85690201386327023'
+  AQER_VERIFIED_SOURCE: 'c83072d79271241dd3a613bde60d66aeb2a12acf'
 
 jobs:
   broker-api:
