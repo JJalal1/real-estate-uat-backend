@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AQER_SOURCE_SHA: '4c84f55cf2d49fd1db70851395d24dd0de0c233e'
+  AQER_SOURCE_SHA: '332d31c0672d4664226c57361ef8d74ae36719d4'
 
 jobs:
   verify-api:
