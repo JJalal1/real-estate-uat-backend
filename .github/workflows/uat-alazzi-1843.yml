@@ -14,6 +14,8 @@ concurrency:
 
 jobs:
   verify-and-build:
+    permissions:
+      contents: write
     if: ${{ github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -290,12 +292,14 @@ jobs:
           apk=AQER-UAT-1843-Alazzi-ARM64.apk
           jq -e --arg source "$AQER_SOURCE_SHA" '.source == $source and .build == 1843 and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
           printf '%s  %s\n' "$(jq -r .sha256 APK_VERIFICATION.json)" "$apk" | sha256sum --check --strict
-      - name: Upload the verified UAT installer and receipt
-        uses: actions/upload-artifact@v4
-        with:
-          name: AQER-UAT-1843-Alazzi-ARM64
-          path: |
-            uat1843/AQER-UAT-1843-Alazzi-ARM64.apk
-            uat1843/APK_VERIFICATION.json
-          if-no-files-found: error
-          retention-days: 7
+      - name: Attach the verified installer to a private draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = JJalal1/real-estate-uat-backend
+          cd uat1843
+          gh release create "uat-alazzi-1843-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            AQER-UAT-1843-Alazzi-ARM64.apk APK_VERIFICATION.json --repo "$GITHUB_REPOSITORY" \
+            --draft --target "$AQER_SOURCE_SHA" --title 'AQER UAT 1843 — Alazzi listing editor updates' \
+            --notes "Signed UAT installer verified against source $AQER_SOURCE_SHA."
