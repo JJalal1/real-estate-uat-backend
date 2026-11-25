@@ -62,6 +62,68 @@ Object _empty(String path) {
 }
 void main() {
   WidgetController.hitTestWarningShouldBeFatal=true;
+
+  testWidgets('support restores publishing with confirmation and a reason', (tester) async {
+    const user = {'id': 42, 'name': 'معلن اختباري', 'account_status': 'active'};
+    const userPath = '/admin/support/users/42';
+    final dio = Dio(BaseOptions(baseUrl: 'https://synthetic.invalid/api'));
+    final requests = <RequestOptions>[];
+    var allowed = false;
+    var held = true;
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
+      requests.add(request);
+      Object data = const {};
+      if (request.path == '/admin/access/users') data = [user];
+      if (request.path == userPath) {
+        data = {'user': {...user, 'financial_hold_active': held,
+          'can_restore_financial_hold': held && allowed}};
+      }
+      if (request.path == '$userPath/financial-hold/restore') held = false;
+      handler.resolve(Response(requestOptions: request, statusCode: 200, data: {'data': data}));
+    }));
+    final scope = ProviderContainer(overrides: [
+      authControllerProvider.overrideWith(_Auth.new),
+      authRepositoryProvider.overrideWithValue(_Credentials()),
+      dioProvider.overrideWithValue(dio),
+    ]);
+    addTearDown(() { scope.dispose(); dio.close(force: true); });
+    await scope.read(authControllerProvider.future);
+    await tester.pumpWidget(UncontrolledProviderScope(container: scope, child: MaterialApp(
+      theme: AppTheme.light,
+      builder: (_, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
+      home: const SupportUsersScreen(),
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('معلن اختباري'));
+    await tester.pumpAndSettle();
+    expect(find.text('إيقاف مؤقت للنشر بسبب مستحقات المنصة'), findsOneWidget);
+    expect(find.text('إعادة تفعيل النشر'), findsNothing);
+    await tester.tap(find.text('إغلاق'));
+    await tester.pumpAndSettle();
+
+    allowed = true;
+    await tester.tap(find.text('معلن اختباري'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('إعادة تفعيل النشر'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('إعادة التفعيل'));
+    await tester.pumpAndSettle();
+    expect(find.text('اكتب سبب إعادة التفعيل'), findsOneWidget);
+    expect(requests.where((request) => request.method == 'POST'), isEmpty);
+    await tester.enterText(find.byType(TextFormField), 'إعادة التفعيل بموافقة الدعم');
+    await tester.tap(find.text('إعادة التفعيل'));
+    await tester.pumpAndSettle();
+    final submitted = requests.singleWhere((request) => request.method == 'POST');
+    expect(submitted.path, '$userPath/financial-hold/restore');
+    expect(submitted.data, {'reason': 'إعادة التفعيل بموافقة الدعم'});
+    await tester.tap(find.text('معلن اختباري'));
+    await tester.pumpAndSettle();
+    expect(find.text('إعادة تفعيل النشر'), findsNothing);
+    expect(find.text('إيقاف مؤقت للنشر بسبب مستحقات المنصة'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   final screens=<String,Widget Function()>{
     'AdminDashboardScreen': () => const AdminDashboardScreen(),
     'AuditLogScreen': () => const AuditLogScreen(),

@@ -1,11 +1,12 @@
 class MessageInboxPage<T> {
   const MessageInboxPage({required this.items, required this.currentPage,
-    required this.lastPage, required this.total});
+    required this.lastPage, required this.total, this.unreadCount});
 
   final List<T> items;
   final int currentPage;
   final int lastPage;
   final int total;
+  final int? unreadCount;
   bool get hasMore => currentPage < lastPage;
 }
 
@@ -190,6 +191,14 @@ class AppNotificationItem {
   final DateTime? createdAt;
 
   bool get isPlatformNotification => type != 'message_received';
+
+  bool isRecentPlatformNotification(DateTime now) => isPlatformNotification &&
+      (createdAt == null || !createdAt!.isBefore(now.subtract(const Duration(days: 7))));
+
+  AppNotificationItem withReadReceipt() => isRead ? this : AppNotificationItem(
+    id: id, type: type, title: title, isRead: true, body: body,
+    entityType: entityType, entityId: entityId, data: data, createdAt: createdAt,
+  );
 
   int? get bookingId => _asInt(data['booking_id']);
   int? get messageThreadId => _asInt(data['message_thread_id']);

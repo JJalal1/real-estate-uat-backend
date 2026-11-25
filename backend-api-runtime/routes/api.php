@@ -202,6 +202,7 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
+    Route::post('/notifications/history/read-all', [NotificationController::class, 'readAllHistory']);
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'read']);
     Route::post('/push/devices', [\App\Http\Controllers\Api\PushDeviceController::class, 'store'])->middleware('throttle:20,1,push-device-register');
     Route::delete('/push/devices', [\App\Http\Controllers\Api\PushDeviceController::class, 'destroy'])->middleware('throttle:20,1,push-device-remove');
@@ -264,6 +265,8 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
         Route::post('/cases/{case}/reopen', [SupportController::class, 'reopen'])->middleware('permission:support.reopen');
         Route::get('/agents', [SupportController::class, 'agents'])->middleware('permission:support.reassign');
         Route::get('/users/{user}', [SupportController::class, 'userContext'])->middleware(['permission:support.handle_reports','permission:users.view']);
+        Route::post('/users/{user}/financial-hold/restore', [SupportController::class, 'restoreFinancialHold'])
+            ->middleware(['permission:support.handle_reports','permission:users.view','permission:users.manage_status']);
         Route::get('/worklog', [SupportController::class, 'worklog'])->middleware('permission:support.view_worklog');
         Route::post('/escalate-overdue', [SupportController::class, 'escalateOverdue'])->middleware('permission:support.manage');
     });

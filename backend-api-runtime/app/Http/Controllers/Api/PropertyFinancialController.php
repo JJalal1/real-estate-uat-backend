@@ -55,13 +55,26 @@ class PropertyFinancialController extends Controller
 
     public function receivable(Request $request, PropertyPlatformReceivable $receivable): JsonResponse
     {
-        $user=$request->user();
-        abort_unless((int)$receivable->advertiser_user_id === (int)$user->id,403);
-        $term=PropertyDealFinancialTerm::query()->findOrFail($receivable->deal_financial_term_id);
-        $data=$this->dealData($term,$user,false);
-        $data['payment_methods']=$this->finance->paymentMethods(max(0,$receivable->amount_total-$receivable->amount_paid),$receivable->currency);
-        $data['can_pay_full']=false;
-        return response()->json(['data'=>$data]);
+        /** @var User $user */
+        $user = $request->user();
+        abort_unless((int) $receivable->advertiser_user_id === (int) $user->id, 403);
+        $term = PropertyDealFinancialTerm::query()->findOrFail($receivable->deal_financial_term_id);
+        $payments = PropertyPayment::query()->with(['method', 'financialTerm', 'property'])
+            ->where('deal_financial_term_id', $term->id)
+            ->where('payer_user_id', $user->id)
+            ->where('mode', 'platform_receivable')
+            ->latest('id')->limit(50)->get();
+
+        $data = $this->dealData($term, $user, false);
+        $data['receivable'] = $this->receivableData($receivable);
+        $remaining = $data['receivable']['remaining_amount'];
+        $data['payment_methods'] = $remaining > 0 && $receivable->status !== 'paid'
+            ? $this->finance->paymentMethods($remaining, $receivable->currency, 'platform_receivable')
+            : [];
+        $data['payments'] = $payments->map(fn (PropertyPayment $payment) => $this->paymentData($payment, $user))->values();
+        $data['can_pay_full'] = false;
+
+        return response()->json(['data' => $data]);
     }
 
     public function createReceivablePayment(Request $request, PropertyPlatformReceivable $receivable): JsonResponse
@@ -80,11 +93,12 @@ class PropertyFinancialController extends Controller
         /** @var User $user */ $user=$request->user();
         abort_unless((int)$payment->payer_user_id===(int)$user->id,403);
         $method=PropertyPaymentMethod::query()->findOrFail($payment->payment_method_id);
+        $requiresSenderPhone = $payment->mode !== 'platform_receivable' && $method->requires_sender_phone;
         $rules=[
             'proof'=>['required','file','image','mimes:jpg,jpeg,png,webp','max:10240'],
             'provider_reference'=>['nullable','string','max:120'],
             'sender_name'=>['nullable','string','max:160'],
-            'sender_phone'=>[$method->requires_sender_phone?'required':'nullable','string','max:40'],
+            'sender_phone'=>[$requiresSenderPhone?'required':'nullable','string','max:40'],
         ];
         $validated=$request->validate($rules);$file=$request->file('proof');
         $path=$this->storage->storePrivate($file,'financial/payment-proofs/'.$payment->id);

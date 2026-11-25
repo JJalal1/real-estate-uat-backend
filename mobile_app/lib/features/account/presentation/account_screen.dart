@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/theme_controller.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../financial/presentation/financial_account_screen.dart';
+import '../../messages/presentation/notification_preferences_screen.dart';
 import '../../properties/presentation/favorites_screen.dart';
 import '../data/auth_controller.dart';
 import '../../../core/branding/aqer_brand.dart';
@@ -97,6 +98,13 @@ class AccountScreen extends ConsumerWidget {
                         'الإشعارات',
                         Icons.notifications_outlined,
                         () => context.push('/notifications'),
+                      ),
+                      _AccountRow(
+                        'تفضيلات الإشعارات',
+                        Icons.tune_rounded,
+                        () => Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(builder: (_) => const NotificationPreferencesScreen()),
+                        ),
                       ),
                       _AccountRow(
                         'مدفوعاتي',

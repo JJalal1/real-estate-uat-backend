@@ -158,7 +158,9 @@ class _BrokerDealsListState extends ConsumerState<BrokerDealsList> {
         for (final deal in _items) Padding(key: ValueKey(deal.id), padding: const EdgeInsets.only(bottom: 10), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(deal.propertyTitle, style: Theme.of(context).textTheme.titleMedium),
           Text('${deal.otherPartyName(viewer)} · ${deal.statusLabel}'),
-          Text(brokerMoney(deal.amount, deal.currency)),
+          Text(deal.transactionType == 'rent'
+            ? 'الإيجار الشهري: ${brokerMoney(deal.amount, deal.currency)}'
+            : brokerMoney(deal.amount, deal.currency)),
           AppButton(label: 'عرض النتيجة', onPressed: () => _openResult(deal)),
         ]))),
         if (_loading) const AppLoadingState(),
@@ -570,33 +572,123 @@ class BrokerConversationTools extends ConsumerWidget {
 
 class BrokerFinanceScreen extends ConsumerWidget {
   const BrokerFinanceScreen({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) => BrokerScaffold(appBar: const AppAppBar(title: 'مستحقات المنصة'), body: ref.watch(brokerFinanceProvider).when(
-    loading: () => const AppLoadingState(), error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerFinanceProvider)),
-    data: (data) => RefreshIndicator(onRefresh: () async { ref.invalidate(brokerFinanceProvider); try { await ref.read(brokerFinanceProvider.future); } catch (_) { /* The page renders failure and retry. */ } }, child: ListView(
-      physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(16), children: [
-        for (final balance in brokerRows(data['balances'])) Padding(padding: const EdgeInsets.only(bottom: 12), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('المستحق: ${brokerMoney(balance['open'], '${balance['currency']}')}', style: Theme.of(context).textTheme.titleMedium),
-          Text('المدفوع: ${brokerMoney(balance['paid'], '${balance['currency']}')}'),
-        ]))),
-        const Text('تظهر هنا حصة المنصة من السعي وفق الشروط المحفوظة للصفقة، بعد تأكيد الطرفين.'), const SizedBox(height: 14),
-        for (final due in brokerRows(data['receivables'])) Padding(padding: const EdgeInsets.only(bottom: 12), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('${due['property_title'] ?? 'العقار'}', style: Theme.of(context).textTheme.titleMedium),
-          Text('المرجع: ${due['reference']}'),
-          Text('أساس الحساب: ${brokerMoney(due['basis_amount'], '${due['currency']}')}'),
-          Text('إجمالي السعي: ${brokerMoney(due['sai_amount'], '${due['currency']}')}'),
-          Text('حصة المنصة: ${brokerMoney(due['amount_total'], '${due['currency']}')}'),
-          Text('المتبقي: ${brokerMoney(due['remaining_amount'], '${due['currency']}')}'),
-          Text(_dueStatus('${due['status']}')),
-          if (due['due_at'] != null) Text('موعد السداد: ${'${due['due_at']}'.split('T').first}'),
-          if (brokerNumber(due['remaining_amount']) > 0 && ['open', 'overdue'].contains(due['status'])) AppButton(label: 'سداد المستحق', onPressed: () async {
-            await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ReceivablePaymentScreen(receivableId: brokerInt(due['id']), remainingAmount: brokerNumber(due['remaining_amount']), currency: '${due['currency']}', propertyTitle: '${due['property_title'] ?? 'العقار'}')));
-            ref.invalidate(brokerFinanceProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return BrokerScaffold(
+      appBar: const AppAppBar(title: 'مستحقات المنصة'),
+      body: ref.watch(brokerFinanceProvider).when(
+        loading: () => const AppLoadingState(),
+        error: (error, _) => AppErrorState(
+          message: friendlyApiError(error),
+          onRetry: () => ref.invalidate(brokerFinanceProvider),
+        ),
+        data: (data) {
+          final dues = brokerRows(data['receivables']).where((due) =>
+            brokerNumber(due['remaining_amount']) > 0 && due['status'] != 'paid');
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(brokerFinanceProvider);
+              try {
+                await ref.read(brokerFinanceProvider.future);
+              } catch (_) {
+                // The page renders the error and offers retry.
+              }
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              children: [
+                for (final balance in brokerRows(data['balances']))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: BrokerPanel(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('المستحق: ${brokerMoney(balance['open'], '${balance['currency']}')}',
+                          style: theme.textTheme.titleMedium),
+                        Text('المدفوع: ${brokerMoney(balance['paid'], '${balance['currency']}')}'),
+                      ],
+                    )),
+                  ),
+                if (dues.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.info_outline, size: 16, color: theme.colorScheme.error),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(
+                        'إذا لم يتم السداد خلال ٢٤ ساعة من بيع العقار أو تأجيره، سيتم إيقاف الحساب.',
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                      )),
+                    ]),
+                  ),
+                for (final due in dues)
+                  _BrokerReceivableCard(due: due),
+                if (dues.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('لا توجد مستحقات متبقية حاليًا.'),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _BrokerReceivableCard extends ConsumerWidget {
+  const _BrokerReceivableCard({required this.due});
+  final Map<String, dynamic> due;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = due['status'];
+    final isRent = due['transaction_type'] == 'rent';
+    final amountLabel = switch (due['transaction_type']) {
+      'sale' => 'إجمالي سعر العقار',
+      'rent' => 'الإيجار الشهري',
+      _ => 'المبلغ المعتمد للصفقة',
+    };
+    final basis = isRent ? due['monthly_basis_amount'] ?? due['basis_amount'] : due['basis_amount'];
+    final deadline = DateTime.tryParse('${due['due_at'] ?? ''}')?.toLocal();
+    final currency = '${due['currency'] ?? 'YER'}';
+    final title = '${due['property_title'] ?? 'العقار'}';
+    final localizations = MaterialLocalizations.of(context);
+    final remaining = brokerNumber(due['remaining_amount']);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        Text('المرجع: ${due['reference']}'),
+        Text('$amountLabel: ${brokerMoney(basis, currency)}'),
+        Text('إجمالي السعي: ${brokerMoney(due['sai_amount'], currency)}'),
+        Text('حصة المنصة: ${brokerMoney(due['amount_total'], currency)}'),
+        Text('المتبقي: ${brokerMoney(remaining, currency)}'),
+        if (status == 'under_review') const Text('إثبات السداد قيد التحقق'),
+        if (status == 'disputed') const Text('قيد مراجعة الدعم'),
+        if (deadline != null)
+          Text('آخر مهلة للسداد: ${localizations.formatCompactDate(deadline)} · '
+              '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(deadline))}'),
+        if (status == 'open' || status == 'overdue')
+          AppButton(label: 'سداد مستحقات المنصة', onPressed: () async {
+            final scope = ref.read(accountRequestScopeProvider);
+            if (!scope.isCurrent) return;
+            await Navigator.of(context).push(MaterialPageRoute<bool>(
+              builder: (_) => ReceivablePaymentScreen(
+                receivableId: brokerInt(due['id']),
+                remainingAmount: remaining,
+                currency: currency,
+                propertyTitle: title,
+                requestScope: scope,
+              ),
+            ));
+            if (context.mounted && scope.isCurrent) refreshBrokerData(ref);
           }),
-        ]))),
-        if (brokerRows(data['receivables']).isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('لا توجد مستحقات مسجلة حتى الآن.')),
-      ],
-    )),
-  ));
-  String _dueStatus(String status) => switch (status) {'paid' => 'تم السداد', 'under_review' => 'إثبات الدفع قيد المراجعة', 'overdue' => 'متأخر السداد', 'disputed' => 'قيد مراجعة الدعم', _ => 'بانتظار السداد'};
+      ])),
+    );
+  }
 }

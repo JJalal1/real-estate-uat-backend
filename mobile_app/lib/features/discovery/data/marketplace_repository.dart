@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +11,15 @@ import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/domain/property_coordinates.dart';
 import '../domain/smart_search_filters.dart';
+
+const dhamarPreviewGovernorate = (name: 'ذمار', code: 'DHAMAR');
+
+SmartSearchFilters dhamarPreviewFilters(SmartSearchFilters filters) =>
+    SmartSearchFilters.fromMap({
+      ...filters.values,
+      'governorate': dhamarPreviewGovernorate.name,
+      'governorate_code': dhamarPreviewGovernorate.code,
+    });
 
 class HomeLocation {
   const HomeLocation({this.latitude = 15.3694, this.longitude = 44.1910, this.governorate, this.governorateCode,
@@ -96,9 +107,11 @@ class MarketplaceFeed {
 }
 
 class MarketplaceRepository {
-  MarketplaceRepository(this._dio, {DateTime Function()? now}) : _now = now ?? DateTime.now;
+  MarketplaceRepository(this._dio, {DateTime Function()? now, Random? random})
+    : _now = now ?? DateTime.now, _random = random ?? Random();
   final Dio _dio;
   final DateTime Function() _now;
+  final Random _random;
   final _cache = <({HomeFeedQuery query, int revision}), ({DateTime at, MarketplaceFeed feed})>{};
   int _cacheEpoch = 0;
   void invalidateFeed(HomeFeedQuery query) { _cacheEpoch++; _cache.removeWhere((key, _) => key.query == query); }
@@ -164,12 +177,11 @@ class MarketplaceRepository {
       // Older UAT servers do not accept a purpose on /marketplace. Obtain all
       // displayed property rows from the existing server-filtered public API;
       // never present, or merely hide locally, an unscoped marketplace feed.
-      final keys = [if (query.device && query.governorate == null) 'nearby', 'spotlight', 'latest'];
+      const keys = ['spotlight', 'latest'];
       final sections = await Future.wait(keys.map((section) async {
         final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {
           ...filters, 'per_page': 6, 'sort': 'latest',
-          if (section == 'nearby') ...{'latitude': query.latitude, 'longitude': query.longitude, 'radius_km': 30}
-          else if (feed.governorate != null) 'governorate': feed.governorate,
+          if (feed.governorate != null) 'governorate': feed.governorate,
           if (section == 'spotlight') 'spotlight': 1,
         }, cancelToken: cancelToken, options: Options(listFormat: ListFormat.multiCompatible));
         ensurePropertyFilterContract(response, filters);
@@ -187,6 +199,33 @@ class MarketplaceRepository {
     }
     return feed;
   }
+
+  Future<List<PropertySummary>> dhamarPreview(SmartSearchFilters criteria, {required CancelToken cancelToken}) async {
+    const size = 6;
+    final filters = dhamarPreviewFilters(criteria).apiFilters;
+    Future<({List<PropertySummary> rows, int total, bool cached})> loadPage(int page) async {
+      final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {
+        ...filters, 'page': page, 'per_page': size, 'sort': 'latest',
+      }, cancelToken: cancelToken, options: Options(listFormat: ListFormat.multiCompatible));
+      ensurePropertyFilterContract(response, filters, requireAcknowledgement: true);
+      final rows = brokerRows(response.data?['data']).map(PropertySummary.fromJson)
+        .where((row) => row.status == 'published').toList(growable: false);
+      final total = brokerMap(response.data?['meta'])['total'];
+      return (rows: rows, total: total is int ? total : rows.length, cached: response.extra['offline_snapshot'] == true);
+    }
+
+    final first = await loadPage(1);
+    // Choose a page across the full matching inventory with a bounded second request.
+    final page = first.total > size && !first.cached ? _random.nextInt(first.total) ~/ size + 1 : 1;
+    final selected = page == 1 ? first : await loadPage(page);
+    final sample = [...selected.rows]..shuffle(_random);
+    final ids = <int>{};
+    return [
+      ...sample,
+      if (page != 1 && sample.length < size) ...([...first.rows]..shuffle(_random)),
+    ].where((row) => ids.add(row.id)).take(size).toList(growable: false);
+  }
+
   Future<HomeLocation> resolveLocation(HomeLocation fix) async {
     final r = await _dio.get<Map<String, dynamic>>('/marketplace/location-context', queryParameters: {
       'latitude': fix.latitude, 'longitude': fix.longitude,
@@ -222,6 +261,13 @@ final homeLocationAttemptedProvider = StateProvider<bool>((ref) => false);
 final homeLocationsProvider = FutureProvider<List<HomeLocation>>((ref) => ref.watch(marketplaceRepositoryProvider).locations());
 final marketplaceInitialSnapshotProvider = FutureProvider.autoDispose.family<MarketplaceFeed?, HomeFeedQuery>(
   (ref, query) => ref.watch(marketplaceRepositoryProvider).initialSnapshot(query));
+final marketplaceDhamarPreviewProvider = FutureProvider.autoDispose.family<List<PropertySummary>, HomeFeedQuery>((ref, query) {
+  ref.watch(propertyDataRevisionProvider);
+  ref.watch(offlineResumeRevisionProvider);
+  final transfer = CancelToken();
+  ref.onDispose(() => transfer.cancel('Dhamar preview disposed'));
+  return ref.watch(marketplaceRepositoryProvider).dhamarPreview(query.effectiveFilters, cancelToken: transfer);
+});
 final marketplaceFeedProvider = FutureProvider.autoDispose.family<MarketplaceFeed, HomeFeedQuery>((ref, query) async {
   final int revision = ref.watch<int>(propertyDataRevisionProvider) + ref.watch<int>(offlineResumeRevisionProvider);
   final transfer = CancelToken();

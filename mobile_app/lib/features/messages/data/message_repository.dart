@@ -51,9 +51,12 @@ class MessageRepository {
       filters: {if (unreadOnly) 'unread_only': 1});
   }
 
-  Future<NotificationPage> notificationsPage({int page = 1, int perPage = 40}) =>
+  Future<NotificationPage> notificationsPage({int page = 1, int perPage = 40,
+      bool platformHistory = false, bool unreadOnly = false}) =>
       _inboxPage('/notifications', AppNotificationItem.fromJson,
-        page: page, perPage: perPage, maxPerPage: 200);
+        page: page, perPage: perPage, maxPerPage: 200,
+        filters: {if (platformHistory) 'platform_history': 1,
+          if (platformHistory && unreadOnly) 'unread_only': 1});
 
   Future<ConversationReportPage> adminReportsPage({int page = 1,
       int perPage = 40, String? status}) =>
@@ -97,6 +100,8 @@ class MessageRepository {
       currentPage: meta['current_page'] as int,
       lastPage: meta['last_page'] as int,
       total: meta['total'] as int,
+      unreadCount: meta['unread_count'] is int && (meta['unread_count'] as int) >= 0
+          ? meta['unread_count'] as int : null,
     );
   }
 
@@ -177,9 +182,24 @@ class MessageRepository {
   }
 
   Future<void> readNotification(int id) async {
-    await _dio.post<void>('/notifications/$id/read',
-        options: await _sessionOptions());
-    _requestScope?.verify();
+    await _readNotificationAt('/notifications/$id/read');
+  }
+
+  Future<void> readAllPlatformNotifications() =>
+      _readNotificationAt('/notifications/history/read-all');
+
+  Future<void> _readNotificationAt(String path) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    void verify() {
+      _requestScope?.verify();
+      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+        throw StateError('ACCOUNT_CHANGED');
+      }
+    }
+    final options = await _sessionOptions();
+    verify();
+    await _dio.post<void>(path, options: options);
+    verify();
   }
 
   Future<void> readAllNotifications() async {

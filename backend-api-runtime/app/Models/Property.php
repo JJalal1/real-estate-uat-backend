@@ -41,13 +41,7 @@ class Property extends Model
             if (!$request->isMethod('GET')) return;
             $path=$request->path();
             if (! in_array($path, ['api/properties','api/properties/nearby','api/marketplace'], true)) return;
-            $builder->whereNotExists(function ($query): void {
-                $query->selectRaw('1')->from('property_platform_receivables as financial_due')
-                    ->whereColumn('financial_due.advertiser_user_id','properties.user_id')
-                    ->whereIn('financial_due.status',['open','under_review','overdue','disputed'])
-                    ->whereColumn('financial_due.amount_paid','<','financial_due.amount_total')
-                    ->where('financial_due.due_at','<=',now());
-            });
+            $builder->withoutOverdueListingRestriction();
         });
 
         static::saving(function (Property $property): void {
@@ -80,6 +74,14 @@ class Property extends Model
     public function scopePubliclyAvailable(Builder $query): Builder
     {
         return $query->where('status', 'published')->where('availability_status', 'available');
+    }
+
+    public function scopeWithoutOverdueListingRestriction(Builder $query): Builder
+    {
+        return $query->whereNotExists(PropertyPlatformReceivable::query()
+            ->selectRaw('1')
+            ->whereColumn('property_platform_receivables.advertiser_user_id', 'properties.user_id')
+            ->overdueListingRestriction()->toBase());
     }
 
     public function isPubliclyAvailable(): bool

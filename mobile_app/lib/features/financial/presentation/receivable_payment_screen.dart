@@ -17,6 +17,7 @@ class ReceivablePaymentScreen extends StatelessWidget {
     required this.remainingAmount,
     required this.currency,
     this.propertyTitle,
+    this.requestScope,
     super.key,
   });
 
@@ -25,16 +26,26 @@ class ReceivablePaymentScreen extends StatelessWidget {
   final double remainingAmount;
   final String currency;
   final String? propertyTitle;
+  final AccountRequestScope? requestScope;
   @override
-  Widget build(BuildContext context) => ActorBoundPage(title: 'سداد المستحق',
-    builder: (_) => _ReceivablePaymentPage(receivableId: receivableId,
-      agreementId: agreementId, remainingAmount: remainingAmount,
-      currency: currency, propertyTitle: propertyTitle));
+  Widget build(BuildContext context) => ActorBoundPage(
+      title: 'سداد مستحق المنصة',
+      requestScope: requestScope,
+      builder: (_) => _ReceivablePaymentPage(
+          receivableId: receivableId,
+          agreementId: agreementId,
+          remainingAmount: remainingAmount,
+          currency: currency,
+          propertyTitle: propertyTitle));
 }
 
 class _ReceivablePaymentPage extends ConsumerStatefulWidget {
-  const _ReceivablePaymentPage({required this.receivableId, required this.agreementId,
-    required this.remainingAmount, required this.currency, required this.propertyTitle});
+  const _ReceivablePaymentPage(
+      {required this.receivableId,
+      required this.agreementId,
+      required this.remainingAmount,
+      required this.currency,
+      required this.propertyTitle});
   final int receivableId;
   final int agreementId;
   final double remainingAmount;
@@ -53,6 +64,29 @@ class _ReceivablePaymentScreenState
   bool _loading = true;
   bool _busy = false;
   String? _error;
+
+  double get _remainingAmount =>
+      double.tryParse('${_deal?.receivable?['remaining_amount'] ?? ''}') ??
+      widget.remainingAmount;
+  String get _currency =>
+      _deal?.receivable?['currency']?.toString() ?? widget.currency;
+  bool get _underReview => _deal?.receivable?['status'] == 'under_review';
+
+  static const _methodOrder = {
+    'jeeb': 0,
+    'kuraimi': 1,
+    'jawali': 2,
+    'transfer': 3
+  };
+  List<FinancialPaymentMethod> get _paymentMethods {
+    final methods = [...?_deal?.paymentMethods];
+    return methods
+      ..sort((a, b) {
+        final rank = (_methodOrder[a.key] ?? _methodOrder.length)
+            .compareTo(_methodOrder[b.key] ?? _methodOrder.length);
+        return rank == 0 ? a.sortOrder.compareTo(b.sortOrder) : rank;
+      });
+  }
 
   @override
   void initState() {
@@ -111,8 +145,7 @@ class _ReceivablePaymentScreenState
                                     'العقار'),
                                 const SizedBox(height: 8),
                                 Text(
-                                  _money(widget.remainingAmount,
-                                      widget.currency),
+                                  _money(_remainingAmount, _currency),
                                   style: Theme.of(context)
                                       .textTheme
                                       .headlineSmall
@@ -126,52 +159,65 @@ class _ReceivablePaymentScreenState
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text('اختر طريقة الدفع',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        ...?_deal?.paymentMethods.map((method) {
-                          final enabled = method.available && method.allowsSaiOnly;
-                          return Card(
-                            child: ListTile(
-                              enabled: enabled,
-                              leading: _logo(method),
-                              title: Text(method.name),
-                              subtitle: enabled
-                                  ? null
-                                  : Text(method.unavailableReason ??
-                                      'غير متاحة لسداد مستحق المنصة.'),
-                              trailing: const EbrokerIcon(Icons.chevron_left),
-                              onTap: enabled && !_busy
-                                  ? () => _start(method)
-                                  : null,
-                            ),
-                          );
-                        }),
+                        if (_underReview)
+                          const Text('إثبات السداد قيد التحقق')
+                        else if (_remainingAmount <= 0)
+                          const Text('تم سداد مستحق المنصة')
+                        else ...[
+                          Text('اختر طريقة الدفع',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          ..._paymentMethods.map((method) {
+                            final enabled =
+                                method.available && method.allowsSaiOnly;
+                            return Card(
+                              child: ListTile(
+                                key:
+                                    ValueKey('receivable-method-${method.key}'),
+                                enabled: enabled,
+                                leading: _logo(method),
+                                title: Text(method.name),
+                                subtitle: enabled
+                                    ? null
+                                    : Text(method.unavailableReason ??
+                                        'غير متاحة لسداد مستحق المنصة.'),
+                                trailing: const Icon(Icons.arrow_back,
+                                    textDirection: TextDirection.ltr),
+                                onTap: enabled && !_busy
+                                    ? () => _start(method)
+                                    : null,
+                              ),
+                            );
+                          }),
+                        ],
                       ],
                     ),
         ),
       );
 
   Future<void> _start(FinancialPaymentMethod method) async {
-    if (!_valid) return;
+    if (!_valid || _busy) return;
     setState(() => _busy = true);
     try {
-      final payment = await ref
-          .read(financialRepositoryProvider)
-          .createReceivablePayment(
-            receivableId: widget.receivableId,
-            paymentMethodId: method.id,
-          );
+      final payment =
+          await ref.read(financialRepositoryProvider).createReceivablePayment(
+                receivableId: widget.receivableId,
+                paymentMethodId: method.id,
+              );
       if (!_valid) return;
-      setState(() => _busy = false);
-      await _transfer(payment, payment.method ?? method);
+      final selected = payment.method ?? method;
+      if (selected.id != method.id) {
+        _message('تعذر تبديل طريقة الدفع. أعد فتح المستحق وحاول مرة أخرى.');
+        return;
+      }
+      await _transfer(payment, selected);
     } catch (error) {
-      if (!_valid) return;
-      setState(() => _busy = false);
-      _message(friendlyApiError(error));
+      if (_valid) _message(friendlyApiError(error));
+    } finally {
+      if (_valid) setState(() => _busy = false);
     }
   }
 
@@ -179,7 +225,8 @@ class _ReceivablePaymentScreenState
       FinancialPayment payment, FinancialPaymentMethod method) async {
     if (!_valid) return;
     final complete = await showActorDialog<bool>(
-      context: context, ref: ref,
+      context: context,
+      ref: ref,
       barrierDismissible: false,
       builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
@@ -201,21 +248,18 @@ class _ReceivablePaymentScreenState
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'أنت على وشك تحويل ${_amount(payment.amount)} ريال لهذه الصفقة. لا تحول إلى أي رقم آخر يرسله لك شخص عبر المحادثات. بيانات الدفع المعتمدة تظهر في هذه الصفحة فقط.',
+                    'أنت على وشك تحويل ${_money(payment.amount, payment.currency == 'YER' ? 'ريال' : payment.currency)} لهذه الصفقة. لا تحول إلى أي رقم آخر يرسله لك شخص عبر المحادثات. بيانات الدفع المعتمدة تظهر في هذه الصفحة فقط.',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(height: 14),
-                Text('المستفيد: ${method.beneficiaryName}'),
-                const SizedBox(height: 8),
+                _copy('المستفيد', method.beneficiaryName, 'نسخ اسم المستفيد'),
                 _copy(method.destinationLabel, method.destinationValue,
                     'نسخ الرقم'),
-                const SizedBox(height: 8),
                 _copy('المبلغ', _amount(payment.amount), 'نسخ المبلغ'),
-                if (method.instructions != null) ...[
-                  const SizedBox(height: 10),
-                  Text(method.instructions!),
-                ],
+                const SizedBox(height: 10),
+                Text(method.instructions ??
+                    'حوّل المبلغ المطلوب فقط، ثم ارفع صورة واضحة لإثبات العملية للتحقق.'),
               ],
             ),
           ),
@@ -230,127 +274,180 @@ class _ReceivablePaymentScreenState
         ),
       ),
     );
-    if (complete == true && _valid) await _proof(payment, method);
+    if (complete == true && _valid) await _proof(payment);
   }
 
-  Future<void> _proof(
-      FinancialPayment payment, FinancialPaymentMethod method) async {
+  Future<void> _proof(FinancialPayment payment) async {
     if (!_valid) return;
-    final sender = TextEditingController();
-    final phone = TextEditingController();
-    final reference = TextEditingController();
+    const picker = Stage5MediaPicker();
     String? proof;
-    final ok = await showActorDialog<bool>(
-      context: context, ref: ref,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setLocal) => Directionality(
-          textDirection: TextDirection.rtl,
-          child: AlertDialog(
-            title: const Text('إرسال إثبات السداد'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InputDecorator(
-                    decoration: const InputDecoration(labelText: 'المبلغ'),
-                    child: Align(
-                      alignment: Alignment.centerRight,
+    String? errorMessage;
+    bool picking = false;
+    bool sending = false;
+    bool? sent;
+
+    Future<void> removeTemporaryFiles(Iterable<String> paths) async {
+      try {
+        await picker.clearTemporaryFiles(paths);
+      } catch (_) {
+        // Do not mask the payment result with cache cleanup.
+      }
+    }
+
+    try {
+      sent = await showActorDialog<bool>(
+        context: context,
+        ref: ref,
+        barrierDismissible: false,
+        builder: (_) => StatefulBuilder(builder: (dialogContext, setLocal) {
+          final theme = Theme.of(dialogContext);
+          return Directionality(
+            textDirection: TextDirection.rtl,
+            child: PopScope(
+              canPop: !picking && !sending,
+              child: AlertDialog(
+                title: const Text('إرسال إثبات السداد'),
+                content: SingleChildScrollView(
+                    child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    InputDecorator(
+                      decoration: const InputDecoration(labelText: 'المبلغ'),
                       child: Text(_money(payment.amount, payment.currency),
                           style: const TextStyle(fontWeight: FontWeight.w600)),
                     ),
+                    const SizedBox(height: 10),
+                    EbrokerOutlinedButton.icon(
+                      onPressed: picking || sending
+                          ? null
+                          : () async {
+                              if (!_valid || picking || sending) return;
+                              setLocal(() {
+                                picking = true;
+                                errorMessage = null;
+                              });
+                              try {
+                                final files = await picker.pickImages();
+                                if (!dialogContext.mounted || !_valid) {
+                                  await removeTemporaryFiles(files);
+                                  return;
+                                }
+                                if (files.isEmpty) return;
+                                final selected = files.first;
+                                final unused = {
+                                  ...files.skip(1),
+                                  if (proof != null) proof!,
+                                }..remove(selected);
+                                setLocal(() => proof = selected);
+                                await removeTemporaryFiles(unused);
+                              } catch (error) {
+                                if (dialogContext.mounted && _valid) {
+                                  setLocal(() =>
+                                      errorMessage = friendlyApiError(error));
+                                }
+                              } finally {
+                                if (dialogContext.mounted && _valid) {
+                                  setLocal(() => picking = false);
+                                }
+                              }
+                            },
+                      icon: EbrokerIcon(proof == null
+                          ? Icons.add_photo_alternate_outlined
+                          : Icons.check_circle_outline),
+                      label: const Text('رفع صورة الاثبات(الايصال)'),
+                    ),
+                    if (proof != null) const Text('تم اختيار صورة الإثبات'),
+                    if (errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(errorMessage!,
+                            style: TextStyle(color: theme.colorScheme.error)),
+                      ),
+                  ],
+                )),
+                actions: [
+                  TextButton(
+                    onPressed: picking || sending
+                        ? null
+                        : () => Navigator.pop(dialogContext, false),
+                    child: const Text('لاحقًا'),
                   ),
-                  TextField(
-                      controller: sender,
-                      decoration:
-                          const InputDecoration(labelText: 'اسم المرسل')),
-                  if (method.requiresSenderPhone)
-                    TextField(
-                        controller: phone,
-                        keyboardType: TextInputType.phone,
-                        decoration:
-                            const InputDecoration(labelText: 'رقم المرسل')),
-                  TextField(
-                      controller: reference,
-                      decoration: const InputDecoration(
-                          labelText: 'رقم العملية أو الحوالة (إن وجد)')),
-                  const SizedBox(height: 10),
-                  EbrokerOutlinedButton.icon(
-                    onPressed: () async {
-                      final files =
-                          await const Stage5MediaPicker().pickImages();
-                      if (!context.mounted || !_valid) {
-                        try { await const Stage5MediaPicker().clearTemporaryFiles(files); } catch (_) { /* The native cache may already be unavailable. */ }
-                        return;
-                      }
-                      if (files.isNotEmpty) setLocal(() => proof = files.first);
-                    },
-                    icon: EbrokerIcon(proof == null
-                        ? Icons.add_photo_alternate_outlined
-                        : Icons.check_circle_outline),
-                    label: Text(proof == null
-                        ? 'اختيار صورة الإثبات *'
-                        : 'تم اختيار صورة الإثبات'),
+                  EbrokerFilledButton(
+                    onPressed: proof == null || picking || sending
+                        ? null
+                        : () async {
+                            if (!_valid ||
+                                sending ||
+                                picking ||
+                                proof == null) {
+                              return;
+                            }
+                            setLocal(() {
+                              sending = true;
+                              errorMessage = null;
+                            });
+                            try {
+                              await ref
+                                  .read(financialRepositoryProvider)
+                                  .submitProof(
+                                    paymentId: payment.id,
+                                    imagePath: proof!,
+                                  );
+                              if (dialogContext.mounted && _valid) {
+                                Navigator.pop(dialogContext, true);
+                              }
+                            } catch (error) {
+                              if (dialogContext.mounted && _valid) {
+                                setLocal(() {
+                                  sending = false;
+                                  errorMessage = friendlyApiError(error);
+                                });
+                              }
+                            }
+                          },
+                    child: Text(sending ? 'جارٍ الإرسال…' : 'إرسال للتحقق'),
                   ),
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('لاحقًا')),
-              EbrokerFilledButton(
-                  onPressed: proof == null
-                      ? null
-                      : () => Navigator.pop(dialogContext, true),
-                  child: const Text('إرسال للتحقق')),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (ok == true && proof != null && _valid) {
-      setState(() => _busy = true);
-      try {
-        await ref.read(financialRepositoryProvider).submitProof(
-              paymentId: payment.id,
-              imagePath: proof!,
-              senderName: sender.text,
-              senderPhone: phone.text,
-              providerReference: reference.text,
-            );
-        if (mounted && _valid) {
-          _message(
-              'جارٍ التحقق من الدفع. تم استلام الإثبات، لا تدفع مرة أخرى لهذه العملية حتى تصلك النتيجة.');
-          Navigator.of(context).pop(true);
-        }
-      } catch (error) {
-        if (_valid) _message(friendlyApiError(error));
-      } finally {
-        if (_valid) setState(() => _busy = false);
-      }
+          );
+        }),
+      );
+    } finally {
+      if (proof != null) await removeTemporaryFiles([proof!]);
     }
-    sender.dispose();
-    phone.dispose();
-    reference.dispose();
-    if (proof != null) {
-      try { await const Stage5MediaPicker().clearTemporaryFiles([proof!]); } catch (_) { /* Do not mask the payment result with cache cleanup. */ }
+
+    if (sent == true && mounted && _scope.isCurrent) {
+      _message(
+          'تم استلام إثبات السداد وهو الآن قيد التحقق. لا تدفع مرة أخرى لهذه العملية.');
+      Navigator.of(context).pop(true);
     }
   }
 
   Widget _copy(String label, String value, String action) => Row(children: [
         Expanded(child: Text('$label: $value')),
-        TextButton.icon(
+        IconButton(
+          tooltip: action,
           onPressed: () async {
+            if (!_valid) return;
             await Clipboard.setData(ClipboardData(text: value));
             if (_valid) _message('تم النسخ');
           },
-          icon: const EbrokerIcon(Icons.copy, size: 18),
-          label: Text(action),
+          icon: Icon(Icons.content_copy_outlined,
+              size: 18, color: Theme.of(context).colorScheme.primary),
         ),
       ]);
 
   Widget _logo(FinancialPaymentMethod method, {double size = 42}) {
     final path = method.localAssetPath;
+    if (method.key == 'transfer') {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Icon(Icons.compare_arrows_rounded, size: size * .70),
+      );
+    }
     if (path == null) {
       return SizedBox(
           width: size,

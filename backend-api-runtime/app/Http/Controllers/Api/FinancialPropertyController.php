@@ -194,10 +194,9 @@ class FinancialPropertyController extends PropertyController
         $ids = array_values(array_filter(array_map(fn (array $row) => (int) ($row['id'] ?? 0), $rows)));
         $properties = Property::query()->withoutGlobalScopes()->whereIn('id', $ids)->get()->keyBy('id');
         if ($hideOverduePublicRows) {
-            $overdue = DB::table('property_platform_receivables')
+            $overdue = \App\Models\PropertyPlatformReceivable::query()
                 ->whereIn('advertiser_user_id', $properties->pluck('user_id')->unique())
-                ->whereIn('status', ['open','under_review','overdue','disputed'])
-                ->whereColumn('amount_paid', '<', 'amount_total')->where('due_at', '<=', now())
+                ->overdueListingRestriction()
                 ->pluck('advertiser_user_id')->map(fn ($id) => (int) $id)->flip();
             $rows = array_values(array_filter($rows, function (array $row) use ($properties, $overdue): bool {
                 $owner = (int) ($properties->get((int) ($row['id'] ?? 0))?->user_id ?? 0);

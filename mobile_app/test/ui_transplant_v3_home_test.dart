@@ -108,6 +108,7 @@ Future<GoRouter> _pumpHome(
       overrides: [
         authControllerProvider.overrideWith(() => _TestAuthController(user)),
         homeLocationAttemptedProvider.overrideWith((_) => true),
+        homeLocationProvider.overrideWith((_) => const HomeLocation(governorate: 'صنعاء', manual: true)),
         recentPropertiesProvider.overrideWith((_) async => recent),
         marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake(onFeed: (query) async {
           final rows = await (load?.call() ?? Future.value([_exampleProperty]));

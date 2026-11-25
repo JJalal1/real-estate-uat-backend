@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 
@@ -98,6 +99,8 @@ class Wave3MarketplaceFake implements MarketplaceRepository {
   }
   @override
   void invalidateFeed(HomeFeedQuery query) {}
+  @override
+  Future<List<PropertySummary>> dhamarPreview(SmartSearchFilters criteria, {required CancelToken cancelToken}) async => const [];
   @override
   Future<List<HomeLocation>> locations() async => const [HomeLocation(governorate: 'صنعاء', manual: true), HomeLocation(label: 'تعز', governorate: 'تعز', latitude: 13.58, longitude: 44.02, manual: true)];
   @override

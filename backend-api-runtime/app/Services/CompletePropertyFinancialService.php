@@ -9,6 +9,7 @@ use App\Models\PropertyPaymentMethod;
 use App\Models\PropertyPlatformReceivable;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class CompletePropertyFinancialService extends PropertyFinancialService
@@ -63,11 +64,10 @@ class CompletePropertyFinancialService extends PropertyFinancialService
     {
         $ids=array_values(array_unique(array_filter(array_map('intval',$advertiserUserIds),fn ($id)=>$id>0)));
         if($ids===[]) return [];
-        $overdue=PropertyPlatformReceivable::query()->whereIn('advertiser_user_id',$ids)
-            ->whereIn('status',['open','under_review','overdue','disputed'])
-            ->whereColumn('amount_paid','<','amount_total')->where('due_at','<=',now())->get();
-        foreach($overdue->groupBy('advertiser_user_id') as $owner=>$rows) {
-            $this->applyOverdueHold((int)$owner,$rows);
+        $overdue = PropertyPlatformReceivable::query()->whereIn('advertiser_user_id', $ids)
+            ->overdueListingRestriction()->distinct()->pluck('advertiser_user_id');
+        foreach ($overdue as $owner) {
+            $this->activateOverdueHold((int) $owner);
         }
         // Re-read after hold side effects, as the single-owner method does.
         return parent::overdueReceivablesFor($ids);
@@ -81,13 +81,16 @@ class CompletePropertyFinancialService extends PropertyFinancialService
 
     private function activateOverdueHold(int $advertiserUserId): void
     {
-        $overdue = PropertyPlatformReceivable::query()
-            ->where('advertiser_user_id', $advertiserUserId)
-            ->whereIn('status', ['open','under_review','overdue','disputed'])
-            ->whereColumn('amount_paid','<','amount_total')
-            ->where('due_at','<=',now())
-            ->get();
-        $this->applyOverdueHold($advertiserUserId,$overdue);
+        $overdue = PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiserUserId)
+            ->overdueListingRestriction();
+        if (! $overdue->exists()) return;
+
+        DB::transaction(function () use ($advertiserUserId): void {
+            User::query()->whereKey($advertiserUserId)->lockForUpdate()->firstOrFail();
+            $current = PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiserUserId)
+                ->overdueListingRestriction()->get();
+            $this->applyOverdueHold($advertiserUserId, $current);
+        });
     }
 
     private function applyOverdueHold(int $advertiserUserId, \Illuminate\Support\Collection $overdue): void

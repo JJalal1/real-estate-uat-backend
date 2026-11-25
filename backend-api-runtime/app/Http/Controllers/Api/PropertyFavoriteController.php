@@ -21,7 +21,7 @@ class PropertyFavoriteController extends Controller
         $page = PropertyFavorite::query()
             ->with(['property.images'])
             ->where('user_id', $user->id)
-            ->whereHas('property', fn ($query) => $query->where('status', 'published'))
+            ->whereHas('property', fn ($query) => $query->where('status', 'published')->withoutOverdueListingRestriction())
             ->latest('id')
             ->paginate($perPage);
 
@@ -50,7 +50,7 @@ class PropertyFavoriteController extends Controller
 
         $ids = PropertyFavorite::query()
             ->where('user_id', $user->id)
-            ->whereHas('property', fn ($query) => $query->where('status', 'published'))
+            ->whereHas('property', fn ($query) => $query->where('status', 'published')->withoutOverdueListingRestriction())
             ->latest('id')
             ->limit(5000)
             ->pluck('property_id')
@@ -68,7 +68,7 @@ class PropertyFavoriteController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        abort_unless($property->isPubliclyAvailable(), 404);
+        $this->assertPubliclyAvailable($property);
 
         $favorite = PropertyFavorite::query()->firstOrCreate([
             'user_id' => $user->id,
@@ -108,7 +108,7 @@ class PropertyFavoriteController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        abort_unless($property->isPubliclyAvailable(), 404);
+        $this->assertPubliclyAvailable($property);
 
         return response()->json([
             'data' => [
@@ -119,6 +119,12 @@ class PropertyFavoriteController extends Controller
                     ->exists(),
             ],
         ]);
+    }
+
+    private function assertPubliclyAvailable(Property $property): void
+    {
+        abort_unless(Property::query()->whereKey($property->id)->publiclyAvailable()
+            ->withoutOverdueListingRestriction()->exists(), 404);
     }
 
     private function summary(Property $property, Request $request): array
