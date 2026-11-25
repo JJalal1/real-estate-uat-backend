@@ -51,6 +51,14 @@ class Stage14ServicesPaymentsApiTest extends TestCase
         $this->assertDatabaseHas('service_entitlements',['service_order_id'=>$orderId,'status'=>'active']);
         $this->assertDatabaseHas('user_notifications',['user_id'=>$customer->id,'type'=>'service_payment_confirmed','entity_id'=>$orderId]);
         $this->assertDatabaseHas('payment_events',['service_order_id'=>$orderId,'event'=>'payment_settled']);
+        config(['background.entitlement_lead_minutes'=>45000]);
+        $reminders = app(\App\Services\DeadlineReminderService::class);
+        $reminders->entitlements();
+        $reminders->entitlements();
+        $notice = \App\Models\UserNotification::where('type', 'entitlement_expiry_reminder')->sole();
+        $this->assertTrue($reminders->stillDue($notice));
+        ServiceEntitlement::where('service_order_id', $orderId)->update(['ends_at'=>now()->addMonths(2)]);
+        $this->assertFalse($reminders->stillDue($notice));
     }
 
     public function test_pending_order_can_be_cancelled_and_cannot_then_be_settled(): void

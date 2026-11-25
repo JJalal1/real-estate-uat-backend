@@ -52,6 +52,6 @@ class BackgroundPreparationTest extends TestCase
     public function test_worker_rechecks_a_disabled_scheduled_task(): void
     {
         (new RunScheduledBackgroundTask('reports', now()->timestamp))->handle(app(BackgroundQueue::class));
-        $this->assertFalse(\Illuminate\Support\Facades\Cache::has('general-manager:insights:v2'));
+        $this->assertFalse(\Illuminate\Support\Facades\Cache::has('general-manager:insights:v3'));
     }
 }

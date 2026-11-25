@@ -144,6 +144,15 @@ class BrokerExperienceApiTest extends TestCase
         $due=PropertyPlatformReceivable::query()->firstOrFail();
         $this->assertSame(500.0,$due->amount_total);
         $this->assertTrue($due->due_at->equalTo(now()->addHours(24)));
+        config(['background.receivable_lead_minutes'=>1500]);
+        $reminders = app(\App\Services\DeadlineReminderService::class);
+        $reminders->receivables();
+        $reminders->receivables();
+        $notice = \App\Models\UserNotification::where('type', 'payment_due_reminder')->sole();
+        $this->assertTrue($reminders->stillDue($notice));
+        $due->update(['due_at'=>now()->addDays(2)]);
+        $this->assertFalse($reminders->stillDue($notice));
+        $due->update(['due_at'=>now()->addHours(24)]);
         $this->assertDatabaseHas('property_deal_financial_terms',['broker_deal_outcome_id'=>$id,'property_agreement_id'=>null,'buyer_user_id'=>$customer->id]);
         $this->withHeaders($customerHeaders)->putJson('/api/advertisers/'.$broker->id.'/rating',['rating'=>4])->assertCreated();
         $this->getJson('/api/advertisers/'.$broker->id.'/ratings/summary')->assertJsonPath('data.count',1)->assertJsonPath('data.average',4);

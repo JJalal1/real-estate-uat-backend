@@ -12,6 +12,13 @@ use Illuminate\Support\Facades\Schema;
 
 class GeneralManagerDashboardController extends Controller
 {
+    public const CACHE_KEY = 'general-manager:insights:v3';
+
+    public function refreshSummary(): void
+    {
+        Cache::put(self::CACHE_KEY, $this->build(), now()->addSeconds(30));
+    }
+
     public function __invoke(Request $request): JsonResponse
     {
         /** @var User|null $actor */
@@ -22,7 +29,7 @@ class GeneralManagerDashboardController extends Controller
 
         $data = app()->environment('testing')
             ? $this->build()
-            : Cache::remember('general-manager:insights:v3', now()->addSeconds(30), fn () => $this->build());
+            : Cache::remember(self::CACHE_KEY, now()->addSeconds(30), fn () => $this->build());
 
         return response()->json(['data' => $data]);
     }

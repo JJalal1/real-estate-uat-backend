@@ -24,11 +24,6 @@ class GeneralManagerInsightsController extends Controller
         return response()->json(['data' => $data]);
     }
 
-    public function refreshSummary(): void
-    {
-        Cache::put('general-manager:insights:v2', $this->buildInsights(), now()->addSeconds(30));
-    }
-
     public function team(Request $request): JsonResponse
     {
         $this->assertGeneralManager($request);

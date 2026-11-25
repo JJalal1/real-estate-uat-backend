@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Http\Controllers\Api\GeneralManagerInsightsController;
+use App\Http\Controllers\Api\GeneralManagerDashboardController;
 use App\Services\BackgroundQueue;
 use App\Services\BrokerAvailabilityService;
 use App\Services\BrokerCustomerFollowupService;
@@ -27,7 +27,7 @@ class RunScheduledBackgroundTask implements ShouldQueue
             'receivables' => app(DeadlineReminderService::class)->receivables(),
             'entitlements' => app(DeadlineReminderService::class)->entitlements(),
             'listing_expiry' => app(DeadlineReminderService::class)->listings(),
-            'reports' => app(GeneralManagerInsightsController::class)->refreshSummary(),
+            'reports' => app(GeneralManagerDashboardController::class)->refreshSummary(),
         };
     }
 }

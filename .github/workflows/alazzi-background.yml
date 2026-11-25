@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   broker-api:
-    name: Broker workspace, messaging and public listing APIs
+    name: Worker admission, alerts, timers and isolated consumption
     runs-on: ubuntu-latest
     timeout-minutes: 18
     services:
@@ -54,6 +54,7 @@ jobs:
           tests/Feature/PushLaunchPrepTest.php tests/Feature/UatGeneralManagerInsightsApiTest.php
           tests/Feature/BrokerExperienceApiTest.php
           tests/Feature/Stage11MessagingNotificationsApiTest.php
+          tests/Feature/Stage14ServicesPaymentsApiTest.php tests/Feature/Wave2MediaTrustTest.php
           tests/Feature/FinancialV1ApiTest.php
           tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky
@@ -102,9 +103,9 @@ jobs:
           done
           php artisan background:tick
           for n in {1..30}; do
-            test "$(sql "select count(*) from cache where key like '%general-manager:insights:v2'")" = 1 && break
+            test "$(sql "select count(*) from cache where key like '%general-manager:insights:v3'")" = 1 && break
             sleep 1
           done
-          test "$(sql "select count(*) from cache where key like '%general-manager:insights:v2'")" = 1
+          test "$(sql "select count(*) from cache where key like '%general-manager:insights:v3'")" = 1
           test "$(sql 'select count(*) from failed_jobs')" = 0
           php artisan background:status
