@@ -18,6 +18,8 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use App\Models\PropertyPlatformReceivable;
+use App\Services\PropertyFinancialService;
 
 class SupportController extends Controller
 {
@@ -192,11 +194,26 @@ class SupportController extends Controller
     public function userContext(Request $request, User $user): JsonResponse
     {
         $cases=SupportCase::query()->where('requester_user_id',$user->id)->latest('id')->limit(30)->get();
+        $financialHoldActive = PropertyPlatformReceivable::query()->where('advertiser_user_id', $user->id)
+            ->overdueListingRestriction()->exists();
         return response()->json(['data'=>[
-            'user'=>['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'phone'=>$user->phone,'account_status'=>$user->account_status,'account_type'=>$user->account_type,'broker_verification_status'=>$user->broker_verification_status],
+            'user'=>[
+                'id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'phone'=>$user->phone,
+                'account_status'=>$user->account_status,'account_type'=>$user->account_type,
+                'broker_verification_status'=>$user->broker_verification_status,
+                'financial_hold_active'=>$financialHoldActive,
+                'can_restore_financial_hold'=>$financialHoldActive && $request->user()->hasPermission('users.manage_status'),
+            ],
             'support_cases'=>$cases->map(fn(SupportCase $case)=>$this->summary($case))->values(),
             'counts'=>['tickets'=>$cases->where('kind','support_ticket')->count(),'reports'=>$cases->where('kind','report')->count(),'open'=>$cases->whereIn('status',SupportCaseService::ACTIVE_STATUSES)->count()],
         ]]);
+    }
+
+    public function restoreFinancialHold(Request $request, User $user, PropertyFinancialService $finance): JsonResponse
+    {
+        $validated = $request->validate(['reason'=>['required','string','min:3','max:500']]);
+        $restored = $finance->restoreOverdueListingRestrictions($user, $request->user(), trim($validated['reason']), $request);
+        return response()->json(['data'=>['restored_receivable_ids'=>$restored]]);
     }
 
     public function worklog(Request $request): JsonResponse

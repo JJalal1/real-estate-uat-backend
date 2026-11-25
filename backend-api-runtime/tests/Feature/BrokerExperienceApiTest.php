@@ -385,6 +385,120 @@ class BrokerExperienceApiTest extends TestCase
         $this->assertDatabaseCount('property_agreements',0);
     }
 
+    public function test_sale_and_rent_dues_keep_receipts_pending_until_review_and_restore_only_financial_holds(): void
+    {
+        config(['services.supabase_storage.enabled'=>false]);
+        Storage::fake('local');
+        [$broker, $brokerHeaders] = $this->actor('dues-sale-and-rent', true);
+        [, $customerHeaders] = $this->actor('dues-customer');
+        [$agent, $agentHeaders] = $this->actor('dues-support-agent');
+        [$manager, $managerHeaders] = $this->actor('dues-support-manager');
+        [$reviewer, $reviewerHeaders] = $this->actor('dues-reviewer');
+        $agent->roles()->attach(Role::query()->where('key', 'support_agent')->value('id'));
+        $manager->roles()->attach(Role::query()->where('key', 'support_manager')->value('id'));
+        $reviewer->forceFill(['is_platform_owner'=>true])->saveQuietly();
+        $sale = $this->listing($broker, 'sale');
+        $rent = $this->listing($broker, 'rent');
+        $other = $this->listing($broker);
+        $paused = $this->listing($broker);
+        $paused->forceFill([
+            'availability_status'=>'paused','financial_hold_at'=>now(),'financial_hold_reason'=>'separate_admin_hold',
+        ])->saveQuietly();
+
+        $attempts = [];
+        foreach ([$sale, $rent] as $property) {
+            $thread = $this->conversation($customerHeaders, $property);
+            $dealId = $this->withHeaders($brokerHeaders)->postJson("/api/broker/customers/$thread/completed-deal", [])
+                ->assertCreated()->json('data.id');
+            $this->withHeaders($customerHeaders)->postJson("/api/broker/deals/$dealId/decision", ['confirmed'=>true])
+                ->assertOk()->assertJsonPath('data.status', 'confirmed');
+            $due = PropertyPlatformReceivable::query()->where('property_id', $property->id)->sole();
+            $this->assertTrue($due->due_at->equalTo($due->confirmed_direct_at->copy()->addHours(24)));
+            $this->withHeaders($brokerHeaders)->getJson("/api/broker/deals/$dealId")
+                ->assertOk()->assertJsonPath('data.platform_due_status', 'pending_payment');
+
+            $methods = DB::table('property_payment_methods')->whereIn('key', ['jeeb','kuraimi'])->pluck('id', 'key');
+            $endpoint = "/api/finance/receivables/{$due->id}/payments";
+            $initial = $this->withHeaders($brokerHeaders)->postJson($endpoint, ['payment_method_id'=>$methods['jeeb']])
+                ->assertCreated()->assertJsonPath('data.payment_method.key', 'jeeb')->json('data.id');
+            $payment = $this->withHeaders($brokerHeaders)->postJson($endpoint, ['payment_method_id'=>$methods['kuraimi']])
+                ->assertCreated()->assertJsonPath('data.payment_method.key', 'kuraimi')->json('data.id');
+            $this->assertNotSame($initial, $payment);
+            $this->assertDatabaseHas('property_payments', ['id'=>$initial,'status'=>'cancelled']);
+            $this->withHeaders($brokerHeaders)->post("/api/finance/payments/$initial/proof", [
+                'proof'=>UploadedFile::fake()->image('stale-proof.png'),
+            ])->assertConflict();
+            $this->withHeaders($brokerHeaders)->post("/api/finance/payments/$payment/proof", [
+                'proof'=>UploadedFile::fake()->image('payment-proof.png'),
+            ])->assertOk()->assertJsonPath('data.status', 'proof_submitted');
+            $this->withHeaders($brokerHeaders)->postJson($endpoint, ['payment_method_id'=>$methods['jeeb']])->assertConflict();
+            $this->withHeaders($brokerHeaders)->getJson("/api/broker/deals/$dealId")
+                ->assertOk()->assertJsonPath('data.platform_due_status', 'pending_review');
+            $attempts[] = [$due, $dealId, $payment];
+        }
+        [[$saleDue, $saleDeal, $salePayment], [$rentDue, $rentDeal]] = $attempts;
+        $this->withHeaders($brokerHeaders)->getJson('/api/broker/finance')->assertOk()
+            ->assertJsonCount(2, 'data.receivables')
+            ->assertJsonPath('data.balances.0.open', 1000)
+            ->assertJsonPath('data.balances.0.paid', 0)
+            ->assertJsonPath('data.receivables.0.transaction_type', 'rent')
+            ->assertJsonPath('data.receivables.0.monthly_basis_amount', 100000)
+            ->assertJsonPath('data.receivables.0.platform_due_status', 'pending_review');
+
+        $this->travelTo($saleDue->due_at->copy()->subSecond());
+        $this->flushHeaders()->getJson("/api/properties/{$other->id}")->assertOk();
+        $this->travelTo($saleDue->due_at);
+        $this->getJson("/api/properties/{$other->id}")->assertNotFound();
+        $this->getJson('/api/properties')->assertOk()->assertJsonMissing(['id'=>$other->id]);
+        $this->getJson('/api/properties/nearby?latitude=15.35&longitude=44.2')
+            ->assertOk()->assertJsonMissing(['id'=>$other->id]);
+        $this->withHeaders($brokerHeaders)->getJson('/api/support/cases/mine')->assertOk();
+        $this->withHeaders($brokerHeaders)->getJson("/api/finance/receivables/{$rentDue->id}")->assertOk();
+        $this->withHeaders($brokerHeaders)->postJson('/api/properties')->assertConflict();
+
+        $reviewUrl = "/api/admin/finance/payments/$salePayment/review";
+        $this->withHeaders($reviewerHeaders)->postJson($reviewUrl, ['decision'=>'confirm'])
+            ->assertOk()->assertJsonPath('data.status', 'confirmed');
+        $this->withHeaders($reviewerHeaders)->postJson($reviewUrl, ['decision'=>'confirm'])->assertConflict();
+        $this->withHeaders($brokerHeaders)->getJson('/api/broker/finance')->assertOk()
+            ->assertJsonCount(1, 'data.receivables')->assertJsonPath('data.receivables.0.id', $rentDue->id)
+            ->assertJsonPath('data.balances.0.open', 500)->assertJsonPath('data.balances.0.paid', 500);
+        for ($i=0; $i<2; $i++) {
+            $activity = $this->withHeaders($brokerHeaders)->getJson('/api/broker/activity')->assertOk()
+                ->assertJsonCount(2, 'data')->json('data');
+            $byId = collect($activity)->keyBy('id');
+            $this->assertSame('paid', $byId[$saleDeal]['platform_due_status']);
+            $this->assertSame('pending_review', $byId[$rentDeal]['platform_due_status']);
+        }
+        $this->assertDatabaseHas('property_financial_holds', ['source_id'=>$rentDue->id,'released_at'=>null]);
+        $this->flushHeaders()->getJson("/api/properties/{$other->id}")->assertNotFound();
+
+        $context = "/api/admin/support/users/{$broker->id}";
+        $restore = $context.'/financial-hold/restore';
+        $reason = ['reason'=>'استعادة صلاحية الإعلان أثناء متابعة الإيصال'];
+        $this->withHeaders($agentHeaders)->getJson($context)->assertOk()
+            ->assertJsonPath('data.user.financial_hold_active', true)
+            ->assertJsonPath('data.user.can_restore_financial_hold', false);
+        $this->withHeaders($agentHeaders)->postJson($restore, $reason)->assertForbidden();
+        $this->withHeaders($managerHeaders)->getJson($context)->assertOk()
+            ->assertJsonPath('data.user.can_restore_financial_hold', true);
+        $this->withHeaders($managerHeaders)->postJson($restore, $reason)->assertOk()
+            ->assertJsonPath('data.restored_receivable_ids', [$rentDue->id]);
+        $this->withHeaders($managerHeaders)->getJson($context)->assertOk()
+            ->assertJsonPath('data.user.financial_hold_active', false);
+        $this->assertDatabaseHas('audit_logs', ['action'=>'support.financial_hold_restored','actor_user_id'=>$manager->id,'target_user_id'=>$broker->id]);
+        $this->assertDatabaseHas('property_platform_receivables', ['id'=>$rentDue->id,'amount_paid'=>0,'status'=>'overdue']);
+        $this->assertSame('paused', $paused->fresh()->availability_status);
+        $this->assertSame('separate_admin_hold', $paused->fresh()->financial_hold_reason);
+        $this->withHeaders($brokerHeaders)->getJson('/api/broker/finance')->assertOk()
+            ->assertJsonPath('data.policy.listing_creation_blocked', false);
+        $this->flushHeaders()->getJson("/api/properties/{$other->id}")->assertOk();
+        $this->getJson('/api/properties')->assertOk()->assertJsonFragment(['id'=>$other->id]);
+        $this->getJson('/api/properties/nearby?latitude=15.35&longitude=44.2')
+            ->assertOk()->assertJsonFragment(['id'=>$other->id]);
+        $this->assertNull($other->fresh()->financial_hold_at);
+    }
+
     public function test_customer_followup_is_private_owned_and_does_not_create_a_message(): void
     {
         [$broker,$bh]=$this->actor('followup-owner',true);

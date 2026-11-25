@@ -49,7 +49,8 @@ class _NotificationsRepository implements MessageRepository {
   }
 
   @override
-  Future<NotificationPage> notificationsPage({int page = 1, int perPage = 40}) async {
+  Future<NotificationPage> notificationsPage({int page = 1, int perPage = 40,
+      bool platformHistory = false, bool unreadOnly = false}) async {
     final rows = (await notifications()).where((item) => !item.isRead).toList(growable: false);
     return NotificationPage(items: rows, currentPage: page, lastPage: page, total: rows.length);
   }

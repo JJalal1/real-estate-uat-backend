@@ -135,7 +135,7 @@ class PropertyFinancialService
         throw ValidationException::withMessages(['mode'=>['طريقة التسوية غير مدعومة.']]);
     }
 
-    public function paymentMethods(float $amount, string $currency): array
+    public function paymentMethods(float $amount, string $currency, ?string $mode = null): array
     {
         return PropertyPaymentMethod::query()->where('is_enabled', true)->orderBy('sort_order')->get()
             ->map(function (PropertyPaymentMethod $method) use ($amount, $currency): array {
@@ -156,18 +156,38 @@ class PropertyFinancialService
 
     public function createPayment(PropertyDealFinancialTerm $term, User $actor, string $mode, PropertyPaymentMethod $method, Request $request): PropertyPayment
     {
-        $amount = $this->requiredAmount($term, $mode, $actor);
-        if ($amount <= 0) throw new ConflictHttpException('لا يوجد مبلغ مستحق للدفع بهذه الطريقة.');
         if (! $method->is_enabled) throw new ConflictHttpException('طريقة الدفع غير متاحة حاليًا.');
         if (strtoupper($method->currency) !== strtoupper($term->currency)) throw new ConflictHttpException('طريقة الدفع لا تدعم عملة الصفقة.');
-        if ($method->min_amount !== null && $amount < (float) $method->min_amount) throw new ConflictHttpException('المبلغ أقل من الحد الأدنى لطريقة الدفع.');
-        if ($method->max_amount !== null && $amount > (float) $method->max_amount) throw new ConflictHttpException('المبلغ أكبر من الحد الأعلى لطريقة الدفع.');
 
-        return DB::transaction(function () use ($term, $actor, $mode, $method, $amount, $request): PropertyPayment {
+        return DB::transaction(function () use ($term, $actor, $mode, $method, $request): PropertyPayment {
+            PropertyDealFinancialTerm::query()->whereKey($term->id)->lockForUpdate()->firstOrFail();
+            $amount = $this->requiredAmount($term, $mode, $actor);
+            if ($amount <= 0) throw new ConflictHttpException('لا يوجد مبلغ مستحق للدفع بهذه الطريقة.');
+            if ($method->min_amount !== null && $amount < (float) $method->min_amount) throw new ConflictHttpException('المبلغ أقل من الحد الأدنى لطريقة الدفع.');
+            if ($method->max_amount !== null && $amount > (float) $method->max_amount) throw new ConflictHttpException('المبلغ أكبر من الحد الأعلى لطريقة الدفع.');
+
             $active = PropertyPayment::query()->where('deal_financial_term_id', $term->id)
                 ->where('payer_user_id', $actor->id)->where('mode', $mode)
-                ->whereIn('status', ['waiting_payment','proof_submitted','under_review','correction_required'])->latest('id')->first();
-            if ($active) return $active;
+                ->whereIn('status', ['waiting_payment','proof_submitted','under_review','correction_required']);
+            if ($mode === 'platform_receivable') {
+                $active->orderByRaw("CASE WHEN status = 'waiting_payment' THEN 1 ELSE 0 END");
+            }
+            $current = $active->latest('id')->lockForUpdate()->first();
+            if ($current) {
+                if ($mode !== 'platform_receivable' || (int) $current->payment_method_id === (int) $method->id) {
+                    return $current;
+                }
+                if ($current->status !== 'waiting_payment' || $current->proof_path !== null) {
+                    throw new ConflictHttpException('يوجد إثبات سداد لهذه العملية. تابع المراجعة قبل تغيير وسيلة الدفع.');
+                }
+                // A replacement keeps the old transfer reference and its method
+                // out of future uploads, including a stale form on another device.
+                $current->forceFill(['status'=>'cancelled'])->save();
+                $this->audit->record($actor, 'finance.payment_method_changed', $current, [
+                    'old_payment_method_id'=>(int) $current->payment_method_id,
+                    'new_payment_method_id'=>(int) $method->id,
+                ], $request, $term->advertiser_user_id);
+            }
 
             $payment = PropertyPayment::query()->create([
                 'reference'=>$this->reference('PAY'),'deal_financial_term_id'=>$term->id,'property_id'=>$term->property_id,
@@ -222,6 +242,9 @@ class PropertyFinancialService
         }
 
         return DB::transaction(function () use ($payment, $reviewer, $decision, $note, $request): PropertyPayment {
+            if ($payment->mode === 'platform_receivable' && $decision === 'confirm') {
+                User::query()->whereKey($payment->advertiser_user_id)->lockForUpdate()->firstOrFail();
+            }
             $locked = PropertyPayment::query()->whereKey($payment->id)->lockForUpdate()->firstOrFail();
             if (! in_array($locked->status, ['proof_submitted','under_review'], true)) throw new ConflictHttpException('عملية الدفع ليست جاهزة للمراجعة.');
             $next = match ($decision) { 'confirm'=>'confirmed', 'correction'=>'correction_required', default=>'rejected' };
@@ -272,10 +295,11 @@ class PropertyFinancialService
 
             $receivable = PropertyPlatformReceivable::query()->where('deal_financial_term_id', $term->id)->first();
             if (! $receivable && (float) $term->platform_share_amount > 0) {
+                $confirmedAt = now();
                 $receivable = PropertyPlatformReceivable::query()->create([
                     'reference'=>$this->reference('DUE'),'deal_financial_term_id'=>$term->id,'property_id'=>$term->property_id,
                     'advertiser_user_id'=>$term->advertiser_user_id,'amount_total'=>$term->platform_share_amount,'amount_paid'=>0,
-                    'currency'=>$term->currency,'status'=>'open','confirmed_direct_at'=>now(),'due_at'=>now()->addHours(24),
+                    'currency'=>$term->currency,'status'=>'open','confirmed_direct_at'=>$confirmedAt,'due_at'=>$confirmedAt->copy()->addHours(24),
                 ]);
                 DB::table('property_financial_holds')->insert([
                     'user_id'=>$term->advertiser_user_id,'reason'=>'platform_receivable_open','source_type'=>'property_platform_receivable',
@@ -294,13 +318,13 @@ class PropertyFinancialService
     public function hasOpenReceivable(int $advertiserUserId): bool
     {
         return PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiserUserId)
-            ->whereIn('status', ['open','under_review','overdue','disputed'])->whereColumn('amount_paid','<','amount_total')->exists();
+            ->restrictsListings()->exists();
     }
 
     public function hasOverdueReceivable(int $advertiserUserId): bool
     {
         return PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiserUserId)
-            ->whereIn('status', ['open','under_review','overdue','disputed'])->whereColumn('amount_paid','<','amount_total')->where('due_at','<=',now())->exists();
+            ->overdueListingRestriction()->exists();
     }
 
     /** Request-local batch with exactly the same overdue predicate as the single-owner lookup. */
@@ -309,11 +333,53 @@ class PropertyFinancialService
         $ids=array_values(array_unique(array_filter(array_map('intval',$advertiserUserIds),fn ($id)=>$id>0)));
         if($ids===[]) return [];
         $overdue=PropertyPlatformReceivable::query()->whereIn('advertiser_user_id',$ids)
-            ->whereIn('status',['open','under_review','overdue','disputed'])
-            ->whereColumn('amount_paid','<','amount_total')->where('due_at','<=',now())
+            ->overdueListingRestriction()
             ->pluck('advertiser_user_id')->map(fn ($id)=>(int)$id)->flip();
         return array_replace(array_fill_keys($ids,false),
             $overdue->map(fn () => true)->all());
+    }
+
+    public function restoreOverdueListingRestrictions(User $advertiser, User $operator, string $reason, Request $request): array
+    {
+        return DB::transaction(function () use ($advertiser, $operator, $reason, $request): array {
+            User::query()->whereKey($advertiser->id)->lockForUpdate()->firstOrFail();
+            $receivables = PropertyPlatformReceivable::query()
+                ->where('advertiser_user_id', $advertiser->id)
+                ->overdueListingRestriction()->lockForUpdate()->pluck('id');
+            if ($receivables->isEmpty()) {
+                throw new ConflictHttpException('لا يوجد قيد مستحقات متأخر لاستعادة صلاحيات الإعلان.');
+            }
+
+            $now = now();
+            $release = [
+                'released_at'=>$now,'released_by_user_id'=>$operator->id,
+                'release_reason'=>PropertyPlatformReceivable::SUPPORT_RESTORE_REASON,'updated_at'=>$now,
+            ];
+            foreach ($receivables as $id) {
+                $identity = ['user_id'=>$advertiser->id,'source_type'=>'property_platform_receivable','source_id'=>$id];
+                $changed = DB::table('property_financial_holds')->where($identity)->whereNull('released_at')->update($release);
+                if ($changed === 0) {
+                    DB::table('property_financial_holds')->insert($identity + $release + [
+                        'reason'=>'platform_receivable_open','started_at'=>$now,'created_at'=>$now,
+                    ]);
+                }
+            }
+            if (! PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiser->id)->overdueListingRestriction()->exists()) {
+                $this->clearOverdueListingMarkers((int) $advertiser->id);
+            }
+            $ids = $receivables->map(fn ($id): int => (int) $id)->all();
+            $this->audit->record($operator, 'support.financial_hold_restored', $advertiser, [
+                'receivable_ids'=>$ids,'reason'=>$reason,
+            ], $request, $advertiser->id);
+            return $ids;
+        });
+    }
+
+    protected function clearOverdueListingMarkers(int $advertiserUserId): void
+    {
+        Property::query()->withoutGlobalScopes()->where('user_id', $advertiserUserId)
+            ->where('financial_hold_reason', 'platform_receivable_overdue')
+            ->update(['financial_hold_at'=>null,'financial_hold_reason'=>null]);
     }
 
     public function financialSummaryFor(User $user): array
@@ -398,17 +464,25 @@ class PropertyFinancialService
         } elseif ($payment->mode === 'platform_receivable') {
             $receivable = PropertyPlatformReceivable::query()->where('deal_financial_term_id',$term->id)->lockForUpdate()->firstOrFail();
             $remaining = max(0, (float)$receivable->amount_total - (float)$receivable->amount_paid);
-            $applied = min($remaining, (float)$payment->required_amount);
+            $applied = round((float)$payment->required_amount, 2);
+            if ($applied > round($remaining, 2) || $applied <= 0) {
+                throw new ConflictHttpException('تغير رصيد المستحق بعد إنشاء عملية الدفع. راجع المبلغ قبل الاعتماد.');
+            }
             $receivable->amount_paid = round((float)$receivable->amount_paid + $applied, 2);
             $receivable->status = $receivable->amount_paid >= (float)$receivable->amount_total ? 'paid' : 'open';
             $receivable->paid_at = $receivable->status === 'paid' ? now() : null;
             $receivable->save();
             $this->allocation($payment, 'receivable_payment', null, $applied);
             if ($receivable->status === 'paid') {
-                DB::table('property_financial_holds')->where('user_id',$term->advertiser_user_id)->whereNull('released_at')
+                DB::table('property_financial_holds')->where('user_id',$term->advertiser_user_id)
+                    ->where('source_type','property_platform_receivable')->where('source_id',$receivable->id)->whereNull('released_at')
                     ->update(['released_at'=>now(),'released_by_user_id'=>$reviewer->id,'release_reason'=>'platform_receivable_paid','updated_at'=>now()]);
-                Property::query()->where('user_id',$term->advertiser_user_id)->update(['financial_hold_at'=>null,'financial_hold_reason'=>null]);
-                $this->notifications->create((int)$term->advertiser_user_id,'financial_hold_released','تمت تسوية مستحقات المنصة','تم تأكيد السداد ورفع القيد المالي عن الإعلانات.','property_platform_receivable',$receivable->id,['receivable_id'=>$receivable->id]);
+                $restrictionsRemain = PropertyPlatformReceivable::query()
+                    ->where('advertiser_user_id', $term->advertiser_user_id)->overdueListingRestriction()->exists();
+                if (! $restrictionsRemain) {
+                    $this->clearOverdueListingMarkers((int) $term->advertiser_user_id);
+                    $this->notifications->create((int)$term->advertiser_user_id,'financial_hold_released','تمت تسوية مستحقات المنصة','تم تأكيد السداد ورفع القيد المالي عن الإعلانات.','property_platform_receivable',$receivable->id,['receivable_id'=>$receivable->id]);
+                }
             }
         }
 

@@ -200,15 +200,27 @@ class SupportRepository {
   }
 
   Future<SupportUserContext> userContext(int userId) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/support/users/$userId',
       options: await _sessionOptions(),
     );
+    _verifySession(epoch);
     final data = response.data?['data'];
     if (data is! Map<String, dynamic>) {
       throw StateError('Invalid support user response.');
     }
     return SupportUserContext.fromJson(data);
+  }
+
+  Future<void> restoreFinancialHold(int userId, String reason) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    await _dio.post<Map<String, dynamic>>(
+      '/admin/support/users/$userId/financial-hold/restore',
+      data: {'reason': reason.trim()},
+      options: await _sessionOptions(),
+    );
+    _verifySession(epoch);
   }
 
   Future<List<SupportWorkLogItem>> worklog({int? userId, int days = 14}) async {

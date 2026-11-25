@@ -53,10 +53,18 @@ final _unreadCountProvider =
           current,
         );
       case _InboxKind.platformNotifications:
+        final probe = await repository.notificationsPage(
+            perPage: 1, platformHistory: true, unreadOnly: true);
+        if (!current()) return 0;
+        final reported = probe.unreadCount;
+        if (reported != null) return reported;
+        // Older servers ignore the history flags. Use their unread pages
+        // while applying the same platform and age boundaries on-device.
+        final now = DateTime.now();
         return _countAcrossPages<AppNotificationItem>(
           (page) => repository.notificationsPage(page: page, perPage: 200),
           (item) => MapEntry(
-              item.id, item.isPlatformNotification && !item.isRead ? 1 : 0),
+              item.id, item.isRecentPlatformNotification(now) && !item.isRead ? 1 : 0),
           current,
         );
     }

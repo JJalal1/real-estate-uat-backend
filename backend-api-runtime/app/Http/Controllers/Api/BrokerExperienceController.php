@@ -385,7 +385,10 @@ class BrokerExperienceController extends Controller
         $v=$request->validate(['thread_id'=>['nullable','integer','min:1'],'page'=>['nullable','integer','min:1']]);
         $page=BrokerDealOutcome::query()->where(fn ($q) => $q->where('advertiser_user_id',$actor->id)->orWhere('customer_user_id',$actor->id))
             ->when(isset($v['thread_id']),fn ($q) => $q->where('message_thread_id',$v['thread_id']))->latest('id')->paginate(30);
-        return response()->json(['data'=>collect($page->items())->map(fn ($o) => $this->outcomeData($o,$actor))->values(),
+        $rows = collect($page->items());
+        $statuses = $this->platformDuesForDeals((int) $actor->id, $rows->pluck('id')->all());
+        return response()->json(['data'=>$rows->map(fn ($outcome) =>
+            $this->outcomeData($outcome, $actor, $statuses[$outcome->id] ?? null))->values(),
             'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage()]]);
     }
 
@@ -393,7 +396,8 @@ class BrokerExperienceController extends Controller
     {
         $actor=$request->user();
         abort_unless(in_array((int)$actor->id,[(int)$outcome->advertiser_user_id,(int)$outcome->customer_user_id],true),404);
-        return response()->json(['data' => $this->outcomeData($outcome, $actor) + $this->outcomeFinancialData($outcome)]);
+        $status = $this->platformDuesForDeals((int) $actor->id, [$outcome->id])[$outcome->id] ?? null;
+        return response()->json(['data' => $this->outcomeData($outcome, $actor, $status) + $this->outcomeFinancialData($outcome)]);
     }
 
     public function viewDeal(Request $request, BrokerDealOutcome $outcome): Response
@@ -421,18 +425,51 @@ class BrokerExperienceController extends Controller
     public function finance(Request $request): JsonResponse
     {
         $actor=$this->advertiser($request);
-        $rows=PropertyPlatformReceivable::query()->where('advertiser_user_id',$actor->id)->with('financialTerm.property')->latest('id')->limit(250)->get();
-        // Summaries cover the full account even when the visible history is bounded.
+        $policy = $this->finance->financialSummaryFor($actor);
+        $rows = PropertyPlatformReceivable::query()->where('advertiser_user_id', $actor->id)
+            ->outstanding()->with('financialTerm.property')->latest('id')->limit(250)->get();
+        $pending = $this->pendingDuesPayments((int) $actor->id, $rows->pluck('deal_financial_term_id')->all());
+        // Totals cover every due and confirmed payment. The cards contain only outstanding balances.
         $summary=PropertyPlatformReceivable::query()->where('advertiser_user_id',$actor->id)->groupBy('currency')->select('currency')
             ->selectRaw('SUM(amount_paid) AS paid')
             ->selectRaw("SUM(CASE WHEN status IN ('open','under_review','overdue','disputed') AND amount_total > amount_paid THEN amount_total - amount_paid ELSE 0 END) AS open")
             ->get()->map(fn ($balance) => ['currency'=>$balance->currency,'paid'=>round((float)$balance->paid,2),'open'=>round((float)$balance->open,2)])->values();
-        return response()->json(['data'=>['balances'=>$summary,'policy'=>$this->finance->financialSummaryFor($actor),
+        return response()->json(['data'=>['balances'=>$summary,'policy'=>$policy,
             'receivables'=>$rows->map(fn ($r) => ['id'=>$r->id,'reference'=>$r->reference,'property_id'=>$r->property_id,
                 'property_title'=>$r->financialTerm?->property?->title,'transaction_type'=>$r->financialTerm?->transaction_type,
-                'basis_amount'=>$r->financialTerm?->base_amount,'sai_amount'=>$r->financialTerm?->sai_total_amount,
+                'basis_amount'=>$r->financialTerm?->base_amount,'monthly_basis_amount'=>$r->financialTerm?->monthly_basis_amount,
+                'sai_amount'=>$r->financialTerm?->sai_total_amount,
                 'amount_total'=>$r->amount_total,'amount_paid'=>$r->amount_paid,'remaining_amount'=>round(max(0,$r->amount_total-$r->amount_paid),2),
-                'currency'=>$r->currency,'status'=>$r->status,'due_at'=>$r->due_at?->toIso8601String()])->values()]]);
+                'currency'=>$r->currency,'status'=>$r->status,'due_at'=>$r->due_at?->toIso8601String(),
+                'platform_due_status'=>isset($pending[$r->deal_financial_term_id]) || $r->status === 'under_review'
+                    ? 'pending_review' : 'pending_payment'])->values()]]);
+    }
+
+    private function platformDuesForDeals(int $advertiserId, array $outcomeIds): array
+    {
+        $rows = PropertyPlatformReceivable::query()->where('property_platform_receivables.advertiser_user_id', $advertiserId)
+            ->join('property_deal_financial_terms as terms', 'terms.id', '=', 'property_platform_receivables.deal_financial_term_id')
+            ->whereIn('terms.broker_deal_outcome_id', $outcomeIds)
+            ->get(['property_platform_receivables.*', 'terms.broker_deal_outcome_id']);
+        $pending = $this->pendingDuesPayments($advertiserId, $rows->pluck('deal_financial_term_id')->all());
+
+        return $rows->mapWithKeys(fn (PropertyPlatformReceivable $due): array => [
+            $due->broker_deal_outcome_id => match (true) {
+                $due->amount_total <= $due->amount_paid => 'paid',
+                $due->status === 'under_review' || isset($pending[$due->deal_financial_term_id]) => 'pending_review',
+                default => 'pending_payment',
+            },
+        ])->all();
+    }
+
+    private function pendingDuesPayments(int $advertiserId, array $termIds): array
+    {
+        if ($termIds === []) return [];
+
+        return PropertyPayment::query()->where('payer_user_id', $advertiserId)
+            ->where('mode', 'platform_receivable')->whereIn('deal_financial_term_id', $termIds)
+            ->whereIn('status', ['proof_submitted', 'under_review'])
+            ->distinct()->pluck('deal_financial_term_id')->flip()->all();
     }
 
     public function recordView(Request $request, Property $property): JsonResponse
@@ -478,7 +515,7 @@ class BrokerExperienceController extends Controller
             ->where('started_by_user_id','<>',$actor->id)->whereHas('participants',fn ($q) => $q->where('user_id',$actor->id));
     }
 
-    private function outcomeData(BrokerDealOutcome $outcome, User $viewer): array
+    private function outcomeData(BrokerDealOutcome $outcome, User $viewer, ?string $platformDueStatus = null): array
     {
         $attentionRevision = (int) $outcome->advertiser_attention_revision;
         $viewRevision = (int) $viewer->id === (int) $outcome->advertiser_user_id
@@ -486,7 +523,8 @@ class BrokerExperienceController extends Controller
         return ['id'=>$outcome->id,'reference'=>$outcome->reference,'property_id'=>$outcome->property_id,
             'advertiser_view_revision'=>$viewRevision,
             'thread_id'=>$outcome->message_thread_id,'advertiser_id'=>$outcome->advertiser_user_id,'customer_id'=>$outcome->customer_user_id,
-            'status'=>$outcome->status,'transaction_type'=>$outcome->transaction_type,'basis_amount'=>$outcome->basis_amount,'currency'=>$outcome->currency,
+            'status'=>$outcome->status,'platform_due_status'=>$platformDueStatus,
+            'transaction_type'=>$outcome->transaction_type,'basis_amount'=>$outcome->basis_amount,'currency'=>$outcome->currency,
             'listing_price'=>$outcome->snapshot['listing_price'] ?? null,'listing_currency'=>$outcome->snapshot['listing_currency'] ?? null,
             'property_title'=>$outcome->snapshot['property_title'],'customer_name'=>$outcome->snapshot['customer_name'],
             'advertiser_name'=>$outcome->snapshot['advertiser_name'],'confirmed_at'=>$outcome->confirmed_at?->toIso8601String(),

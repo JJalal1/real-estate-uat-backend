@@ -52,9 +52,10 @@ Map<String, dynamic> _row(int id, {String? label, int unread = 1}) => {
 };
 
 Map<String, dynamic> _page(int page, List<Map<String, dynamic>> rows,
-    {int last = 1, int? total}) => {
+    {int last = 1, int? total, int? unreadCount}) => {
   'data': rows,
-  'meta': {'current_page': page, 'last_page': last, 'total': total ?? rows.length},
+  'meta': {'current_page': page, 'last_page': last, 'total': total ?? rows.length,
+    if (unreadCount != null) 'unread_count': unreadCount},
 };
 
 DioException _failure(RequestOptions request, int status) => DioException(
@@ -186,7 +187,67 @@ void main() {
     await tester.tap(find.text('قراءة الكل'));
     await tester.pumpAndSettle();
     expect(readPaths, ['/notifications/11/read', '/notifications/13/read']);
-    expect(find.byKey(const ValueKey('notification-11')), findsNothing);
+    expect(find.byKey(const ValueKey('notification-11')), findsOneWidget);
+    expect(find.byKey(const ValueKey('notification-unread-dot')), findsNothing);
+  });
+
+  phase23WidgetTest('platform history retains read cards and filters with the authoritative unread count', (tester) async {
+    final read = {2};
+    final writePaths = <String>[];
+    final now = DateTime.now();
+    final wire = _Wire((request) async {
+      if (request.method == 'POST') {
+        writePaths.add(request.path);
+        if (request.path == '/notifications/history/read-all') {
+          read.addAll([1, 3]);
+        } else {
+          read.add(3);
+        }
+        return {'data': <String, dynamic>{}};
+      }
+      final unreadOnly = request.queryParameters['unread_only'] == 1;
+      final rows = [for (final id in [3, 2, 1])
+        if (!unreadOnly || !read.contains(id)) {
+          ..._row(id),
+          'created_at': now.subtract(Duration(hours: id)).toIso8601String(),
+          if (read.contains(id)) 'read_at': now.toIso8601String(),
+        },
+      ];
+      return _page(1, rows, unreadCount: 3 - read.length);
+    });
+    await _open(tester, wire, const NotificationsScreen());
+    final allTab = find.byKey(const ValueKey('notification-filter-all'));
+    final unreadTab = find.byKey(const ValueKey('notification-filter-unread'));
+    final count = find.byKey(const ValueKey('platform-history-unread-count'));
+    final dot = find.byKey(const ValueKey('notification-unread-dot'));
+    Finder card(int id) => find.byKey(ValueKey('notification-$id'));
+    expect(tester.getSize(unreadTab).width, tester.getSize(allTab).width);
+    expect(tester.getCenter(allTab).dx, greaterThan(tester.getCenter(unreadTab).dx));
+    expect(tester.widget<Text>(count).data, '٢');
+    expect(dot, findsNWidgets(2));
+    expect(card(2), findsOneWidget);
+    expect(wire.requests.single.queryParameters['platform_history'], 1);
+
+    await tester.tap(card(3));
+    await tester.pumpAndSettle();
+    expect(card(3), findsOneWidget);
+    expect(find.descendant(of: card(3), matching: dot), findsNothing);
+    expect(tester.widget<Text>(count).data, '١');
+    await tester.tap(unreadTab);
+    await tester.pumpAndSettle();
+    expect(wire.requests.last.queryParameters['unread_only'], 1);
+    expect(card(1), findsOneWidget);
+    expect(card(3), findsNothing);
+
+    await tester.tap(find.text('قراءة الكل'));
+    await tester.pumpAndSettle();
+    expect(writePaths, ['/notifications/3/read', '/notifications/history/read-all']);
+    expect(tester.widget<Text>(count).data, '٠');
+    expect(find.text('ما عندك إشعارات غير مقروءة'), findsOneWidget);
+    await tester.tap(allTab);
+    await tester.pumpAndSettle();
+    for (final id in [1, 2, 3]) { expect(card(id), findsOneWidget); }
+    expect(dot, findsNothing);
   });
 
   test('all three repositories preserve route, page, filters and metadata', () async {
@@ -509,7 +570,7 @@ void main() {
     }
   }
 
-  phase23WidgetTest('reading a notification resets its unread dataset to page one', (tester) async {
+  phase23WidgetTest('reading resets legacy pagination while keeping the read receipt in all', (tester) async {
     var read = false;
     final wire = _Wire((request) async {
       if (request.method == 'POST') { read = true; return {'data': <String, dynamic>{}}; }
@@ -520,7 +581,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('notification-1'))); await tester.pumpAndSettle();
     expect(wire.requests.map((r) => r.path), ['/notifications', '/notifications/1/read', '/notifications']);
     expect(wire.pages, [1, 1]);
-    expect(find.byKey(const ValueKey('notification-1')), findsNothing);
+    expect(find.byKey(const ValueKey('notification-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('notification-2')), findsOneWidget);
     expect(find.byKey(const ValueKey('notifications-more')), findsNothing);
   });

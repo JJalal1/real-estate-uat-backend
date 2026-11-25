@@ -112,19 +112,23 @@ class _Properties implements PropertyRepository {
 class _Messages implements MessageRepository {
   bool read = false;
   @override
-  Future<List<AppNotificationItem>> notifications() async => read ? [] : [AppNotificationItem.fromJson({
+  Future<List<AppNotificationItem>> notifications() async => [AppNotificationItem.fromJson({
     'id': 8, 'type': 'broker_availability_due', 'title': 'أكد توفر إعلاناتك',
     'body': 'لديك إعلانات تحتاج تأكيد التوفر.', 'created_at': DateTime.now().toUtc().toIso8601String(),
+    if (read) 'read_at': DateTime.now().toUtc().toIso8601String(),
   })];
   @override
-  Future<NotificationPage> notificationsPage({int page = 1, int perPage = 40}) async {
-    final rows = (await notifications()).where((item) => !item.isRead).toList(growable: false);
-    return NotificationPage(items: rows, currentPage: page, lastPage: page, total: rows.length);
+  Future<NotificationPage> notificationsPage({int page = 1, int perPage = 40,
+      bool platformHistory = false, bool unreadOnly = false}) async {
+    final rows = (await notifications()).where((item) =>
+      platformHistory && !unreadOnly || !item.isRead).toList(growable: false);
+    return NotificationPage(items: rows, currentPage: page, lastPage: page,
+      total: rows.length, unreadCount: platformHistory ? (read ? 0 : 1) : null);
   }
   @override
   Future<void> readNotification(int id) async { read = true; }
   @override
-  Future<void> readAllNotifications() async { read = true; }
+  Future<void> readAllPlatformNotifications() async { read = true; }
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
@@ -440,7 +444,7 @@ void main() {
     expect(find.text('شقة من نتائج الخادم'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 
-  testWidgets('notification opens due listings directly and a successful server read removes it', (tester) async {
+  testWidgets('notification opens due listings directly and its read card remains in history', (tester) async {
     final messages = _Messages();
     final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const NotificationsScreen()),
       GoRoute(path: '/broker/availability', builder: (_, state) => Scaffold(body: Text('due:${state.uri.queryParameters['due']}')))]);
@@ -448,7 +452,10 @@ void main() {
     await _pump(tester, const SizedBox(), messages: messages, router: router);
     await tester.tap(find.text('أكد توفر إعلاناتك')); await tester.pumpAndSettle();
     expect(messages.read, isTrue); expect(find.text('due:1'), findsOneWidget);
-    router.pop(); await tester.pumpAndSettle(); expect(find.text('أكد توفر إعلاناتك'), findsNothing);
+    router.pop(); await tester.pumpAndSettle(); expect(find.text('أكد توفر إعلاناتك'), findsOneWidget);
+    expect(find.byKey(const ValueKey('notification-unread-dot')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('notification-filter-unread'))); await tester.pumpAndSettle();
+    expect(find.text('أكد توفر إعلاناتك'), findsNothing);
     expect(notificationDestination(AppNotificationItem.fromJson({'id': 1, 'title': 'توفر', 'type': 'broker_availability_due'})), '/broker/availability?due=1');
     expect(tester.takeException(), isNull);
   });

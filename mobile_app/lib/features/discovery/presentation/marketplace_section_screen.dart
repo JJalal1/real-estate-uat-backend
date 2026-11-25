@@ -71,7 +71,11 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = switch (widget.section) { 'nearby'=>'قريبة منك', 'spotlight' => 'عقارات مميزة', 'sale' => 'عقارات للبيع', 'rent' => 'عقارات للإيجار', _ => 'أحدث العقارات' };
+    final title = switch (widget.section) {
+      'nearby' => 'قريبة منك', 'spotlight' => 'عقارات مميزة', 'sale' => 'عقارات للبيع', 'rent' => 'عقارات للإيجار',
+      'regional' when widget.governorate != null => 'عقارات ${widget.governorate}',
+      'regional' => 'العقارات', _ => 'أحدث العقارات',
+    };
     return Directionality(textDirection: TextDirection.rtl, child: Scaffold(appBar: AppAppBar(title: title),
       body: SmartSearchAssistantLayer(mapFilters: SmartSearchFilters.fromApiFilters({...widget.filters.apiFilters,
         if (widget.governorate != null) 'governorate': widget.governorate,
@@ -87,7 +91,8 @@ class _MarketplaceSectionState extends ConsumerState<MarketplaceSectionScreen> {
         itemBuilder: (context, index) {
           if (index == 0) {
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            if (widget.governorate != null) Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(widget.governorate!)),
+            if (widget.governorate != null && widget.section != 'regional')
+              Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(widget.governorate!)),
             if (_busy && _rows.isEmpty) const AppSkeleton(height: 190, radius: 12)
             else if (_error != null && _rows.isEmpty) AppErrorState(message: _error!, onRetry: () => _load(more: _failedMore))
             else if (_rows.isEmpty) const AppEmptyState(title: 'لا توجد عقارات في هذا القسم الآن', message: 'يمكنك تغيير المنطقة أو استكشاف الأقسام الأخرى.'),

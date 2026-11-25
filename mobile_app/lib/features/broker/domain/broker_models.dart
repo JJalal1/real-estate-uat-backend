@@ -29,19 +29,26 @@ class BrokerDeal {
     required this.propertyTitle, required this.customerName, required this.advertiserName, required this.status,
     required this.amount, required this.currency, required this.canConfirm, required this.canRate, this.canViewSupportCase = false, this.supportCaseId,
     this.advertiserViewRevision, this.listingPrice, this.listingCurrency, this.saiAmount, this.saiCurrency,
-    this.saiRatePercent, this.saiPaymentStatus, this.confirmedAt});
+    this.saiRatePercent, this.saiPaymentStatus, this.confirmedAt, this.platformDueStatus, this.transactionType});
   final int id, threadId, propertyId, advertiserId;
   final String propertyTitle, customerName, advertiserName, status, currency;
   final double amount;
   final double? listingPrice, saiAmount, saiRatePercent;
-  final String? listingCurrency, saiCurrency, saiPaymentStatus;
+  final String? listingCurrency, saiCurrency, saiPaymentStatus, platformDueStatus, transactionType;
   final DateTime? confirmedAt;
   final bool canConfirm, canRate;
   final bool canViewSupportCase;
   final int? supportCaseId;
   final int? advertiserViewRevision;
   String otherPartyName(int? viewerId) => viewerId == advertiserId ? customerName : advertiserName;
-  String get statusLabel => switch (status) {'confirmed' => 'صفقة مؤكدة', 'disputed' => 'تحتاج مراجعة', 'cancelled' => 'ملغاة', _ => 'بانتظار تأكيد العميل'};
+  String get statusLabel => switch ((status, platformDueStatus)) {
+    ('confirmed', 'pending_payment') => 'بانتظار سداد مستحق المنصة',
+    ('confirmed', 'pending_review') => 'إثبات السداد قيد التحقق',
+    ('confirmed', _) => 'صفقة مؤكدة',
+    ('disputed', _) => 'تحتاج مراجعة',
+    ('cancelled', _) => 'ملغاة',
+    _ => 'بانتظار تأكيد العميل',
+  };
   factory BrokerDeal.fromJson(Map<String, dynamic> j) => BrokerDeal(id: brokerInt(j['id']), threadId: brokerInt(j['thread_id']),
     propertyId: brokerInt(j['property_id']), advertiserId: brokerInt(j['advertiser_id']), propertyTitle: '${j['property_title'] ?? 'العقار'}',
     customerName: '${j['customer_name'] ?? 'العميل'}', advertiserName: '${j['advertiser_name'] ?? 'المعلن'}', status: '${j['status'] ?? 'pending_customer'}',
@@ -51,6 +58,7 @@ class BrokerDeal {
     listingPrice: _recordedNumber(j['listing_price']), listingCurrency: j['listing_currency']?.toString(),
     saiAmount: _recordedNumber(j['sai_amount']), saiCurrency: j['sai_currency']?.toString(),
     saiRatePercent: _recordedNumber(j['sai_rate_percent']), saiPaymentStatus: j['sai_payment_status']?.toString(),
+    platformDueStatus: j['platform_due_status']?.toString(), transactionType: j['transaction_type']?.toString(),
     confirmedAt: DateTime.tryParse('${j['confirmed_at'] ?? ''}'));
 
   static double? _recordedNumber(dynamic value) {

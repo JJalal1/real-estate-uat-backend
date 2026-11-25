@@ -98,7 +98,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     final pendingFavorite = ref.watch(pendingFavoriteAfterAuthProvider);
     final favoriteState = user == null ? null : ref.watch(favoritePropertyIdsProvider);
     final favoriteStatus = PropertyFavoriteStatus.fromAsync(favoriteState, widget.propertyId);
-    final favoriteIds = favoriteState?.asData?.value ?? const <int>{};
     final loaded = details.asData?.value;
     if (!_viewRecorded && loaded != null && !loaded.isOwner && loaded.status == 'published') {
       _viewRecorded = true;
@@ -171,7 +170,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             if (details.isLoading || retain) AppRefreshStatus(loading: details.isLoading,
               error: retain ? friendlyApiError(details.error!) : null,
               onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId))),
-            Expanded(child: _buildContent(property, favoriteIds)),
+            Expanded(child: _buildContent(property)),
           ]),
         ),
         bottomNavigationBar: showPrimaryActions
@@ -186,7 +185,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     );
   }
 
-  Widget _buildContent(PropertyDetails property, Set<int> favoriteIds) {
+  Widget _buildContent(PropertyDetails property) {
     final published = property.status == 'published';
     final schemaContext={'type':property.type,'purpose':property.purpose,'unit_occupies_entire_floor':property.unitOccupiesEntireFloor};
     bool applies(String key)=>DynamicPropertySchema.applies(key,schemaContext);
@@ -377,16 +376,28 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           if (property.similar.isNotEmpty) ...[
             const SizedBox(height: 28), const AppSectionHeader(title: 'عقارات مشابهة'), const SizedBox(height: 12),
             if (MediaQuery.textScalerOf(context).scale(14) > 20)
-              ...[for (final item in property.similar) Padding(padding: const EdgeInsets.only(bottom: 16), child: _similarCard(item, favoriteIds))]
-            else SizedBox(height: 442, child: ListView.separated(scrollDirection: Axis.horizontal, itemCount: property.similar.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12), itemBuilder: (_, index) => SizedBox(width: 290, child: _similarCard(property.similar[index], favoriteIds)))),
+              ...[for (final item in property.similar)
+                Padding(padding: const EdgeInsets.only(bottom: 16), child: _similarCard(item))]
+            else LayoutBuilder(builder: (context, constraints) {
+              final width = constraints.maxWidth.clamp(0.0, 290.0).toDouble();
+              return SingleChildScrollView(
+                key: PageStorageKey('similar-properties-${property.id}'),
+                scrollDirection: Axis.horizontal,
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  for (final (index, item) in property.similar.indexed) ...[
+                    if (index > 0) const SizedBox(width: 12),
+                    SizedBox(width: width, child: _similarCard(item)),
+                  ],
+                ]),
+              );
+            }),
           ],
         ],
       ),
     );
   }
 
-  Widget _similarCard(PropertySummary item, Set<int> favoriteIds) => PropertySummaryCard(property: item, imageFirst: true,
+  Widget _similarCard(PropertySummary item) => PropertySummaryCard(property: item, imageFirst: true,
     onTap: () { if (item.status == 'published') context.push('/properties/${item.id}'); });
 
   Future<bool> _requireContactAccount() async {

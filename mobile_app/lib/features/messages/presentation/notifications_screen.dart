@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -12,7 +11,6 @@ import '../data/message_repository.dart';
 import '../data/unread_inbox_repository.dart';
 import '../domain/message_models.dart';
 import '../domain/notification_destination.dart';
-import 'notification_preferences_screen.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
@@ -38,6 +36,9 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
   int _page = 0;
   bool _hasMore = false;
   List<AppNotificationItem> _items = const [];
+  final _legacyRead = <int, AppNotificationItem>{};
+  int? _serverUnread;
+  bool _showUnreadOnly = false;
   bool _actionPending = false;
   int _actionGeneration = 0;
   int _request = 0;
@@ -61,6 +62,9 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
         _actor = actor;
         _sessionEpoch = epoch;
         _items = const [];
+        _legacyRead.clear();
+        _serverUnread = null;
+        _showUnreadOnly = false;
         _page = 0;
         _hasMore = false;
         _query = null;
@@ -75,6 +79,12 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
   }
 
   Future<void> _load() => _fetchPage(1);
+
+  void _chooseFilter(bool unreadOnly) {
+    if (_actionPending || _showUnreadOnly == unreadOnly) return;
+    setState(() => _showUnreadOnly = unreadOnly);
+    _load();
+  }
 
   Future<void> _refresh() {
     ref.read(unreadInboxRevisionProvider.notifier).state++;
@@ -91,13 +101,17 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     if (actor == null) return;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    const query = false;
+    final query = _showUnreadOnly;
     if (append && (_query != query || _actor != actor || _sessionEpoch != epoch)) {
       await _fetchPage(1);
       return;
     }
     final request = ++_request;
     setState(() {
+      if (_actor != actor || _sessionEpoch != epoch) {
+        _legacyRead.clear();
+        _serverUnread = null;
+      }
       if (_query != query || _actor != actor || _sessionEpoch != epoch) {
         _items = const [];
       }
@@ -122,6 +136,8 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       if (!mounted || request != _request) return;
       setState(() {
         _items = const [];
+        _legacyRead.clear();
+        _serverUnread = null;
         _page = 0;
         _hasMore = false;
         _loading = false;
@@ -132,18 +148,34 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     }
     try {
       final repo = ref.read(messageRepositoryProvider);
-      var result = await repo.notificationsPage(page: page);
-      var platformItems = result.items.where(_visiblePlatformItem).toList();
-      while (current() && platformItems.isEmpty && result.hasMore) {
-        result = await repo.notificationsPage(page: result.currentPage + 1);
-        platformItems = result.items.where(_visiblePlatformItem).toList();
+      final now = DateTime.now();
+      Future<NotificationPage> loadPage(int number) => repo.notificationsPage(
+        page: number, platformHistory: true, unreadOnly: query,
+      );
+      List<AppNotificationItem> visible(NotificationPage page) => page.items.where((item) =>
+          item.isPlatformNotification && (!query || !item.isRead) &&
+          (page.unreadCount != null || item.isRecentPlatformNotification(now))).toList();
+
+      var result = await loadPage(page);
+      var platformItems = visible(result);
+      final lastPage = result.lastPage;
+      while (current() && platformItems.isEmpty && result.hasMore && result.currentPage < lastPage) {
+        result = await loadPage(result.currentPage + 1);
+        platformItems = visible(result);
       }
       if (!current()) { discardStaleDelivery(); return; }
       setState(() {
-        _items = <int, AppNotificationItem>{
+        _serverUnread = result.unreadCount;
+        _legacyRead.removeWhere((_, item) => !item.isRecentPlatformNotification(now));
+        final items = <int, AppNotificationItem>{
           if (append) for (final item in _items) item.id: item,
           for (final item in platformItems) item.id: item,
-        }.values.toList(growable: false);
+          if (result.unreadCount == null && !query) ..._legacyRead,
+        };
+        _items = items.values.toList();
+        if (result.unreadCount == null && !query && _legacyRead.isNotEmpty) {
+          _items.sort((a, b) => b.id.compareTo(a.id));
+        }
         _page = result.currentPage;
         _hasMore = result.hasMore;
         _loading = false;
@@ -159,6 +191,8 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
         } else {
           if (!isTransientApiFailure(error)) {
             _items = const [];
+            _legacyRead.clear();
+            _serverUnread = null;
           }
           _page = 0;
           _hasMore = false;
@@ -170,9 +204,6 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
 
   @override
   void dispose() { _request++; super.dispose(); }
-
-  bool _visiblePlatformItem(AppNotificationItem item) =>
-      !item.isRead && item.isPlatformNotification;
 
   bool _sameSession(int? actor, int epoch) => mounted &&
       actor == ref.read(authControllerProvider).asData?.value?.id &&
@@ -187,6 +218,8 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       if (stale) {
         _request++;
         _items = const [];
+        _legacyRead.clear();
+        _serverUnread = null;
         _page = 0;
         _hasMore = false;
         _loading = false;
@@ -203,28 +236,43 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final generation = ++_actionGeneration;
     setState(() => _actionPending = true);
+    final marked = <AppNotificationItem>[];
+    var allRead = false;
     try {
       final repo = ref.read(messageRepositoryProvider);
-      final ids = _items.map((item) => item.id).toSet();
-      // Snapshot IDs before reading any of them, since each read changes the
-      // server's unread pagination. The bulk API also reads private chat alerts.
+      if (_serverUnread != null) {
+        await repo.readAllPlatformNotifications();
+        marked.addAll(_items.where((item) => !item.isRead));
+        allRead = true;
+        return;
+      }
+
+      final now = DateTime.now();
+      bool eligible(AppNotificationItem item) => !item.isRead && item.isRecentPlatformNotification(now);
+      final unread = {for (final item in _items.where(eligible)) item.id: item};
+      // The old bulk action also marks chat alerts. Snapshot platform rows
+      // before marking the first one because reads change unread pagination.
       if (_hasMore) {
         var page = await repo.notificationsPage(perPage: 200);
         final lastPage = page.lastPage;
         while (_sameSession(actor, epoch)) {
-          ids.addAll(page.items.where(_visiblePlatformItem).map((item) => item.id));
+          unread.addEntries(page.items.where(eligible).map((item) => MapEntry(item.id, item)));
           if (!page.hasMore || page.currentPage >= lastPage) break;
           page = await repo.notificationsPage(page: page.currentPage + 1, perPage: 200);
         }
       }
-      for (final id in ids) {
+      for (final item in unread.values) {
         if (!_sameSession(actor, epoch)) return;
-        await repo.readNotification(id);
+        await repo.readNotification(item.id);
+        marked.add(item);
       }
     } catch (error) {
       if (_sameSession(actor, epoch)) _showActionError(error);
     } finally {
-      if (_sameSession(actor, epoch)) await _refresh();
+      if (_sameSession(actor, epoch)) {
+        if (marked.isNotEmpty || allRead) _applyReadReceipts(marked, allRead: allRead);
+        await _refresh();
+      }
       _finishAction(generation, actor, epoch);
     }
   }
@@ -256,19 +304,10 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       await ref.read(messageRepositoryProvider).readNotification(item.id);
     }
     if (!mounted || !_sameSession(actor, epoch)) return;
-    ref.read(unreadInboxRevisionProvider.notifier).state++;
-    // Reading removes a row from the unread-only dataset. Invalidate any old
-    // page before navigation, then reload page one when this screen is visible.
-    setState(() {
-      _request++;
-      _items = _items.where((entry) => entry.id != item.id).toList(growable: false);
-      _page = 0;
-      _hasMore = false;
-      _loading = false;
-      _loadingMore = false;
-      _pageError = null;
-      _error = null;
-    });
+    if (!item.isRead) {
+      _applyReadReceipts([item]);
+      ref.read(unreadInboxRevisionProvider.notifier).state++;
+    }
 
     final destination = notificationDestination(item);
     if (destination != null) {
@@ -283,9 +322,30 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     if (_sameSession(actor, epoch)) await _load();
   }
 
+  void _applyReadReceipts(List<AppNotificationItem> marked, {bool allRead = false}) {
+    final read = {for (final item in marked) item.id: item.withReadReceipt()};
+    setState(() {
+      _request++;
+      if (_serverUnread == null) {
+        _legacyRead.addAll(read);
+      } else {
+        final count = _serverUnread! - read.length;
+        _serverUnread = allRead || count < 0 ? 0 : count;
+      }
+      _items = [for (final item in _items)
+        if (!_showUnreadOnly || !read.containsKey(item.id)) read[item.id] ?? item];
+      _page = 0;
+      _hasMore = false;
+      _loading = false;
+      _loadingMore = false;
+      _pageError = null;
+      _error = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final unread = _items.length;
+    final unread = _serverUnread ?? _items.where((item) => !item.isRead).length;
     final canReadAll = !_actionPending && !_loading && !_loadingMore && unread > 0;
 
     return Directionality(
@@ -294,15 +354,6 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
         appBar: AppAppBar(
           title: 'الإشعارات',
           actions: [
-            AppIconButton(
-              icon: Icons.tune_rounded,
-              tooltip: 'تفضيلات الإشعارات',
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => const NotificationPreferencesScreen(),
-                ),
-              ),
-            ),
             if (MediaQuery.textScalerOf(context).scale(14) > 20)
               AppIconButton(icon: Icons.mark_email_read_outlined, tooltip: 'قراءة الكل',
                 onPressed: canReadAll ? _readAll : null)
@@ -314,7 +365,7 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
         body: RefreshIndicator(
           onRefresh: _refresh,
           child: CustomScrollView(
-            key: ValueKey((_actor, _sessionEpoch)),
+            key: ValueKey((_actor, _sessionEpoch, _showUnreadOnly)),
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
@@ -323,10 +374,13 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                     AppLayout.compactPageGutter,
                     AppSpacing.s12,
                     AppLayout.compactPageGutter,
-                    0,
+                    AppSpacing.s12,
                   ),
-                  child: Text(_loading || _error != null || _hasMore ? 'تحديثات حسابك' : unread > 0 ? '$unread إشعار جديد' : 'أنت مطّلع على كل شيء',
-                    style: Theme.of(context).textTheme.bodyMedium),
+                  child: _NotificationTabs(
+                    unreadOnly: _showUnreadOnly,
+                    unread: unread,
+                    onSelected: _actionPending ? null : _chooseFilter,
+                  ),
                 ),
               ),
               if (_items.isNotEmpty && (_loading || _error != null))
@@ -343,11 +397,11 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                   child: AppErrorState(message: _error!, onRetry: _load),
                 )
               else if (_items.isEmpty)
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: AppEmptyState(
-                    title: 'أنت مطّلع على كل شيء',
-                    message:
-                        'بتظهر هنا تنبيهات المنصة والتحديثات المهمة لحسابك.',
+                    title: _showUnreadOnly ? 'ما عندك إشعارات غير مقروءة' : 'لا توجد إشعارات حديثة',
+                    message: _showUnreadOnly ? 'تجد إشعاراتك السابقة في «الكل».'
+                        : 'تظهر هنا إشعارات المنصة لآخر سبعة أيام.',
                     icon: Icons.notifications_none_rounded,
                   ),
                 )
@@ -355,14 +409,13 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                 SliverPadding(
                   padding: const EdgeInsetsDirectional.fromSTEB(
                     AppLayout.compactPageGutter,
-                    AppSpacing.s12,
+                    0,
                     AppLayout.compactPageGutter,
                     AppSpacing.s40,
                   ),
                   sliver: SliverList.separated(
                     itemCount: _items.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(height: 1, thickness: .5),
+                    separatorBuilder: (_, __) => const SizedBox(height: 7),
                     itemBuilder: (context, index) {
                       final item = _items[index];
                       return _NotificationCard(
@@ -398,6 +451,68 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
   }
 }
 
+class _NotificationTabs extends StatelessWidget {
+  const _NotificationTabs({required this.unreadOnly, required this.unread, required this.onSelected});
+
+  final bool unreadOnly;
+  final int unread;
+  final ValueChanged<bool>? onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    const radius = BorderRadius.all(Radius.circular(13));
+
+    Widget tab(bool unreadTab, String label, String key) {
+      final selected = unreadTab == unreadOnly;
+      final color = selected ? scheme.primary : scheme.onSurfaceVariant;
+      return Expanded(child: Semantics(
+        selected: selected, button: true,
+        child: Material(
+          color: selected ? scheme.primaryContainer : Colors.transparent,
+          borderRadius: radius,
+          child: InkWell(
+            key: ValueKey(key),
+            borderRadius: radius,
+            onTap: onSelected == null ? null : () => onSelected!(unreadTab),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 40),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                child: Center(child: Wrap(
+                  spacing: 7,
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(label, textAlign: TextAlign.center, style: theme.textTheme.bodySmall?.copyWith(
+                      color: color, fontWeight: FontWeight.w700)),
+                    if (unreadTab) Text(arabicDigits('$unread'), key: const ValueKey('platform-history-unread-count'),
+                        style: theme.textTheme.bodySmall?.copyWith(color: color)),
+                  ],
+                )),
+              ),
+            ),
+          ),
+        ),
+      ));
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(color: scheme.surfaceContainerHigh,
+        border: Border.all(color: scheme.surface), borderRadius: radius),
+      child: Padding(
+        padding: const EdgeInsets.all(1),
+        child: IntrinsicHeight(child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [tab(false, 'الكل', 'notification-filter-all'),
+            tab(true, 'غير المقروءة', 'notification-filter-unread')],
+        )),
+      ),
+    );
+  }
+}
+
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
     required this.item,
@@ -412,43 +527,62 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final presentation = _notificationPresentation(item.type);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final unread = !item.isRead;
+    final color = unread ? scheme.primary : scheme.onSurface;
+    final unreadFill = theme.brightness == Brightness.light
+        ? const Color(0xFFDCEFED) : Color.alphaBlend(scheme.primary.withValues(alpha: .14), scheme.surface);
+    final iconFill = unread ? scheme.primary.withValues(alpha: .09) : scheme.surfaceContainerHigh;
+    const radius = BorderRadius.all(Radius.circular(12));
+    final largeText = MediaQuery.textScalerOf(context).scale(12) > 18;
     final isDuplicateRejection = item.type == 'listing_duplicate_rejected';
-    return Semantics(button: true, label: 'إشعار جديد: ${item.title}', child: Material(
-      color: scheme.primary.withValues(alpha: .025),
-      child: InkWell(onTap: pending ? null : onTap,
-        child: Padding(padding: const EdgeInsetsDirectional.fromSTEB(10, 16, 8, 16),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(padding: const EdgeInsets.only(top: 2),
-              child: EbrokerIcon(presentation.$1, size: 20, color: scheme.primary)),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
-              if (item.body != null) ...[
-                const SizedBox(height: 5),
-                Text(item.body!, maxLines: isDuplicateRejection ? null : 2,
-                  overflow: isDuplicateRejection ? null : TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-              ],
-              const SizedBox(height: 8),
-              Wrap(spacing: 8, runSpacing: 4, children: [
-                Text(presentation.$2, style: Theme.of(context).textTheme.labelSmall),
-                if (item.createdAt != null) Text(_relativeTime(item.createdAt!),
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
-              ]),
-              if (item.previousPropertyId != null)
-                TextButton(
-                  onPressed: pending ? null : onTap,
-                  child: const Text('عرض الإعلان السابق'),
-                ),
-            ])),
-            const SizedBox(width: 10),
-            Padding(padding: const EdgeInsets.only(top: 6), child: Container(width: 5, height: 5,
-              decoration: BoxDecoration(color: scheme.primary, shape: BoxShape.circle))),
-          ])),
+    final time = item.createdAt == null ? null : Text(_relativeTime(item.createdAt!),
+        style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant));
+    return Semantics(
+      button: true,
+      label: unread ? 'غير مقروء: ${item.title}' : 'مقروء: ${item.title}',
+      child: Material(
+        color: unread ? unreadFill : scheme.surface,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: pending ? null : onTap,
+          borderRadius: radius,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(10, 9, 10, 9),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(color: iconFill, borderRadius: BorderRadius.circular(8)),
+                child: Icon(_notificationIcon(item), size: 16, color: color),
+              ),
+              const SizedBox(width: 9),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (unread) ...[
+                    Container(key: const ValueKey('notification-unread-dot'), width: 6, height: 6,
+                      margin: const EdgeInsets.only(top: 6),
+                      decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                    const SizedBox(width: 5),
+                  ],
+                  Flexible(child: Text(item.title, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700))),
+                ]),
+                if (item.body != null && item.body!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(item.body!, maxLines: isDuplicateRejection ? null : 2,
+                    overflow: isDuplicateRejection ? null : TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                ],
+                if (item.previousPropertyId != null)
+                  TextButton(onPressed: pending ? null : onTap, child: const Text('عرض الإعلان السابق')),
+                if (largeText && time != null) Align(alignment: AlignmentDirectional.centerEnd, child: time),
+              ])),
+              if (!largeText && time != null) ...[const SizedBox(width: 8), time],
+            ]),
+          ),
+        ),
       ),
-    ));
+    );
   }
 }
 
@@ -459,38 +593,48 @@ class _NotificationSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: const [
-        AppSkeleton(height: 74, radius: AppRadii.card),
-        SizedBox(height: AppSpacing.s10),
-        AppSkeleton(height: 74, radius: AppRadii.card),
-        SizedBox(height: AppSpacing.s10),
-        AppSkeleton(height: 74, radius: AppRadii.card),
+        AppSkeleton(height: 54, radius: AppRadii.card),
+        SizedBox(height: 7),
+        AppSkeleton(height: 54, radius: AppRadii.card),
+        SizedBox(height: 7),
+        AppSkeleton(height: 54, radius: AppRadii.card),
       ],
     );
   }
 }
 
-(IconData, String, AppStatusTone) _notificationPresentation(String type) {
+IconData _notificationIcon(AppNotificationItem item) {
+  final type = item.type;
+  if (type == 'broker_availability_due') return Icons.sync_rounded;
+  if (item.entityType == 'property_platform_receivable') return Icons.account_balance_wallet_outlined;
+  if (type == 'listing_approved' || type == 'listing_published') return Icons.home_outlined;
+  if (type == 'listing_updated') return Icons.description_outlined;
+  if (item.entityType == 'broker_deal_outcome' && type.contains('confirm')) return Icons.check_rounded;
   if (type == 'listing_duplicate_rejected') {
-    return (Icons.content_copy_outlined, 'مراجعة إعلان', AppStatusTone.warning);
+    return Icons.content_copy_outlined;
   }
   if (type.startsWith('agreement_') || type.startsWith('rental_contract_')) {
-    return (Icons.handshake_outlined, 'اتفاق', AppStatusTone.success);
+    return Icons.handshake_outlined;
   }
   if (type.startsWith('saved_search_') || type == 'favorite_price_changed') {
-    return (Icons.saved_search_outlined, 'بحث ومفضلة', AppStatusTone.info);
+    return Icons.saved_search_outlined;
   }
   if (type.startsWith('support_') || type.contains('verification')) {
-    return (Icons.shield_outlined, 'مهم', AppStatusTone.warning);
+    return Icons.shield_outlined;
   }
-  return (Icons.notifications_none_rounded, 'تحديث', AppStatusTone.neutral);
+  return item.entityType == 'property' ? Icons.description_outlined : Icons.notifications_none_rounded;
 }
 
 String _relativeTime(DateTime value) {
   final difference = DateTime.now().difference(value.toLocal());
   if (difference.inMinutes < 1) return 'الآن';
-  if (difference.inMinutes < 60) return 'منذ ${difference.inMinutes} د';
-  if (difference.inHours < 24) return 'منذ ${difference.inHours} س';
+  if (difference.inMinutes == 1) return 'قبل دقيقة';
+  if (difference.inMinutes == 2) return 'قبل دقيقتين';
+  if (difference.inMinutes < 60) return 'قبل ${arabicDigits('${difference.inMinutes}')} د';
+  if (difference.inHours == 1) return 'قبل ساعة';
+  if (difference.inHours == 2) return 'قبل ساعتين';
+  if (difference.inHours < 24) return 'قبل ${arabicDigits('${difference.inHours}')} س';
   if (difference.inDays == 1) return 'أمس';
-  if (difference.inDays < 7) return 'منذ ${difference.inDays} أيام';
-  return '${value.toLocal().day}/${value.toLocal().month}';
+  if (difference.inDays == 2) return 'قبل يومين';
+  return 'قبل ${arabicDigits('${difference.inDays}')} أيام';
 }

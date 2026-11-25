@@ -4,13 +4,17 @@ namespace Tests\Feature;
 
 use App\Models\Property;
 use App\Models\PropertyAsset;
+use App\Models\PropertyPayment;
+use App\Models\PropertyPaymentMethod;
 use App\Models\PropertySaiTerm;
 use App\Models\Role;
 use App\Models\SupportTask;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use App\Services\PropertyFinancialService;
 use App\Services\SupportTaskService;
 use Tests\TestCase;
@@ -169,6 +173,76 @@ class FinancialV1ApiTest extends TestCase
         $this->withHeaders($headers)->patchJson("/api/properties/{$property->id}/financial-config", [
             'monthly_rent'=>250000,'rental_term_months'=>2,'advance_months'=>3,
         ])->assertStatus(422);
+    }
+
+    public function test_advertiser_can_submit_a_private_receipt_without_sender_details_and_reopen_the_receivable(): void
+    {
+        config(['services.supabase_storage.enabled' => false]);
+        Storage::fake('local');
+        Storage::fake('public');
+
+        [$agreementId, , , , $advertiserHeaders, $buyerHeaders] = $this->acceptedSaleDeal('seller');
+        $confirmation = "/api/finance/agreements/$agreementId/direct-confirmation";
+        $this->withHeaders($buyerHeaders)->postJson($confirmation, ['decision' => 'confirmed'])->assertOk();
+        $dueId = $this->withHeaders($advertiserHeaders)
+            ->postJson($confirmation, ['decision' => 'confirmed'])
+            ->assertOk()->json('data.receivable.id');
+        $receivablePath = "/api/finance/receivables/$dueId";
+
+        $wallet = PropertyPaymentMethod::query()->where('key', 'jeeb')->firstOrFail();
+        $this->assertTrue($wallet->requires_sender_phone);
+        PropertyPaymentMethod::query()->where('key', 'kuraimi')->update(['allows_sai_only' => false]);
+
+        $detail = $this->getJson($receivablePath)
+            ->assertOk()
+            ->assertJsonPath('data.receivable.id', $dueId)
+            ->assertJsonPath('data.receivable.remaining_amount', 900_000)
+            ->assertJsonPath('data.can_pay_full', false)
+            ->assertJsonCount(0, 'data.payments');
+        $methods = collect($detail->json('data.payment_methods'))->keyBy('key');
+        $this->assertTrue($methods['jeeb']['available']);
+        $this->assertFalse($methods['kuraimi']['available']);
+        $this->withHeaders($buyerHeaders)->getJson($receivablePath)->assertForbidden();
+
+        $legacyPaymentId = $this->withHeaders($advertiserHeaders)
+            ->postJson("/api/finance/agreements/$agreementId/payments", [
+                'mode' => 'platform_sai_only',
+                'payment_method_id' => $wallet->id,
+            ])->assertCreated()->json('data.id');
+        $paymentId = $this->postJson($receivablePath.'/payments', ['payment_method_id' => $wallet->id])
+            ->assertCreated()
+            ->assertJsonPath('data.required_amount', 900_000)
+            ->json('data.id');
+        $this->assertNotSame($legacyPaymentId, $paymentId);
+        $receipt = fn (): UploadedFile => UploadedFile::fake()->createWithContent(
+            'receipt.png',
+            base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jP1EAAAAASUVORK5CYII='),
+        );
+        $proofPath = "/api/finance/payments/$paymentId/proof";
+        $this->post("/api/finance/payments/$legacyPaymentId/proof", ['proof' => $receipt()])
+            ->assertUnprocessable()->assertJsonValidationErrors('sender_phone');
+        $this->post($proofPath, [])
+            ->assertUnprocessable()->assertJsonValidationErrors('proof');
+        $this->post($proofPath, ['proof' => $receipt()])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'proof_submitted')
+            ->assertJsonPath('data.sender_name', null)
+            ->assertJsonPath('data.sender_phone', null)
+            ->assertJsonPath('data.provider_reference', null)
+            ->assertJsonPath('data.has_proof', true);
+
+        $payment = PropertyPayment::query()->findOrFail($paymentId);
+        Storage::disk('local')->assertExists($payment->proof_path);
+        Storage::disk('public')->assertMissing($payment->proof_path);
+        $this->getJson($receivablePath)
+            ->assertOk()
+            ->assertJsonPath('data.receivable.amount_paid', 0)
+            ->assertJsonPath('data.receivable.remaining_amount', 900_000)
+            ->assertJsonCount(1, 'data.payments')
+            ->assertJsonPath('data.payments.0.id', $paymentId)
+            ->assertJsonPath('data.payments.0.status', 'proof_submitted');
+        $this->get($proofPath)->assertOk();
+        $this->withHeaders($buyerHeaders)->get($proofPath)->assertForbidden();
     }
 
     public function test_published_sai_attestation_uses_exact_snapshot_and_disappears_from_pending(): void

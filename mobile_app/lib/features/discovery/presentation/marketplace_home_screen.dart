@@ -142,16 +142,17 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       if (mapJourney != null) controller.leaveMap(mapJourney);
     }
   }
-  void _section(String section,String? governorate) {
-    final location=ref.read(homeLocationProvider);
-    context.push(Uri(path:'/marketplace-section',queryParameters:{'section':section,
-      if (ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'] != null) 'purpose': ref.read(marketplaceSearchControllerProvider).criteria.values['purpose'].toString(),
-      if(governorate!=null && section!='nearby')'governorate':governorate,
-      if(section=='nearby')...{'lat':'${location.latitude}','lon':'${location.longitude}'},
-    }).toString(), extra: SmartSearchFilters.fromMap({
+  void _section(String section, String? governorate, {SmartSearchFilters? filters}) {
+    final location = ref.read(homeLocationProvider);
+    final criteria = filters ?? SmartSearchFilters.fromMap({
       ...ref.read(marketplaceSearchControllerProvider).criteria.values,
-      if (section != 'nearby' && location.governorateCode != null && !location.needsConfirmation) 'governorate_code': location.governorateCode,
-    }));
+      if (location.governorateCode != null && !location.needsConfirmation) 'governorate_code': location.governorateCode,
+    });
+    context.push(Uri(path: '/marketplace-section', queryParameters: {
+      'section': section,
+      if (criteria.values['purpose'] != null) 'purpose': criteria.values['purpose'].toString(),
+      if (governorate != null) 'governorate': governorate,
+    }).toString(), extra: criteria);
   }
 
 
@@ -163,6 +164,11 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     final professional = ref.watch(authControllerProvider.select((state) =>
       state.asData?.value?.hasVerifiedProfessionalProfile == true));
     final query = _query;
+    final criteria = query.effectiveFilters;
+    final locationKnown = !location.needsConfirmation && (location.governorate != null || location.governorateCode != null);
+    final useDhamar = !locationKnown && !criteria.hasMapArea &&
+      !criteria.values.containsKey('governorate') && !criteria.values.containsKey('governorate_code');
+    final dhamar = useDhamar ? ref.watch(marketplaceDhamarPreviewProvider(query)) : null;
     final feed = ref.watch(marketplaceFeedProvider(query));
     final transientError = feed.hasError && isTransientApiFailure(feed.error!);
     final canShowSnapshot = !feed.hasValue && (feed.hasError ? transientError : feed.isLoading);
@@ -204,8 +210,13 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         onOpenMap: _openMap,
         onPressed: () => context.push('/smart-search'),
         child: RefreshIndicator(onRefresh: () async {
-        try { ref.read(marketplaceRepositoryProvider).invalidateFeed(query); ref.invalidate(marketplaceFeedProvider(query));
-          await ref.read(marketplaceFeedProvider(query).future); } catch (_) { /* Inline retry retains only this query. */ }
+        ref.read(marketplaceRepositoryProvider).invalidateFeed(query);
+        ref.invalidate(marketplaceFeedProvider(query));
+        if (useDhamar) ref.invalidate(marketplaceDhamarPreviewProvider(query));
+        try { await Future.wait([
+          ref.read(marketplaceFeedProvider(query).future),
+          if (useDhamar) ref.read(marketplaceDhamarPreviewProvider(query).future),
+        ]); } catch (_) { /* Inline retry retains only this query. */ }
       }, child: CustomScrollView(key: const PageStorageKey('marketplace-home'), controller: _feedScroll,
         cacheExtent: ConditionalImagePrefetch.enabled ? ConditionalImagePrefetch.extent : 0,
         physics: const AlwaysScrollableScrollPhysics(), slivers: [
@@ -239,12 +250,22 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           SliverToBoxAdapter(child: AppRefreshStatus(loading: feed.isLoading,
             error: feed.hasError ? friendlyApiError(feed.error!) : null,
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))),
-        if (snapshot != null) _feedSliver(snapshot)
+        if (snapshot != null) _feedSliver(snapshot, dhamar)
         else feed.when(skipLoadingOnReload: true, skipError: feed.hasValue && transientError,
           loading: () => const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(18),
             child: AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 8))),
           error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error),
-            onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: _feedSliver),
+            onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: (data) => _feedSliver(data, dhamar)),
+        if (dhamar != null) SliverToBoxAdapter(child: dhamar.when(
+          loading: () => const AppRefreshStatus(loading: true),
+          error: (error, _) => AppRefreshStatus(error: friendlyApiError(error),
+            onRetry: () => ref.invalidate(marketplaceDhamarPreviewProvider(query))),
+          data: (rows) => rows.isEmpty ? const SizedBox.shrink() : Column(children: [
+            EbrokerTitleHeader(title: 'بالقرب منك', compact: true, onSeeAll: () =>
+              _section('regional', dhamarPreviewGovernorate.name, filters: dhamarPreviewFilters(criteria))),
+            _propertyRail('dhamar', rows),
+          ]),
+        )),
          if (recent != null && recent.isNotEmpty)
            SliverToBoxAdapter(child: Column(children: [
              EbrokerTitleHeader(title: 'شوهد مؤخرًا', compact: true, onSeeAll: () => context.push('/recent')),
@@ -254,10 +275,6 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       ]))),
     );
   }
-
-  Widget _property(PropertySummary row, {bool compactPreview = false}) => PropertySummaryCard(
-    key: ValueKey('home-property-${row.id}'),
-    property: row, imageFirst: true, preview: true, compactPreview: compactPreview);
 
   Widget _propertyRail(String section, Iterable<PropertySummary> rows) {
     final width = (MediaQuery.sizeOf(context).width - 78).clamp(220, 366).toDouble();
@@ -269,12 +286,14 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         for (final row in rows)
           Padding(padding: const EdgeInsetsDirectional.only(end: 12),
-            child: SizedBox(width: width, child: _property(row, compactPreview: true))),
+            child: SizedBox(width: width, child: PropertySummaryCard(
+              key: ValueKey('home-property-${row.id}'), property: row,
+              imageFirst: true, preview: true, compactPreview: true))),
       ]),
     );
   }
 
-  Widget _feedSliver(MarketplaceFeed data) {
+  Widget _feedSliver(MarketplaceFeed data, AsyncValue<List<PropertySummary>>? dhamar) {
     final entries = <WidgetBuilder>[];
     if (data.brokers.isNotEmpty) {
       entries.add((context) {
@@ -308,23 +327,18 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     }
     final sections = [
       if (data.sectionOrder.contains('latest')) 'latest',
-      ...data.sectionOrder.where((key) => key != 'latest' && key != 'rent'),
+      ...data.sectionOrder.where((key) => key == 'spotlight' || (key == 'sale' && dhamar == null)),
     ];
     for (final key in sections) {
       final rows = data.sections[key] ?? const <PropertySummary>[];
       if (rows.isEmpty) continue;
-      final title = switch (key) { 'nearby' => 'حول موقعك الحالي', 'spotlight' => 'عقارات تستحق نظرة',
+      final title = switch (key) { 'spotlight' => 'عقارات تستحق نظرة',
         'sale' => 'بالقرب منك', _ => 'أحدث العقارات' };
       entries.add((_) => EbrokerTitleHeader(title: title, compact: true, onSeeAll: () => _section(key, data.governorate)));
-      if (key == 'nearby') {
-        for (final row in rows.take(3)) {
-          entries.add((_) => Padding(padding: const EdgeInsets.fromLTRB(18, 0, 18, 8), child: _property(row)));
-        }
-      } else {
-        entries.add((_) => _propertyRail(key, rows));
-      }
+      entries.add((_) => _propertyRail(key, rows));
     }
-    if (sections.every((key) => data.sections[key]?.isNotEmpty != true)) {
+    if (sections.every((key) => data.sections[key]?.isNotEmpty != true) &&
+        (dhamar == null || dhamar.asData?.value.isEmpty == true)) {
       entries.add((_) => AppEmptyState(title: 'لا توجد عقارات في هذه المنطقة الآن', message: 'استكشف الخريطة أو اختر منطقة أخرى.',
         actionLabel: 'تغيير المنطقة', onAction: _chooseLocation));
     }
