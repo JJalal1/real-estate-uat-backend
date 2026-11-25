@@ -4,13 +4,16 @@ namespace App\Services;
 
 use App\Models\Property;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /** One public filtering contract for discovery, saved results and match alerts. */
 class PropertyDiscoveryFilterService
 {
+    private const NEARBY_VISIBILITY_GENERATION = 'public-nearby:visibility-generation';
     private const TYPES = ['apartment', 'floor', 'building', 'house', 'villa', 'land', 'shop', 'office', 'farm'];
     private const PURPOSES = ['sale', 'rent'];
     private const FACADES = ['north', 'south', 'east', 'west', 'northeast', 'northwest', 'southeast', 'southwest', 'multiple'];
@@ -19,12 +22,24 @@ class PropertyDiscoveryFilterService
 
     public function publicQuery(): Builder
     {
-        return Property::query()->publiclyAvailable()->whereNotExists(function ($query): void {
-            $query->selectRaw('1')->from('property_platform_receivables as discovery_due')
-                ->whereColumn('discovery_due.advertiser_user_id', 'properties.user_id')
-                ->whereIn('discovery_due.status', ['open', 'under_review', 'overdue', 'disputed'])
-                ->whereColumn('discovery_due.amount_paid', '<', 'discovery_due.amount_total')
-                ->where('discovery_due.due_at', '<=', now());
+        return Property::query()->withoutGlobalScope('financial_public_visibility')
+            ->publiclyAvailable()->withoutOverdueListingRestriction();
+    }
+
+    public static function nearbyVisibilityGeneration(): string
+    {
+        return (string) Cache::store('file')->get(self::NEARBY_VISIBILITY_GENERATION, 'initial');
+    }
+
+    public static function refreshNearbyVisibilityAfterCommit(): void
+    {
+        DB::afterCommit(static function (): void {
+            try {
+                Cache::store('file')->forever(self::NEARBY_VISIBILITY_GENERATION, (string) Str::uuid());
+            } catch (\Throwable $error) {
+                // An expired nearby response is rebuilt even if local invalidation fails.
+                report($error);
+            }
         });
     }
 

@@ -139,9 +139,10 @@ class PropertyController extends Controller
         if (DB::connection()->getDriverName() === 'pgsql') {
             $cacheFacts = $validated;
             ksort($cacheFacts);
-            $cacheKey = 'public-nearby-v1:'.hash(
+            $cacheKey = 'public-nearby-v2:'.hash(
                 'sha256',
-                json_encode($cacheFacts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                \App\Services\PropertyDiscoveryFilterService::nearbyVisibilityGeneration().':'
+                    .json_encode($cacheFacts, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             );
             $cache = Cache::store('file');
             $cached = $cache->get($cacheKey);

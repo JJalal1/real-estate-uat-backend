@@ -404,6 +404,8 @@ class BrokerExperienceApiTest extends TestCase
         $paused->forceFill([
             'availability_status'=>'paused','financial_hold_at'=>now(),'financial_hold_reason'=>'separate_admin_hold',
         ])->saveQuietly();
+        $favorite = "/api/properties/{$other->id}/favorite";
+        $this->withHeaders($customerHeaders)->putJson($favorite)->assertCreated();
 
         $attempts = [];
         foreach ([$sale, $rent] as $property) {
@@ -445,13 +447,23 @@ class BrokerExperienceApiTest extends TestCase
             ->assertJsonPath('data.receivables.0.monthly_basis_amount', 100000)
             ->assertJsonPath('data.receivables.0.platform_due_status', 'pending_review');
 
+        $nearby = '/api/properties/nearby?latitude=15.35&longitude=44.2';
+        $narrowNearby = $nearby.'&radius_km=1';
         $this->travelTo($saleDue->due_at->copy()->subSecond());
         $this->flushHeaders()->getJson("/api/properties/{$other->id}")->assertOk();
+        $this->getJson($nearby)->assertOk()->assertJsonFragment(['id'=>$other->id]);
         $this->travelTo($saleDue->due_at);
         $this->getJson("/api/properties/{$other->id}")->assertNotFound();
         $this->getJson('/api/properties')->assertOk()->assertJsonMissing(['id'=>$other->id]);
-        $this->getJson('/api/properties/nearby?latitude=15.35&longitude=44.2')
-            ->assertOk()->assertJsonMissing(['id'=>$other->id]);
+        $this->getJson($nearby)->assertOk()->assertJsonMissing(['id'=>$other->id]);
+        $this->getJson($narrowNearby)->assertOk()->assertJsonMissing(['id'=>$other->id]);
+        $this->getJson("/api/advertisers/{$broker->id}/profile")
+            ->assertOk()->assertJsonPath('data.active_listings', 0);
+        $this->withHeaders($customerHeaders)->getJson('/api/favorites')->assertOk()->assertJsonCount(0, 'data');
+        $this->withHeaders($customerHeaders)->getJson('/api/favorites/ids')->assertOk()
+            ->assertJsonPath('data.property_ids', []);
+        $this->withHeaders($customerHeaders)->getJson($favorite)->assertNotFound();
+        $this->withHeaders($customerHeaders)->putJson($favorite)->assertNotFound();
         $this->withHeaders($brokerHeaders)->getJson('/api/support/cases/mine')->assertOk();
         $this->withHeaders($brokerHeaders)->getJson("/api/finance/receivables/{$rentDue->id}")->assertOk();
         $this->withHeaders($brokerHeaders)->postJson('/api/properties')->assertConflict();
@@ -494,8 +506,18 @@ class BrokerExperienceApiTest extends TestCase
             ->assertJsonPath('data.policy.listing_creation_blocked', false);
         $this->flushHeaders()->getJson("/api/properties/{$other->id}")->assertOk();
         $this->getJson('/api/properties')->assertOk()->assertJsonFragment(['id'=>$other->id]);
-        $this->getJson('/api/properties/nearby?latitude=15.35&longitude=44.2')
-            ->assertOk()->assertJsonFragment(['id'=>$other->id]);
+        $this->getJson($nearby)->assertOk()->assertJsonFragment(['id'=>$other->id]);
+        $this->getJson($narrowNearby)->assertOk()->assertJsonFragment(['id'=>$other->id]);
+        $this->getJson("/api/properties?advertiser_id={$broker->id}")->assertOk()
+            ->assertJsonFragment(['id'=>$other->id]);
+        $this->getJson("/api/advertisers/{$broker->id}/profile")
+            ->assertOk()->assertJsonPath('data.active_listings', 1);
+        $this->withHeaders($customerHeaders)->getJson('/api/favorites')->assertOk()
+            ->assertJsonPath('data.0.property.id', $other->id);
+        $this->withHeaders($customerHeaders)->getJson('/api/favorites/ids')->assertOk()
+            ->assertJsonPath('data.property_ids', [$other->id]);
+        $this->withHeaders($customerHeaders)->getJson($favorite)->assertOk()
+            ->assertJsonPath('data.is_favorited', true);
         $this->assertNull($other->fresh()->financial_hold_at);
     }
 

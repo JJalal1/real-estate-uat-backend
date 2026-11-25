@@ -366,6 +366,7 @@ class PropertyFinancialService
             }
             if (! PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiser->id)->overdueListingRestriction()->exists()) {
                 $this->clearOverdueListingMarkers((int) $advertiser->id);
+                PropertyDiscoveryFilterService::refreshNearbyVisibilityAfterCommit();
             }
             $ids = $receivables->map(fn ($id): int => (int) $id)->all();
             $this->audit->record($operator, 'support.financial_hold_restored', $advertiser, [
@@ -481,6 +482,7 @@ class PropertyFinancialService
                     ->where('advertiser_user_id', $term->advertiser_user_id)->overdueListingRestriction()->exists();
                 if (! $restrictionsRemain) {
                     $this->clearOverdueListingMarkers((int) $term->advertiser_user_id);
+                    PropertyDiscoveryFilterService::refreshNearbyVisibilityAfterCommit();
                     $this->notifications->create((int)$term->advertiser_user_id,'financial_hold_released','تمت تسوية مستحقات المنصة','تم تأكيد السداد ورفع القيد المالي عن الإعلانات.','property_platform_receivable',$receivable->id,['receivable_id'=>$receivable->id]);
                 }
             }

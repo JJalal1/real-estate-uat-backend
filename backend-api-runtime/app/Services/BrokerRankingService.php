@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AccountVerificationProfile;
+use App\Models\Property;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -24,13 +25,8 @@ class BrokerRankingService
             ->where('result.status','confirmed')->groupBy('result.advertiser_user_id')
             ->selectRaw('result.advertiser_user_id, COUNT(*) AS completed_deals')
             ->selectRaw('SUM(CASE WHEN result.confirmed_at >= ? THEN CASE WHEN due.id IS NULL OR due.status = ? THEN 1.0 ELSE 0.5 END ELSE 0 END) AS recent_deal_credit', [now()->subDays(90),'paid']);
-        $listings = DB::table('properties')->where('status','published')->where('availability_status','available')
-            ->whereNotExists(function ($q): void {
-                $q->selectRaw('1')->from('property_platform_receivables as financial_due')
-                    ->whereColumn('financial_due.advertiser_user_id','properties.user_id')
-                    ->whereIn('financial_due.status',['open','under_review','overdue','disputed'])
-                    ->whereColumn('financial_due.amount_paid','<','financial_due.amount_total')->where('financial_due.due_at','<=',now());
-            })
+        $listings = Property::query()->withoutGlobalScope('financial_public_visibility')
+            ->publiclyAvailable()->withoutOverdueListingRestriction()
             ->where(function ($query): void { $query->whereNull('availability_notified_at')->orWhere('availability_notified_at','>',now()->subDays(2)); })
             ->whereNull('financial_hold_at')->groupBy('user_id')->selectRaw('user_id, COUNT(*) AS active_listings')
             ->selectRaw('SUM(CASE WHEN availability_confirmed_at >= ? OR published_at >= ? THEN 1 ELSE 0 END) AS recent_activity', [now()->subDays(30),now()->subDays(30)]);

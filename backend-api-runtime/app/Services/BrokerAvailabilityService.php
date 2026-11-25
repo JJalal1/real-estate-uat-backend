@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Property;
+use App\Models\PropertyPlatformReceivable;
 use App\Models\User;
 use App\Models\UserNotification;
 use Illuminate\Http\Request;
@@ -107,19 +108,16 @@ class BrokerAvailabilityService
                         ->whereColumn('property_publication_blocks.purpose', 'properties.purpose')
                         ->where('property_publication_blocks.is_active', true);
                 })
-                ->whereNotExists(function ($due): void {
-                    $due->selectRaw('1')->from('property_platform_receivables')
-                        ->whereColumn('property_platform_receivables.advertiser_user_id', 'properties.user_id')
-                        ->whereIn('property_platform_receivables.status', ['open', 'under_review', 'overdue', 'disputed'])
-                        ->whereColumn('property_platform_receivables.amount_paid', '<', 'property_platform_receivables.amount_total')
-                        ->where('property_platform_receivables.due_at', '<=', now());
-                })
+                ->whereNotExists(PropertyPlatformReceivable::query()->selectRaw('1')
+                    ->whereColumn('property_platform_receivables.advertiser_user_id', 'properties.user_id')
+                    ->overdueListingRestriction()->toBase())
                 ->orderBy('id')->limit($limit)->lockForUpdate()->pluck('id');
 
             if ($ids->isNotEmpty()) {
                 // Preserve the previous publication and confirmation dates,
                 // including its due reminder and the owner's edit timestamp.
                 DB::table('properties')->whereIn('id', $ids)->update(['availability_status' => 'available']);
+                PropertyDiscoveryFilterService::refreshNearbyVisibilityAfterCommit();
             }
         });
     }
