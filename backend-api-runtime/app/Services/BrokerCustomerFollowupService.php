@@ -26,7 +26,7 @@ class BrokerCustomerFollowupService
                     // A private reminder never sends a customer message or includes the private note.
                     $this->notifications->create((int) $actor->id, 'broker_customer_followup_due',
                         'حان موعد متابعة عميلك', 'افتح المحادثة لمتابعة العميل في الموعد الذي حددته.',
-                        'message_thread', (int) $thread->id, ['message_thread_id'=>(int) $thread->id, 'property_id'=>(int) $thread->property_id]);
+                        'message_thread', (int) $thread->id, ['message_thread_id'=>(int) $thread->id, 'property_id'=>(int) $thread->property_id, 'remind_at'=>$row->remind_at->toIso8601String()]);
                     $sent++;
                 }
                 // Invalidated ownership/accounts cannot starve the bounded due queue.

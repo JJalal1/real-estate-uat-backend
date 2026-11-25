@@ -19,10 +19,15 @@ class BackgroundQueue
         'receivables' => 'timers', 'entitlements' => 'timers', 'listing_expiry' => 'timers',
     ];
 
-    public function heartbeat(string $queue): void
+    public static function leaseSeconds(string $queue): int
+    {
+        return in_array($queue, ['push', 'push-urgent'], true) ? 45 : 95;
+    }
+
+    public function heartbeat(string $queue, string $consumer = 'local'): void
     {
         DB::table('background_workers')->upsert(
-            [['queue' => $queue, 'heartbeat_at' => now()]], ['queue'], ['heartbeat_at']
+            [['queue' => $queue, 'heartbeat_at' => now(), 'consumer' => $consumer]], ['queue'], ['heartbeat_at', 'consumer']
         );
     }
 
@@ -42,7 +47,7 @@ class BackgroundQueue
         try {
             return DB::transaction(function () use ($feature, $job, $queue, $slot): bool {
                 $worker = DB::table('background_workers')->where('queue', $queue)
-                    ->where('heartbeat_at', '>=', now()->subSeconds(45))->lockForUpdate()->first();
+                    ->where('heartbeat_at', '>=', now()->subSeconds(self::leaseSeconds($queue)))->lockForUpdate()->first();
                 if (! $worker) return false;
                 $count = DB::table(config('queue.connections.database.table', 'jobs'))->where('queue', $queue)->count();
                 if ($count >= max(1, config('background.capacity'))) return false;

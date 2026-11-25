@@ -10,6 +10,27 @@ use Illuminate\Support\Facades\DB;
 
 class DeadlineReminderService
 {
+    public const TYPES = ['payment_due_reminder', 'entitlement_expiry_reminder', 'listing_expiry_reminder'];
+
+    public function stillDue(\App\Models\UserNotification $notice): bool
+    {
+        $date = $notice->data['due_at'] ?? null;
+        if (! $date) return false;
+        $date = \Illuminate\Support\Carbon::parse($date)->utc();
+        if ($date->isPast()) return false;
+        return match ($notice->type) {
+            'payment_due_reminder' => PropertyPlatformReceivable::query()->whereKey($notice->entity_id)
+                ->where('advertiser_user_id', $notice->user_id)->where('status', 'open')
+                ->whereColumn('amount_paid', '<', 'amount_total')->where('due_at', $date)->exists(),
+            'entitlement_expiry_reminder' => ServiceEntitlement::query()->where('service_order_id', $notice->entity_id)
+                ->where('user_id', $notice->user_id)->where('status', 'active')->whereNull('revoked_at')
+                ->where('ends_at', $date)->exists(),
+            'listing_expiry_reminder' => Property::query()->whereKey($notice->entity_id)
+                ->where('user_id', $notice->user_id)->where('status', 'published')
+                ->where('published_at', $notice->data['published_at'] ?? null)->exists(),
+        };
+    }
+
     public function __construct(
         private readonly UserNotificationService $notices,
         private readonly BackgroundQueue $queues,
@@ -41,7 +62,7 @@ class DeadlineReminderService
         $lead = (int) config('background.expiry_lead_minutes');
         if ($lead <= 0) return;
         foreach (['sale', 'rent'] as $purpose) {
-            $days = (int) config("background.${purpose}_days");
+            $days = (int) config('background.'.$purpose.'_days');
             if ($days <= 0) continue;
             $query = Property::query()->where('status', 'published')->where('purpose', $purpose)
                 ->where('published_at', '>', now()->subDays($days))
@@ -66,7 +87,8 @@ class DeadlineReminderService
                         "$type:$row->id:$deadline->timestamp", $deadline->copy()->addDays(2)
                     )) return;
                     $this->notices->create($row->$actorColumn, $type, $title, null, $entity, $row->$entityKey,
-                        ['due_at' => $deadline->toIso8601String()]);
+                        array_filter(['due_at' => $deadline->toIso8601String(),
+                            'published_at' => $type === 'listing_expiry_reminder' ? $row->published_at->toDateTimeString() : null]));
                 });
             }
         });

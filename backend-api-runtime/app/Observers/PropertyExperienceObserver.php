@@ -18,7 +18,7 @@ class PropertyExperienceObserver
         $id = (int) $property->id;
         if ($property->status !== 'published') return;
         $queues = app(BackgroundQueue::class);
-        if ($property->wasChanged('status') && ! $queues->submit('instant_search', new MatchPublishedProperty($id))) {
+        if ($property->wasChanged('status') && ! $queues->submit('instant_search', new MatchPublishedProperty($id, now()->timestamp))) {
             DB::afterCommit(static fn () => app(SavedSearchAlertService::class)->notifyPublishedProperty($id));
         }
         if ($property->wasChanged('price')) {

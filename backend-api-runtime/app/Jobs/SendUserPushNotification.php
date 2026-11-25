@@ -19,13 +19,16 @@ class SendUserPushNotification implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public ?string $feature = null;
     public int $tries=3;
     public int $timeout=30;
 
     public function __construct(
         public readonly int $notificationId,
         public readonly int $deviceId,
+        ?string $feature = null,
     ) {
+        $this->feature = $feature;
         $this->onConnection(config('push.queue_connection','database'));
         $this->onQueue(config('push.queue','push'));
     }
@@ -38,6 +41,7 @@ class SendUserPushNotification implements ShouldQueue
     public function handle(FcmPushSender $sender): void
     {
         if (! config('push.enabled',false)) return;
+        if ($this->feature !== null && ! app(\App\Services\BackgroundQueue::class)->enabled($this->feature)) return;
         $notification=UserNotification::query()->withoutGlobalScopes()->find($this->notificationId);
         if (! $notification || $notification->created_at?->lt(now()->subMinutes(15))) return;
         $device=UserPushDevice::query()

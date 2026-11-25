@@ -11,6 +11,7 @@ return new class extends Migration {
         Schema::create('background_workers', function (Blueprint $table) {
             $table->string('queue', 40)->primary();
             $table->timestampTz('heartbeat_at');
+            $table->string('consumer', 64);
         });
         Schema::create('background_receipts', function (Blueprint $table) {
             $table->string('event_key', 64)->primary();

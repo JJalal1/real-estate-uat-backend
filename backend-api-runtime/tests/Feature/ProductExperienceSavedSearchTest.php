@@ -166,6 +166,44 @@ class ProductExperienceSavedSearchTest extends TestCase
         $this->assertSame(0, $daily->sendDailyDigests());
     }
 
+    public function test_image_preparation_uses_original_and_ignores_removed_image(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $listing = $this->property('photo test', 'sale', 'villa', 50000, 'published');
+        $images = app(\App\Services\ListingImageService::class);
+        $file = \Illuminate\Http\UploadedFile::fake()->image('listing.jpg', 480, 320);
+        $path = $images->store($file, 'listing-originals/'.$listing->id, cardFirst: true);
+        $image = $listing->images()->create(['path'=>$path, 'sort_order'=>0, 'is_primary'=>true]);
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+        $disk->assertExists($images->variantPath($path, 'card'));
+        $disk->assertMissing($images->variantPath($path, 'thumb'));
+        $job = new \App\Jobs\PrepareListingImage($image->id, hash('sha256', $path));
+        $job->handle($images);
+        $target = $images->variantPath($path, 'thumb');
+        $this->assertSame('image/jpeg', getimagesizefromstring($disk->get($target))['mime']);
+        $job->handle($images);
+        $image->delete();
+        $disk->delete($target);
+        $job->handle($images);
+        $disk->assertMissing($target);
+    }
+
+    public function test_listing_deadline_is_opt_in_deduplicated_and_does_not_unpublish(): void
+    {
+        $listing = $this->property('expiry test', 'rent', 'apartment', 123456, 'published');
+        $service = app(\App\Services\DeadlineReminderService::class);
+        $service->listings();
+        $this->assertDatabaseMissing('user_notifications', ['type'=>'listing_expiry_reminder']);
+        config(['background.rent_days'=>1, 'background.expiry_lead_minutes'=>1500]);
+        $service->listings();
+        $service->listings();
+        $notice = \App\Models\UserNotification::where('type','listing_expiry_reminder')->sole();
+        $this->assertTrue($service->stillDue($notice));
+        $this->assertSame('published', $listing->fresh()->status);
+        $listing->forceFill(['published_at'=>now()->addMinute()])->saveQuietly();
+        $this->assertFalse($service->stillDue($notice));
+    }
+
     private function user(string $email, string $phone): array
     {
         $user = User::query()->create([

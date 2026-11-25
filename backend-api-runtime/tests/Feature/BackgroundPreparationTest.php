@@ -21,7 +21,7 @@ class BackgroundPreparationTest extends TestCase
         $queues->heartbeat('discovery');
         $this->assertFalse($queues->submit('instant_search', $job));
         config(['background.features.instant_search'=>true, 'background.capacity'=>1]);
-        $this->travel(46)->seconds();
+        $this->travel(96)->seconds();
         $this->assertFalse($queues->submit('instant_search', $job));
         $queues->heartbeat('media');
         $this->assertFalse($queues->submit('instant_search', $job));

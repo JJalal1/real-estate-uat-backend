@@ -19,7 +19,7 @@ class BackgroundStatus extends Command
                 fn ($lane, $feature) => $lane === $queue && $queues->enabled($feature)
             )->isNotEmpty();
             $alive = DB::table('background_workers')->where('queue', $queue)
-                ->where('heartbeat_at', '>=', now()->subSeconds(45))->exists();
+                ->where('heartbeat_at', '>=', now()->subSeconds(BackgroundQueue::leaseSeconds($queue)))->exists();
             $jobs = DB::table(config('queue.connections.database.table'))->where('queue', $queue);
             $oldest = (clone $jobs)->min('created_at');
             $age = $oldest ? max(0, time() - $oldest) : 0;

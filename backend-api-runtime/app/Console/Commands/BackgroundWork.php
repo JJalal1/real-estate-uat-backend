@@ -30,17 +30,28 @@ class BackgroundWork extends Command
         if (in_array($queue, ['push', 'push-urgent'], true) && $this->call('push:readiness') !== self::SUCCESS) {
             return self::FAILURE;
         }
+        if (in_array($queue, ['push', 'push-urgent'], true) && app()->environment('staging')
+            && config('push.fcm.android_package') !== 'com.aqer.yemen.uat.offline') {
+            $this->error('Configure the verified Alazzi Android package before starting this worker.');
+            return self::FAILURE;
+        }
+        $consumer = (string) \Illuminate\Support\Str::uuid();
         $last = 0;
-        Queue::looping(function () use ($queue, $queues, &$last) {
+        Queue::looping(function () use ($queue, $queues, $consumer, &$last) {
             if (time() - $last >= 5) {
-                $queues->heartbeat($queue);
+                $queues->heartbeat($queue, $consumer);
                 $last = time();
             }
         });
-        return $this->call('queue:work', [
-            'connection' => 'database', '--queue' => $queue, '--sleep' => 2,
-            '--tries' => 3, '--timeout' => $timeout, '--memory' => 192,
-            '--max-time' => 3600, '--once' => $this->option('once'),
-        ]);
+        try {
+            return $this->call('queue:work', [
+                'connection' => 'database', '--queue' => $queue, '--sleep' => 2,
+                '--tries' => 3, '--timeout' => $timeout, '--memory' => 192,
+                '--max-time' => 3600, '--once' => $this->option('once'),
+            ]);
+        } finally {
+            \Illuminate\Support\Facades\DB::table('background_workers')
+                ->where('queue', $queue)->where('consumer', $consumer)->delete();
+        }
     }
 }

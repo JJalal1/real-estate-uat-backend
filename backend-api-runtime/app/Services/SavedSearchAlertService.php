@@ -14,7 +14,7 @@ class SavedSearchAlertService
         private readonly UserNotificationService $notifications,
     ) {}
 
-    public function notifyPublishedProperty(int $propertyId): int
+    public function notifyPublishedProperty(int $propertyId, ?int $publishedAt = null): int
     {
         $property = app(PropertyDiscoveryFilterService::class)->publicQuery()->whereKey($propertyId)->first();
         if (! $property) return 0;
@@ -23,6 +23,7 @@ class SavedSearchAlertService
         SavedPropertySearch::query()
             ->where('is_active', true)
             ->where('alert_frequency', 'instant')
+            ->when($publishedAt !== null, fn ($q) => $q->where('created_at', '<=', now()->setTimestamp($publishedAt)))
             ->where('user_id', '<>', $property->user_id)
             ->orderBy('id')
             ->chunkById(100, function ($rows) use ($property, &$notified): void {
