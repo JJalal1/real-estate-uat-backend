@@ -7,6 +7,9 @@ on:
       - 'backend-api-runtime/docker/push-worker-entrypoint.sh'
       - 'backend-api-runtime/.dockerignore'
       - 'backend-api-runtime/Dockerfile.queue-worker'
+      - 'backend-api-runtime/app/Console/Commands/BackgroundWork.php'
+      - 'backend-api-runtime/app/Services/BackgroundQueue.php'
+      - 'backend-api-runtime/config/background.php'
       - 'docs/operations/render-push-worker.example.yaml'
 permissions:
   contents: read

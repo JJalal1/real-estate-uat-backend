@@ -188,6 +188,16 @@ class ProductExperienceSavedSearchTest extends TestCase
         $disk->assertMissing($target);
     }
 
+    public function test_stale_ai_job_cannot_reopen_a_published_listing(): void
+    {
+        $listing = $this->property('completed review', 'sale', 'villa', 100000, 'published');
+        $workflow = $this->mock(\App\Services\ListingWorkflowService::class);
+        $workflow->shouldNotReceive('assessSubmittedPhotos');
+        $job = new \App\Jobs\AssessListingPhotos($listing->id, 42);
+        $job->handle($workflow, app(\App\Services\ListingDuplicateAssessment::class));
+        $this->assertSame('approved', $listing->fresh()->review_status);
+    }
+
     public function test_listing_deadline_is_opt_in_deduplicated_and_does_not_unpublish(): void
     {
         $listing = $this->property('expiry test', 'rent', 'apartment', 123456, 'published');

@@ -161,6 +161,13 @@ class ListingDuplicateAssessment
         return $id === null ? null : (int) $id;
     }
 
+    public function retryDelay(Property $listing, int $submission): int
+    {
+        $last = $this->latestAssessment($listing, $submission);
+        if ($last?->action !== self::STARTED) return 0;
+        return max(0, $last->created_at->timestamp + 241 - now()->timestamp);
+    }
+
     private function latestAssessment(Property $listing, int $submissionId): ?ListingReview
     {
         return ListingReview::query()->where('listing_id', $listing->id)->where('id', '>', $submissionId)
