@@ -11,7 +11,7 @@ void main() {
     expect(source, contains('final _monthlyRent = TextEditingController()'));
     expect(source, contains('final _rentalTermMonths = TextEditingController()'));
     expect(source, contains('final _advanceMonths = TextEditingController()'));
-    expect(source, contains('الإيجار الشهري بالريال اليمني *'));
+    expect(source, contains('الإيجار الشهري بالريال اليمني'));
     expect(source, contains('RentalConditionsEditor'));
     final conditions = File('lib/features/properties/presentation/rental_conditions_editor.dart').readAsStringSync();
     expect(conditions, contains('عدد أشهر المقدم'));

@@ -170,7 +170,7 @@ void main() {
   testWidgets('offline edits keep text and confirmed point, and a failed exit save stays in the editor',(tester) async {
     final recovery=Wave6Recovery(editorSnapshot()),drafts=_Drafts()..failSave=true;
     await pumpWave6(tester,_host(),recovery:recovery,drafts:drafts);await _open(tester);
-    final description=textField('وصف العقار');await tester.ensureVisible(description);await tester.enterText(description,'مجلس ومدخل مستقل — الشبكة انقطعت');
+    final description=textField('وصف العقار (اختياري)');await tester.ensureVisible(description);await tester.enterText(description,'مجلس ومدخل مستقل — الشبكة انقطعت');
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect((recovery.snapshot!['fields'] as Map)['description'],'مجلس ومدخل مستقل — الشبكة انقطعت');
     expect(recovery.snapshot!['latitude'],15.37);expect(recovery.snapshot!['longitude'],44.19);
@@ -186,7 +186,7 @@ void main() {
   testWidgets('failed local save also prevents the exit save from closing the editor',(tester) async {
     final recovery=_RecoveryFailure(editorSnapshot());
     await pumpWave6(tester,_host(),recovery:recovery,drafts:_Drafts());await _open(tester);
-    await tester.ensureVisible(textField('وصف العقار'));await tester.enterText(textField('وصف العقار'),'تغيير لم يحفظه الجهاز');
+    await tester.ensureVisible(textField('وصف العقار (اختياري)'));await tester.enterText(textField('وصف العقار (اختياري)'),'تغيير لم يحفظه الجهاز');
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     await _back(tester);await tester.tap(find.byKey(const ValueKey('listing-exit-save')));await tester.pumpAndSettle();
     expect(find.byType(ListingEditorScreen),findsOneWidget);expect(find.textContaining('لم يكتمل حفظ المسودة'),findsOneWidget);
@@ -196,7 +196,7 @@ void main() {
   testWidgets('a late checkpoint response cannot announce that newer edits were saved',(tester) async {
     final gate=Completer<void>(),drafts=_Drafts()..saveGate=gate,recovery=Wave6Recovery(editorSnapshot());
     await pumpWave6(tester,const ListingEditorScreen(),recovery:recovery,drafts:drafts);
-    final description=textField('وصف العقار');await tester.ensureVisible(description);await tester.enterText(description,'النسخة الأولى');await tester.pump(const Duration(seconds:1));
+    final description=textField('وصف العقار (اختياري)');await tester.ensureVisible(description);await tester.enterText(description,'النسخة الأولى');await tester.pump(const Duration(seconds:1));
     await tester.enterText(description,'آخر تعديل لم يصل بعد');await tester.pump(const Duration(milliseconds:100));
     gate.complete();drafts.saveGate=Completer<void>();await tester.pump();await tester.pump();
     expect(tester.widget<TextField>(description).controller!.text,'آخر تعديل لم يصل بعد');
@@ -209,7 +209,7 @@ void main() {
       final dir=Directory.systemTemp.createTempSync('listing-partial-');addTearDown(()=>dir.deleteSync(recursive:true));
       final data=_photos(dir,3),recovery=Wave6Recovery(data),drafts=_Drafts()..failOneUpload=true..failUploadNumber=2;
       final boundary=GlobalKey();await pumpWave6(tester,const ListingEditorScreen(),recovery:recovery,drafts:drafts,scale:scale,boundary:boundary);
-      final description=textField('وصف العقار');await tester.ensureVisible(description);await tester.enterText(description,'صور مستقلة للحفظ');
+      final description=textField('وصف العقار (اختياري)');await tester.ensureVisible(description);await tester.enterText(description,'صور مستقلة للحفظ');
       await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
       expect(drafts.uploadCount,3);expect(drafts.drafts.values.single.images.length,2);
       final tokens=(data['image_tokens'] as Map).values.cast<String>().toList(),failed=tokens[1];
@@ -228,7 +228,7 @@ void main() {
     final dir=Directory.systemTemp.createTempSync('listing-offline-');addTearDown(()=>dir.deleteSync(recursive:true));
     final data=_photos(dir,3),drafts=_Drafts()..failOneUpload=true..failUploadNumber=1..failTransport=true;
     await pumpWave6(tester,const ListingEditorScreen(),recovery:Wave6Recovery(data),drafts:drafts);
-    await tester.ensureVisible(textField('وصف العقار'));await tester.enterText(textField('وصف العقار'),'الصور باقية دون اتصال');
+    await tester.ensureVisible(textField('وصف العقار (اختياري)'));await tester.enterText(textField('وصف العقار (اختياري)'),'الصور باقية دون اتصال');
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();expect(drafts.uploadCount,1);
     final first=(data['image_order'] as List).first as String,retry=find.byKey(ValueKey('media-retry-$first'));
     await tester.ensureVisible(retry);await tester.tap(retry);await tester.pumpAndSettle();
@@ -243,7 +243,7 @@ void main() {
     drafts.drafts[key]=ListingAccountDraft(key:key,revision:3,propertyId:55,images:const {},payload:{...data,
       'checkpoint_key':checkpoint,'image_order':['property-501'],'promoted_image_keys':{token:'property-501'}});
     await pumpWave6(tester,ProviderScope(overrides:[propertyRepositoryProvider.overrideWithValue(_RecoveredProperties())],child:const ListingEditorScreen()),recovery:recovery,drafts:drafts);
-    final description=textField('وصف العقار');await tester.ensureVisible(description);await tester.enterText(description,'آخر تعديل بعد استعادة النتيجة');
+    final description=textField('وصف العقار (اختياري)');await tester.ensureVisible(description);await tester.enterText(description,'آخر تعديل بعد استعادة النتيجة');
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(drafts.uploadCount,0);expect(drafts.saves.last['image_order'],['property-501']);
     expect(drafts.drafts[key]!.propertyId,55);expect(recovery.snapshot!['image_paths'],isEmpty);
@@ -254,7 +254,7 @@ void main() {
     final dir=Directory.systemTemp.createTempSync('listing-cancel-');addTearDown(()=>dir.deleteSync(recursive:true));
     final data=_photos(dir,1),recovery=Wave6Recovery(data),gate=Completer<void>(),drafts=_Drafts()..uploadGate=gate;
     await pumpWave6(tester,const ListingEditorScreen(),recovery:recovery,drafts:drafts);
-    await tester.ensureVisible(textField('وصف العقار'));await tester.enterText(textField('وصف العقار'),'ارفع هذه الصورة');await tester.pump(const Duration(seconds:1));await tester.pump();
+    await tester.ensureVisible(textField('وصف العقار (اختياري)'));await tester.enterText(textField('وصف العقار (اختياري)'),'ارفع هذه الصورة');await tester.pump(const Duration(seconds:1));await tester.pump();
     final remove=find.byTooltip('إزالة الصورة');await tester.ensureVisible(remove);await tester.tap(remove);await tester.pump();gate.complete();
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(recovery.snapshot!['image_order'],isEmpty);expect(find.byTooltip('إزالة الصورة'),findsNothing);expect(drafts.drafts.values.single.images,isEmpty);

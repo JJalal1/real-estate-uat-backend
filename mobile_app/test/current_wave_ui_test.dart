@@ -1,8 +1,6 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
@@ -11,18 +9,6 @@ import 'support/wave3_fakes.dart';
 import 'support/wave6_fakes.dart';
 import 'current_wave_contract_test.dart' show MemoryLocationStore, FakeLocationAccess;
 import 'wave6_product_ui_test.dart' show pumpWave6,finishWave6,editorSnapshot,previewWave6;
-
-class CountingDescriptionAi extends Wave6Ai {
-  int calls=0;
-  bool rateLimited=false;
-  Completer<Map<String,dynamic>>? pending;
-  @override
-  Future<Map<String,dynamic>> description(Map<String,dynamic> facts,{int? propertyId,String? draftKey, String sourceDescription = ''}) async {
-    calls++;
-    if(rateLimited) { descriptionRetryAt=DateTime.now().add(const Duration(seconds:30));throw DescriptionRateLimit(descriptionRetryAt!); }
-    return pending?.future??Future.value({'description':'منزل للبيع من الحقائق المدخلة.'});
-  }
-}
 
 class _LocationMarketplace extends Wave3MarketplaceFake {
   _LocationMarketplace() : super(onFeed: (query) async =>
@@ -60,18 +46,6 @@ void main() {
       expect(field.value,'7');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
   }
-  testWidgets('description double tap is one request and rate limiting stays inline without automatic retries',(tester)async {
-    final ai=CountingDescriptionAi()..pending=Completer<Map<String,dynamic>>();
-    await pumpWave6(tester,const ListingEditorScreen(),ai:ai,recovery:Wave6Recovery(editorSnapshot()));
-    final button=find.byKey(const ValueKey('listing-description-generate'));
-    await tester.ensureVisible(button);await tester.tap(button);await tester.pump();await tester.tap(button);await tester.pump();
-    expect(ai.calls,1);expect(find.byType(BottomSheet),findsNothing);expect(find.byType(Dialog),findsNothing);
-    ai.pending!.complete({'description':'منزل للبيع.'});await tester.pumpAndSettle();ai.pending=null;ai.rateLimited=true;
-    await tester.ensureVisible(button);await tester.tap(button);await tester.pumpAndSettle();
-    expect(find.text('تعذر إنشاء الوصف الآن، جرّب بعد لحظات'),findsOneWidget);
-    expect(tester.widget<TextButton>(button).onPressed,isNull);await tester.pump(const Duration(seconds:2));expect(ai.calls,2);
-    expect(tester.takeException(),isNull);await finishWave6(tester);
-  });
   testWidgets('explicit home location permission updates the real feed query and manual city persists',(tester)async {
     final store=MemoryLocationStore(),access=FakeLocationAccess()..decision=LocationPermission.whileInUse;
     final repository=_LocationMarketplace();

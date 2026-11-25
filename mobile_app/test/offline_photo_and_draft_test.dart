@@ -185,8 +185,8 @@ void main() {
             offlineConnectionProvider.overrideWith((ref) => connection)
           ], child: const ListingEditorScreen());
       await pumpWave6(tester, editor(), drafts: drafts, recovery: recovery);
-      await tester.ensureVisible(textField('وصف العقار'));
-      await tester.enterText(textField('وصف العقار'), 'تفاصيل كتبت دون إنترنت');
+      await tester.ensureVisible(textField('وصف العقار (اختياري)'));
+      await tester.enterText(textField('وصف العقار (اختياري)'), 'تفاصيل كتبت دون إنترنت');
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect((recovery.snapshot!['fields'] as Map)['description'],

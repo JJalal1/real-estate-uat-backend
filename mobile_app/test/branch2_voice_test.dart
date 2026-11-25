@@ -291,7 +291,7 @@ void main() {
     voice.latest.emit(const VoiceEvent('speech_end'));
     await tester.pump(const Duration(seconds: 12));
     await tester.pump();
-    final description = tester.widget<TextField>(textField('وصف العقار'));
+    final description = tester.widget<TextField>(textField('وصف العقار (اختياري)'));
     expect(description.controller!.text, contains('tentative words'));
     expect(drafts.saves.any((p) =>
         (p['fields'] as Map)['description'].toString().contains('tentative words')), isFalse);
@@ -313,7 +313,7 @@ void main() {
     voice.latest.emit(const VoiceEvent('speech_end'));
     await tester.pump(const Duration(seconds: 12));
     await tester.pump(const Duration(milliseconds: 700));
-    final description = tester.widget<TextField>(textField('وصف العقار'));
+    final description = tester.widget<TextField>(textField('وصف العقار (اختياري)'));
     expect(description.controller!.text, contains('tentative words'));
     expect((recovery.snapshot!['fields'] as Map)['description'], (initial['fields'] as Map)['description']);
     expect(drafts.saves.any((p) => (p['fields'] as Map)['description'].toString().contains('tentative words')), isFalse);
@@ -334,7 +334,7 @@ void main() {
     voice.latest.emit(const VoiceEvent('partial', text: 'tentative words'));
     voice.latest.emit(const VoiceEvent('speech_end'));
     await tester.pump(const Duration(seconds: 12));
-    final description = tester.widget<TextField>(textField('وصف العقار'));
+    final description = tester.widget<TextField>(textField('وصف العقار (اختياري)'));
     final other = tester.widgetList<TextField>(find.byType(TextField))
         .firstWhere((field) => field.controller != description.controller && field.controller?.text.isNotEmpty == true);
     final original = other.controller!.text;
@@ -360,7 +360,7 @@ void main() {
     voice.latest.emit(const VoiceEvent('partial', text: 'tentative words'));
     voice.latest.emit(const VoiceEvent('speech_end'));
     await tester.pump(const Duration(seconds: 12));
-    final description = tester.widget<TextField>(textField('وصف العقار'));
+    final description = tester.widget<TextField>(textField('وصف العقار (اختياري)'));
     description.controller!.text = '${description.controller!.text} edited';
     await tester.pump(const Duration(milliseconds: 700));
     expect((recovery.snapshot!['fields'] as Map)['description'], contains('tentative words edited'));
@@ -388,7 +388,7 @@ void main() {
     voice.latest.emit(const VoiceEvent('ready'));
     voice.latest.emit(const VoiceEvent('partial', text: 'fresh words'));
     await tester.pump();
-    final description = tester.widget<TextField>(textField('وصف العقار'));
+    final description = tester.widget<TextField>(textField('وصف العقار (اختياري)'));
     expect(description.controller!.text, contains('fresh words'));
     expect(description.controller!.text, isNot(contains('old tentative')));
     await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel')));
@@ -417,7 +417,7 @@ void main() {
     voice.latest.emit(const VoiceEvent('partial', text: 'tentative words'));
     voice.latest.emit(const VoiceEvent('speech_end'));
     await tester.pump(const Duration(seconds: 12));
-    final description = tester.widget<TextField>(textField('وصف العقار'));
+    final description = tester.widget<TextField>(textField('وصف العقار (اختياري)'));
     final other = tester.widgetList<TextField>(find.byType(TextField))
         .firstWhere((field) => field.controller != description.controller && field.controller?.text.isNotEmpty == true);
     other.controller!.text = '${other.controller!.text} edited';
@@ -438,12 +438,12 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('listing-description-voice')));
     await tester.tap(find.byKey(const ValueKey('listing-description-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('partial', text: 'مدخل مستقل')); await tester.pump();
-    expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text, 'وصف كتبه الدلال مدخل مستقل');
+    expect(tester.widget<TextField>(textField('وصف العقار (اختياري)')).controller!.text, 'وصف كتبه الدلال مدخل مستقل');
     await tester.pump(const Duration(seconds: 1));
     expect(drafts.saves.any((p) => (p['fields'] as Map)['description'].toString().contains('مدخل مستقل')), isFalse);
     await tester.ensureVisible(find.byKey(const ValueKey('voice-finish'))); await tester.tap(find.byKey(const ValueKey('voice-finish'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('final', text: 'مدخل مستقل')); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(textField('وصف العقار')).controller!.text, 'وصف كتبه الدلال مدخل مستقل');
+    expect(tester.widget<TextField>(textField('وصف العقار (اختياري)')).controller!.text, 'وصف كتبه الدلال مدخل مستقل');
     await finishWave6(tester);
   });
 }

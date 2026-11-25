@@ -18,7 +18,7 @@ import 'support/wave6_fakes.dart';
 import 'wave6_product_ui_test.dart' show pumpWave6, finishWave6, editorSnapshot, textField, previewWave6;
 
 const _address = PropertyLocationAddress(governorate: 'محافظة صناعية', city: 'مدينة صناعية', district: 'مديرية صناعية',
-  neighborhood: 'حي صناعي', street: 'شارع صناعي');
+  neighborhood: 'حي صناعي', street: 'شارع صناعي', attribution: '© Test address provider');
 class _NoAuth implements AuthRepository {
   @override
   dynamic noSuchMethod(Invocation invocation) => throw StateError('Geocoding must not request account credentials');
@@ -89,9 +89,9 @@ void main() {
     ], child: const ListingEditorScreen()), recovery: recovery);
     await tester.ensureVisible(find.byKey(const ValueKey('listing-current-location')));
     await tester.tap(find.byKey(const ValueKey('listing-current-location'))); await tester.pump();
-    await tester.ensureVisible(textField('المحافظة *')); await tester.enterText(textField('المحافظة *'), 'محافظتي المعدلة');
+    await tester.ensureVisible(textField('المحافظة')); await tester.enterText(textField('المحافظة'), 'محافظتي المعدلة');
     addresses.pending!.complete(_address); await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(textField('المحافظة *')).controller!.text, 'محافظتي المعدلة');
+    expect(tester.widget<TextField>(textField('المحافظة')).controller!.text, 'محافظتي المعدلة');
     expect(tester.widget<TextField>(textField('المدينة')).controller!.text, 'مدينة صناعية');
     expect(tester.widget<TextField>(textField('المديرية')).controller!.text, 'مديرية صناعية');
     expect(tester.widget<TextField>(textField('الحي')).controller!.text, 'حي صناعي');
@@ -102,19 +102,54 @@ void main() {
   });
   testWidgets('C02 manual correction retains its point and clears stale GPS accuracy', (tester) async {
     final recovery = Wave6Recovery({...editorSnapshot(), 'editor_version': 11, 'step': 1,
-      'location_method': 'gps', 'location_accuracy_m': 70.0, 'location_reduced_accuracy': true});
+      'location_method': 'gps', 'location_accuracy_m': 70.0, 'location_reduced_accuracy': true,
+      'location_context': _address.toJson()});
+    var pickerOpens = 0;
     await pumpWave6(tester, ProviderScope(overrides: [
-      propertyLocationPickerProvider.overrideWithValue((context, {initialLatitude, initialLongitude}) async =>
-        const PropertyLocationSelection(latitude: 14.541, longitude: 44.401, address: _address)),
+      propertyLocationPickerProvider.overrideWithValue((context, {initialLatitude, initialLongitude}) async {
+        pickerOpens++;
+        expect((initialLatitude, initialLongitude), (15.37, 44.19));
+        return const PropertyLocationSelection(latitude: 14.541, longitude: 44.401, address: _address);
+      }),
       propertyMapPreviewBuilderProvider.overrideWithValue((context, lat, lon) => const Text('دبوس صناعي للاختبار')),
     ], child: const ListingEditorScreen()), recovery: recovery);
-    expect(find.byKey(const ValueKey('listing-gps-accuracy')), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const ValueKey('listing-select-location')));
-    await tester.tap(find.byKey(const ValueKey('listing-select-location'))); await tester.pumpAndSettle();
+    final card = find.byKey(const ValueKey('listing-location-status'));
+    final preview = find.byKey(const ValueKey('listing-location-preview'));
+    final open = find.byKey(const ValueKey('property-open-map'));
+    final edit = find.byKey(const ValueKey('listing-select-location'));
+    final gps = find.byKey(const ValueKey('listing-current-location'));
+    for (final item in [preview, open, edit, gps, find.text(_address.attribution)]) {
+      expect(find.descendant(of: card, matching: item), findsOneWidget);
+    }
+    expect(find.text(_address.attribution), findsOneWidget);
+    final restoredPoint = tester.widget<PropertyLocationPreview>(preview);
+    expect((restoredPoint.latitude, restoredPoint.longitude), (15.37, 44.19));
+    expect(find.byKey(const ValueKey('listing-owner-coordinates')), findsNothing);
+    expect(find.textContaining('العنوان اقتراح'), findsNothing);
+    expect(find.byKey(const ValueKey('listing-nearby-landmarks')), findsOneWidget);
     expect(find.byKey(const ValueKey('listing-gps-accuracy')), findsNothing);
+
+    await tester.ensureVisible(open);
+    await tester.tap(open);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final locationScreen = find.byType(PropertyLocationScreen);
+    final position = tester.widget<PropertyLocationScreen>(locationScreen);
+    expect((position.latitude, position.longitude), (15.37, 44.19));
+    expect(pickerOpens, 0);
+    Navigator.of(tester.element(locationScreen)).pop();
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    final editedPoint = tester.widget<PropertyLocationPreview>(preview);
+    expect((editedPoint.latitude, editedPoint.longitude), (14.541, 44.401));
+    expect(pickerOpens, 1);
     await tester.pump(const Duration(seconds: 3)); await tester.pumpAndSettle();
     expect(recovery.snapshot!['latitude'], 14.541); expect(recovery.snapshot!['longitude'], 44.401);
     expect(recovery.snapshot!['location_method'], 'manual'); expect(recovery.snapshot!['location_accuracy_m'], isNull);
+    expect(tester.takeException(), isNull);
     await finishWave6(tester);
   });
   for (final scale in [1.0, 2.4]) {

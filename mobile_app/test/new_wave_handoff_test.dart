@@ -24,16 +24,6 @@ import 'package:real_estate_mobile/features/properties/domain/property_location_
 import 'support/wave6_fakes.dart';
 import 'wave6_product_ui_test.dart' show pumpWave6, editorSnapshot, finishWave6, textField, previewWave6;
 
-class _DescriptionAi extends Wave6Ai {
-  String? source;
-  final result = Completer<Map<String,dynamic>>();
-  @override
-  Future<Map<String,dynamic>> description(Map<String,dynamic> facts, {int? propertyId, String? draftKey, String sourceDescription = ''}) {
-    source = sourceDescription;
-    return result.future;
-  }
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
@@ -116,13 +106,15 @@ void main() {
 
   for(final scale in [1.0,2.4]) {
     testWidgets('floor distribution survives the checkpoint and the large Arabic view at $scale', (tester) async {
-      final snapshot=editorSnapshot()..['editor_version']=9..['units_per_floor']=['2','3','2'];
+      final snapshot=editorSnapshot()..['editor_version']=9..['units_per_floor']=['2','3','2']..['area_unit']='libna_dhamari';
       (snapshot['fields'] as Map)['floors_count']='3';
       final recovery=Wave6Recovery(snapshot), boundary=GlobalKey();
       await pumpWave6(tester,const ListingEditorScreen(),recovery:recovery,scale:scale,boundary:boundary);
       final floors=find.byKey(const ValueKey('listing-floors-count'));
       await tester.ensureVisible(floors);await tester.pumpAndSettle();
       expect(tester.widget<TextField>(floors).controller!.text,'3');
+      expect(textField('عدد اللبن'), findsOneWidget);
+      expect(find.text('عدد الشقق في الدور 2'), findsOneWidget);
       await tester.ensureVisible(find.byWidgetPredicate((w) => w is TextFormField && w.key is ValueKey && (w.key as ValueKey).value.toString().startsWith('listing-units-1-')));await tester.enterText(find.byWidgetPredicate((w) => w is TextFormField && w.key is ValueKey && (w.key as ValueKey).value.toString().startsWith('listing-units-1-')),'4');
       await tester.pump(const Duration(seconds:1));
       expect(recovery.snapshot!['units_per_floor'],['2','4','2']);
@@ -133,16 +125,18 @@ void main() {
     });
   }
 
-  testWidgets('existing free description reaches improvement and a late reply preserves user editing', (tester) async {
-    final ai=_DescriptionAi();
-    await pumpWave6(tester,const ListingEditorScreen(),ai:ai,recovery:Wave6Recovery(editorSnapshot(type:'apartment')));
-    final action=find.byKey(const ValueKey('listing-description-generate'));
-    await tester.ensureVisible(action);await tester.tap(action);await tester.pump();
-    expect(ai.source,'وصف كتبه الدلال');
-    final field=textField('وصف العقار');await tester.ensureVisible(field);await tester.enterText(field,'مدخل مستقل وحوش');
-    ai.result.complete({'description':'اقتراح وصل متأخرًا'});await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field).controller!.text,'مدخل مستقل وحوش');
-    expect(find.text('ترتيب وصياغة الشروط بالذكاء الاصطناعي'),findsNothing);
+  testWidgets('description can be cleared, stays compact, and still offers dictation', (tester) async {
+    final recovery = Wave6Recovery(editorSnapshot(type: 'apartment'));
+    await pumpWave6(tester, const ListingEditorScreen(), recovery: recovery);
+    final field = textField('وصف العقار (اختياري)');
+    await tester.ensureVisible(field);
+    expect(tester.widget<TextField>(field).maxLines, 3);
+    expect(find.byKey(const ValueKey('listing-description-generate')), findsNothing);
+    expect(find.byKey(const ValueKey('listing-description-voice')), findsOneWidget);
+    await tester.enterText(field, '');
+    await tester.pump(const Duration(seconds: 1));
+    expect((recovery.snapshot!['fields'] as Map)['description'], isEmpty);
+    expect(tester.takeException(), isNull);
     await finishWave6(tester);
   });
 
@@ -161,7 +155,7 @@ void main() {
           address:PropertyLocationAddress(governorate:'إب',district:'السبل',street:'المدخل'));
       }),
     ],child:const ListingEditorScreen()),recovery:recovery,boundary:boundary);
-    final governorate=textField('المحافظة *'),gps=find.byKey(const ValueKey('listing-current-location'));
+    final governorate=textField('المحافظة'),gps=find.byKey(const ValueKey('listing-current-location'));
     expect(tester.widget<TextField>(governorate).enabled,isFalse);
     await tester.ensureVisible(gps);await tester.tap(gps);await tester.pumpAndSettle();
     expect(tester.widget<TextField>(governorate).enabled,isTrue);

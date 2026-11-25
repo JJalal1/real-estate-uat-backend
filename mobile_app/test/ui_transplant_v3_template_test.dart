@@ -347,10 +347,10 @@ void main() {
     expect(find.byType(EbrokerWizardCategoryCard), findsNWidgets(8));
     final grid = tester.widget<GridView>(find.byType(GridView));
     expect((grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount).crossAxisCount, 3);
-    expect(find.text('نوع الملكية *'), findsOneWidget);
+    expect(find.text('نوع الملكية'), findsOneWidget);
     await tester.tap(find.text('للإيجار'));
     await tester.pumpAndSettle();
-    expect(find.text('نوع الملكية *'), findsNothing);
+    expect(find.text('نوع الملكية'), findsNothing);
     final purpose = tester.widget<EbrokerSegmentedButton<String>>(find.byType(EbrokerSegmentedButton<String>));
     expect(purpose.selected, {'rent'});
     final next = find.widgetWithText(EbrokerStepButton, 'التالي');
