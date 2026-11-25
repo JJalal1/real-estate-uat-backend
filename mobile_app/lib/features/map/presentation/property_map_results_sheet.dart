@@ -21,6 +21,7 @@ double compactMapResultsHeaderHeight(BuildContext context) {
 class PropertyMapResultsSheet extends StatefulWidget {
   const PropertyMapResultsSheet({required this.items, required this.itemBuilder,
     this.selectedId, this.markerSelection = 0, this.loading = false, this.staleResults = false, this.error, this.onRetry, this.onShowList,
+    this.onOpenFullList,
     this.onMarkerDetails, this.onDismissMarker, this.onAdd, this.total, this.hasDrawnArea = false,
     this.more = false, this.onMore, this.maxExtent = .84, this.collapsed = false, this.filterPanel, super.key});
   final Widget? filterPanel;
@@ -35,7 +36,7 @@ class PropertyMapResultsSheet extends StatefulWidget {
   final VoidCallback? onDismissMarker, onAdd;
   final double maxExtent;
   final String? error;
-  final VoidCallback? onRetry, onShowList, onMore;
+  final VoidCallback? onRetry, onShowList, onOpenFullList, onMore;
   @override
   State<PropertyMapResultsSheet> createState() => _PropertyMapResultsSheetState();
 }
@@ -231,18 +232,18 @@ class _PropertyMapResultsSheetState extends State<PropertyMapResultsSheet> {
 
   Widget _compactHeader(BuildContext context, String count) {
     final theme = Theme.of(context);
-    final showCollapse = widget.onShowList == null && _expanded;
-    final toggle = widget.onShowList ?? _toggleExtent;
+    final showCollapse = widget.onShowList == null && widget.onOpenFullList == null && _expanded;
+    final listAction = widget.onOpenFullList ?? widget.onShowList ?? _toggleExtent;
     final height = compactMapResultsHeaderHeight(context) - MediaQuery.paddingOf(context).bottom;
     return SizedBox(key: const ValueKey('map-results-handle'), height: height,
       child: Row(textDirection: TextDirection.rtl, children: [
         Expanded(child: TextButton.icon(
           key: widget.onShowList == null ? const ValueKey('map-show-list') : const ValueKey('smart-search-list'),
-          onPressed: toggle, icon: Icon(showCollapse ? Icons.keyboard_arrow_down : Icons.view_list_outlined, size: 18),
+          onPressed: listAction, icon: Icon(showCollapse ? Icons.keyboard_arrow_down : Icons.view_list_outlined, size: 18),
           label: Text(showCollapse ? 'تصغير' : 'قائمة', maxLines: 1),
           style: TextButton.styleFrom(foregroundColor: theme.colorScheme.onSurface, padding: EdgeInsets.zero))),
         const VerticalDivider(width: 1, indent: 9, endIndent: 9),
-        Expanded(flex: 2, child: InkWell(onTap: toggle, child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Expanded(flex: 2, child: InkWell(onTap: widget.onShowList ?? _toggleExtent, child: Center(child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (widget.loading && widget.items.isEmpty)
             const Padding(padding: EdgeInsetsDirectional.only(end: 5), child: SizedBox.square(dimension: 13,
               child: CircularProgressIndicator(strokeWidth: 1.5))),

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/local/stage6_secure_session_store.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/account/data/private_collection.dart';
@@ -61,8 +62,8 @@ class _Wire {
 DioException _failure(RequestOptions r, [int status = 503]) => DioException(
   requestOptions: r, type: DioExceptionType.badResponse,
   response: Response(requestOptions: r, statusCode: status));
-Map<String, dynamic> _page(int page, List<Map<String, dynamic>> rows, {int last = 1}) => {
-  'data': rows, 'meta': {'current_page': page, 'last_page': last, 'total': rows.length},
+Map<String, dynamic> _page(int page, List<Map<String, dynamic>> rows, {int last = 1, int? total}) => {
+  'data': rows, 'meta': {'current_page': page, 'last_page': last, 'total': total ?? rows.length},
 };
 Map<String, dynamic> _row(String surface, int id, {String? title, bool due = false}) => switch (surface) {
   'favorites' => {'property': {'id': id, 'title': title ?? 'Synthetic favorite $id',
@@ -154,7 +155,7 @@ void main() {
       final c = await _open(tester, wire, screen);
       expect(wire.pages, [1]);
       if (surface != 'customers') expect(wire.requests.first.queryParameters['per_page'], 50);
-      if (surface == 'availability') expect(find.text('اختيار الإعلانات المحمّلة'), findsOneWidget);
+      if (surface == 'availability') expect(find.text('تحديد الكل'), findsOneWidget);
       await _more(tester, '$prefix-more'); await tester.pumpAndSettle();
       final footer = find.byKey(ValueKey('$prefix-page-status'));
       final retry = find.descendant(of: footer, matching: find.text('إعادة المحاولة'));
@@ -217,9 +218,57 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Synthetic availability 101'), findsOneWidget);
     expect(find.text('Synthetic availability 999'), findsNothing);
-    final confirm = find.text('ما زالت متوفرة (1)');
-    await tester.scrollUntilVisible(confirm, 300, scrollable: _vertical, maxScrolls: 20);
-    expect(confirm.hitTestable(), findsOneWidget);
+    final selectedRow = find.descendant(of: row, matching: find.byType(CheckboxListTile));
+    expect(tester.widget<CheckboxListTile>(selectedRow).value, isFalse);
+    final confirm = find.byKey(const ValueKey('broker-availability-confirm'));
+    expect(tester.widget<AppButton>(confirm).onPressed, isNull);
+    await tester.tap(selectedRow);
+    await tester.pumpAndSettle();
+    expect(find.text('تأكيد التوفر (1)').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  phase23WidgetTest('select all covers every active tab page and retries only unconfirmed batches', (tester) async {
+    final submitted = <List<int>>[];
+    final wire = _Wire((r) async {
+      if (r.method == 'POST') {
+        final data = r.data as Map<String, dynamic>;
+        submitted.add(List<int>.of(data['property_ids'] as List<int>));
+        expect(data['state'], 'available');
+        if (submitted.length == 2) throw _failure(r);
+        return {'data': {}};
+      }
+      expect(r.queryParameters['only_due'], 1);
+      final page = r.queryParameters['page'] as int;
+      final start = (page - 1) * 50 + 1;
+      final size = page == 3 ? 2 : 50;
+      return _page(page, List.generate(size, (i) => _row('availability', start + i, due: true)),
+        last: 3, total: 102);
+    });
+    await _open(tester, wire, const BrokerAvailabilityScreen(initiallyDue: true));
+    final selectAll = find.byKey(const ValueKey('broker-availability-select-all'));
+    final confirm = find.byKey(const ValueKey('broker-availability-confirm'));
+    expect(tester.widget<CheckboxListTile>(selectAll).value, isFalse);
+    await tester.tap(selectAll);
+    await tester.pumpAndSettle();
+    expect(wire.pages, [1, 2, 3]);
+    expect(tester.widget<CheckboxListTile>(selectAll).value, isTrue);
+    expect(find.text('تأكيد التوفر (102)'), findsOneWidget);
+    expect(submitted, isEmpty);
+
+    await tester.tap(selectAll);
+    await tester.pumpAndSettle();
+    expect(tester.widget<AppButton>(confirm).onPressed, isNull);
+    await tester.tap(selectAll);
+    await tester.pumpAndSettle();
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(submitted, [List.generate(100, (i) => i + 1), [101, 102]]);
+    expect(find.text('تأكيد التوفر (2)'), findsOneWidget);
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(submitted, [List.generate(100, (i) => i + 1), [101, 102], [101, 102]]);
+    expect(tester.widget<AppButton>(confirm).onPressed, isNull);
     expect(tester.takeException(), isNull);
   });
 

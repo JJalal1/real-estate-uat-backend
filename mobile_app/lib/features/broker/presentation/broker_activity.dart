@@ -8,12 +8,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/account_request_scope.dart';
+import '../../account/data/auth_controller.dart';
 import '../../account/presentation/actor_scoped_page.dart';
 import '../../community/data/community_repository.dart';
 import '../../financial/presentation/receivable_payment_screen.dart';
 import '../../financial/data/financial_repository.dart';
 import '../../messages/domain/message_models.dart';
-import '../../messages/presentation/messages_screen.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
 import 'broker_workspaces.dart';
@@ -21,10 +21,11 @@ import 'customer_followup_sheet.dart';
 
 String brokerMoney(dynamic amount, String currency) => '${brokerNumber(amount).toStringAsFixed(2)} ${currency == 'YER' ? 'ر.ي' : currency}';
 
-Future<void> reportBrokerDeal(BuildContext context, WidgetRef ref, int threadId) async {
+Future<void> reportBrokerDeal(BuildContext context, WidgetRef ref, int threadId, {bool openResult = true}) async {
+  final scope = ref.read(accountRequestScopeProvider);
   String raw = '';
   final form = GlobalKey<FormState>();
-  final amount = await showDialog<double>(context: context, builder: (dialogContext) => AlertDialog(
+  final amount = await showActorDialog<double>(context: context, ref: ref, builder: (dialogContext) => AlertDialog(
     title: const Text('تسجيل نتيجة الصفقة'),
     content: SingleChildScrollView(child: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Text('سجّل البيع أو التأجير الذي تم مع هذا العميل خارج التطبيق. سيُغلق الإعلان ويُطلب من العميل تأكيد النتيجة.'),
@@ -39,33 +40,38 @@ Future<void> reportBrokerDeal(BuildContext context, WidgetRef ref, int threadId)
         Navigator.pop(dialogContext, raw.trim().isEmpty ? -1.0 : _brokerAmount(raw));
       })],
   ));
-  if (amount == null || !context.mounted) return;
+  if (amount == null || !context.mounted || !scope.isCurrent) return;
   try {
-    final deal = await _reportWithSaiConsent(context, ref, threadId, amount < 0 ? null : amount);
-    if (deal == null || !context.mounted) return;
+    final deal = await _reportWithSaiConsent(context, ref, scope, threadId, amount < 0 ? null : amount);
+    if (deal == null || !context.mounted || !scope.isCurrent) return;
     refreshBrokerData(ref);
-    if (context.mounted) await context.push('/broker/deals/${deal.id}');
+    if (openResult) {
+      await context.push('/broker/deals/${deal.id}');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أُرسلت نتيجة الصفقة للعميل للتأكيد.')));
+    }
   } catch (error) {
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    if (context.mounted && scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
   }
 }
 
-Future<BrokerDeal?> _reportWithSaiConsent(BuildContext context, WidgetRef ref, int threadId, double? amount) async {
+Future<BrokerDeal?> _reportWithSaiConsent(BuildContext context, WidgetRef ref, AccountRequestScope scope, int threadId, double? amount) async {
   final repository = ref.read(brokerRepositoryProvider);
   try { return await repository.reportDeal(threadId, amount: amount); }
   on DioException catch (error) {
     final body = error.response?.data;
     if (error.response?.statusCode != 409 || body is! Map || body['code'] != 'sai_consent_required') rethrow;
     final data = body['data'];
-    if (data is! Map || data['property_id'] is! int || data['sai_term_id'] is! int || data['text'] is! String || !context.mounted) rethrow;
-    final accepted = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+    if (data is! Map || data['property_id'] is! int || data['sai_term_id'] is! int || data['text'] is! String || !context.mounted || !scope.isCurrent) rethrow;
+    final accepted = await showActorDialog<bool>(context: context, ref: ref, builder: (dialog) => AlertDialog(
       title: const Text('إقرار السعي لهذه المحادثة'),
       content: SingleChildScrollView(child: Text(data['text'] as String)),
       actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('ليس الآن')),
         AppButton(label: 'أوافق وأتابع', onPressed: () => Navigator.pop(dialog, true))],
     ));
-    if (accepted != true || !context.mounted) return null;
+    if (accepted != true || !context.mounted || !scope.isCurrent) return null;
     await ref.read(financialRepositoryProvider).attestSai(data['property_id'] as int, saiTermId: data['sai_term_id'] as int);
+    if (!context.mounted || !scope.isCurrent) return null;
     return repository.reportDeal(threadId, amount: amount);
   }
 }
@@ -78,17 +84,17 @@ double? _brokerAmount(String text) {
   return parsed?.isFinite == true ? parsed : null;
 }
 
-class BrokerActivityScreen extends StatelessWidget {
-  const BrokerActivityScreen({this.initialTab = 0, this.todayOnly = false, super.key});
-  final int initialTab;
-  final bool todayOnly;
+class BrokerActivityScreen extends ConsumerWidget {
+  const BrokerActivityScreen({super.key});
+
   @override
-  Widget build(BuildContext context) => DefaultTabController(key: ValueKey('activity-$initialTab-$todayOnly'), length: 2, initialIndex: initialTab.clamp(0, 1).toInt(), child: BrokerScaffold(
-    appBar: AppBar(title: const Text('نشاطي'), bottom: const TabBar(isScrollable: true, tabs: [
-      Tab(text: 'الصفقات'), Tab(text: 'المحادثات'),
-    ])),
-    body: TabBarView(children: [const BrokerDealsList(), const MessagesScreen(embedded: true)]),
-  ));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final account = ref.watch(accountRequestScopeProvider);
+    return BrokerScaffold(
+      appBar: const AppAppBar(title: 'نشاطي'),
+      body: account.isCurrent ? BrokerDealsList(key: ValueKey(account)) : const AppLoadingState(),
+    );
+  }
 }
 
 class BrokerDealsList extends ConsumerStatefulWidget {
@@ -100,39 +106,78 @@ class _BrokerDealsListState extends ConsumerState<BrokerDealsList> {
   final List<BrokerDeal> _items = [];
   bool _loading = true, _more = false;
   int _page = 0;
+  int _loadVersion = 0;
   String? _error;
   @override
   void initState() { super.initState(); Future.microtask(_load); }
   Future<void> _load({bool next = false}) async {
+    if (!mounted) return;
+    final version = ++_loadVersion;
     setState(() { _loading = true; _error = null; });
+    AccountRequestScope? scope;
     try {
+      await ref.read(authControllerProvider.future);
+      if (!mounted || version != _loadVersion) return;
+      final request = ref.read(accountRequestScopeProvider);
+      scope = request;
       final page = await ref.read(brokerRepositoryProvider).activity(page: next ? _page + 1 : 1);
-      if (!mounted) return;
-      setState(() { if (!next) _items.clear(); _items.addAll(page.items); _page = page.page; _more = page.hasMore; _loading = false; });
-    } catch (error) { if (mounted) setState(() { _loading = false; _error = friendlyApiError(error); }); }
+      if (!mounted || !request.isCurrent || version != _loadVersion) return;
+      setState(() {
+        if (!next) _items.clear();
+        final currentIds = _items.map((item) => item.id).toSet();
+        _items.addAll(page.items.where((item) => currentIds.add(item.id)));
+        _page = page.page;
+        _more = page.hasMore;
+        _loading = false;
+      });
+    } catch (error) {
+      if (mounted && scope?.isCurrent != false && version == _loadVersion) {
+        setState(() { _loading = false; _error = friendlyApiError(error); });
+      }
+    }
   }
+
+  Future<void> _openResult(BrokerDeal deal) async {
+    final scope = ref.read(accountRequestScopeProvider);
+    await showActorDialog<void>(context: context, ref: ref, builder: (_) => BrokerDealScreen._dialog(
+      id: deal.id,
+      onDealChanged: (updated) {
+        if (!mounted || !scope.isCurrent) return;
+        final index = _items.indexWhere((item) => item.id == updated.id);
+        if (index >= 0) setState(() => _items[index] = updated);
+      },
+    ));
+  }
+
   @override
-  Widget build(BuildContext context) => RefreshIndicator(onRefresh: () => _load(), child: ListView(
-    padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
-      const Text('يُحتسب الإنجاز بعد تأكيدك وتأكيد العميل. نتيجة مرفوضة أو قيد المراجعة لا تفتح التقييم.'),
-      const SizedBox(height: 12),
-      for (final deal in _items) Padding(padding: const EdgeInsets.only(bottom: 10), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(deal.propertyTitle, style: Theme.of(context).textTheme.titleMedium),
-        Text('${deal.customerName} · ${deal.statusLabel}'),
-        Text(brokerMoney(deal.amount, deal.currency)),
-        AppButton(label: deal.canConfirm ? 'تأكيد النتيجة' : 'عرض النتيجة', onPressed: () async { await context.push('/broker/deals/${deal.id}'); if (mounted) await _load(); }),
-      ]))),
-      if (_loading) const AppLoadingState(),
-      if (_error != null) AppErrorState(message: _error!, onRetry: () => _load()),
-      if (!_loading && _error == null && _items.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('ستظهر هنا نتائج صفقاتك بعد تسجيلها من محادثة العميل.')),
-      if (_more && !_loading) AppButton(label: 'عرض المزيد', onPressed: () => _load(next: true)),
-    ],
-  ));
+  Widget build(BuildContext context) {
+    final viewer = ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
+    return RefreshIndicator(onRefresh: () => _load(), child: ListView(
+      key: const ValueKey('broker-activity-deals'),
+      padding: const EdgeInsets.all(16), physics: const AlwaysScrollableScrollPhysics(), children: [
+        for (final deal in _items) Padding(key: ValueKey(deal.id), padding: const EdgeInsets.only(bottom: 10), child: BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(deal.propertyTitle, style: Theme.of(context).textTheme.titleMedium),
+          Text('${deal.otherPartyName(viewer)} · ${deal.statusLabel}'),
+          Text(brokerMoney(deal.amount, deal.currency)),
+          AppButton(label: 'عرض النتيجة', onPressed: () => _openResult(deal)),
+        ]))),
+        if (_loading) const AppLoadingState(),
+        if (_error != null) AppErrorState(message: _error!, onRetry: () => _load()),
+        if (!_loading && _error == null && _items.isEmpty) const Padding(padding: EdgeInsets.all(24), child: Text('ستظهر هنا نتائج صفقاتك بعد تسجيلها من محادثة العميل.')),
+        if (_more && !_loading) AppButton(label: 'عرض المزيد', onPressed: () => _load(next: true)),
+      ],
+    ));
+  }
 }
 
 class BrokerDealScreen extends ConsumerStatefulWidget {
-  const BrokerDealScreen({required this.id, super.key});
+  const BrokerDealScreen({required this.id, super.key}) : _inDialog = false, _onDealChanged = null;
+  const BrokerDealScreen._dialog({required this.id, required ValueChanged<BrokerDeal> onDealChanged})
+      : _inDialog = true, _onDealChanged = onDealChanged;
+
   final int id;
+  final bool _inDialog;
+  final ValueChanged<BrokerDeal>? _onDealChanged;
   @override
   ConsumerState<BrokerDealScreen> createState() => _BrokerDealScreenState();
 }
@@ -167,20 +212,30 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
   }
 
   Future<void> _decide(bool yes) async {
-    final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(title: Text(yes ? 'هل تمت الصفقة؟' : 'لم تتم الصفقة؟'),
+    final scope = ref.read(accountRequestScopeProvider);
+    final ok = await showActorDialog<bool>(context: context, ref: ref, builder: (c) => AlertDialog(title: Text(yes ? 'هل تمت الصفقة؟' : 'لم تتم الصفقة؟'),
       content: Text(yes ? 'أكد فقط إن تم البيع أو التأجير بالفعل. سيُحسب الإنجاز ويُفتح التقييم وفق شروط السعي المحفوظة.' : 'سيسجل رفضك ويحيل النتيجة للدعم للمراجعة، دون احتساب صفقة أو مستحق جديد.'),
       actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('رجوع')),
         AppButton(label: yes ? 'نعم، تمت' : 'لم تتم', onPressed: () => Navigator.pop(c, true))]));
-    if (ok != true || !mounted) return;
+    if (ok != true || !mounted || !scope.isCurrent) return;
     setState(() => _busy = true);
-    try { await ref.read(brokerRepositoryProvider).decide(widget.id, yes); refreshBrokerData(ref); ref.invalidate(brokerDealProvider(widget.id)); }
-    catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e)))); }
-    finally { if (mounted) setState(() => _busy = false); }
+    try {
+      final deal = await ref.read(brokerRepositoryProvider).decide(widget.id, yes);
+      if (!mounted || !scope.isCurrent) return;
+      widget._onDealChanged?.call(deal);
+      refreshBrokerData(ref);
+      ref.invalidate(brokerDealProvider(widget.id));
+    } catch (e) {
+      if (mounted && scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e))));
+    } finally {
+      if (mounted && scope.isCurrent) setState(() => _busy = false);
+    }
   }
   Future<void> _rate(BrokerDeal deal) async {
     int stars = 0;
     String note = '';
-    final chosen = await showDialog<int>(context: context, builder: (c) => StatefulBuilder(builder: (c, change) => AlertDialog(
+    final scope = ref.read(accountRequestScopeProvider);
+    final chosen = await showActorDialog<int>(context: context, ref: ref, builder: (c) => StatefulBuilder(builder: (c, change) => AlertDialog(
       title: const Text('قيّم تجربتك مع المعلن'),
       content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Wrap(children: [for (var i = 1; i <= 5; i++) IconButton(tooltip: '$i نجوم', onPressed: () => change(() => stars = i), icon: Icon(i <= stars ? Icons.star : Icons.star_border, color: Colors.amber, size: 28))]),
@@ -189,35 +244,139 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
         AppButton(label: 'حفظ التقييم', onPressed: stars == 0 ? null : () => Navigator.pop(c, stars))],
     )));
     final comment = note;
-    if (chosen == null || !mounted) return;
+    if (chosen == null || !mounted || !scope.isCurrent) return;
     setState(() => _busy = true);
     try { await ref.read(communityRepositoryProvider).rateAdvertiser(advertiserId: deal.advertiserId, rating: chosen, propertyId: deal.propertyId, comment: comment);
+      if (!mounted || !scope.isCurrent) return;
       ref.invalidate(brokerProfileProvider(deal.advertiserId)); ref.invalidate(brokerDirectoryProvider);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ تقييمك.')));
-    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e)))); }
-    finally { if (mounted) setState(() => _busy = false); }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ تقييمك.')));
+    } catch (e) { if (mounted && scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e)))); }
+    finally { if (mounted && scope.isCurrent) setState(() => _busy = false); }
   }
+
+  void _openSupport(BrokerDeal deal) {
+    final router = GoRouter.of(context);
+    if (widget._inDialog) Navigator.pop(context);
+    router.push(deal.canViewSupportCase ? '/support?case=${deal.supportCaseId}' : '/support');
+  }
+
+  List<Widget> _actions(BrokerDeal deal) => [
+    if (deal.canConfirm) ...[
+      const Text('هل تم البيع أو التأجير فعلًا مع هذا المعلن؟'),
+      const SizedBox(height: 12),
+      AppButton(label: 'نعم، تمت الصفقة', loading: _busy, expand: true, onPressed: _busy ? null : () => _decide(true)),
+      const SizedBox(height: 10),
+      AppButton(label: 'لم تتم الصفقة', expand: true, onPressed: _busy ? null : () => _decide(false)),
+    ],
+    if (deal.canRate) AppButton(label: 'تقييم المعلن', icon: Icons.star_outline, expand: true, onPressed: _busy ? null : () => _rate(deal)),
+    if (!widget._inDialog && deal.status == 'pending_customer' && !deal.canConfirm)
+      const Text('تم إرسال طلب تأكيد النتيجة للعميل. لن تُحتسب حتى يؤكدها.'),
+    if (deal.supportCaseId != null)
+      AppButton(label: 'متابعة مراجعة الدعم', onPressed: () => _openSupport(deal)),
+  ];
+
+  Widget _resultDetails(BrokerDeal deal) {
+    final viewer = ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
+    final scheme = Theme.of(context).colorScheme;
+    final localizations = MaterialLocalizations.of(context);
+    final rate = deal.saiRatePercent;
+    final confirmedAt = deal.confirmedAt;
+    final payment = switch (deal.saiPaymentStatus) {
+      'confirmed' => 'تم تأكيد الدفع',
+      'waiting_payment' => 'بانتظار الدفع',
+      'proof_submitted' || 'under_review' => 'إثبات الدفع قيد المراجعة',
+      'correction_required' => 'إثبات الدفع يحتاج تصحيحًا',
+      'rejected' => 'رُفض إثبات الدفع',
+      _ => null,
+    };
+
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(deal.propertyTitle, style: Theme.of(context).textTheme.titleMedium),
+      const SizedBox(height: 4),
+      Text(deal.otherPartyName(viewer)),
+      const SizedBox(height: 8),
+      Align(alignment: AlignmentDirectional.centerStart, child: DecoratedBox(
+        decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(8)),
+        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Text(deal.statusLabel, style: TextStyle(color: scheme.onPrimaryContainer, fontWeight: FontWeight.w600))),
+      )),
+      const SizedBox(height: 12),
+      _DealResultRow('سعر الإعلان', _resultMoney(deal.listingPrice, deal.listingCurrency, localizations)),
+      _DealResultRow('السعر المتفق عليه', _resultMoney(deal.amount > 0 ? deal.amount : null, deal.currency, localizations)),
+      if (deal.saiAmount != null && deal.saiCurrency?.isNotEmpty == true)
+        _DealResultRow('مبلغ السعي', _resultMoney(deal.saiAmount, deal.saiCurrency, localizations)),
+      if (rate != null) _DealResultRow('نسبة السعي', '${_resultNumber(rate, localizations)}%'),
+      if (payment != null) _DealResultRow('حالة دفع السعي', payment),
+      if (deal.status == 'confirmed' && confirmedAt != null)
+        _DealResultRow('تاريخ التأكيد', localizations.formatCompactDate(confirmedAt.toLocal())),
+      ..._actions(deal),
+    ]);
+  }
+
+  String _resultMoney(double? amount, String? currency, MaterialLocalizations localizations) =>
+      amount == null || currency == null || currency.isEmpty
+      ? 'غير مسجل'
+      : '${_resultNumber(amount, localizations)} ${currency == 'YER' ? 'ر.ي' : currency}';
+
+  String _resultNumber(double number, MaterialLocalizations localizations) {
+    final parts = number.toStringAsFixed(2).split('.');
+    final integer = int.tryParse(parts.first);
+    if (integer == null) return number.toString();
+    final whole = localizations.formatDecimal(integer);
+    final decimals = parts.last;
+    return decimals == '00' ? whole : '$whole.$decimals';
+  }
+
   @override
-  Widget build(BuildContext context) => BrokerScaffold(appBar: const AppAppBar(title: 'نتيجة الصفقة'), body: ref.watch(brokerDealProvider(widget.id)).when(
-    loading: () => const AppLoadingState(), error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerDealProvider(widget.id))),
-    data: (deal) {
-      _recordDisplayedDeal(deal);
-      return ListView(padding: const EdgeInsets.all(16), children: [
-      BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(deal.propertyTitle, style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 8),
-        Text(deal.statusLabel, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
-        Text('المعلن: ${deal.advertiserName}'), Text('العميل: ${deal.customerName}'), Text('أساس السعي: ${brokerMoney(deal.amount, deal.currency)}'),
-      ])), const SizedBox(height: 16),
-      if (deal.canConfirm) ...[const Text('هل تم البيع أو التأجير فعلًا مع هذا المعلن؟'), const SizedBox(height: 12),
-        AppButton(label: 'نعم، تمت الصفقة', loading: _busy, expand: true, onPressed: _busy ? null : () => _decide(true)),
-        const SizedBox(height: 10), AppButton(label: 'لم تتم الصفقة', expand: true, onPressed: _busy ? null : () => _decide(false))],
-      if (deal.canRate) AppButton(label: 'تقييم المعلن', icon: Icons.star_outline, expand: true, onPressed: _busy ? null : () => _rate(deal)),
-      if (deal.status == 'pending_customer' && !deal.canConfirm) const Text('تم إرسال طلب تأكيد النتيجة للعميل. لن تُحتسب حتى يؤكدها.'),
-      if (deal.supportCaseId != null) AppButton(label: 'متابعة مراجعة الدعم', onPressed: () => context.push(deal.canViewSupportCase ? '/support?case=${deal.supportCaseId}' : '/support')),
-      const SizedBox(height: 12), AppButton(label: 'فتح المحادثة', icon: Icons.chat_bubble_outline, onPressed: () => context.push('/messages/${deal.threadId}')),
-      ]);
-    },
-  ));
+  Widget build(BuildContext context) {
+    final content = ref.watch(brokerDealProvider(widget.id)).when(
+      loading: () => const AppLoadingState(),
+      error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerDealProvider(widget.id))),
+      data: (deal) {
+        _recordDisplayedDeal(deal);
+        if (widget._inDialog) return _resultDetails(deal);
+
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          BrokerPanel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(deal.propertyTitle, style: Theme.of(context).textTheme.titleLarge), const SizedBox(height: 8),
+            Text(deal.statusLabel, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
+            Text('المعلن: ${deal.advertiserName}'), Text('العميل: ${deal.customerName}'), Text('أساس السعي: ${brokerMoney(deal.amount, deal.currency)}'),
+          ])),
+          const SizedBox(height: 16),
+          ..._actions(deal),
+          const SizedBox(height: 12),
+          AppButton(label: 'فتح المحادثة', icon: Icons.chat_bubble_outline, onPressed: () => context.push('/messages/${deal.threadId}')),
+        ]);
+      },
+    );
+    if (!widget._inDialog) return BrokerScaffold(appBar: const AppAppBar(title: 'نتيجة الصفقة'), body: content);
+
+    return Directionality(textDirection: TextDirection.rtl, child: AlertDialog(
+      key: const ValueKey('broker-deal-result-dialog'),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      scrollable: true,
+      title: const Text('نتيجة الصفقة'),
+      content: content,
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [AppButton(label: 'إغلاق', onPressed: () => Navigator.pop(context))],
+    ));
+  }
+}
+
+class _DealResultRow extends StatelessWidget {
+  const _DealResultRow(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(child: Text(label)),
+      const SizedBox(width: 12),
+      Expanded(child: Text(value, textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w600))),
+    ]),
+  );
 }
 
 class BrokerConversationTools extends ConsumerWidget {

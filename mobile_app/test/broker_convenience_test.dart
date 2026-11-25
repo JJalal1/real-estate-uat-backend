@@ -172,7 +172,7 @@ void main() {
     expect(find.text('مهام تحتاج إجراء'), findsNothing);
     expect(find.byKey(const ValueKey('broker-achievement-carousel')), findsOneWidget);
     for (final (label, count, destination) in [
-      ('التوفر', '2', 'due:1'),
+      ('التحديثات', '2', 'due:1'),
       ('المستحقات', '4', 'finance'),
       ('الصفقات', '3', 'deals'),
     ]) {

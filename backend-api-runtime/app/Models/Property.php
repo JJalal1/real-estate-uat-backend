@@ -79,16 +79,12 @@ class Property extends Model
 
     public function scopePubliclyAvailable(Builder $query): Builder
     {
-        return $query->where('status', 'published')->where('availability_status', 'available')
-            ->where(function (Builder $nested): void {
-                $nested->whereNull('availability_notified_at')->orWhere('availability_notified_at', '>', now()->subDays(2));
-            });
+        return $query->where('status', 'published')->where('availability_status', 'available');
     }
 
     public function isPubliclyAvailable(): bool
     {
-        return $this->status === 'published' && ($this->availability_status ?? 'available') === 'available'
-            && ($this->availability_notified_at === null || $this->availability_notified_at->gt(now()->subDays(2)));
+        return $this->status === 'published' && ($this->availability_status ?? 'available') === 'available';
     }
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }

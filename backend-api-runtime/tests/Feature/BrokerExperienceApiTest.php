@@ -31,7 +31,7 @@ class BrokerExperienceApiTest extends TestCase
         $this->travelTo(now()->startOfSecond());
     }
 
-    public function test_availability_period_grace_pause_and_bulk_renewal_preserve_review_authority(): void
+    public function test_availability_reminders_leave_overdue_listings_public_and_preserve_review_authority(): void
     {
         [$broker,$headers]=$this->actor('period',true);
         $sale=$this->listing($broker,'sale');
@@ -43,16 +43,90 @@ class BrokerExperienceApiTest extends TestCase
         app(BrokerAvailabilityService::class)->sweep();
         $this->assertDatabaseHas('user_notifications',['user_id'=>$broker->id,'type'=>'broker_availability_due']);
         $this->assertTrue($rent->fresh()->isPubliclyAvailable());
-        $this->travel(2)->days();
+        $this->travel(3)->days();
         app(BrokerAvailabilityService::class)->sweep();
-        $this->assertFalse($rent->fresh()->isPubliclyAvailable());
-        $this->getJson('/api/properties')->assertJsonMissing(['id'=>$rent->id]);
+        $this->assertSame('available', $rent->fresh()->availability_status);
+        $this->assertTrue($rent->fresh()->isPubliclyAvailable());
+        $this->getJson('/api/properties')->assertOk()->assertJsonFragment(['id'=>$rent->id]);
+        $this->getJson('/api/properties/nearby?latitude=15.35&longitude=44.2')->assertOk()
+            ->assertJsonFragment(['id'=>$rent->id]);
+        $this->getJson('/api/properties/'.$rent->id)->assertOk()->assertJsonPath('data.id', $rent->id);
+        $this->assertSame(1, DB::table('user_notifications')->where('user_id', $broker->id)
+            ->where('type', 'broker_availability_due')->count());
         $this->withHeaders($headers)->postJson('/api/broker/listings/availability',['property_ids'=>[$sale->id,$rent->id],'state'=>'available'])
             ->assertOk()->assertJsonPath('data.updated',2);
         $this->assertTrue($rent->fresh()->isPubliclyAvailable());
         $rent->forceFill(['status'=>'draft','review_status'=>'returned_for_correction'])->saveQuietly();
         $this->withHeaders($headers)->postJson('/api/broker/listings/availability',['property_ids'=>[$rent->id],'state'=>'available'])->assertConflict();
         $this->assertSame('returned_for_correction',$rent->fresh()->review_status);
+    }
+
+    public function test_recovery_respects_manual_and_review_states_when_restoring_legacy_automatic_pauses(): void
+    {
+        [$broker, $headers] = $this->actor('restore-availability', true);
+        $legacyPause = [
+            'availability_status' => 'confirmation_paused',
+            'availability_due_at' => now()->subDays(4),
+            'availability_notified_at' => now()->subDays(3),
+        ];
+        $restorable = $this->listing($broker);
+        $restorable->forceFill($legacyPause)->saveQuietly();
+        $publishedAt = $restorable->published_at;
+        $updatedAt = $restorable->updated_at;
+
+        $protected = [];
+        foreach ([
+            ['availability_status' => 'paused'],
+            ['availability_status' => 'sold'],
+            ['availability_status' => 'rented', 'purpose' => 'rent'],
+            ['status' => 'pending', 'review_status' => 'submitted'],
+            ['status' => 'rejected', 'review_status' => 'rejected_blocked'],
+            ['status' => 'archived'],
+            ['financial_hold_at' => now()],
+            ['availability_notified_at' => null],
+            ['availability_due_at' => now()->addDay()],
+        ] as $changes) {
+            $listing = $this->listing($broker, $changes['purpose'] ?? 'sale');
+            $listing->forceFill($changes + $legacyPause)->saveQuietly();
+            $protected[] = $listing;
+        }
+        $assetId = DB::table('property_assets')->insertGetId([
+            'identity_hash' => hash('sha256', 'availability-recovery-blocked'),
+            'property_type' => 'apartment',
+            'canonical_latitude' => 15.35,
+            'canonical_longitude' => 44.2,
+        ]);
+        $blocked = $this->listing($broker);
+        $blocked->forceFill($legacyPause + ['property_asset_id' => $assetId])->saveQuietly();
+        DB::table('property_publication_blocks')->insert([
+            'property_asset_id' => $assetId,
+            'purpose' => $blocked->purpose,
+            'is_active' => true,
+            'reason' => 'Active publication block',
+        ]);
+        $protected[] = $blocked;
+
+        app(BrokerAvailabilityService::class)->sweep();
+        app(BrokerAvailabilityService::class)->sweep();
+        $restorable->refresh();
+        $this->assertSame('available', $restorable->availability_status);
+        $this->assertTrue($restorable->published_at->equalTo($publishedAt));
+        $this->assertTrue($restorable->updated_at->equalTo($updatedAt));
+        $this->assertTrue($restorable->availability_notified_at->equalTo($legacyPause['availability_notified_at']));
+        $this->assertTrue($restorable->availability_due_at->equalTo($legacyPause['availability_due_at']));
+        $publicIds = array_column($this->getJson('/api/properties')->assertOk()->json('data'), 'id');
+        $this->assertContains($restorable->id, $publicIds);
+        foreach ($protected as $listing) {
+            $fresh = $listing->fresh();
+            $this->assertSame($listing->status, $fresh->status);
+            $this->assertSame($listing->review_status, $fresh->review_status);
+            $this->assertSame($listing->availability_status, $fresh->availability_status);
+            $this->assertNotContains($listing->id, $publicIds);
+        }
+        $mine = $this->withHeaders($headers)->getJson('/api/properties/mine/list')->assertOk();
+        $this->assertContains($protected[1]->id, array_column($mine->json('data'), 'id'));
+        $this->assertContains($protected[2]->id, array_column($mine->json('data'), 'id'));
+        $this->assertDatabaseMissing('user_notifications', ['user_id' => $broker->id, 'type' => 'broker_availability_due']);
     }
 
     public function test_owned_availability_pages_reach_beyond_the_legacy_250_row_cap(): void
@@ -121,6 +195,32 @@ class BrokerExperienceApiTest extends TestCase
         $this->withHeaders($headers)->postJson('/api/broker/listings/availability',['property_ids'=>[$own->id,$foreign->id],'state'=>'paused'])->assertForbidden();
         $this->assertSame('available',$own->fresh()->availability_status);
         $this->assertSame('available',$foreign->fresh()->availability_status);
+    }
+
+    public function test_deal_result_reports_the_saved_listing_price_and_confirmed_sai(): void
+    {
+        [$broker, $brokerHeaders] = $this->actor('deal-result-prices', true);
+        [, $buyerHeaders] = $this->actor('deal-result-buyer');
+        $property = $this->listing($broker);
+        $thread = $this->conversation($buyerHeaders, $property);
+        $id = $this->withHeaders($brokerHeaders)->postJson('/api/broker/customers/'.$thread.'/completed-deal', [
+            'basis_amount' => 82000,
+        ])->assertCreated()->json('data.id');
+        $url = '/api/broker/deals/'.$id;
+
+        // A later price edit must not change the original listing amount for this deal.
+        $property->forceFill(['price' => 125000])->saveQuietly();
+        $this->withHeaders($buyerHeaders)->postJson($url.'/decision', ['confirmed' => true])->assertOk();
+        $this->withHeaders($brokerHeaders)->getJson($url)->assertOk()
+            ->assertJsonPath('data.listing_price', 100000)
+            ->assertJsonPath('data.listing_currency', 'YER')
+            ->assertJsonPath('data.basis_amount', 82000)
+            ->assertJsonPath('data.currency', 'YER')
+            ->assertJsonPath('data.sai_amount', 1640)
+            ->assertJsonPath('data.sai_currency', 'YER')
+            ->assertJsonPath('data.sai_rate_percent', 2)
+            ->assertJsonPath('data.sai_payment_status', null)
+            ->assertJsonPath('data.confirmed_at', now()->toIso8601String());
     }
 
     public function test_two_party_result_unlocks_rating_and_freezes_existing_sai_without_an_agreement(): void

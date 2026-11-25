@@ -144,7 +144,7 @@ Schedule::command('support:process-contact-followups')->hourly();
 
 \Illuminate\Support\Facades\Artisan::command('broker:refresh-availability', function (): void {
     app(\App\Services\BrokerAvailabilityService::class)->sweep(500);
-    $this->info('Availability reminders and pauses refreshed.');
+    $this->info('Availability reminders refreshed.');
 });
 \Illuminate\Support\Facades\Schedule::command('broker:refresh-availability')->hourly()->withoutOverlapping();
 

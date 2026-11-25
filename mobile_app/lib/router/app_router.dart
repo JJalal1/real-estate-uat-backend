@@ -97,7 +97,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         child: BrokerCustomersScreen(propertyId: int.tryParse(state.uri.queryParameters['property'] ?? ''), initialFilter: state.uri.queryParameters['filter'] ?? 'all'))),
       GoRoute(path: '/broker/availability', builder: (context, state) => Stage6AuthGate(requireListingEligible: true, child: BrokerAvailabilityScreen(initiallyDue: state.uri.queryParameters['due'] == '1'))),
       GoRoute(path: '/broker/finance', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerFinanceScreen())),
-      GoRoute(path: '/broker/activity', builder: (context, state) => Stage6AuthGate(requireProfessional: true, child: BrokerActivityScreen(initialTab: state.uri.queryParameters['tab'] == 'messages' ? 1 : 0, todayOnly: state.uri.queryParameters['today'] == '1'))),
+      GoRoute(path: '/broker/activity', builder: (_, __) => const Stage6AuthGate(requireProfessional: true, child: BrokerActivityScreen())),
       GoRoute(path: '/broker/deals/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
         return id > 0 ? Stage6AuthGate(child: BrokerDealScreen(id: id)) : const _RouteErrorScreen();

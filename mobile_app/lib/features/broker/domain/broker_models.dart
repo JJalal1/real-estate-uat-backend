@@ -28,21 +28,35 @@ class BrokerDeal {
   const BrokerDeal({required this.id, required this.threadId, required this.propertyId, required this.advertiserId,
     required this.propertyTitle, required this.customerName, required this.advertiserName, required this.status,
     required this.amount, required this.currency, required this.canConfirm, required this.canRate, this.canViewSupportCase = false, this.supportCaseId,
-    this.advertiserViewRevision});
+    this.advertiserViewRevision, this.listingPrice, this.listingCurrency, this.saiAmount, this.saiCurrency,
+    this.saiRatePercent, this.saiPaymentStatus, this.confirmedAt});
   final int id, threadId, propertyId, advertiserId;
   final String propertyTitle, customerName, advertiserName, status, currency;
   final double amount;
+  final double? listingPrice, saiAmount, saiRatePercent;
+  final String? listingCurrency, saiCurrency, saiPaymentStatus;
+  final DateTime? confirmedAt;
   final bool canConfirm, canRate;
   final bool canViewSupportCase;
   final int? supportCaseId;
   final int? advertiserViewRevision;
+  String otherPartyName(int? viewerId) => viewerId == advertiserId ? customerName : advertiserName;
   String get statusLabel => switch (status) {'confirmed' => 'صفقة مؤكدة', 'disputed' => 'تحتاج مراجعة', 'cancelled' => 'ملغاة', _ => 'بانتظار تأكيد العميل'};
   factory BrokerDeal.fromJson(Map<String, dynamic> j) => BrokerDeal(id: brokerInt(j['id']), threadId: brokerInt(j['thread_id']),
     propertyId: brokerInt(j['property_id']), advertiserId: brokerInt(j['advertiser_id']), propertyTitle: '${j['property_title'] ?? 'العقار'}',
     customerName: '${j['customer_name'] ?? 'العميل'}', advertiserName: '${j['advertiser_name'] ?? 'المعلن'}', status: '${j['status'] ?? 'pending_customer'}',
     amount: brokerNumber(j['basis_amount']), currency: '${j['currency'] ?? 'YER'}', canConfirm: j['can_confirm'] == true,
     canRate: j['can_rate'] == true, canViewSupportCase: j['can_view_support_case'] == true, supportCaseId: j['support_case_id'] == null ? null : brokerInt(j['support_case_id']),
-    advertiserViewRevision: int.tryParse('${j['advertiser_view_revision'] ?? ''}'));
+    advertiserViewRevision: int.tryParse('${j['advertiser_view_revision'] ?? ''}'),
+    listingPrice: _recordedNumber(j['listing_price']), listingCurrency: j['listing_currency']?.toString(),
+    saiAmount: _recordedNumber(j['sai_amount']), saiCurrency: j['sai_currency']?.toString(),
+    saiRatePercent: _recordedNumber(j['sai_rate_percent']), saiPaymentStatus: j['sai_payment_status']?.toString(),
+    confirmedAt: DateTime.tryParse('${j['confirmed_at'] ?? ''}'));
+
+  static double? _recordedNumber(dynamic value) {
+    final number = double.tryParse('$value');
+    return number?.isFinite == true ? number : null;
+  }
 }
 
 const brokerEditableLeadLabels = {

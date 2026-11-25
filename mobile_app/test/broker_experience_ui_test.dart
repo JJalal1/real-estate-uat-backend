@@ -51,6 +51,7 @@ class BrokerTestRepository implements BrokerRepository {
   BrokerTestRepository({this.viewerId = 1});
   final int viewerId;
   final availabilityChanges = <(List<int>, String)>[];
+  final reportedDeals = <(int, double?)>[];
   final decisions = <(int, bool)>[];
   final seenDeals = <(int, int)>[];
   int? dealViewRevision;
@@ -77,6 +78,11 @@ class BrokerTestRepository implements BrokerRepository {
   Future<BrokerPage<BrokerCustomer>> customers({String? stage, int? propertyId, int page = 1, String? filter, bool includeOtherThreads = false}) async => const BrokerPage(items: [
     BrokerCustomer(threadId: 19, customerName: 'عميل تجريبي', propertyId: 11, propertyTitle: 'شقة حدة', stage: 'new'),
   ], page: 1, lastPage: 1);
+  @override
+  Future<BrokerDeal> reportDeal(int threadId, {double? amount}) async {
+    reportedDeals.add((threadId, amount));
+    return deal(4);
+  }
   @override
   Future<BrokerDeal> deal(int id) async => BrokerDeal(id: id, threadId: 19, propertyId: 11, advertiserId: 1, propertyTitle: 'شقة حدة',
     customerName: 'عميل تجريبي', advertiserName: exampleBroker.name, status: dealStatus, amount: 100000000, currency: 'YER',
@@ -176,16 +182,69 @@ void main() {
     expect(find.text('الإيجارات'), findsOneWidget);
     expect(find.text('البيع'), findsOneWidget);
   });
-  testWidgets('availability update submits selected real listing IDs', (tester) async {
+  testWidgets('availability starts empty and confirms only chosen listing IDs', (tester) async {
     final repo = BrokerTestRepository();
     await _pump(tester, const BrokerAvailabilityScreen(initiallyDue: true), repo);
+    expect(find.text('التحديثات'), findsOneWidget);
+    expect(find.textContaining('أكد إعلانات البيع'), findsNothing);
     expect(find.text('منزل السنينة'), findsNothing);
-    final button = find.textContaining('ما زالت متوفرة');
-    await tester.ensureVisible(button.last); await tester.tap(button.last); await tester.pumpAndSettle();
+    final confirm = find.byKey(const ValueKey('broker-availability-confirm'));
+    final row = find.widgetWithText(CheckboxListTile, 'شقة حدة');
+    expect(tester.widget<AppButton>(confirm).onPressed, isNull);
+    expect(tester.widget<CheckboxListTile>(row).value, isFalse);
+    expect(repo.availabilityChanges, isEmpty);
+
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    expect(find.text('تأكيد التوفر (1)'), findsOneWidget);
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
     expect(repo.availabilityChanges, hasLength(1));
     expect(repo.availabilityChanges.single.$1, [11]);
     expect(repo.availabilityChanges.single.$2, 'available');
+    expect(tester.widget<CheckboxListTile>(row).value, isFalse);
   });
+
+  testWidgets('updates close only the chosen sale or rental outside the platform', (tester) async {
+    final repo = BrokerTestRepository();
+    await _pump(tester, const BrokerAvailabilityScreen(), repo);
+    for (final (id, expected) in [(11, 'sold'), (12, 'rented')]) {
+      final action = find.byKey(ValueKey('broker-availability-close-$id'));
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.text('مع عميل من التطبيق'), findsOneWidget);
+      final before = repo.availabilityChanges.length;
+      await tester.tap(find.text('خارج المنصة'));
+      await tester.pumpAndSettle();
+      expect(repo.availabilityChanges.length, before + 1);
+      expect(repo.availabilityChanges.last.$1, [id]);
+      expect(repo.availabilityChanges.last.$2, expected);
+      expect(find.text('التحديثات'), findsOneWidget);
+    }
+    expect(repo.reportedDeals, isEmpty);
+  });
+
+  testWidgets('updates can send the selected app customer a result and stay in updates', (tester) async {
+    final repo = BrokerTestRepository();
+    await _pump(tester, const BrokerAvailabilityScreen(), repo);
+    await tester.tap(find.byKey(const ValueKey('broker-availability-close-11')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('مع عميل من التطبيق'));
+    await tester.pumpAndSettle();
+    expect(find.text('اختر عميل الصفقة'), findsOneWidget);
+    await tester.tap(find.text('عميل تجريبي'));
+    await tester.pumpAndSettle();
+    expect(find.text('تسجيل نتيجة الصفقة'), findsOneWidget);
+    expect(repo.reportedDeals, isEmpty);
+    await tester.tap(find.text('إرسال للتأكيد'));
+    await tester.pumpAndSettle();
+    expect(repo.reportedDeals, [(19, null)]);
+    expect(repo.availabilityChanges, isEmpty);
+    expect(find.text('التحديثات'), findsOneWidget);
+  });
+
   testWidgets('customer affirmation is explicit and rating stays locked until confirmed', (tester) async {
     final repo = BrokerTestRepository(viewerId: 2);
     await _pump(tester, const BrokerDealScreen(id: 4), repo, userId: 2);
