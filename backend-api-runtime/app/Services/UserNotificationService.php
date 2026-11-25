@@ -38,14 +38,14 @@ class UserNotificationService
         ]);
 
         if ($canPush && config('push.enabled',false)) {
-            UserPushDevice::query()
-                ->where('user_id',$userId)
-                ->whereNull('disabled_at')
-                ->pluck('id')
-                ->each(fn($deviceId)=>SendUserPushNotification::dispatch(
-                    $notification->id,
-                    (int)$deviceId,
-                )->afterCommit());
+            $feature = $type === 'message_received' ? 'push_messages' : 'push_other';
+            $queues = app(BackgroundQueue::class);
+            if ($queues->enabled($feature)) {
+                $devices = UserPushDevice::query()->where('user_id', $userId)->whereNull('disabled_at')->pluck('id');
+                foreach ($devices as $deviceId) {
+                    $queues->submit($feature, new SendUserPushNotification($notification->id, (int) $deviceId, $feature));
+                }
+            }
         }
 
         return $notification;
@@ -62,6 +62,15 @@ class UserNotificationService
     {
         if (in_array($notification->type, UserNotification::RETIRED_VIEWING_TYPES, true) || $notification->entity_type === 'viewing_booking') return false;
         if (! \App\Models\User::query()->whereKey($notification->user_id)->where('account_status', \App\Models\User::STATUS_ACTIVE)->exists()) return false;
+        if ($notification->type === 'broker_customer_followup_due') {
+            if ($notification->read_at !== null) return false;
+            $time = $notification->data['remind_at'] ?? null;
+            if ($time && ! \App\Models\BrokerCustomerFollowup::query()
+                ->where('user_id', $notification->user_id)->where('message_thread_id', $notification->entity_id)
+                ->where('remind_at', \Illuminate\Support\Carbon::parse($time)->utc())->exists()) return false;
+        }
+        if (in_array($notification->type, DeadlineReminderService::TYPES, true)
+            && ! app(DeadlineReminderService::class)->stillDue($notification)) return false;
         $category=$this->preferenceCategory($notification->type);
         return $category === null || $this->enabled((int)$notification->user_id,$category);
     }

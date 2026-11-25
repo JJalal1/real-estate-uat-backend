@@ -26,7 +26,7 @@ class ListingDuplicateAssessment
         private readonly GeminiClient $gemini,
     ) {}
 
-    public function assess(Property $listing): void
+    public function assess(Property $listing, ?int $expectedSubmission = null): void
     {
         if (! $this->gemini->available()) return;
 
@@ -41,7 +41,7 @@ class ListingDuplicateAssessment
         if (! $previous || ! $listing->images->first() || ! $previous->images->first()) return;
 
         $submissionId = $this->submissionId($listing);
-        if ($submissionId === null) return;
+        if ($submissionId === null || ($expectedSubmission !== null && $submissionId !== $expectedSubmission)) return;
         $listingFacts = $this->facts($listing);
         $previousFacts = $this->facts($previous);
         $fingerprints = [
@@ -153,12 +153,19 @@ class ListingDuplicateAssessment
         ];
     }
 
-    private function submissionId(Property $listing): ?int
+    public function submissionId(Property $listing): ?int
     {
         $id = ListingReview::query()->where('listing_id', $listing->id)
             ->where('action', 'submitted')->latest('id')->value('id');
 
         return $id === null ? null : (int) $id;
+    }
+
+    public function retryDelay(Property $listing, int $submission): int
+    {
+        $last = $this->latestAssessment($listing, $submission);
+        if ($last?->action !== self::STARTED) return 0;
+        return max(0, $last->created_at->timestamp + 241 - now()->timestamp);
     }
 
     private function latestAssessment(Property $listing, int $submissionId): ?ListingReview

@@ -122,6 +122,39 @@ class PushDeliveryLifecycleTest extends TestCase
         });
     }
 
+    public function test_message_is_consumed_while_media_jobs_wait_on_their_own_worker(): void
+    {
+        [$user] = $this->fixture();
+        config(['background.features.images'=>true,'background.features.push_messages'=>true]);
+        $queues = app(\App\Services\BackgroundQueue::class);
+        $queues->heartbeat('media');
+        $queues->heartbeat('push-urgent');
+        for ($id = 1; $id <= 10; $id++) {
+            $this->assertTrue($queues->submit('images', new \App\Jobs\PrepareListingImage($id, 'fixture')));
+        }
+        Http::fake(['*'=>Http::response(['name'=>'accepted'], 200)]);
+        app(\App\Services\UserNotificationService::class)->create($user->id, 'message_received', 'رسالة');
+        $this->assertDatabaseHas('jobs', ['queue'=>'push-urgent']);
+        $this->artisan('queue:work', ['connection'=>'database','--once'=>true,'--queue'=>'push-urgent'])->assertSuccessful();
+        Http::assertSentCount(1);
+        $this->assertDatabaseCount('jobs', 10);
+        $this->assertDatabaseMissing('jobs', ['queue'=>'push-urgent']);
+    }
+
+    public function test_replayed_accepted_push_and_stale_job_do_not_send_again(): void
+    {
+        [, $notification, $device] = $this->fixture();
+        Http::fake(['*'=>Http::response(['name'=>'accepted'], 200)]);
+        $job = new SendUserPushNotification($notification->id, $device->id);
+        $job->handle(app(FcmPushSender::class));
+        $job->handle(app(FcmPushSender::class));
+        Http::assertSentCount(1);
+        \Illuminate\Support\Facades\DB::table('background_receipts')->delete();
+        $this->travel(16)->minutes();
+        $job->handle(app(FcmPushSender::class));
+        Http::assertSentCount(1);
+    }
+
     public function test_queue_releases_throttle_for_provider_delay_and_stops_after_last_attempt(): void
     {
         [, $notification,$device]=$this->fixture();

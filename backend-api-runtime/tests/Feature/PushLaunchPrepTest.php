@@ -92,6 +92,8 @@ class PushLaunchPrepTest extends TestCase
     {
         Bus::fake();
         config()->set('push.enabled',true);
+        config(['background.registration'=>true,'background.features.push_other'=>true]);
+        app(\App\Services\BackgroundQueue::class)->heartbeat('push');
         $user=$this->user();
 
         $device=UserPushDevice::query()->create([

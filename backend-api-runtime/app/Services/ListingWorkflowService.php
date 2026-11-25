@@ -160,11 +160,13 @@ class ListingWorkflowService
                 }
                 return $result;
             });
-            defer(function () use ($result, $listing): void {
+            $submission = $this->duplicates->submissionId($listing);
+            defer(function () use ($result, $listing, $submission): void {
                 $this->projectDuplicateEvidence((int) $listing->id);
-                if (in_array($result['decision'], ['distinct', 'possible_duplicate'], true)) {
-                    $this->duplicates->assess($listing);
-                    $this->projectDuplicateEvidence((int) $listing->id);
+                if ($submission === null || ! in_array($result['decision'], ['distinct', 'possible_duplicate'], true)) return;
+                $job = new \App\Jobs\AssessListingPhotos((int) $listing->id, $submission);
+                if (! app(BackgroundQueue::class)->submit('duplicates', $job)) {
+                    $this->assessSubmittedPhotos($listing, $submission);
                 }
             }, 'listing-duplicate-' . $listing->id);
 
@@ -199,6 +201,12 @@ class ListingWorkflowService
                 'score' => 0, 'signals' => [], 'candidate' => null,
             ];
         }
+    }
+
+    public function assessSubmittedPhotos(Property $listing, int $submission): void
+    {
+        $this->duplicates->assess($listing, $submission);
+        $this->projectDuplicateEvidence((int) $listing->id);
     }
 
     private function projectDuplicateEvidence(int $listingId): void

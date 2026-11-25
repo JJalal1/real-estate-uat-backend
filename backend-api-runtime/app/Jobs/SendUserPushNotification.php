@@ -7,6 +7,8 @@ use App\Models\UserPushDevice;
 use App\Services\FcmPushSender;
 use App\Services\PushDeliveryException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -17,13 +19,16 @@ class SendUserPushNotification implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public ?string $feature = null;
     public int $tries=3;
     public int $timeout=30;
 
     public function __construct(
         public readonly int $notificationId,
         public readonly int $deviceId,
+        ?string $feature = null,
     ) {
+        $this->feature = $feature;
         $this->onConnection(config('push.queue_connection','database'));
         $this->onQueue(config('push.queue','push'));
     }
@@ -36,16 +41,25 @@ class SendUserPushNotification implements ShouldQueue
     public function handle(FcmPushSender $sender): void
     {
         if (! config('push.enabled',false)) return;
+        if ($this->feature !== null && ! app(\App\Services\BackgroundQueue::class)->enabled($this->feature)) return;
         $notification=UserNotification::query()->withoutGlobalScopes()->find($this->notificationId);
-        if (! $notification) return;
+        if (! $notification || $notification->created_at?->lt(now()->subMinutes(15))) return;
         $device=UserPushDevice::query()
             ->whereKey($this->deviceId)
             ->where('user_id',$notification->user_id)
             ->whereNull('disabled_at')
             ->first();
         if (! $device) return;
+        $key = hash('sha256', "push:$notification->id:$device->id");
+        $lock = Cache::lock("delivery:$key", 60);
+        if (! $lock->get()) {
+            $this->release(10);
+            return;
+        }
         try {
+            if (DB::table('background_receipts')->where('event_key', $key)->exists()) return;
             $sender->send($notification,$device);
+            DB::table('background_receipts')->insertOrIgnore(['event_key'=>$key, 'expires_at'=>now()->addDay()]);
         } catch (PushDeliveryException $error) {
             if (! $error->retryable) { $this->fail($error); return; }
             if ($this->job !== null && $this->attempts() < $this->tries) {
@@ -56,6 +70,8 @@ class SendUserPushNotification implements ShouldQueue
                 return;
             }
             throw $error;
+        } finally {
+            $lock->release();
         }
     }
 

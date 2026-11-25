@@ -29,6 +29,7 @@ public/storage
 *.p12
 *.pfx
 auth.json
+fcm-uat-service-account.json
 coverage
 build
 .phpunit.result.cache

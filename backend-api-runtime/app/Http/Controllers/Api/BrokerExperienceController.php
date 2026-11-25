@@ -294,7 +294,7 @@ class BrokerExperienceController extends Controller
         $v=$request->validate(['private_note'=>['sometimes','nullable','string','max:1500'], 'remind_at'=>['sometimes','nullable','date']]);
         return DB::transaction(function () use ($actor,$thread,$v,$service,$request): JsonResponse {
             $this->customerQuery($actor)->whereKey($thread->id)->lockForUpdate()->firstOrFail();
-            $row=BrokerCustomerFollowup::query()->firstOrCreate(['user_id'=>$actor->id,'message_thread_id'=>$thread->id]);
+            $row=BrokerCustomerFollowup::query()->lockForUpdate()->firstOrCreate(['user_id'=>$actor->id,'message_thread_id'=>$thread->id]);
             if (array_key_exists('remind_at',$v)) {
                 $date=isset($v['remind_at']) ? Carbon::parse($v['remind_at'])->utc() : null;
                 $same=$date && $row->remind_at && $date->equalTo($row->remind_at);

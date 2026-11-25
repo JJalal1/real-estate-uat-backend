@@ -6,11 +6,11 @@ services:
     runtime: docker
     plan: 0.5c-512mb
     region: frankfurt
-    branch: work/wave2-review-current
+    branch: work/alazzi-background-prep-20261125
     rootDir: backend-api-runtime
     dockerfilePath: ./Dockerfile.queue-worker
     dockerContext: .
-    autoDeployTrigger: off
+    autoDeployTrigger: 'off'
     numInstances: 1
     maxShutdownDelaySeconds: 60
     envVars:
@@ -19,13 +19,19 @@ services:
       - key: APP_DEBUG
         value: 'false'
       - key: APP_KEY
-        sync: false
+        fromService:
+          type: web
+          name: real-estate-uat-api-frankfurt
+          envVarKey: APP_KEY
       - key: APP_URL
         value: https://real-estate-uat-api-frankfurt.onrender.com
       - key: DB_CONNECTION
         value: pgsql
       - key: DB_URL
-        sync: false
+        fromService:
+          type: web
+          name: real-estate-uat-api-frankfurt
+          envVarKey: DB_URL
       - key: DB_SSLMODE
         value: require
       - key: DB_PERSISTENT
@@ -43,7 +49,7 @@ services:
       - key: FCM_PROJECT_ID
         value: aqer-yemen
       - key: FCM_ANDROID_PACKAGE
-        value: com.aqer.yemen.uat
+        value: com.aqer.yemen.uat.offline
       - key: FCM_SERVICE_ACCOUNT_FILE
         value: /etc/secrets/fcm-uat-service-account.json
       - key: UAT_RUN_MIGRATIONS
