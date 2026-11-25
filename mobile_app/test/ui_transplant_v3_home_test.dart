@@ -11,9 +11,11 @@ import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
+import 'package:real_estate_mobile/core/widgets/property_card_gallery.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/auth_gate.dart';
+import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_search_screen.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
@@ -50,6 +52,7 @@ Future<GoRouter> _pumpHome(
   Future<List<PropertyMarker>> Function()? load,
   Map<String, List<PropertySummary>> sections = const {},
   List<PropertySummary> recent = const [],
+  List<BrokerProfile> brokers = const [],
   AuthUser? user,
   double scale = 1,
   GlobalKey? boundaryKey,
@@ -108,7 +111,7 @@ Future<GoRouter> _pumpHome(
         recentPropertiesProvider.overrideWith((_) async => recent),
         marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake(onFeed: (query) async {
           final rows = await (load?.call() ?? Future.value([_exampleProperty]));
-          return MarketplaceFeed(label: 'صنعاء', governorate: 'صنعاء', sections: {'latest': rows.map((row) => PropertySummary.fromJson({
+          return MarketplaceFeed(label: 'صنعاء', governorate: 'صنعاء', brokers: brokers, sections: {'latest': rows.map((row) => PropertySummary.fromJson({
             'id': row.id, 'title': row.title, 'price': row.basePrice ?? row.price, 'display_price': row.price,
             'currency': row.currency, 'purpose': row.purpose ?? 'sale', 'type': row.type ?? 'house',
             'address': row.address, 'latitude': row.latitude, 'longitude': row.longitude,
@@ -191,7 +194,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('home shows latest and recent rails with the revised regional title', (tester) async {
+  testWidgets('home uses compact property rails and a taller broker photo', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(412, 915);
     addTearDown(tester.view.resetPhysicalSize);
@@ -204,8 +207,22 @@ void main() {
       'latest': [listing(51, 'آخر إعلان أول'), listing(52, 'آخر إعلان ثانٍ')],
       'sale': [listing(53, 'إعلان في المنطقة')],
       'rent': [listing(54, 'إعلان قسم الإيجار السابق')],
-    }, recent: [listing(55, 'إعلان من السجل المحلي')]);
+    }, recent: [listing(55, 'إعلان من السجل المحلي')], brokers: const [
+      BrokerProfile(id: 71, name: 'وسيط صنعاء', type: 'broker', verified: true,
+        rating: 4.8, ratingCount: 6, completedDeals: 7, activeListings: 8),
+    ]);
     await tester.pumpAndSettle();
+
+    final brokerCard = find.byKey(const ValueKey('home-broker-71'));
+    expect(tester.getSize(brokerCard).width, greaterThan(412 / 2));
+    final photo = find.descendant(of: brokerCard, matching: find.byType(AspectRatio));
+    expect(tester.getSize(photo).height, greaterThan(110));
+    final brokerName = tester.widget<Text>(find.text('وسيط صنعاء'));
+    final dealLabel = tester.widget<Text>(find.text('صفقات مؤكدة'));
+    final dealCount = tester.widget<Text>(find.descendant(of: brokerCard, matching: find.text('٧')));
+    expect(brokerName.style!.fontSize, lessThan(12));
+    expect(dealLabel.style!.fontSize, lessThan(9));
+    expect(dealCount.style!.fontSize, greaterThan(dealLabel.style!.fontSize!));
 
     final homeScroll = find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')),
       matching: find.byType(Scrollable)).first;
@@ -214,6 +231,20 @@ void main() {
     expect(tester.widget<SingleChildScrollView>(latest).scrollDirection, Axis.horizontal);
     final latestScroll = find.descendant(of: latest, matching: find.byType(Scrollable));
     expect(tester.state<ScrollableState>(latestScroll).position.maxScrollExtent, greaterThan(0));
+    final latestHeader = find.ancestor(of: find.text('أحدث العقارات'), matching: find.byType(EbrokerTitleHeader));
+    expect(tester.widget<EbrokerTitleHeader>(latestHeader).compact, isTrue);
+    final first = find.byKey(const ValueKey('home-property-51'));
+    final second = find.byKey(const ValueKey('home-property-52'));
+    final railBounds = tester.getRect(latest);
+    expect(tester.getSize(first).width, lessThan(412 - 64));
+    expect(tester.getRect(second).right, greaterThan(railBounds.left));
+    expect(tester.getRect(second).left, lessThan(railBounds.left));
+    final gallery = find.descendant(of: first, matching: find.byType(PropertyCardGallery));
+    expect(tester.widget<PropertyCardGallery>(gallery).height, lessThan(168));
+    expect(tester.widget<Text>(find.text('آخر إعلان أول')).style!.fontSize, lessThan(17));
+    expect(find.descendant(of: first, matching: find.byType(AppPropertyPrice)), findsOneWidget);
+    expect(find.byKey(const ValueKey('favorite-property-51')), findsOneWidget);
+    expect(find.byKey(const ValueKey('compare-property-51')), findsOneWidget);
 
     final sale = find.text('بالقرب منك');
     await tester.scrollUntilVisible(sale, 140, scrollable: homeScroll);

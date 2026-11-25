@@ -40,6 +40,133 @@ class _MapLifetimeCanvasState extends State<_MapLifetimeCanvas> {
 void main() {
   setUpAll(loadUxFixtures);
 
+  testWidgets('fresh map shows both purposes without selecting either and keeps the property type', (tester) async {
+    PropertySummary row(int id, String purpose, String type) => PropertySummary(
+      id: id, title: 'إعلان $id', type: type, purpose: purpose, price: 190000,
+      currency: 'YER', latitude: 15.36, longitude: 44.19,
+    );
+    final rows = [row(1, 'rent', 'apartment'), row(2, 'sale', 'apartment'), row(3, 'sale', 'house')];
+    final listings = Listings()..respond = (filters, _) async => (
+      rows.where((row) =>
+        (filters['purpose'] == null || filters['purpose'] == row.purpose) &&
+        (filters['type'] == null || filters['type'] == row.type)).toList(),
+      false,
+    );
+    final scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(listings),
+      sharedSearchMapBuilderProvider.overrideWithValue((_, __, ___, ____) => const SizedBox.expand()),
+    ]);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
+    await tester.pumpAndSettle();
+    bool selected(String key) => tester.widget<Semantics>(find.ancestor(
+      of: find.byKey(ValueKey(key)),
+      matching: find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.selected != null),
+    ).first).properties.selected!;
+    List<int> ids() => scope.read(marketplaceMapResultsProvider).rows.map((row) => row.id).toList();
+    expect(selected('published-purpose-sale'), isFalse);
+    expect(selected('published-purpose-rent'), isFalse);
+    expect(listings.calls.single.containsKey('purpose'), isFalse);
+    expect(ids(), [1, 2, 3]);
+
+    await _tap(tester, 'published-type-apartment');
+    expect(ids(), [1, 2]);
+    await _tap(tester, 'published-purpose-rent');
+    expect(selected('published-purpose-rent'), isTrue);
+    expect(selected('published-purpose-sale'), isFalse);
+    expect(ids(), [1]);
+    await _tap(tester, 'published-purpose-rent');
+    expect(selected('published-purpose-rent'), isFalse);
+    expect(listings.calls.last['type'], 'apartment');
+    expect(listings.calls.last.containsKey('purpose'), isFalse);
+    expect(ids(), [1, 2]);
+    await _tap(tester, 'published-purpose-sale');
+    expect(selected('published-purpose-sale'), isTrue);
+    expect(ids(), [2]);
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
+  testWidgets('full map results keep the drawn-area filters, loaded pages and mounted map', (tester) async {
+    const triangle = '[[44.35,14.5],[44.45,14.5],[44.35,14.6],[44.35,14.5]]';
+    PropertySummary rental(int id, double latitude, double longitude) => PropertySummary(
+      id: id, title: 'شقة للإيجار $id', type: 'apartment', purpose: 'rent', price: 220000,
+      monthlyRent: 220000, currency: 'YER', latitude: latitude, longitude: longitude,
+    );
+    final first = rental(4, 14.52, 44.36), second = rental(19, 14.54, 44.38);
+    final outside = rental(25, 14.59, 44.44);
+    final listings = Listings()..respond = (filters, page) async {
+      if (filters['area_polygon'] == null) return ([first, second, outside], false);
+      return page == 1 ? ([first, outside], true) : ([second], false);
+    };
+    late void Function(double, double, double, double) viewport;
+    List<int> pins = [];
+    var mounts = 0, disposals = 0;
+    final scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(listings),
+      sharedSearchMapBuilderProvider.overrideWithValue((_, rows, __, update) {
+        viewport = update;
+        pins = rows.map((row) => row.id).toList();
+        return _MapLifetimeCanvas(onMount: () => mounts++, onUnmount: () => disposals++);
+      }),
+    ]);
+    await pumpUx(tester, scope, const MarketplaceSearchMapScreen());
+    await tester.pumpAndSettle();
+    await _tap(tester, 'published-type-apartment');
+    await _tap(tester, 'published-purpose-rent');
+    viewport(14.49, 44.31, 14.65, 44.48);
+    await tester.pumpAndSettle();
+    await scope.read(marketplaceMapResultsProvider.notifier).applyDrawnArea(triangle);
+    await tester.pumpAndSettle();
+    expect(pins, [4]);
+    final map = scope.read(marketplaceSearchControllerProvider.notifier);
+    final journey = map.mapJourneyToken;
+    final filters = scope.read(marketplaceMapResultsProvider).filters;
+    final previousQuery = listings.calls.last;
+    expect(previousQuery['purpose'], 'rent');
+    expect(previousQuery['type'], 'apartment');
+    expect(previousQuery['area_polygon'], triangle);
+    expect(previousQuery['south'], 14.49);
+    final requests = listings.calls.length;
+
+    await _tap(tester, 'map-show-list');
+    expect(find.text('قائمة العقارات'), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-results-sheet')), findsNothing);
+    expect(find.text('داخل المنطقة المرسومة'), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-full-result-4')), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-full-result-25')), findsNothing);
+    expect(listings.calls, hasLength(requests));
+    expect(mounts, 1);
+    expect(disposals, 0);
+
+    await tester.tap(find.text('المزيد من العقارات'));
+    await tester.pumpAndSettle();
+    expect(listings.calls.last, {...previousQuery, 'page': 2});
+    expect(find.text('نتيجتان'), findsOneWidget);
+    expect(tester.getTopLeft(find.byKey(const ValueKey('map-full-result-4'))).dy,
+        lessThan(tester.getTopLeft(find.byKey(const ValueKey('map-full-result-19'))).dy));
+    expect(find.byKey(const ValueKey('map-full-result-25')), findsNothing);
+
+    await _tap(tester, 'map-full-list-return');
+    expect(find.text('قائمة العقارات'), findsNothing);
+    expect(map.isMapJourneyCurrent(journey), isTrue);
+    expect(scope.read(marketplaceMapResultsProvider).filters.sameAs(filters), isTrue);
+    expect(pins, [4, 19]);
+    expect(mounts, 1);
+    expect(disposals, 0);
+    expect(listings.calls, hasLength(requests + 1));
+
+    await _tap(tester, 'map-show-list');
+    expect(find.text('نتيجتان'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('قائمة العقارات'), findsNothing);
+    expect(map.isMapJourneyCurrent(journey), isTrue);
+    expect(scope.read(marketplaceMapResultsProvider).filters.sameAs(filters), isTrue);
+    expect(listings.calls, hasLength(requests + 1));
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
+
   testWidgets('delayed Dhamar results keep the confirmed governorate camera and whole-province criteria', (tester) async {
     final reply = Completer<PageResult>();
     final properties = Listings()..respond = (_, __) => reply.future;

@@ -212,7 +212,7 @@ void main() {
       final rating = withinBroker('١٢ تقييمًا');
       final deals = withinBroker('صفقات مؤكدة');
       final active = withinBroker('عقارات نشطة');
-      expect(tester.getSize(broker).width, scale == 1 ? 206 : closeTo(281.6, .1));
+      expect(tester.getSize(broker).width, closeTo(scale == 1 ? 222.48 : 281.6, .1));
       expect(tester.getSize(photo).width, greaterThan(tester.getSize(photo).height));
       expect(tester.getCenter(rating).dx, greaterThan(tester.getCenter(deals).dx));
       expect(tester.getCenter(deals).dx, greaterThan(tester.getCenter(active).dx));

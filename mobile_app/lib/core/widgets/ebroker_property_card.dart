@@ -8,7 +8,7 @@ import 'property_type_icon.dart';
 class EbrokerPropertyHorizontalCard extends StatelessWidget {
   const EbrokerPropertyHorizontalCard({required this.title, required this.price, required this.currency,
     required this.onTap, this.imageUrl, this.location, this.purposeLabel, this.categoryLabel = 'عقار',
-    this.facts = const [], this.trailing, this.action, this.unavailable = false, this.embedded = false, this.imageFirst = false, this.preview = false,
+    this.facts = const [], this.trailing, this.action, this.unavailable = false, this.embedded = false, this.imageFirst = false, this.preview = false, this.compactPreview = false,
     this.imageUrls = const [], this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, this.supportingText = const [], this.priceSuffix, this.publicationAge, super.key});
   final String title, price, currency, categoryLabel;
   final VoidCallback onTap;
@@ -17,12 +17,18 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   final List<AppPropertyFact> facts;
   final Widget? trailing, action;
   final bool unavailable, embedded, imageFirst, preview, isSpotlight, authenticatedImages;
+  final bool compactPreview;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
     final theme = Theme.of(context), scheme = theme.colorScheme;
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 21;
     final vertical = preview || imageFirst || largeText;
+    final compact = preview && compactPreview;
+    final inset = compact ? const EdgeInsets.all(8) : const EdgeInsets.all(10);
+    final titleStyle = compact ? AppTypography.propertyName.copyWith(fontSize: 16) : AppTypography.propertyName;
+    final secondaryStyle = AppTypography.propertySecondary.copyWith(
+      fontSize: compact ? 13 : null, color: scheme.onSurfaceVariant);
     final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix);
     Widget priceWithPurpose({bool fillWidth = true}) {
       final label = purposeLabel;
@@ -64,25 +70,25 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final detail = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
       if (!imageFirst && !preview) ...[priceWithPurpose(), const SizedBox(height: 4)],
       Text(title, maxLines: largeText ? null : 2, overflow: largeText ? null : TextOverflow.ellipsis,
-        style: AppTypography.propertyName),
-      if (location?.trim().isNotEmpty == true) ...[const SizedBox(height: 4), Text(location!,
+        style: titleStyle),
+      if (location?.trim().isNotEmpty == true) ...[SizedBox(height: compact ? 3 : 4), Text(location!,
         maxLines: largeText ? null : 1, overflow: largeText ? null : TextOverflow.ellipsis,
-        style: AppTypography.propertySecondary.copyWith(color: scheme.onSurfaceVariant))],
+        style: secondaryStyle)],
       if (publicationAge != null) Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Text(publicationAge!, style: theme.textTheme.bodySmall?.copyWith(
-          fontSize: 11, color: scheme.onSurfaceVariant)),
+          fontSize: compact ? 10 : 11, color: scheme.onSurfaceVariant)),
       ),
-      if (preview) ...[const SizedBox(height: 6), money],
+      if (preview) ...[SizedBox(height: compact ? 4 : 6), money],
       if (!preview) ...[const SizedBox(height: 4), Row(mainAxisSize: MainAxisSize.min, children: [
         PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
         const SizedBox(width: 4), Flexible(child: Text(categoryLabel,
           style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))),
       ])],
-      if (facts.isNotEmpty) ...[const SizedBox(height: 6), Wrap(spacing: 9, runSpacing: 4, children: [
+      if (facts.isNotEmpty) ...[SizedBox(height: compact ? 4 : 6), Wrap(spacing: 9, runSpacing: 4, children: [
         for (final fact in facts) Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 14, color: scheme.onSurfaceVariant),
           const SizedBox(width: 3), Flexible(child: Text(fact.label, style: (preview
-            ? AppTypography.propertySecondary
+            ? secondaryStyle
             : theme.textTheme.bodySmall?.copyWith(fontSize: 10))?.copyWith(color: scheme.onSurfaceVariant)))]),
       ])],
       for (final line in supportingText) Padding(padding: const EdgeInsets.only(top: 4),
@@ -90,7 +96,11 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
       if (action != null) action!,
     ]);
     final content = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (vertical) ...[gallery(imageFirst ? 168 : 150), const SizedBox(height: 9), detail]
+      if (vertical) ...[
+        gallery(imageFirst ? (compact ? 156 : 168) : 150),
+        SizedBox(height: compact ? 7 : 9),
+        detail,
+      ]
       else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(width: constraints.maxWidth < 350 ? 96 : 108, child: gallery(124)),
         const SizedBox(width: 10), Expanded(child: detail),
@@ -99,7 +109,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
       if (unavailable) const Padding(padding: EdgeInsets.only(top: 8),
         child: AppInlineMessage(message: 'هذا العقار غير متاح حاليًا', tone: AppStatusTone.neutral)),
     ]);
-    return embedded ? InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Padding(padding: const EdgeInsets.all(10), child: content))
-      : AppSurface(onTap: onTap, padding: const EdgeInsets.all(10), child: content);
+    return embedded ? InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Padding(padding: inset, child: content))
+      : AppSurface(onTap: onTap, padding: inset, child: content);
   });
 }

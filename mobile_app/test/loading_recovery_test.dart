@@ -42,6 +42,7 @@ import 'package:real_estate_mobile/features/account/data/account_request_scope.d
 import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/smart_search_assistant.dart';
 
+import 'support/my_listings_fixtures.dart';
 import 'support/wave3_fakes.dart';
 import 'support/wave6_fakes.dart';
 
@@ -483,11 +484,15 @@ void main() {
   }, timeout: const Timeout(Duration(seconds: 45)));
 
   testWidgets('empty private listing filter renders without intrinsic-layout exceptions', (tester) async {
-    final repo = _Details()..onDetails = (id) async => _property(id);
-    await tester.pumpWidget(ProviderScope(overrides: [authControllerProvider.overrideWith(_Auth.new),
-      propertyRepositoryProvider.overrideWithValue(repo)], child: const MaterialApp(home: MyListingsScreen())));
+    final listing = PropertyDetails.fromJson({
+      'id': 77, 'title': 'إعلان قيد المراجعة', 'purpose': 'sale', 'type': 'house',
+      'status': 'pending', 'review_status': 'submitted', 'can_edit': false,
+    });
+    await tester.pumpWidget(ProviderScope(overrides: [
+      myListingsPagesProvider.overrideWith((_) => fixedMyListings([listing])),
+    ], child: const MaterialApp(home: MyListingsScreen())));
     await tester.pumpAndSettle();
-    final filter = find.text('منشورة (0)');
+    final filter = find.text('منشورة');
     await tester.ensureVisible(filter); await tester.pumpAndSettle(); await tester.tap(filter); await tester.pumpAndSettle();
     expect(find.text('لا توجد إعلانات في هذه الحالة'), findsOneWidget);
     expect(tester.takeException(), isNull);

@@ -35,6 +35,7 @@ import '../../properties/domain/property_coordinates.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../discovery/presentation/smart_search_filter_editor.dart';
 import '../../discovery/data/discovery_suggestions.dart';
+import 'property_map_results_page.dart';
 import 'property_map_results_sheet.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../../discovery/data/smart_search_session.dart';
@@ -438,9 +439,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   int _areaSelectionGeneration = 0;
   bool _convertingArea = false;
   int _areaAnnotationGeneration = 0;
-  bool _listMode = false;
+  bool _resultsPageOpen = false;
   bool _changingFavorite = false;
-  int _sortMode = 0;
 
   final TextEditingController _searchController = TextEditingController();
   final PropertyDiscoveryHistoryStore _historyStore = const PropertyDiscoveryHistoryStore();
@@ -615,7 +615,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final filters = history.lastFilters;
     setState(() {
       _recentSearches = history.recentSearches;
-      _applySharedFilters(SmartSearchFilters.fromMap(filters));
+      _applySharedFilters(SmartSearchFilters.fromMap(filters).without('purpose'));
     });
   }
 
@@ -716,8 +716,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       });
     return SmartSearchFilters.fromMap(values);
   }
-
-  Widget _withSharedSession(Widget child) => child;
 
   void _showLocationGuidance(
     String message, {
@@ -1170,7 +1168,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final controller = _mapController;
     final target = LatLng(property.latitude, property.longitude);
     setState(() {
-      _listMode = false;
       _selected = property;
       _lastMarkerSignature = '';
     });
@@ -1186,7 +1183,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       purpose: property.purpose ?? '', type: property.type ?? '', price: property.price, currency: property.currency,
       latitude: property.latitude, longitude: property.longitude, monthlyRent: property.monthlyRent,
       mainImage: property.mainImage, imageUrls: property.imageUrls));
-    if (_journeyCurrent && widget.enforceViewport) await ref.read(_searchSession.notifier).search();
+    if (_journeyCurrent && widget.enforceViewport && !_resultsPageOpen) {
+      await ref.read(_searchSession.notifier).search();
+    }
   }
 
   VoidCallback? _favoriteAction(int propertyId, AsyncValue<Set<int>>? ids) {
@@ -1267,23 +1266,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void _setQuickType(String? type) {
     final current = _currentSmartFilters();
     setState(() => _applySharedFilters(type == null ? current.without('type') : current.toggleType(type)));
-    _persistDiscoveryHistory();
-  }
-
-  void _resetFilters() {
-    setState(() {
-      _extraFilters = const {};
-      _filterPurpose = null;
-      _filterType = null;
-      _filterMinPrice = null;
-      _filterMaxPrice = null;
-      _filterMinBedrooms = null;
-      _filterMinBathrooms = null;
-      _filterMinArea = null;
-      _filterMaxArea = null;
-      _selected = null;
-      _lastMarkerSignature = '';
-    });
     _persistDiscoveryHistory();
   }
 
@@ -1373,7 +1355,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _convertingArea = false;
       _selectingArea = true;
       _areaDraftPoints = <Offset>[];
-      _listMode = false;
       _selected = null;
       _mapMessage = null;
     });
@@ -1623,7 +1604,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final apiError = properties.asError?.error;
     final canvas = ref.watch(sharedSearchMapBuilderProvider);
 
-    return _withSharedSession(Stack(fit: StackFit.expand, children: [Offstage(offstage: _listMode, child: Directionality(
+    return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         body: SmartSearchAssistantLayer(enabled: false, showComparisonTray: false, showMapButton: false, child: Stack(
@@ -1643,7 +1624,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               filterPanel: _buildFilterPanel(properties),
               loading: rawProperties.isLoading, error: apiError == null ? null : friendlyApiError(apiError),
               onRetry: () => ref.invalidate(nearbyPropertiesProvider(query)),
-              onShowList: () => setState(() => _listMode = true),
+              onShowList: () => _openFullResults(nearbyQuery: query, nearbyItems: displayed),
               itemBuilder: (row) => PropertyMapResultCard(property: row,
                 favorite: favoriteState?.asData?.value.contains(row.id) ?? false,
                 favoriteStatus: PropertyFavoriteStatus.fromAsync(favoriteState, row.id),
@@ -1658,9 +1639,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ],
         )),
       ),
-    )),
-      if (_listMode) _buildListMode(properties, query, favoriteState),
-    ]));
+    );
   }
 
   String _viewportSignature(LatLngBounds bounds) => '${bounds.southwest.latitude.toStringAsFixed(5)}:${bounds.southwest.longitude.toStringAsFixed(5)}:${bounds.northeast.latitude.toStringAsFixed(5)}:${bounds.northeast.longitude.toStringAsFixed(5)}';
@@ -1780,6 +1759,113 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     finally { _fittingShared=false; }
   }
 
+  List<PropertyMarker> _sharedMapMarkers(List<PropertySummary> rows) =>
+      rows.where((row) => hasValidPropertyCoordinates(row.latitude, row.longitude))
+          .map((row) => PropertyMarker(
+            id: row.id, title: row.title, price: row.monthlyRent ?? row.price,
+            currency: row.currency, latitude: row.latitude, longitude: row.longitude,
+            distanceKm: 0, purpose: row.purpose, type: row.type, areaM2: row.areaM2,
+            bedrooms: row.bedrooms, bathrooms: row.bathrooms, address: row.address,
+            mainImage: row.mainImage, imageUrls: row.imageUrls, isSpotlight: row.isSpotlight,
+            monthlyRent: row.monthlyRent, discoveryMatch: row.discoveryMatch,
+          )).toList(growable: false);
+
+  Future<void> _openFullResults({
+    NearbyQuery? nearbyQuery,
+    List<PropertyMarker> nearbyItems = const [],
+  }) async {
+    if (!_journeyCurrent || _selectingArea || _resultsPageOpen) return;
+    _resultsPageOpen = true;
+    FocusManager.instance.primaryFocus?.unfocus();
+    widget.onMapInteraction?.call();
+    final provider = _searchSession;
+    final owner = nearbyQuery == null ? ref.read(provider.notifier) : null;
+    final nearbyFilters = nearbyQuery == null ? null : _currentSmartFilters();
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    bool current() => _journeyCurrent &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        (owner == null || identical(owner, ref.read(provider.notifier)));
+
+    try {
+      final selected = await Navigator.of(context).push<PropertyMarker>(
+        MaterialPageRoute<PropertyMarker>(
+          settings: const RouteSettings(name: 'map-property-results'),
+          builder: (pageContext) => Consumer(builder: (_, pageRef, __) {
+            final user = pageRef.watch(authControllerProvider).asData?.value;
+            final shared = owner == null ? null : pageRef.watch(provider);
+            if (!current()) {
+              return const Directionality(
+                textDirection: TextDirection.rtl,
+                child: Scaffold(
+                  appBar: AppAppBar(title: 'قائمة العقارات'),
+                  body: AppEmptyState(
+                    title: 'انتهت جلسة البحث',
+                    message: 'عد إلى الخريطة لعرض نتائج الجلسة الحالية.',
+                  ),
+                ),
+              );
+            }
+            final nearby = nearbyQuery == null
+                ? null
+                : pageRef.watch(nearbyPropertiesProvider(nearbyQuery));
+            final items = shared == null
+                ? _currentVisibleItems(nearby?.asData?.value ?? nearbyItems)
+                : _sharedMapMarkers(shared.rows);
+            final favorites = user == null ? null : pageRef.watch(favoritePropertyIdsProvider);
+            final nearbyError = nearby?.asError?.error;
+            final more = shared?.more ?? false;
+            final reportedTotal = shared?.total;
+            final total = !more ? items.length
+                : shared?.rows.length == items.length &&
+                    reportedTotal != null && reportedTotal > items.length
+                    ? reportedTotal : null;
+            return PropertyMapResultsPage(
+              filters: shared?.filters ?? nearbyFilters ?? const SmartSearchFilters(),
+              items: items,
+              total: total,
+              loading: shared?.loading ?? nearby?.isLoading ?? false,
+              more: more,
+              error: shared?.resultsError ??
+                  (nearbyError == null ? null : friendlyApiError(nearbyError)),
+              onRetry: () {
+                if (!current()) return;
+                if (owner != null) {
+                  unawaited(owner.retryResults());
+                } else if (nearbyQuery != null) {
+                  pageRef.invalidate(nearbyPropertiesProvider(nearbyQuery));
+                }
+              },
+              onMore: shared != null && shared.canLoadMore && owner != null ? () {
+                if (current()) unawaited(owner.loadNextPage(shared));
+              } : null,
+              itemBuilder: (property) {
+                final status = PropertyFavoriteStatus.fromAsync(favorites, property.id);
+                void showLocation() => Navigator.of(pageContext).pop(property);
+                void showDetails() => unawaited(_openDetails(property));
+                final favorite = _favoriteAction(property.id, favorites);
+                return owner == null
+                    ? _PropertyResultCard(
+                        property: property, selected: property.id == _selected?.id,
+                        favorite: status.selected, favoriteStatus: status, onFavorite: favorite,
+                        onMap: showLocation, onDetails: showDetails,
+                      )
+                    : PropertyMapResultCard(
+                        property: property, favorite: status.selected, favoriteStatus: status,
+                        onFavorite: favorite, onMap: showLocation, onDetails: showDetails,
+                      );
+              },
+            );
+          }),
+        ),
+      );
+      if (current() && selected != null) await _focusProperty(selected);
+    } finally {
+      _resultsPageOpen = false;
+    }
+  }
+
   Widget _sharedJourney() {
     final state=ref.watch(_searchSession);
     final session = ref.read(_searchSession.notifier);
@@ -1804,11 +1890,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       setState(() { _selectedAreaGeometry = geometry; _selectedAreaBounds = geometry?.bounds; });
       unawaited(_renderSelectedAreaAnnotations());
     });
-    final rows=state.rows.where((p)=>hasValidPropertyCoordinates(p.latitude, p.longitude)).map((p)=>PropertyMarker(
-      id:p.id,title:p.title,price:p.monthlyRent??p.price,currency:p.currency,latitude:p.latitude,longitude:p.longitude,distanceKm:0,
-      purpose:p.purpose,type:p.type,areaM2:p.areaM2,bedrooms:p.bedrooms,bathrooms:p.bathrooms,address:p.address,
-      mainImage:p.mainImage,imageUrls:p.imageUrls,isSpotlight:p.isSpotlight,monthlyRent:p.monthlyRent,
-      discoveryMatch:p.discoveryMatch)).toList(growable:false);
+    final rows = _sharedMapMarkers(state.rows);
     if(_selected!=null && !rows.any((p)=>p.id==_selected!.id))_selected=null;
     _queueMarkerSync(rows);
     final user = ref.watch(authControllerProvider).asData?.value;
@@ -1902,6 +1984,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               if (_journeyCurrent) unawaited(session.loadNextPage(state));
             },
             onShowList: widget.onShowList,
+            onOpenFullList: widget.onShowList == null ? _openFullResults : null,
             itemBuilder: (row) => PropertyMapResultCard(property: row,
               favorite: favoriteState?.asData?.value.contains(row.id) ?? false,
               favoriteStatus: PropertyFavoriteStatus.fromAsync(favoriteState, row.id),
@@ -2215,167 +2298,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
     );
   }
-
-  Widget _buildListMode(
-    AsyncValue<List<PropertyMarker>> properties,
-    NearbyQuery query,
-    AsyncValue<Set<int>>? favoriteState,
-  ) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('قائمة العقارات'),
-          actions: [
-            IconButton.filledTonal(
-              tooltip: 'بحث وتصفية',
-              onPressed: () {
-                final items =
-                    properties.asData?.value ?? const <PropertyMarker>[];
-                _showSearchSheet(items);
-              },
-              icon: const EbrokerIcon(Icons.search),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ),
-        body: SmartSearchAssistantLayer(onOpenMap: () async => setState(() => _listMode = false), onPressed: _openSmartSearch, child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: EbrokerSegmentedButton<int>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment(value: 0, label: Text('الأحدث')),
-                        ButtonSegment(value: 1, label: Text('السعر')),
-                        ButtonSegment(value: 2, label: Text('الأقرب')),
-                      ],
-                      selected: {_sortMode},
-                      onSelectionChanged: (value) {
-                        setState(() => _sortMode = value.first);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterCountButton(
-                      count: _filterCount, onPressed: _showFilters),
-                ],
-              ),
-            ),
-            if (_searchText.isNotEmpty || _selectedAreaBounds != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                child: Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: [
-                    if (_searchText.isNotEmpty)
-                      InputChip(
-                        avatar: const EbrokerIcon(Icons.search, size: 18),
-                        label: Text(_searchText),
-                        onDeleted: () {
-                          _searchController.clear();
-                          setState(() => _searchText = '');
-                          _persistDiscoveryHistory();
-                        },
-                      ),
-                    if (_selectedAreaBounds != null)
-                      InputChip(
-                        avatar: const EbrokerIcon(Icons.crop_free, size: 18),
-                        label: const Text('منطقة محددة'),
-                        onDeleted: _clearSelectedArea,
-                      ),
-                  ],
-                ),
-              ),
-            Expanded(
-              child: _buildListContent(properties, query, favoriteState),
-            ),
-          ],
-        )),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: _MapListSwitcherBar(
-              countText: properties.when(
-                data: (items) => '${items.length} نتيجة',
-                loading: () => 'جاري التحميل…',
-                error: (_, __) => 'تعذر الاتصال',
-              ),
-              mapMode: false,
-              onSwitch: () => setState(() => _listMode = false),
-              onAdd: ref.watch(authControllerProvider).asData?.value?.isBroker == true ? _openAddProperty : null,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildListContent(
-    AsyncValue<List<PropertyMarker>> properties,
-    NearbyQuery query,
-    AsyncValue<Set<int>>? favoriteState,
-  ) {
-    return properties.when(
-      loading: () => ListView.separated(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 110),
-        itemCount: 4,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, __) => const _LoadingPropertyCard(),
-      ),
-      error: (error, _) => _ResultsState(
-        icon: Icons.cloud_off_outlined,
-        title: 'تعذر تحميل العقارات',
-        message: friendlyApiError(error),
-        buttonLabel: 'إعادة المحاولة',
-        onPressed: () => ref.invalidate(nearbyPropertiesProvider(query)),
-      ),
-      data: (items) {
-        if (items.isEmpty) {
-          return _ResultsState(
-            icon: Icons.search_off_outlined,
-            title: 'لا توجد نتائج مطابقة',
-            message: 'جرّب تغيير المنطقة أو البحث أو إزالة بعض الفلاتر.',
-            buttonLabel: _filterCount > 0 ? 'مسح الفلاتر' : null,
-            onPressed: _filterCount > 0 ? _resetFilters : null,
-          );
-        }
-
-        final sorted = List<PropertyMarker>.of(items);
-        if (_sortMode == 0) {
-          sorted.sort((a, b) => b.id.compareTo(a.id));
-        } else if (_sortMode == 1) {
-          sorted.sort((a, b) => a.price.compareTo(b.price));
-        } else if (_sortMode == 2) {
-          sorted.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(14, 4, 14, 18),
-          itemCount: sorted.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final property = sorted[index];
-            final status = PropertyFavoriteStatus.fromAsync(favoriteState, property.id);
-            return _PropertyResultCard(
-              property: property,
-              selected: property.id == _selected?.id,
-              favorite: status.selected,
-              favoriteStatus: status,
-              onFavorite: _favoriteAction(property.id, favoriteState),
-              onMap: () => _focusProperty(property),
-              onDetails: () => _openDetails(property),
-            );
-          },
-        );
-      },
-    );
-  }
 }
 
 class _MapQuickFilterPanel extends StatelessWidget {
@@ -2427,90 +2349,6 @@ class _TypeChip extends StatelessWidget {
         label: Text(label),
         selected: selected,
         onSelected: (_) => onTap(),
-      ),
-    );
-  }
-}
-
-class _MapListSwitcherBar extends StatelessWidget {
-  const _MapListSwitcherBar({
-    required this.countText,
-    required this.mapMode,
-    required this.onSwitch,
-    required this.onAdd,
-  });
-
-  final String countText;
-  final bool mapMode;
-  final VoidCallback onSwitch;
-  final VoidCallback? onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.16),
-      borderRadius: BorderRadius.circular(8),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        height: 58,
-        child: Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: onSwitch,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    EbrokerIcon(mapMode
-                        ? Icons.view_list_outlined
-                        : Icons.map_outlined),
-                    const SizedBox(width: 7),
-                    Text(
-                      mapMode ? 'قائمة' : 'خريطة',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const VerticalDivider(),
-            Expanded(
-              child: Center(
-                child: Text(
-                  countText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            if (onAdd != null) const VerticalDivider(),
-            if (onAdd != null) Expanded(
-              child: InkWell(
-                onTap: onAdd,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    EbrokerIcon(Icons.add_circle, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 7),
-                    Text(
-                      'إضافة',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -2587,22 +2425,6 @@ class _MapActionButton extends StatelessWidget {
         onPressed: onPressed,
         icon: EbrokerIcon(icon),
       ),
-    );
-  }
-}
-
-class _FilterCountButton extends StatelessWidget {
-  const _FilterCountButton({required this.count, required this.onPressed});
-
-  final int count;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return EbrokerOutlinedButton.icon(
-      onPressed: onPressed,
-      icon: const EbrokerIcon(Icons.tune, size: 18),
-      label: Text(count == 0 ? 'تصفية' : '$count'),
     );
   }
 }
@@ -2758,118 +2580,6 @@ class _Fact extends StatelessWidget {
     );
   }
 }
-
-class _LoadingPropertyCard extends StatelessWidget {
-  const _LoadingPropertyCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 164,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          Container(
-            width: 118,
-            decoration: BoxDecoration(
-              color: Theme.of(context).extension<AppSemanticColors>()!.skeletonBase,
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                _LoadingLine(widthFactor: 0.8),
-                SizedBox(height: 10),
-                _LoadingLine(widthFactor: 0.55),
-                SizedBox(height: 16),
-                _LoadingLine(widthFactor: 0.68),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoadingLine extends StatelessWidget {
-  const _LoadingLine({required this.widthFactor});
-
-  final double widthFactor;
-
-  @override
-  Widget build(BuildContext context) {
-    return FractionallySizedBox(
-      widthFactor: widthFactor,
-      alignment: AlignmentDirectional.centerStart,
-      child: Container(
-        height: 12,
-        decoration: BoxDecoration(
-          color: Theme.of(context).extension<AppSemanticColors>()!.skeletonBase,
-          borderRadius: BorderRadius.circular(999),
-        ),
-      ),
-    );
-  }
-}
-
-class _ResultsState extends StatelessWidget {
-  const _ResultsState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.buttonLabel,
-    this.onPressed,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final String? buttonLabel;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            EbrokerIcon(icon, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-            const SizedBox(height: 6),
-            Text(message, textAlign: TextAlign.center),
-            if (buttonLabel != null && onPressed != null) ...[
-              const SizedBox(height: 14),
-              EbrokerFilledButton.tonal(
-                onPressed: onPressed,
-                child: Text(buttonLabel!),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 
 class _MessageCard extends StatelessWidget {
   const _MessageCard({required this.text});

@@ -1,27 +1,28 @@
-import 'property_summary_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/widgets/ebroker_widgets.dart';
-import '../../../core/widgets/ebroker_card_actions.dart';
-import '../../../core/widgets/ebroker_property_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../financial/data/financial_repository.dart';
+import '../../../core/widgets/ebroker_card_actions.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/property_card_gallery.dart';
+import '../../../core/widgets/property_type_icon.dart';
+import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
 import '../../broker/data/broker_repository.dart';
-import '../../broker/domain/broker_models.dart';
 import '../../broker/presentation/broker_workspaces.dart';
-import '../../broker/presentation/broker_activity.dart';
-import '../../../router/app_deep_links.dart';
-import '../data/property_repository.dart';
+import '../../financial/data/financial_repository.dart';
 import '../data/my_listings_pages.dart';
+import '../data/property_repository.dart';
 import '../domain/property_details.dart';
+import '../domain/property_field_options.dart';
+import '../domain/property_schema.dart';
 import 'add_property_wizard_screen.dart';
 import 'property_sai_configuration_sheet.dart';
+import 'property_summary_card.dart';
 
 export '../data/my_listings_pages.dart';
 
@@ -42,7 +43,10 @@ class MyListingsScreen extends ConsumerStatefulWidget {
 }
 
 class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
-  late String _filter = widget.initiallyShowCorrections ? 'corrections' : 'all';
+  late _ListingFilter _filter = widget.initiallyShowCorrections
+      ? _ListingFilter.rejected
+      : _ListingFilter.all;
+  late bool _onlyCorrections = widget.initiallyShowCorrections;
   final Set<int> _updating = {};
 
   Future<void> _availability(PropertyDetails item, String state) async {
@@ -52,18 +56,13 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e)))); }
     finally { if (mounted) setState(() => _updating.remove(item.id)); }
   }
-  Future<void> _closeListing(PropertyDetails item) async {
-    final mode = await showDialog<String>(context: context, builder: (c) => AlertDialog(
-      title: Text(item.purpose == 'rent' ? 'تم التأجير' : 'تم البيع'),
-      content: const Text('كيف تمت الصفقة؟ إغلاق إعلان خارج المنصة يحدّث التوفر فقط. الصفقة مع عميل من التطبيق تحتاج اختياره وتأكيده.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('رجوع')),
-        AppButton(label: 'خارج المنصة', onPressed: () => Navigator.pop(c, 'external')),
-        AppButton(label: 'مع عميل من التطبيق', onPressed: () => Navigator.pop(c, 'platform'))]));
-    if (mode == null || !mounted) return;
-    if (mode == 'external') { await _availability(item, item.purpose == 'rent' ? 'rented' : 'sold'); return; }
-    final customer = await Navigator.of(context).push<BrokerCustomer>(MaterialPageRoute(builder: (_) => BrokerCustomersScreen(propertyId: item.id, selectForDeal: true)));
-    if (customer != null && mounted) await reportBrokerDeal(context, ref, customer.threadId);
-  }
+  Future<void> _closeListing(PropertyDetails item) => closeBrokerListing(
+        context,
+        ref,
+        propertyId: item.id,
+        purpose: item.purpose,
+        onExternal: (state) => _availability(item, state),
+      );
   Future<void> _share(PropertyDetails item) async {
     await Clipboard.setData(ClipboardData(text: '${item.title}\n${propertyAppDeepLink(item.id)}'));
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ رابط العقار للمشاركة.')));
@@ -73,35 +72,48 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   Widget build(BuildContext context) {
     final listings = ref.watch(myListingsPagesProvider);
     final controller = ref.read(myListingsPagesProvider.notifier);
+    final items = listings.items.where((item) => item.reviewStatus != 'draft')
+        .toList(growable: false);
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppAppBar(title: 'عقاراتي', actions: [IconButton(key: const ValueKey('my-saved-listing-drafts'), tooltip: 'مسوداتي', onPressed: () => context.push('/add-property?drafts=1'), icon: const Icon(Icons.drafts_outlined)), IconButton(tooltip: 'تحديث التوفر الجماعي', onPressed: () => context.push('/broker/availability'), icon: const EbrokerIcon(Icons.update, size: 20))]),
-        floatingActionButton: listings.items.isNotEmpty ? EbrokerButton(
+        appBar: const AppAppBar(title: 'عقاراتي'),
+        floatingActionButton: items.isNotEmpty ? EbrokerButton(
           onPressed: () => _create(context, ref),
           icon: const EbrokerIcon(Icons.add_home_work_outlined),
           child: const Text('إضافة عقار'),
         ) : null,
         body: Column(children: [
+          _LifecycleFilterBar(
+            selected: _filter,
+            onChanged: (filter) => setState(() {
+              _filter = filter;
+              _onlyCorrections = false;
+            }),
+            onDrafts: () => context.push('/add-property?drafts=1'),
+          ),
           if (listings.page != null && (listings.loading || listings.error != null))
             AppRefreshStatus(loading: listings.loading,
               error: listings.error == null ? null : friendlyApiError(listings.error!),
               onRetry: controller.refresh),
-          Expanded(child: _body(listings, controller)),
+          Expanded(child: _body(listings, controller, items)),
         ]),
       ),
     );
   }
 
-  Widget _body(MyListingsPagesState listings, MyListingsPagesController controller) {
+  Widget _body(
+    MyListingsPagesState listings,
+    MyListingsPagesController controller,
+    List<PropertyDetails> items,
+  ) {
     if (listings.page == null) {
       if (listings.loading) return const _MyListingsSkeleton();
       if (listings.error != null) {
         return AppErrorState(message: friendlyApiError(listings.error!), onRetry: controller.refresh);
       }
     }
-    final items = listings.items;
     final hasMore = listings.page?.hasMore ?? false;
     if (items.isEmpty && !hasMore) {
       return AppEmptyState(
@@ -117,41 +129,9 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     return RefreshIndicator(
       onRefresh: controller.refresh,
       child: CustomScrollView(
-        key: ObjectKey(controller),
+        key: ValueKey((controller, _filter, _onlyCorrections)),
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                AppLayout.compactPageGutter,
-                AppSpacing.s12,
-                AppLayout.compactPageGutter,
-                0,
-              ),
-              child: _ListingsOverview(items: items, complete: !hasMore),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                AppLayout.compactPageGutter,
-                AppSpacing.s16,
-                AppLayout.compactPageGutter,
-                AppSpacing.s8,
-              ),
-              child: _LifecycleFilterBar(
-                selected: _filter,
-                items: items,
-                showCorrections: widget.initiallyShowCorrections,
-                onChanged: (value) => setState(() => _filter = value),
-              ),
-            ),
-          ),
-          if (hasMore)
-            const SliverToBoxAdapter(child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: AppLayout.compactPageGutter),
-              child: Text('الأعداد تخص الإعلانات المحمّلة حتى اكتمال التحميل'),
-            )),
           if (filtered.isEmpty)
             SliverToBoxAdapter(
               child: AppEmptyState(
@@ -177,7 +157,9 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
                 itemBuilder: (context, index) {
                   final item = filtered[index];
                   return _ListingCard(
+                    key: ValueKey('owner-listing-${item.id}'),
                     property: item,
+                    showStatus: _filter == _ListingFilter.all,
                     onOpen: () =>
                         context.push('/properties/${item.id}'),
                     onEdit: item.canEdit
@@ -228,14 +210,16 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   }
 
   List<PropertyDetails> _applyFilter(List<PropertyDetails> items) {
+    if (_onlyCorrections) {
+      return items.where(_needsCorrection).toList(growable: false);
+    }
     return switch (_filter) {
-      'action' => items.where(_needsAction).toList(growable: false),
-      'corrections' => items.where(_needsCorrection).toList(growable: false),
-      'review' => items.where(_inReview).toList(growable: false),
-      'published' => items
-          .where((item) => item.reviewStatus == 'approved')
+      _ListingFilter.all => items,
+      _ListingFilter.published => items.where(_published).toList(growable: false),
+      _ListingFilter.review => items.where(_inReview).toList(growable: false),
+      _ListingFilter.rejected => items
+          .where((item) => _rejected(item) || _needsCorrection(item))
           .toList(growable: false),
-      _ => items,
     };
   }
 
@@ -254,7 +238,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         builder: (_) => AddPropertyWizardScreen(existingProperty: item),
       ),
     );
-    _reloadListings(ref);
+    if (mounted) _reloadListings(ref);
   }
 
   Future<void> _submit(
@@ -403,151 +387,135 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   }
 }
 
-class _ListingsOverview extends StatelessWidget {
-  const _ListingsOverview({required this.items, required this.complete});
+enum _ListingFilter {
+  all('الكل', 5),
+  published('منشورة', 6),
+  review('قيد المراجعة', 10),
+  rejected('مرفوضة', 6);
 
-  final List<PropertyDetails> items;
-  final bool complete;
-
-  @override
-  Widget build(BuildContext context) {
-    final action = items.where(_needsAction).length;
-    final review = items.where(_inReview).length;
-    final published =
-        items.where((item) => item.reviewStatus == 'approved').length;
-    return AppSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(complete ? 'ملخص إعلاناتك' : 'ملخص الإعلانات المحمّلة',
-            style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.s4),
-          Text(
-            !complete
-                ? action > 0 ? 'من الإعلانات المحمّلة، $action يحتاج إجراء منك الآن.'
-                  : 'لا توجد إجراءات مطلوبة في الإعلانات المحمّلة حتى الآن.'
-                : action > 0
-                ? 'عندك $action إعلان يحتاج إجراء منك الآن.'
-                : 'كل الإعلانات تسير بدون إجراء مطلوب منك حاليًا.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
-          const SizedBox(height: AppSpacing.s16),
-          Row(
-            children: [
-              Expanded(
-                child: _OverviewMetric(
-                  icon: Icons.priority_high_rounded,
-                  value: action,
-                  label: 'تحتاج إجراء',
-                  tone: action > 0
-                      ? AppStatusTone.warning
-                      : AppStatusTone.neutral,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: _OverviewMetric(
-                  icon: Icons.fact_check_outlined,
-                  value: review,
-                  label: 'قيد المراجعة',
-                  tone: AppStatusTone.info,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s8),
-              Expanded(
-                child: _OverviewMetric(
-                  icon: Icons.verified_outlined,
-                  value: published,
-                  label: 'منشورة',
-                  tone: AppStatusTone.success,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OverviewMetric extends StatelessWidget {
-  const _OverviewMetric({
-    required this.icon,
-    required this.value,
-    required this.label,
-    required this.tone,
-  });
-
-  final IconData icon;
-  final int value;
+  const _ListingFilter(this.label, this.flex);
   final String label;
-  final AppStatusTone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        EbrokerIcon(icon, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: AppSpacing.s4),
-        Text(
-          '$value',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-        ),
-        const SizedBox(height: AppSpacing.s4),
-        AppStatusBadge(label: label, tone: tone),
-      ],
-    );
-  }
+  final int flex;
 }
 
 class _LifecycleFilterBar extends StatelessWidget {
   const _LifecycleFilterBar({
     required this.selected,
-    required this.items,
-    required this.showCorrections,
     required this.onChanged,
+    required this.onDrafts,
   });
 
-  final String selected;
-  final List<PropertyDetails> items;
-  final bool showCorrections;
-  final ValueChanged<String> onChanged;
+  final _ListingFilter selected;
+  final ValueChanged<_ListingFilter> onChanged;
+  final VoidCallback onDrafts;
 
   @override
   Widget build(BuildContext context) {
-    final counts = <String, int>{
-      'all': items.length,
-      if (showCorrections) 'corrections': items.where(_needsCorrection).length,
-      'action': items.where(_needsAction).length,
-      'review': items.where(_inReview).length,
-      'published':
-          items.where((item) => item.reviewStatus == 'approved').length,
-    };
-    final labels = <String, String>{
-      'all': 'الكل',
-      if (showCorrections) 'corrections': 'تحتاج تصحيحًا',
-      'action': 'تحتاج إجراء',
-      'review': 'قيد المراجعة',
-      'published': 'منشورة',
-    };
-    return SizedBox(
-      height: 42,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: labels.length,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s8),
-        itemBuilder: (context, index) {
-          final key = labels.keys.elementAt(index);
-          return EbrokerChoiceChip(
-            selected: selected == key,
-            label: Text('${labels[key]} (${counts[key]})'),
-            onSelected: (_) => onChanged(key),
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(8, 8, 8, 6),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final labelScale = MediaQuery.textScalerOf(context).scale(12) / 12;
+          final rowWidth = (304 * labelScale)
+              .clamp(constraints.maxWidth, double.infinity)
+              .toDouble();
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: rowWidth,
+              child: Row(
+                children: [
+                  for (final filter in _ListingFilter.values) ...[
+                    Expanded(
+                      flex: filter.flex,
+                      child: _ListingFilterChip(
+                        key: ValueKey('my-listings-filter-${filter.name}'),
+                        label: filter.label,
+                        selected: selected == filter,
+                        onTap: () => onChanged(filter),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    flex: 8,
+                    child: _ListingFilterChip(
+                      key: const ValueKey('my-saved-listing-drafts'),
+                      label: 'مسوداتي',
+                      icon: Icons.drafts_outlined,
+                      onTap: onDrafts,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ListingFilterChip extends StatelessWidget {
+  const _ListingFilterChip({
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.icon,
+    super.key,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool selected;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final foreground = selected ? scheme.primary : scheme.onSurface;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Center(
+              child: Ink(
+                decoration: BoxDecoration(
+                  color: selected ? scheme.primaryContainer : scheme.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                  border: Border.all(
+                    color: selected ? scheme.primary : scheme.outlineVariant,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(label,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: foreground,
+                            fontSize: 12,
+                          )),
+                      if (icon != null) ...[
+                        const SizedBox(width: 4),
+                        Icon(icon, size: 14, color: foreground),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -556,6 +524,7 @@ class _LifecycleFilterBar extends StatelessWidget {
 class _ListingCard extends StatelessWidget {
   const _ListingCard({
     required this.property,
+    required this.showStatus,
     required this.onOpen,
     required this.onEdit,
     required this.onSubmit,
@@ -564,98 +533,328 @@ class _ListingCard extends StatelessWidget {
     this.onAvailability,
     this.onClose,
     this.onShare,
+    super.key,
   });
 
   final PropertyDetails property;
+  final bool showStatus;
   final VoidCallback onOpen;
-  final VoidCallback? onEdit;
-  final VoidCallback? onSubmit;
-  final VoidCallback? onDelete;
-  final VoidCallback? onAttest;
+  final VoidCallback? onEdit, onSubmit, onDelete, onAttest;
   final ValueChanged<String>? onAvailability;
   final VoidCallback? onClose, onShare;
 
+  List<EbrokerCardAction> _actions({required bool inlineEdit}) {
+    final published = property.status == 'published';
+    final availability = property.availabilityStatus;
+    final canUpdate = published &&
+        property.reviewStatus == 'approved' &&
+        availability != 'sold' &&
+        availability != 'rented';
+    final changeAvailability = onAvailability;
+    return [
+      if (onSubmit != null)
+        EbrokerCardAction(
+          _needsCorrection(property) ? 'إعادة الإرسال' : 'إرسال للمراجعة',
+          onSubmit,
+          icon: Icons.send_outlined,
+        ),
+      if (onAttest != null)
+        EbrokerCardAction('إقرار السعي', onAttest,
+            icon: Icons.verified_user_outlined),
+      if (canUpdate) ...[
+        EbrokerCardAction(
+          availability == 'confirmation_paused'
+              ? 'أكد التوفر لإعادة إظهاره'
+              : 'ما زال متوفرًا',
+          changeAvailability == null
+              ? null
+              : () => changeAvailability('available'),
+          icon: Icons.check_circle_outline,
+        ),
+        if (availability == 'available')
+          EbrokerCardAction(
+              'إيقاف مؤقت',
+              changeAvailability == null
+                  ? null
+                  : () => changeAvailability('paused'),
+              icon: Icons.pause_circle_outline),
+        EbrokerCardAction(
+            property.purpose == 'rent' ? 'تم التأجير' : 'تم البيع', onClose,
+            icon: Icons.task_alt),
+      ],
+      if (published && availability == 'available')
+        EbrokerCardAction('مشاركة', onShare, icon: Icons.share_outlined),
+      if (onEdit != null && !inlineEdit)
+        EbrokerCardAction('تعديل', onEdit, icon: Icons.edit_outlined),
+      if (onDelete != null)
+        EbrokerCardAction('حذف', onDelete, icon: Icons.delete_outline),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
-    final state = _listingState(property.reviewStatus);
-    final nextAction = _nextAction(property);
+    final theme = Theme.of(context);
     final summary = property.toSummary();
+    final state = showStatus ? _listingState(property) : null;
+    final correction = _needsCorrection(property);
+    final reviewIssue = correction || _rejected(property);
+    final inlineEdit = reviewIssue && onEdit != null;
+    final reason = reviewIssue ? property.lastReviewReason?.trim() : null;
+    final actions = _actions(inlineEdit: inlineEdit);
+    final address = property.address?.trim();
+    final isRent = property.purpose == 'rent';
 
     return AppSurface(
-      padding: EdgeInsets.zero,
+      onTap: onOpen,
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          EbrokerPropertyHorizontalCard(embedded: true, title: property.title,
-            price: _formatPrice(property.price), currency: property.currency,
-            categoryLabel: ebrokerPropertyTypeLabel(property.type), facts: summaryPropertyFacts(summary),
-            purposeLabel: property.purpose == 'rent' ? 'للإيجار' : 'للبيع',
-            imageUrl: summary.mainImage, imageUrls: summary.imageUrls, authenticatedImages: property.status != 'published',
-            isSpotlight: property.isSpotlight, location: property.address, onTap: onOpen),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Wrap(spacing: AppSpacing.s8, runSpacing: AppSpacing.s4, children: [
-              AppStatusBadge(label: state.$1, tone: state.$2),
-              if (property.status == 'published') AppStatusBadge(label: switch (property.availabilityStatus) {
-                'sold' => 'تم البيع', 'rented' => 'تم التأجير', 'paused' => 'متوقف مؤقتًا', 'confirmation_paused' => 'يحتاج تأكيد التوفر', _ => 'متوفر',
-              }, tone: property.availabilityStatus == 'available' ? AppStatusTone.success : AppStatusTone.neutral),
-              AppStatusBadge(label: '${property.proofDocumentCount} إثبات',
-                tone: AppStatusTone.neutral, icon: Icons.description_outlined),
-            ])),
-          if (nextAction != null)
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                AppLayout.surfacePadding,
-                0,
-                AppLayout.surfacePadding,
-                AppSpacing.s12,
-              ),
-              child: AppInlineMessage(
-                title: nextAction.$1,
-                message: nextAction.$2,
-                tone: nextAction.$3,
-              ),
-            ),
-          if ((property.reviewStatus == 'returned_for_correction' ||
-                  property.reviewStatus == 'rejected_duplicate') &&
-              property.lastReviewReason != null)
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                AppLayout.surfacePadding,
-                0,
-                AppLayout.surfacePadding,
-                AppSpacing.s12,
-              ),
-              child: AppInlineMessage(
-                title: 'ملاحظة فريق المراجعة',
-                message: property.lastReviewReason!,
-                tone: AppStatusTone.warning,
-              ),
-            ),
-          const Divider(height: 1),
-          if (property.status == 'published') Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), child: Wrap(spacing: 12, runSpacing: 6, children: [
-            Text('المشاهدات: ${property.viewCount}'), Text('المفضلة: ${property.favoriteCount}'),
-            Text('المحادثات: ${property.conversationCount}'),
-          ])),
-          Padding(
-            padding: const EdgeInsetsDirectional.all(AppSpacing.s8),
-            child: EbrokerCardActions(actions: [
-              if (onSubmit != null) EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'إعادة الإرسال' : 'إرسال للمراجعة', onSubmit, icon: Icons.send_outlined),
-              if (onEdit != null && ['draft', 'returned_for_correction'].contains(property.reviewStatus))
-                EbrokerCardAction(property.reviewStatus == 'returned_for_correction' ? 'تصحيح الإعلان' : 'إكمال الإعلان', onEdit, icon: Icons.edit_outlined),
-              if (onAttest != null) EbrokerCardAction('إقرار السعي', onAttest, icon: Icons.verified_user_outlined),
-              if (property.status == 'published' && property.reviewStatus == 'approved' && property.availabilityStatus == 'confirmation_paused')
-                EbrokerCardAction('أكد التوفر لإعادة إظهاره', onAvailability == null ? null : () => onAvailability!('available'), icon: Icons.check_circle_outline),
-              EbrokerCardAction('عرض', onOpen, icon: Icons.visibility_outlined),
-              if (property.status == 'published' && property.reviewStatus == 'approved' && !['sold', 'rented'].contains(property.availabilityStatus)) ...[
-                if (property.availabilityStatus != 'confirmation_paused') EbrokerCardAction('ما زال متوفرًا', onAvailability == null ? null : () => onAvailability!('available'), icon: Icons.check_circle_outline),
-                if (property.availabilityStatus == 'available') EbrokerCardAction('إيقاف مؤقت', onAvailability == null ? null : () => onAvailability!('paused'), icon: Icons.pause_circle_outline),
-                EbrokerCardAction(property.purpose == 'rent' ? 'تم التأجير' : 'تم البيع', onClose, icon: Icons.task_alt),
+          LayoutBuilder(
+            builder: (context, constraints) => Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: (constraints.maxWidth * .28)
+                      .clamp(70.0, 110.0)
+                      .toDouble(),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: PropertyCardGallery(
+                      key: const ValueKey('my-listing-photo'),
+                      height: 122,
+                      imageUrl: summary.mainImage,
+                      imageUrls: summary.imageUrls,
+                      authenticatedImages: property.status != 'published',
+                      isSpotlight: property.isSpotlight,
+                      propertyType: property.type,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                              child: AppPropertyPrice(
+                            price: property.price.toString(),
+                            currency: property.currency,
+                            compact: true,
+                          )),
+                          const SizedBox(width: 4),
+                          EbrokerPurposeLabel(isRent ? 'للإيجار' : 'للبيع'),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Text(
+                            property.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.propertyName,
+                          )),
+                          if (actions.isNotEmpty)
+                            _ListingActionsMenu(actions: actions),
+                        ],
+                      ),
+                      if (address != null && address.isNotEmpty)
+                        Text(
+                          address,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.propertySecondary.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      const SizedBox(height: 5),
+                      _ListingFacts(
+                        key: const ValueKey('my-listing-facts'),
+                        facts: _listingFacts(property, summary),
+                      ),
+                      if (state != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 5),
+                          child:
+                              AppStatusBadge(label: state.$1, tone: state.$2),
+                        ),
+                    ],
+                  ),
+                ),
               ],
-              if (property.availabilityStatus == 'available' && property.status == 'published') EbrokerCardAction('مشاركة', onShare, icon: Icons.share_outlined),
-              if (onEdit != null && !['draft', 'returned_for_correction'].contains(property.reviewStatus)) EbrokerCardAction('تعديل', onEdit, icon: Icons.edit_outlined),
-              if (onDelete != null) EbrokerCardAction('حذف', onDelete, icon: Icons.delete_outline),
-            ]),
+            ),
           ),
+          if (inlineEdit || reason?.isNotEmpty == true)
+            _ListingReviewRow(
+              reason: reason,
+              correction: correction,
+              onEdit: inlineEdit ? onEdit : null,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ListingActionsMenu extends StatelessWidget {
+  const _ListingActionsMenu({required this.actions});
+
+  final List<EbrokerCardAction> actions;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<int>(
+        tooltip: 'خيارات البطاقة',
+        icon: const EbrokerIcon(Icons.more_vert, size: 18),
+        padding: EdgeInsets.zero,
+        onSelected: (index) => actions[index].onPressed?.call(),
+        itemBuilder: (_) => [
+          for (var index = 0; index < actions.length; index++)
+            PopupMenuItem<int>(
+              value: index,
+              enabled: actions[index].onPressed != null,
+              child: Row(
+                children: [
+                  EbrokerIcon(actions[index].icon, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(actions[index].label)),
+                ],
+              ),
+            ),
+        ],
+      );
+}
+
+class _ListingFacts extends StatelessWidget {
+  const _ListingFacts({required this.facts, super.key});
+
+  final List<AppPropertyFact> facts;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var start = 0; start < facts.length; start += 3)
+          Padding(
+            padding: EdgeInsets.only(top: start == 0 ? 0 : 3),
+            child: Row(
+              children: [
+                for (var column = 0; column < 3; column++)
+                  Expanded(
+                    child: start + column >= facts.length
+                        ? const SizedBox.shrink()
+                        : Tooltip(
+                            message: facts[start + column].label,
+                            excludeFromSemantics: true,
+                            child: Row(
+                              children: [
+                                Icon(facts[start + column].icon,
+                                    size: 13, color: color),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                    child: Text(
+                                  facts[start + column].label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: color,
+                                    fontSize: 10,
+                                  ),
+                                )),
+                                const SizedBox(width: 3),
+                              ],
+                            ),
+                          ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ListingReviewRow extends StatelessWidget {
+  const _ListingReviewRow({
+    required this.reason,
+    required this.correction,
+    required this.onEdit,
+  });
+
+  final String? reason;
+  final bool correction;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final reviewText = reason?.isNotEmpty == true
+        ? '${correction ? 'ملاحظة المراجعة' : 'سبب الرفض'}: $reason'
+        : null;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        key: const ValueKey('listing-review-row'),
+        children: [
+          Expanded(
+            child: reviewText == null
+                ? const SizedBox.shrink()
+                : Tooltip(
+                    message: reviewText,
+                    excludeFromSemantics: true,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: scheme.errorContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 5),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded,
+                                size: 15, color: scheme.onErrorContainer),
+                            const SizedBox(width: 4),
+                            Expanded(
+                                child: Text(
+                              reviewText,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onErrorContainer,
+                                fontSize: 11,
+                              ),
+                            )),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+          if (onEdit != null) ...[
+            const SizedBox(width: 6),
+            Flexible(
+              child: OutlinedButton.icon(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_outlined, size: 15),
+                label: const Text('تعديل الإعلان'),
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  minimumSize: const Size(0, 34),
+                  textStyle:
+                      theme.textTheme.labelMedium?.copyWith(fontSize: 11),
+                  side: BorderSide(color: scheme.primary),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -682,74 +881,68 @@ class _MyListingsSkeleton extends StatelessWidget {
   }
 }
 
-bool _needsAction(PropertyDetails item) =>
-    item.saiAttestationRequired ||
-    item.reviewStatus == 'draft' ||
-    _needsCorrection(item);
-
 bool _needsCorrection(PropertyDetails item) =>
     item.reviewStatus == 'returned_for_correction';
+
+bool _rejected(PropertyDetails item) => const {
+      'rejected',
+      'rejected_blocked',
+      'rejected_duplicate',
+      'legacy_rejected',
+    }.contains(item.reviewStatus);
 
 bool _inReview(PropertyDetails item) =>
     item.reviewStatus == 'submitted' || item.reviewStatus == 'under_review';
 
-(String, String, AppStatusTone)? _nextAction(PropertyDetails property) {
-  if (property.saiAttestationRequired) {
-    return (
-      'مطلوب إقرار السعي',
-      'الإعلان منشور. أكمل إقرار السعي المسجل على نفس نسخة الشروط.',
-      AppStatusTone.warning
-    );
-  }
-  return switch (property.reviewStatus) {
-    'draft' => (
-        'الخطوة التالية',
-        'أكمل بيانات الإعلان والإثباتات ثم أرسله للمراجعة.',
-        AppStatusTone.info,
-      ),
-    'returned_for_correction' => (
-        'مطلوب منك إجراء',
-        'صحح الملاحظة ثم أعد إرسال نفس الإعلان للمراجعة.',
-        AppStatusTone.warning,
-      ),
-    'submitted' => (
-        'بانتظار فريق المراجعة',
-        'تم الاستلام ولا يوجد إجراء مطلوب منك الآن.',
-        AppStatusTone.info,
-      ),
-    'under_review' => (
-        'تحت المراجعة',
-        'الفريق يراجع الإعلان حاليًا. لا تعدّل البيانات حتى انتهاء المراجعة.',
-        AppStatusTone.info,
-      ),
-    'approved' => (
-        'الإعلان منشور',
-        'يمكن للباحثين العثور عليه والتواصل وطلب المعاينة.',
-        AppStatusTone.success,
-      ),
+bool _published(PropertyDetails item) =>
+    item.reviewStatus == 'approved' &&
+    item.status == 'published' &&
+    item.availabilityStatus == 'available';
+
+(String, AppStatusTone)? _listingState(PropertyDetails property) {
+  if (_needsCorrection(property)) return ('يحتاج تصحيح', AppStatusTone.warning);
+  if (_rejected(property)) return ('مرفوض', AppStatusTone.error);
+  if (_inReview(property)) return ('قيد المراجعة', AppStatusTone.info);
+  return switch (property.availabilityStatus) {
+    'sold' => ('تم البيع', AppStatusTone.neutral),
+    'rented' => ('تم التأجير', AppStatusTone.neutral),
+    'paused' => ('متوقف مؤقتًا', AppStatusTone.neutral),
+    'confirmation_paused' => ('يحتاج تأكيد التوفر', AppStatusTone.warning),
+    _ when _published(property) => ('منشور', AppStatusTone.success),
+    _ when property.status == 'archived' => ('مؤرشف', AppStatusTone.neutral),
     _ => null,
   };
 }
 
-(String, AppStatusTone) _listingState(String status) => switch (status) {
-      'draft' => ('مسودة', AppStatusTone.neutral),
-      'submitted' => ('بانتظار المراجعة', AppStatusTone.info),
-      'under_review' => ('تحت المراجعة', AppStatusTone.info),
-      'returned_for_correction' => ('يحتاج تصحيح', AppStatusTone.warning),
-      'approved' => ('منشور', AppStatusTone.success),
-      'rejected_blocked' => ('مرفوض', AppStatusTone.error),
-      'rejected_duplicate' => ('مرفوض لتكرار الإعلان', AppStatusTone.error),
-      'legacy_rejected' => ('مرفوض سابقاً', AppStatusTone.error),
-      _ => (status, AppStatusTone.neutral),
-    };
-
-String _formatPrice(double value) {
-  final digits = value.round().toString();
-  final output = StringBuffer();
-  for (var index = 0; index < digits.length; index++) {
-    final remaining = digits.length - index;
-    output.write(digits[index]);
-    if (remaining > 1 && remaining % 3 == 1) output.write(',');
-  }
-  return output.toString();
+List<AppPropertyFact> _listingFacts(
+  PropertyDetails property,
+  PropertySummary summary,
+) {
+  final scope = {'type': property.type, 'purpose': property.purpose};
+  bool applies(String field) => DynamicPropertySchema.applies(field, scope);
+  final facade = propertyFacadeLabels[property.buildingFacade];
+  final floors = property.floorsCount;
+  final openings = property.shopOpenings;
+  return [
+    AppPropertyFact(
+      icon: propertyTypeIcon(property.type),
+      label: ebrokerPropertyTypeLabel(property.type),
+    ),
+    ...summaryPropertyFacts(summary),
+    if (applies('floors_count') && floors != null && floors > 0)
+      AppPropertyFact(
+        icon: Icons.layers_outlined,
+        label: '${arabicDigits('$floors')} أدوار',
+      ),
+    if (applies('building_facade') && facade != null)
+      AppPropertyFact(
+        icon: Icons.explore_outlined,
+        label: facade == 'أكثر من واجهة' ? facade : 'واجهة $facade',
+      ),
+    if (applies('shop_openings') && openings != null && openings > 0)
+      AppPropertyFact(
+        icon: Icons.storefront_outlined,
+        label: '${arabicDigits('$openings')} فتحات',
+      ),
+  ].take(6).toList(growable: false);
 }

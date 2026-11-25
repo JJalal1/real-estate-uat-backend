@@ -247,7 +247,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: _feedSliver),
          if (recent != null && recent.isNotEmpty)
            SliverToBoxAdapter(child: Column(children: [
-             EbrokerTitleHeader(title: 'شوهد مؤخرًا', onSeeAll: () => context.push('/recent')),
+             EbrokerTitleHeader(title: 'شوهد مؤخرًا', compact: true, onSeeAll: () => context.push('/recent')),
              _propertyRail('recent', recent.take(6)),
            ])),
         const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -255,12 +255,12 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     );
   }
 
-  Widget _property(PropertySummary row) => PropertySummaryCard(
+  Widget _property(PropertySummary row, {bool compactPreview = false}) => PropertySummaryCard(
     key: ValueKey('home-property-${row.id}'),
-    property: row, imageFirst: true, preview: true);
+    property: row, imageFirst: true, preview: true, compactPreview: compactPreview);
 
   Widget _propertyRail(String section, Iterable<PropertySummary> rows) {
-    final width = (MediaQuery.sizeOf(context).width - 64).clamp(250, 380).toDouble();
+    final width = (MediaQuery.sizeOf(context).width - 78).clamp(220, 366).toDouble();
     // Keep intrinsic height for large Arabic text. ViewportMedia gates the images.
     return SingleChildScrollView(
       key: PageStorageKey('home-properties-$section'),
@@ -269,7 +269,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         for (final row in rows)
           Padding(padding: const EdgeInsetsDirectional.only(end: 12),
-            child: SizedBox(width: width, child: _property(row))),
+            child: SizedBox(width: width, child: _property(row, compactPreview: true))),
       ]),
     );
   }
@@ -280,7 +280,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       entries.add((context) {
         final viewportWidth = MediaQuery.sizeOf(context).width;
         final largeText = MediaQuery.textScalerOf(context).scale(12) > 18;
-        final width = viewportWidth * (largeText ? .88 : .50);
+        final width = viewportWidth * (largeText ? .88 : .54);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -315,10 +315,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
       if (rows.isEmpty) continue;
       final title = switch (key) { 'nearby' => 'حول موقعك الحالي', 'spotlight' => 'عقارات تستحق نظرة',
         'sale' => 'بالقرب منك', _ => 'أحدث العقارات' };
-      entries.add((_) => EbrokerTitleHeader(title: title, onSeeAll: () => _section(key, data.governorate)));
+      entries.add((_) => EbrokerTitleHeader(title: title, compact: true, onSeeAll: () => _section(key, data.governorate)));
       if (key == 'nearby') {
         for (final row in rows.take(3)) {
-          entries.add((_) => Padding(padding: const EdgeInsets.fromLTRB(18, 0, 18, 12), child: _property(row)));
+          entries.add((_) => Padding(padding: const EdgeInsets.fromLTRB(18, 0, 18, 8), child: _property(row)));
         }
       } else {
         entries.add((_) => _propertyRail(key, rows));
@@ -356,7 +356,7 @@ class _HomeBrokerCard extends StatelessWidget {
       <= 10 => '${arabicDigits('$ratingCount')} تقييمات',
       _ => '${arabicDigits('$ratingCount')} تقييمًا',
     };
-    final labelStyle = theme.textTheme.bodySmall?.copyWith(fontSize: 9, height: 1.2);
+    final labelStyle = theme.textTheme.bodySmall?.copyWith(fontSize: 8.5, height: 1.2);
     final valueStyle = theme.textTheme.bodySmall?.copyWith(fontSize: 13, fontWeight: FontWeight.w700);
     Widget metric(String value, String label, {Widget? icon}) => Expanded(child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -387,7 +387,7 @@ class _HomeBrokerCard extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: AspectRatio(
-                  aspectRatio: 1.9,
+                  aspectRatio: 1.75,
                   child: Stack(fit: StackFit.expand, children: [
                     if (photoUrl == null || photoUrl.isEmpty) fallback
                     else ViewportMedia(
@@ -429,7 +429,7 @@ class _HomeBrokerCard extends StatelessWidget {
                 child: Row(children: [
                   Expanded(child: Row(children: [
                     Flexible(child: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700))),
+                      style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, fontWeight: FontWeight.w700))),
                     if (profile.verified) ...[
                       const SizedBox(width: 3),
                       const Icon(Icons.verified_rounded, color: Color(0xFF198CE0), size: 14,

@@ -52,7 +52,10 @@ class BrokerDealService
                         'text'=>$this->finance->attestationText($property,$frozenTerm)],
                 ],409));
             }
-            $basis = $amount ?? ($property->purpose === 'rent' ? (float) ($property->monthly_rent ?: $property->price) : (float) $property->price);
+            $listingPrice = $property->purpose === 'rent'
+                ? (float) ($property->monthly_rent ?: $property->price)
+                : (float) $property->price;
+            $basis = $amount ?? $listingPrice;
             abort_unless($basis > 0, 422);
             $state = $property->purpose === 'rent' ? 'rented' : 'sold';
             $this->availability->change($actor, [(int)$property->id], $state, $request);
@@ -63,6 +66,8 @@ class BrokerDealService
                 'basis_amount'=>round($basis,2), 'currency'=>$property->currency,
                 'snapshot'=>['property_title'=>$property->title,'advertiser_name'=>$actor->name,
                     'customer_name'=>User::query()->findOrFail($customerId)->name,
+                    'listing_price'=>$listingPrice > 0 ? round($listingPrice, 2) : null,
+                    'listing_currency'=>$listingPrice > 0 ? $property->currency : null,
                     'record_kind'=>'external_transaction_result','basis'=>$property->purpose === 'rent' ? 'monthly_rent' : 'sale_price'],
                 'advertiser_confirmed_at'=>now(),
                 'advertiser_attention_revision'=>1,
@@ -167,6 +172,7 @@ class BrokerDealService
             'advertiser_sai_share_amount'=>$amounts['broker_share'],'snapshot'=>array_merge($outcome->snapshot,
                 ['deal_reference'=>$outcome->reference,'sai_term_id'=>$sai->id,'sai_version'=>$sai->version,
                     'sai_amount_type'=>$sai->sai_amount_type,'fixed_sai_amount'=>$sai->fixed_sai_amount,
+                    'sai_rate_percent'=>$sai->sai_amount_type === 'fixed' ? null : $sai->sai_rate_percent,
                     'fixed_sai_currency'=>$sai->fixed_sai_currency]),'frozen_at'=>now(),
         ]);
         if ($amounts['platform_share'] <= 0) return;

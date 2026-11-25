@@ -335,8 +335,10 @@ void main() {
     final wire = _Wire((r) async {
       final page = r.queryParameters['page'] as int;
       if (page == 2 && fail) throw _failure(503, r);
-      return _page(page, page == 1 ? List.generate(50, (i) => _listing(i + 1))
-        : [_listing(50), _listing(51)], last: 2, total: 51);
+      return _page(page, page == 1
+        ? List.generate(50, (i) => _listing(i + 1, review: 'approved'))
+        : [_listing(50, review: 'approved'), _listing(51, review: 'approved')],
+        last: 2, total: 51);
     });
     final container = await _open(tester, wire);
     expect(wire.pages, [1]);
@@ -370,11 +372,12 @@ void main() {
     expect(find.text('Needs correction'), findsOneWidget);
     expect(find.text('Published listing'), findsNothing);
     expect(find.text('Draft listing'), findsNothing);
-    await tester.tap(find.text('الكل (3)'));
+    await tester.tap(find.text('الكل'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Published listing'), 240,
       scrollable: _verticalList.first);
     expect(find.text('Published listing'), findsOneWidget);
+    expect(find.text('Draft listing'), findsNothing);
   });
 
   phase23WidgetTest('empty local filter can reach a match on the next page without false totals', (tester) async {
@@ -384,13 +387,11 @@ void main() {
         last: 2, total: 2);
     });
     await _open(tester, wire);
-    expect(find.text('ملخص الإعلانات المحمّلة'), findsOneWidget);
-    final filter = find.text('منشورة (0)');
-    await tester.scrollUntilVisible(filter, 150, scrollable: find.byWidgetPredicate(
-      (widget) => widget is Scrollable && (widget.axisDirection == AxisDirection.left || widget.axisDirection == AxisDirection.right)).first);
+    expect(find.text('ملخص الإعلانات المحمّلة'), findsNothing);
+    await tester.tap(find.text('منشورة'));
     await tester.pumpAndSettle();
-    await tester.tap(filter);
-    await tester.pumpAndSettle();
+    expect(find.text('Synthetic listing 1'), findsNothing);
+    expect(find.text('لا توجد إعلانات مطابقة ضمن المحمّل حتى الآن'), findsOneWidget);
     expect(find.text('لا توجد إعلانات في هذه الحالة'), findsNothing);
     await _next(tester);
     expect(wire.pages, [1, 2]);

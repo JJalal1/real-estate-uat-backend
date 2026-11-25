@@ -8,7 +8,10 @@ use App\Models\BrokerDealOutcome;
 use App\Models\MessageThread;
 use App\Models\PrivateMessage;
 use App\Models\Property;
+use App\Models\PropertyDealFinancialTerm;
+use App\Models\PropertyPayment;
 use App\Models\PropertyPlatformReceivable;
+use App\Models\PropertySaiTerm;
 use App\Models\SupportTask;
 use App\Models\User;
 use App\Services\ApiTokenService;
@@ -390,7 +393,7 @@ class BrokerExperienceController extends Controller
     {
         $actor=$request->user();
         abort_unless(in_array((int)$actor->id,[(int)$outcome->advertiser_user_id,(int)$outcome->customer_user_id],true),404);
-        return response()->json(['data'=>$this->outcomeData($outcome,$actor)]);
+        return response()->json(['data' => $this->outcomeData($outcome, $actor) + $this->outcomeFinancialData($outcome)]);
     }
 
     public function viewDeal(Request $request, BrokerDealOutcome $outcome): Response
@@ -484,10 +487,44 @@ class BrokerExperienceController extends Controller
             'advertiser_view_revision'=>$viewRevision,
             'thread_id'=>$outcome->message_thread_id,'advertiser_id'=>$outcome->advertiser_user_id,'customer_id'=>$outcome->customer_user_id,
             'status'=>$outcome->status,'transaction_type'=>$outcome->transaction_type,'basis_amount'=>$outcome->basis_amount,'currency'=>$outcome->currency,
+            'listing_price'=>$outcome->snapshot['listing_price'] ?? null,'listing_currency'=>$outcome->snapshot['listing_currency'] ?? null,
             'property_title'=>$outcome->snapshot['property_title'],'customer_name'=>$outcome->snapshot['customer_name'],
             'advertiser_name'=>$outcome->snapshot['advertiser_name'],'confirmed_at'=>$outcome->confirmed_at?->toIso8601String(),
             'can_confirm'=>(int)$viewer->id === (int)$outcome->customer_user_id && $outcome->status === 'pending_customer',
             'can_rate'=>(int)$viewer->id === (int)$outcome->customer_user_id && $outcome->status === 'confirmed',
             'can_view_support_case'=>(int)$viewer->id === (int)$outcome->customer_user_id,'support_case_id'=>$outcome->support_case_id];
+    }
+
+    private function outcomeFinancialData(BrokerDealOutcome $outcome): array
+    {
+        $term = PropertyDealFinancialTerm::query()->where('broker_deal_outcome_id', $outcome->id)->first();
+        if (! $term) return [];
+
+        $snapshot = $term->snapshot ?? [];
+        $rate = $snapshot['sai_rate_percent'] ?? null;
+        if (! array_key_exists('sai_rate_percent', $snapshot) && $outcome->sai_term_id) {
+            $storedSai = PropertySaiTerm::query()->where('property_id', $outcome->property_id)->find($outcome->sai_term_id);
+            if ($storedSai && $storedSai->sai_amount_type !== 'fixed') {
+                $rate = $storedSai->sai_rate_percent;
+            }
+        }
+
+        // An advertiser's platform receivable covers only the platform share.
+        // Only a recorded payment that includes the full Sai can say it was paid.
+        $paymentStatus = null;
+        if ($term->sai_total_amount > 0 && in_array($term->sai_payer, ['buyer', 'tenant'], true)) {
+            $paymentStatus = PropertyPayment::query()->where('deal_financial_term_id', $term->id)
+                ->where('payer_user_id', $term->buyer_user_id)->where('currency', $term->currency)
+                ->whereIn('mode', ['platform_sai_only', 'platform_full'])
+                ->orderByRaw("CASE WHEN status = 'confirmed' THEN 0 ELSE 1 END")
+                ->latest('id')->value('status');
+        }
+
+        return [
+            'sai_amount' => $term->sai_total_amount,
+            'sai_currency' => $term->currency,
+            'sai_rate_percent' => $rate,
+            'sai_payment_status' => $paymentStatus,
+        ];
     }
 }

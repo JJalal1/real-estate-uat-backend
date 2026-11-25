@@ -40,7 +40,6 @@ class MapDiscoveryToolbar extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final selected = filters.values['purpose'];
-    final both = selected == null;
     final selectedTypes = filters.selectedTypes;
     final activeFilters = extraFilters ||
         filters.chips.any((chip) =>
@@ -51,9 +50,9 @@ class MapDiscoveryToolbar extends StatelessWidget {
     final controlsHeight = math.max(44.0, scaler.scale(14) * 1.4 + 8);
     final categoriesHeight = math.max(42.0, scaler.scale(13) * 1.4 + 8);
     final saleBackground =
-        both || selected == 'sale' ? colors.primaryContainer : colors.surface;
+        selected == 'sale' ? colors.primaryContainer : colors.surface;
     final rentBackground =
-        both || selected == 'rent' ? colors.primaryContainer : colors.surface;
+        selected == 'rent' ? colors.primaryContainer : colors.surface;
     final neutralInk = colors.onSurface;
 
     return Material(
@@ -89,7 +88,7 @@ class MapDiscoveryToolbar extends StatelessWidget {
                       child: _label(
                     key: const ValueKey('published-purpose-sale'),
                     label: 'بيع',
-                    selected: both || selected == 'sale',
+                    selected: selected == 'sale',
                     background: saleBackground,
                     foreground: saleBackground == colors.surface
                         ? neutralInk
@@ -105,7 +104,7 @@ class MapDiscoveryToolbar extends StatelessWidget {
                       child: _label(
                     key: const ValueKey('published-purpose-rent'),
                     label: 'إيجار',
-                    selected: both || selected == 'rent',
+                    selected: selected == 'rent',
                     background: rentBackground,
                     foreground: rentBackground == colors.surface
                         ? neutralInk
