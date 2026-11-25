@@ -150,6 +150,15 @@ class ListingEditorDraftService
         foreach ($order as $imageKey) {
             if (!isset($images[$imageKey])) continue;
             $attached[$imageKey]=$property->images()->firstOrCreate(['path'=>$images[$imageKey]],['sort_order'=>++$sort]);
+            // The pending draft job may observe the draft only after its images have been promoted.
+            $image = $attached[$imageKey];
+            $queues = app(BackgroundQueue::class);
+            if ($image->wasRecentlyCreated && $queues->enabled('images')) {
+                $job = new \App\Jobs\PrepareListingImage($image->id, hash('sha256', $image->path));
+                if (! $queues->submit('images', $job)) {
+                    app(ListingImageService::class)->prepareVariants($image->path);
+                }
+            }
         }
         if (($draft->payload['media_version'] ?? 0) === 1) {
             $promoted=[];$committedOrder=[];

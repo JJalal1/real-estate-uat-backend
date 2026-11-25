@@ -4,12 +4,7 @@ on:
     branches: [work/alazzi-background-prep-20261125]
     paths:
       - '.github/workflows/uat-push-worker-readiness.yml'
-      - 'backend-api-runtime/docker/push-worker-entrypoint.sh'
-      - 'backend-api-runtime/.dockerignore'
-      - 'backend-api-runtime/Dockerfile.queue-worker'
-      - 'backend-api-runtime/app/Console/Commands/BackgroundWork.php'
-      - 'backend-api-runtime/app/Services/BackgroundQueue.php'
-      - 'backend-api-runtime/config/background.php'
+      - 'backend-api-runtime/**'
       - 'docs/operations/render-push-worker.example.yaml'
 permissions:
   contents: read
