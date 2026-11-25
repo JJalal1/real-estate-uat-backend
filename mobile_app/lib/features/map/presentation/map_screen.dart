@@ -1837,8 +1837,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   pageRef.invalidate(nearbyPropertiesProvider(nearbyQuery));
                 }
               },
-              onMore: shared?.canLoadMore == true && owner != null ? () {
-                if (current()) unawaited(owner.loadNextPage(shared!));
+              onMore: shared != null && shared.canLoadMore && owner != null ? () {
+                if (current()) unawaited(owner.loadNextPage(shared));
               } : null,
               itemBuilder: (property) {
                 final status = PropertyFavoriteStatus.fromAsync(favorites, property.id);

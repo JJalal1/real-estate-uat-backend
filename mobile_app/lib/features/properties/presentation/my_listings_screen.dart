@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_card_actions.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -389,13 +388,14 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
 }
 
 enum _ListingFilter {
-  all('الكل'),
-  published('منشورة'),
-  review('قيد المراجعة'),
-  rejected('مرفوضة');
+  all('الكل', 5),
+  published('منشورة', 6),
+  review('قيد المراجعة', 10),
+  rejected('مرفوضة', 6);
 
-  const _ListingFilter(this.label);
+  const _ListingFilter(this.label, this.flex);
   final String label;
+  final int flex;
 }
 
 class _LifecycleFilterBar extends StatelessWidget {
@@ -414,32 +414,43 @@ class _LifecycleFilterBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(8, 8, 8, 6),
       child: LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                for (final filter in _ListingFilter.values) ...[
-                  _ListingFilterChip(
-                    key: ValueKey('my-listings-filter-${filter.name}'),
-                    label: filter.label,
-                    selected: selected == filter,
-                    onTap: () => onChanged(filter),
+        builder: (context, constraints) {
+          final labelScale = MediaQuery.textScalerOf(context).scale(12) / 12;
+          final rowWidth = (304 * labelScale)
+              .clamp(constraints.maxWidth, double.infinity)
+              .toDouble();
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: rowWidth,
+              child: Row(
+                children: [
+                  for (final filter in _ListingFilter.values) ...[
+                    Expanded(
+                      flex: filter.flex,
+                      child: _ListingFilterChip(
+                        key: ValueKey('my-listings-filter-${filter.name}'),
+                        label: filter.label,
+                        selected: selected == filter,
+                        onTap: () => onChanged(filter),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    flex: 8,
+                    child: _ListingFilterChip(
+                      key: const ValueKey('my-saved-listing-drafts'),
+                      label: 'مسوداتي',
+                      icon: Icons.drafts_outlined,
+                      onTap: onDrafts,
+                    ),
                   ),
-                  const SizedBox(width: 4),
                 ],
-                _ListingFilterChip(
-                  key: const ValueKey('my-saved-listing-drafts'),
-                  label: 'مسوداتي',
-                  icon: Icons.drafts_outlined,
-                  onTap: onDrafts,
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -484,19 +495,22 @@ class _ListingFilterChip extends StatelessWidget {
                   ),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(label,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: foreground,
-                          fontSize: 12,
-                        )),
-                    if (icon != null) ...[
-                      const SizedBox(width: 4),
-                      Icon(icon, size: 14, color: foreground),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(label,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: foreground,
+                            fontSize: 12,
+                          )),
+                      if (icon != null) ...[
+                        const SizedBox(width: 4),
+                        Icon(icon, size: 14, color: foreground),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

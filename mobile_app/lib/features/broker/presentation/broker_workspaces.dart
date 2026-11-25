@@ -41,7 +41,7 @@ Future<void> closeBrokerListing(
 }) async {
   final scope = ref.read(accountRequestScopeProvider);
   final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-  bool current() => context.mounted && scope.isCurrent &&
+  bool current() => scope.isCurrent &&
       epoch == Stage6SecureSessionStore.instance.sessionEpoch;
 
   final source = await showActorDialog<_ListingCloseSource>(
@@ -62,7 +62,7 @@ Future<void> closeBrokerListing(
       ],
     ),
   );
-  if (source == null || !current()) return;
+  if (source == null || !context.mounted || !current()) return;
   if (source == _ListingCloseSource.external) {
     await onExternal(purpose == 'rent' ? 'rented' : 'sold');
     return;
@@ -78,7 +78,7 @@ Future<void> closeBrokerListing(
       builder: (_) => BrokerCustomersScreen(propertyId: propertyId, selectForDeal: true),
     )),
   );
-  if (customer != null && current()) {
+  if (customer != null && context.mounted && current()) {
     await reportBrokerDeal(context, ref, customer.threadId, openResult: openResult);
   }
 }

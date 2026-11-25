@@ -234,7 +234,7 @@ void main() {
     await tester.tap(find.text('مع عميل من التطبيق'));
     await tester.pumpAndSettle();
     expect(find.text('اختر عميل الصفقة'), findsOneWidget);
-    await tester.tap(find.text('عميل تجريبي'));
+    await tester.tap(find.text('الصفقة مع هذا العميل'));
     await tester.pumpAndSettle();
     expect(find.text('تسجيل نتيجة الصفقة'), findsOneWidget);
     expect(repo.reportedDeals, isEmpty);
