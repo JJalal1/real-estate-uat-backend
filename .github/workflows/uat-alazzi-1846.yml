@@ -18,7 +18,7 @@ env:
 jobs:
   verify-api:
     name: Test listing availability, deal confirmation and dues APIs
-    if: ${{ github.event.repository.private && github.repository == 'JJalal1/real-estate-uat-backend' }}
+    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 27
     services:
@@ -99,7 +99,7 @@ jobs:
 
   verify-flutter:
     name: Analyze Flutter and exercise listing, finance, and support journeys
-    if: ${{ github.event.repository.private && github.repository == 'JJalal1/real-estate-uat-backend' }}
+    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 28
     steps:
@@ -184,7 +184,7 @@ jobs:
     needs: [verify-api, verify-flutter]
     permissions:
       contents: write
-    if: ${{ github.event.repository.private && github.repository == 'JJalal1/real-estate-uat-backend' }}
+    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -211,6 +211,10 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
           baseline=8b5ad43b62afab42bd4dbc10cd0bd1ed3e5b6308
+          if [ "$AQER_BUILD" = 1847 ]; then
+            baseline=c5c9ec1a50ddd41fcc8c0d1f88a48dd66986d44a
+            git diff --exit-code "$baseline" HEAD -- docs/PUBLIC_UAT_DELIVERY.json .github/uat-apk-recipient.pem scripts/prepare_phase1_close.py
+          fi
           kuraimi="mobile_app/$AQER_KURAIMI_ARTWORK_PATH"
           jawali="mobile_app/$AQER_JAWALI_ARTWORK_PATH"
           git merge-base --is-ancestor "$baseline" HEAD
@@ -432,7 +436,46 @@ jobs:
           apk="AQER-UAT-$AQER_BUILD-Alazzi-ARM64.apk"
           jq -e --argjson build "$AQER_BUILD" --arg source "$AQER_SOURCE_SHA" '.source == $source and .build == $build and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
           printf '%s  %s\n' "$(jq -r .sha256 APK_VERIFICATION.json)" "$apk" | sha256sum --check --strict
+      - name: Seal the public-repository installer for the approved recipient
+        if: github.event.repository.private == false
+        run: |
+          python3 -B - <<'PYTHON'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          from prepare_phase1_close import encrypt
+
+          policy = json.loads(Path("docs/PUBLIC_UAT_DELIVERY.json").read_text())
+          assert policy["repository"] == os.environ["GITHUB_REPOSITORY"]
+          assert policy["visibility"] == "public" and policy["apk_delivery"] == "recipient-encrypted-cms-only"
+          assert policy["plaintext_public_artifacts"] is False
+          recipient = Path(policy["recipient_certificate"])
+          assert not recipient.is_symlink() and hashlib.sha256(recipient.read_bytes()).hexdigest() == policy["recipient_sha256"]
+          sealed = Path("uat-sealed")
+          sealed.mkdir(mode=0o700)
+          original = Path("uat-installer")
+          receipt = json.loads((original / "APK_VERIFICATION.json").read_text())
+          apk = original / f"AQER-UAT-{receipt['build']}-Alazzi-ARM64.apk"
+          receipt["encrypted_installer"] = encrypt(apk, sealed / "installer.cms", recipient)
+          receipt["recipient_sha256"] = policy["recipient_sha256"]
+          (sealed / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2))
+          PYTHON
+      - name: Upload recipient-encrypted installer and receipt
+        if: github.event.repository.private == false
+        uses: actions/upload-artifact@v4
+        with:
+          name: AQER-UAT-${{ env.AQER_BUILD }}-sealed-${{ github.run_attempt }}
+          path: |
+            uat-sealed/installer.cms
+            uat-sealed/APK_VERIFICATION.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
       - name: Upload the verified APK and receipt
+        if: github.event.repository.private == true
         uses: actions/upload-artifact@v4
         with:
           name: AQER-UAT-${{ env.AQER_BUILD }}-Alazzi-ARM64-${{ github.run_attempt }}
@@ -443,6 +486,7 @@ jobs:
           compression-level: 0
           retention-days: 30
       - name: Attach the verified installer to a private draft
+        if: github.event.repository.private == true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
