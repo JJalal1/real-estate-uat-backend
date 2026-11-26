@@ -419,7 +419,7 @@ void main() {
     await _pump(tester, user: _user(), initial: '/messages/19', messages: messages);
     expect(find.text('مرحباً، كيف أستطيع مساعدتك؟'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'هل العقار متاح؟');
-    await tester.tap(find.byWidgetPredicate((w) => w is EbrokerIcon && w.icon == Icons.send));
+    await tester.tap(find.byTooltip('إرسال الرسالة'));
     await tester.pumpAndSettle();
     expect(messages.sent, ['هل العقار متاح؟']);
     expect(messages.sentThreadIds, [19]);

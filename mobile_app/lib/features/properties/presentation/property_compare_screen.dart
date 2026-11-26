@@ -51,8 +51,7 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
         rethrow;
       }
       if (property.status != 'published' ||
-          property.availabilityStatus != 'available' ||
-          property.financialHold) {
+          property.availabilityStatus != 'available') {
         return null;
       }
 

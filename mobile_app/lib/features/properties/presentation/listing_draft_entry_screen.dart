@@ -68,10 +68,18 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     final byKey = <String, Map<String, dynamic>>{};
     for (final row in _savedLocal) { if (row['draft_key'] is String) byKey[row['draft_key'] as String] = row; }
     if (_local?['draft_key'] is String) byKey[_local!['draft_key'] as String] = _local!;
-    return byKey.values.toList(growable: false);
+    final editableIds = _legacy.map((row) => row.id).toSet();
+    return byKey.values.where((row) => !_sourcesComplete ||
+        row['server_property_id'] == null || editableIds.contains(row['server_property_id'])).toList(growable: false);
   }
   @override
-  void initState() { super.initState(); Future.microtask(_load); }
+  void initState() {
+    super.initState();
+    ref.listenManual(offlineConnectionProvider, (previous, next) {
+      if (!_open && !_working && previous != next) Future.microtask(_load);
+    });
+    Future.microtask(_load);
+  }
   Future<void> _load() async {
     if (!_current) return;
     final request = ++_request;
@@ -85,6 +93,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
       _local = device[0] as Map<String, dynamic>?; _savedLocal = device[1] as List<Map<String, dynamic>>;
       if (const [OfflineConnection.offline, OfflineConnection.unavailable]
           .contains(ref.read(offlineConnectionProvider))) {
+        _drafts = []; _legacy = [];
         if (_directResume) {
           setState(() { _loading = false; _drafts = []; _legacy = []; });
           await _resumeMostRecent();

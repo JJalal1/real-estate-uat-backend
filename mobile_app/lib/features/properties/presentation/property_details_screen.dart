@@ -109,7 +109,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     final recentStore = ref.watch(recentPropertiesStoreProvider);
     if (recentStore.enabled && _recentRecordedScope != scope &&
         loaded != null && loaded.status == 'published' &&
-        loaded.availabilityStatus == 'available' && !loaded.financialHold) {
+        loaded.availabilityStatus == 'available') {
       _recentRecordedScope = scope;
       Future<void>.microtask(() async {
         try {
@@ -132,7 +132,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
     final showPrimaryActions = loaded != null &&
         loaded.status == 'published' &&
-        !loaded.isOwner && loaded.availabilityStatus == 'available' && !loaded.financialHold;
+        !loaded.isOwner && loaded.availabilityStatus == 'available';
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -740,7 +740,7 @@ class _AdvertiserCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           EbrokerAdvertiserCard(name: profile?.name ?? advertiser.name, compact: true, photoUrl: profile?.photoUrl, completedDeals: profile?.completedDeals, activeListings: profile?.activeListings,
-            identity: profile?.typeLabel ?? advertiser.verificationLabel,
+            identity: verified && profile?.verified != false ? advertiser.verificationLabel : profile?.typeLabel ?? advertiser.verificationLabel,
             rating: advertiser.ratingAverage, ratingCount: advertiser.ratingCount,
             verified: profile?.verified ?? verified, onTap: () => context.push('/advertisers/${advertiser.id}')),
           ExpansionTile(key: const ValueKey('property-advertiser-feedback'), tilePadding: EdgeInsets.zero, title: Text(signals.isEmpty ? 'التقييم والتعليقات' : 'التوثيق والتقييم'), children: [

@@ -172,6 +172,16 @@ class ActiveWaveDiscoveryTest extends TestCase
             ->assertJsonPath('data.office_name', null)->assertJsonPath('data.bio', 'وساطة عقارية');
     }
 
+    public function test_legacy_broker_without_review_documents_can_edit_and_appear_in_the_directory(): void
+    {
+        [$broker, $headers] = $this->actor('دلال سابق');
+        $broker->forceFill(['account_type' => 'broker', 'broker_verification_status' => 'approved', 'broker_verified_at' => now()])->save();
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['governorate' => 'تعز'])->assertOk();
+        $this->getJson('/api/brokers?'.http_build_query(['account_type' => 'broker', 'governorate' => 'تعز', 'region_only' => 1]))
+            ->assertOk()->assertJsonPath('data.0.id', $broker->id)->assertJsonPath('data.0.account_type', 'broker')
+            ->assertJsonPath('data.0.verified', false);
+    }
+
     public function test_approved_office_can_opt_out_of_its_historical_public_office_name(): void
     {
         [$office, $headers] = $this->actor('المعلن', 'office', ['office_name' => 'مكتب سابق', 'governorate' => 'تعز']);

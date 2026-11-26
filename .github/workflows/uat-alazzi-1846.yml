@@ -1,17 +1,18 @@
-name: UAT 1846 Alazzi unified listing updates and deals
+name: Alazzi signed UAT installer
 
 on:
   push:
-    branches: [work/alazzi-unify-1846]
+    branches: [work/alazzi-unify-1846, work/alazzi-marketplace-1847]
 
 permissions:
   contents: read
 
 concurrency:
-  group: aqer-alazzi-1846
+  group: aqer-alazzi-signed-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  AQER_BUILD: ${{ github.ref_name == 'work/alazzi-marketplace-1847' && '1847' || '1846' }}
   AQER_SOURCE_SHA: ${{ github.sha }}
 
 jobs:
@@ -171,12 +172,12 @@ jobs:
           test/home_dhamar_similar_cards_test.dart
           test/phase3_favorites_screen_test.dart
           test/phase23_favorite_recovery_test.dart
-      - name: Test support publishing restoration
+      - name: Test support visibility of dues
         working-directory: mobile_app
         run: >-
           flutter test --no-pub --reporter expanded
           test/owner_active_screen_states_test.dart
-          --name 'support restores publishing with confirmation and a reason'
+          --name 'support sees outstanding dues without a publishing restriction'
 
   verify-and-build:
     name: Build and verify the signed UAT installer
@@ -216,7 +217,7 @@ jobs:
           git diff --exit-code "$baseline" HEAD -- docs/uat-signing-identity.json \
             mobile_app/android mobile_app/ios mobile_app/pubspec.yaml mobile_app/pubspec.lock \
             mobile_app/assets scripts/import_ci_uat_firebase.py
-          printf '%s  %s\n' '200fcd4fc6c64aaf9fcb1e6dbe14f8f08154e8a5550544c69571b9ac0ae689c4' scripts/import_ci_uat_signing.py \
+          printf '%s  %s\n' 'b94d32f369e40254381cc6320fe911a41e015441ec89ca94d2b54ab493656790' scripts/import_ci_uat_signing.py \
             | sha256sum --check --strict
           test -f "$kuraimi" && test ! -L "$kuraimi"
           test -f "$jawali" && test ! -L "$jawali"
@@ -302,9 +303,9 @@ jobs:
             echo "The UAT Android Maps credential is missing."
             exit 1
           fi
-          flutter build apk --no-pub --flavor uat --release --build-number=1846 \
+          flutter build apk --no-pub --flavor uat --release --build-number="$AQER_BUILD" \
             --target-platform=android-arm64 \
-            --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER=1846 \
+            --dart-define=APP_ENVIRONMENT=uat --dart-define=APP_BUILD_NUMBER="$AQER_BUILD" \
             --dart-define=APP_PACKAGE_ID=com.aqer.yemen.uat.offline \
             --dart-define=API_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com/api \
             --dart-define=APP_SHARE_BASE_URL=https://real-estate-uat-api-frankfurt.onrender.com \
@@ -314,12 +315,12 @@ jobs:
           AQER_UAT_GOOGLE_MAPS_ANDROID_KEY: ${{ secrets.AQER_UAT_GOOGLE_MAPS_ANDROID_KEY }}
         run: |
           set -euo pipefail
-          mkdir uat1846
-          apk=uat1846/AQER-UAT-1846-Alazzi-ARM64.apk
+          mkdir uat-installer
+          apk="uat-installer/AQER-UAT-$AQER_BUILD-Alazzi-ARM64.apk"
           cp mobile_app/build/app/outputs/flutter-apk/app-uat-release.apk "$apk"
           tools="$ANDROID_HOME/build-tools/36.0.0"
           badging="$("$tools/aapt" dump badging "$apk")"
-          grep -F "package: name='com.aqer.yemen.uat.offline' versionCode='1846'" <<< "$badging"
+          grep -F "package: name='com.aqer.yemen.uat.offline' versionCode='$AQER_BUILD'" <<< "$badging"
           grep -Eq "^native-code: 'arm64-v8a'[[:space:]]*$" <<< "$badging"
           certs="$("$tools/apksigner" verify --print-certs "$apk")"
           export SIGNER_SHA256="$(awk -F ': ' '/^Signer #1 certificate SHA-256 digest:/ {print $2}' <<< "$certs")"
@@ -393,7 +394,7 @@ jobs:
           assert firebase["compiled_configuration_verified"]
           assert firebase["config_fingerprint"] == os.environ["AQER_VERIFIED_FIREBASE_FINGERPRINT"]
           receipt = {
-              "changes": "Alazzi unified listing updates and deals",
+              "branch": os.environ["GITHUB_REF_NAME"],
               "size_baseline_build": 1845,
               "bytes_baseline": 25938100,
               "cairo_fonts_verified": True,
@@ -403,7 +404,7 @@ jobs:
               "source": os.environ["AQER_SOURCE_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
               "package": "com.aqer.yemen.uat.offline",
-              "build": 1846,
+              "build": int(os.environ["AQER_BUILD"]),
               "certificate_sha256": identity["certificate_sha256"],
               "bytes": apk.stat().st_size,
               "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
@@ -427,17 +428,17 @@ jobs:
       - name: Check the exact installer and verification receipt for upload
         run: |
           set -euo pipefail
-          cd uat1846
-          apk=AQER-UAT-1846-Alazzi-ARM64.apk
-          jq -e --arg source "$AQER_SOURCE_SHA" '.source == $source and .build == 1846 and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
+          cd uat-installer
+          apk="AQER-UAT-$AQER_BUILD-Alazzi-ARM64.apk"
+          jq -e --argjson build "$AQER_BUILD" --arg source "$AQER_SOURCE_SHA" '.source == $source and .build == $build and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
           printf '%s  %s\n' "$(jq -r .sha256 APK_VERIFICATION.json)" "$apk" | sha256sum --check --strict
       - name: Upload the verified APK and receipt
         uses: actions/upload-artifact@v4
         with:
-          name: AQER-UAT-1846-Alazzi-ARM64-${{ github.run_attempt }}
+          name: AQER-UAT-${{ env.AQER_BUILD }}-Alazzi-ARM64-${{ github.run_attempt }}
           path: |
-            uat1846/AQER-UAT-1846-Alazzi-ARM64.apk
-            uat1846/APK_VERIFICATION.json
+            uat-installer/AQER-UAT-${{ env.AQER_BUILD }}-Alazzi-ARM64.apk
+            uat-installer/APK_VERIFICATION.json
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
@@ -447,8 +448,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$GITHUB_REPOSITORY" = JJalal1/real-estate-uat-backend
-          cd uat1846
-          gh release create "uat-alazzi-1846-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            AQER-UAT-1846-Alazzi-ARM64.apk APK_VERIFICATION.json --repo "$GITHUB_REPOSITORY" \
-            --draft --target "$AQER_SOURCE_SHA" --title 'AQER UAT 1846 — Alazzi unified listing updates and deals' \
+          cd uat-installer
+          gh release create "uat-alazzi-$AQER_BUILD-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            "AQER-UAT-$AQER_BUILD-Alazzi-ARM64.apk" APK_VERIFICATION.json --repo "$GITHUB_REPOSITORY" \
+            --draft --target "$AQER_SOURCE_SHA" --title "AQER UAT $AQER_BUILD — Alazzi" \
             --notes "Signed UAT installer verified against source $AQER_SOURCE_SHA."

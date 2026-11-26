@@ -42,6 +42,9 @@ class BrokerRankingService
             ->leftJoinSub($reviewedProfiles, 'reviewed_profile', fn ($join) => $join->on('reviewed_profile.user_id', '=', 'users.id'))
             ->where(function ($eligible) use ($brokersOnly, $includePublicIndividuals): void {
                 $eligible->whereNotNull('users.broker_enrolled_at')
+                    ->orWhere(fn ($legacy) => $legacy->where('users.account_type', User::ACCOUNT_TYPE_BROKER)
+                        ->where('users.broker_verification_status', User::BROKER_VERIFICATION_APPROVED)
+                        ->whereNotNull('users.broker_verified_at')->whereDoesntHave('accountVerificationProfile'))
                     ->orWhereIn('reviewed_profile.type', $brokersOnly ? ['broker', 'office'] : ['owner', 'broker', 'office']);
                 if ($includePublicIndividuals) $eligible->orWhereIn('users.id', app(PropertyDiscoveryFilterService::class)->publicQuery()->select('properties.user_id'));
             })
@@ -72,7 +75,7 @@ class BrokerRankingService
         $details = $approved ? ($profile->details ?? []) : [];
         $type = $approved ? $profile->type : 'individual';
         $officeName = null;
-        if ($user->broker_enrolled_at !== null || in_array($type, ['broker', 'office'], true)) {
+        if ($user->hasMarketplaceProfessionalProfile()) {
             $office = $user->marketplace_is_office === null ? $type === 'office' : (bool) $user->marketplace_is_office;
             $type = $office ? 'office' : 'broker';
             if ($office) {
@@ -95,7 +98,7 @@ class BrokerRankingService
         $identity = $this->publicIdentity($user);
         return $identity + [
             'id' => (int) $user->id, 'bio' => $user->public_professional_bio,
-            'photo_url'=>$user->public_professional_photo_path && ($user->broker_enrolled_at !== null || $user->accountVerificationProfile?->isApproved()) ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16).'&format=jpeg-v1' : null,
+            'photo_url'=>$user->public_professional_photo_path && ($user->hasMarketplaceProfessionalProfile() || $user->accountVerificationProfile?->isApproved()) ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16).'&format=jpeg-v1' : null,
             'rating_average'=>round((float)($user->rating_average ?? 0),2),'rating_count'=>(int)($user->rating_count ?? 0),
             'completed_deals'=>(int)($user->completed_deals ?? 0),'active_listings'=>(int)($user->active_listings ?? 0),
             'sold_listings'=>(int)($user->sold_listings ?? 0),'rented_listings'=>(int)($user->rented_listings ?? 0),

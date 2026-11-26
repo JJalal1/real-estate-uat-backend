@@ -106,7 +106,7 @@ class _ServicesHub extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.s4),
                     Text(
-                      'ابحث عن عقار، وانشر إعلاناتك وتابعها من هنا.',
+                      'الخدمات الحالية مجانية.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),

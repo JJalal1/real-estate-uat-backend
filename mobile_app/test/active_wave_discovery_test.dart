@@ -38,6 +38,8 @@ PropertyDetails _property(int id) => PropertyDetails.fromJson({
   'price': 300000, 'monthly_rent': 100000, 'currency': 'YER', 'status': 'published',
   'address': 'صنعاء، حدة', 'latitude': 15.3694, 'longitude': 44.191,
   if (id == 13) 'availability_status': 'sold',
+  // Older cached responses may carry a dues flag for an available listing.
+  if (id == 11) 'financial_hold': true,
   if (id == 11) ...{'bedrooms': 3, 'bathrooms': 2, 'floor_number': '2', 'has_parking': false},
   'advertiser': {'id': 1, 'name': exampleBroker.name, 'verification_status': 'approved',
     'verification_type': 'broker', 'rating_average': 4.6, 'rating_count': 7},

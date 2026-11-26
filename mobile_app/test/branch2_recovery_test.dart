@@ -54,6 +54,17 @@ void main() {
     await store.deleteSaved(1, key); expect(await store.saved(1), isEmpty);
     expect(await store.read(1, null), isNotNull);
   });
+  test('legacy device work receives a stable key on first read', () async {
+    final root = await Directory.systemTemp.createTemp('legacy-draft-key-');
+    addTearDown(() => root.delete(recursive: true));
+    ListingRecoveryStore open() => ListingRecoveryStore(directory: () async => root);
+    await open().write(7, null, {'fields': {'title': 'بيانات قديمة'}}, []);
+    final key = (await open().read(7, null))!['draft_key'];
+    expect(key, isA<String>());
+    expect((await open().read(7, null))!['draft_key'], key);
+    await open().pinExplicitSave(7, preserveUnclassified: true);
+    expect((await open().saved(7)).single['draft_key'], key);
+  });
   test('restart and seven-day expiry survive reopening the store', () async {
     final root = await Directory.systemTemp.createTemp('draft-retention-');
     addTearDown(() => root.delete(recursive: true));

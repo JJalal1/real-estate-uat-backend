@@ -178,10 +178,11 @@ void main() {
     expect(find.textContaining('التخصصات'), findsNothing);
     await tester.tap(find.text('أعمل باسم مكتب عقاري'));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('public-office-name')), findsOneWidget);
     await tester.tap(find.text('حفظ'));
     await tester.pumpAndSettle();
     expect(find.text('أدخل اسم المكتب'), findsOneWidget);
-    await tester.enterText(find.widgetWithText(TextFormField, 'اسم المكتب'), 'مكتب الأمانة');
+    await tester.enterText(find.byKey(const ValueKey('public-office-name')), 'مكتب الأمانة');
     await tester.tap(find.text('حفظ'));
     await tester.pumpAndSettle();
     expect(repo.savedPublicProfile, {'governorate': 'أمانة العاصمة', 'is_office': true, 'office_name': 'مكتب الأمانة'});

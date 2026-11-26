@@ -75,7 +75,7 @@ class _Stage6AuthGateState extends ConsumerState<Stage6AuthGate> {
                 onPressed: () => context.push('/verify-phone'),
               );
             }
-            if (widget.requireListingEligible && user.needsProfileCompletion) {
+            if (widget.requireListingEligible && !user.canCreateListing) {
               return _GateMessage(
                 icon: Icons.edit_outlined,
                 title: 'أكمل الاسم الرباعي أولاً',

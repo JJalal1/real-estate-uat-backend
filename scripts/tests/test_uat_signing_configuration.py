@@ -71,16 +71,17 @@ class SigningConfigurationTests(unittest.TestCase):
                     signing.guard({**env, field: value})
 
     def test_alazzi_unified_signing_only_accepts_the_exact_uat_push_ref(self):
-        env = dict(self.env, GITHUB_REF='refs/heads/work/alazzi-unify-1846')
-        signing.guard(env)
-        for field, value in [('GITHUB_REF', env['GITHUB_REF'] + '-other'),
-                             ('GITHUB_REF', 'refs/heads/main'),
-                             ('GITHUB_EVENT_NAME', 'pull_request'),
-                             ('GITHUB_REPOSITORY', 'other/repository'),
-                             ('AQER_SIGNING_ENVIRONMENT', 'production')]:
-            with self.subTest(field=field):
-                with self.assertRaises(signing.SigningError):
-                    signing.guard({**env, field: value})
+        for ref in ['refs/heads/work/alazzi-unify-1846', 'refs/heads/work/alazzi-marketplace-1847']:
+            env = dict(self.env, GITHUB_REF=ref)
+            signing.guard(env)
+            for field, value in [('GITHUB_REF', env['GITHUB_REF'] + '-other'),
+                                 ('GITHUB_REF', 'refs/heads/main'),
+                                 ('GITHUB_EVENT_NAME', 'pull_request'),
+                                 ('GITHUB_REPOSITORY', 'other/repository'),
+                                 ('AQER_SIGNING_ENVIRONMENT', 'production')]:
+                with self.subTest(field=field):
+                    with self.assertRaises(signing.SigningError):
+                        signing.guard({**env, field: value})
         self.assert_unchanged()
 
     def test_optional_absence_does_not_open_paths_or_change_files(self):

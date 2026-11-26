@@ -33,6 +33,15 @@ void main() {
     expect(user.accountTypeLabel, 'باحث / متصفح / مشتري');
   });
 
+  test('legacy advertiser follows server publishing eligibility without a profile timestamp', () {
+    final user = AuthUser.fromJson({
+      'id': 15, 'account_status': 'active',
+      'phone_verified_at': '2026-08-29T00:00:00Z', 'can_create_listing': true,
+    });
+    expect(user.canCreateListing, isTrue);
+    expect(user.needsProfileCompletion, isFalse);
+  });
+
   test('enrolled owner gets a broker workspace without identity or staff privileges', () {
     final user = AuthUser.fromJson({
       'id': 14,

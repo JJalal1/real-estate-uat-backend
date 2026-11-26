@@ -86,14 +86,24 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     if (actor != null &&
         ref.read(offlineConnectionProvider) == OfflineConnection.online) {
-      unawaited(ref.read(listingAccountDraftRepositoryProvider)
-          .syncRestart(actor, ref.read(listingRecoveryStoreProvider))
-          .catchError((Object _) {}));
+      unawaited(_flushDraftRestart(actor).catchError((Object _) {}));
       unawaited(ref
           .read(messageOutboxProvider(actor).notifier)
           .flush()
           .catchError((Object _) {}));
     }
+  }
+
+  Future<void> _flushDraftRestart(int actor) async {
+    final session = Stage6SecureSessionStore.instance.sessionEpoch;
+    final store = ref.read(listingRecoveryStoreProvider);
+    final pending = await store.pendingRestart(actor);
+    if (pending == null || !mounted || Stage6SecureSessionStore.instance.sessionEpoch != session ||
+        ref.read(authControllerProvider).asData?.value?.id != actor) {
+      return;
+    }
+    await ref.read(listingAccountDraftRepositoryProvider).restartAutomatic(pending);
+    await store.acknowledgeRestart(actor, pending);
   }
 
   void _queueSave() {

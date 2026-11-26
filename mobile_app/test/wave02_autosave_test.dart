@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -106,6 +109,19 @@ Map<String, dynamic> nearThresholdSnapshot() => {
   'latitude': 15.37, 'longitude': 44.19,
   'fields': {'title': 'Synthetic listing', 'area': '120', 'bedrooms': '2'},
 };
+
+String conflictPhotoFixture() {
+  final dir = Directory.systemTemp.createTempSync('wave02-photo-');
+  addTearDown(() => dir.deleteSync(recursive: true));
+  final photo = File('${dir.path}/room.png');
+  photo.writeAsBytesSync(base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
+  const channel = MethodChannel('real_estate/media');
+  final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(channel, (call) async =>
+      call.method == 'labelListingPhoto' ? <String, double>{'room': .97} : null);
+  addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+  return photo.path;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -310,7 +326,7 @@ void main() {
   });
 
   testWidgets('upload conflict cannot retry after progress falls below 50', (tester) async {
-    const path = 'C:/synthetic-wave02-image-that-does-not-exist.png';
+    final path = conflictPhotoFixture();
     final snapshot = {
       ...nearThresholdSnapshot(),
       'image_paths': [path],
@@ -339,7 +355,7 @@ void main() {
   });
 
   testWidgets('manual save uses the latest revision after auto upload conflict', (tester) async {
-    const path = 'C:/synthetic-wave02-concurrent-image-that-does-not-exist.png';
+    final path = conflictPhotoFixture();
     final snapshot = {
       ...nearThresholdSnapshot(),
       'image_paths': [path],

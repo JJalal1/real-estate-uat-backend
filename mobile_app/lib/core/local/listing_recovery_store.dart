@@ -102,6 +102,15 @@ class ListingRecoveryStore {
         await scope.delete(recursive: true);
         return null;
       }
+      if (listingId == null && (raw['draft_key'] is! String || !_key.hasMatch(raw['draft_key'] as String))) {
+        // Older device checkpoints predate UUIDs. Assign one once, including
+        // when the first destination opened after an upgrade is My Drafts.
+        final folder = scope.uri.pathSegments.where((part) => part.isNotEmpty).last;
+        raw['draft_key'] = _key.hasMatch(folder) ? folder : newListingDraftKey();
+        final pending = File('${scope.path}/state.pending');
+        await pending.writeAsString(jsonEncode(decoded), flush: true);
+        await pending.rename(file.path);
+      }
       final data = Map<String, dynamic>.from(raw);
       if (firstSaved != null) data['first_saved_at'] = firstSaved.toUtc().toIso8601String();
       if (decoded['saved_at'] is String) data['saved_at'] = decoded['saved_at'];
@@ -155,8 +164,7 @@ class ListingRecoveryStore {
       }
       if (isAutomaticListingRecovery(data)) return;
       if (!preserveUnclassified && data['draft_kind'] != 'saved' && data['server_property_id'] == null) return;
-      final previousKey = data['draft_key'];
-      final key = previousKey is String && _key.hasMatch(previousKey) ? previousKey : newListingDraftKey();
+      final key = data['draft_key'] as String;
       final destination = await _savedScope(userId, key);
       final media = Directory('${destination.path}/media'); await media.create(recursive: true);
       final state = Map<String, dynamic>.from(jsonDecode(await File('${source.path}/state.json').readAsString()) as Map);
@@ -167,12 +175,6 @@ class ListingRecoveryStore {
         if (!await target.exists()) await File('${source.path}/media/$name').copy(target.path);
       }
       (state['data'] as Map)['draft_kind'] = 'saved';
-      if (key != previousKey) {
-        (state['data'] as Map)['draft_key'] = key;
-        final updated = File('${source.path}/state.pending');
-        await updated.writeAsString(jsonEncode(state), flush: true);
-        await updated.rename('${source.path}/state.json');
-      }
       final pending = File('${destination.path}/state.pending');
       await pending.writeAsString(jsonEncode(state), flush: true); await pending.rename('${destination.path}/state.json');
       await for (final file in media.list()) {

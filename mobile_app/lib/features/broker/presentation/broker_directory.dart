@@ -229,14 +229,14 @@ class _EditPublicProfileDialogState extends State<_EditPublicProfileDialog> {
           value: _office, onChanged: _saving ? null : (value) => setState(() => _office = value),
         ),
         if (_office) TextFormField(
-          initialValue: _officeName, enabled: !_saving, maxLength: 140,
+          key: const ValueKey('public-office-name'), initialValue: _officeName, enabled: !_saving, maxLength: 140,
           decoration: const InputDecoration(labelText: 'اسم المكتب'),
           onChanged: (value) => _officeName = value,
           validator: (value) => value == null || value.trim().isEmpty ? 'أدخل اسم المكتب' : null,
         ),
       ],
       TextFormField(
-        initialValue: _bio, enabled: !_saving, onChanged: (value) => _bio = value,
+        key: const ValueKey('public-profile-bio'), initialValue: _bio, enabled: !_saving, onChanged: (value) => _bio = value,
         maxLength: 900, minLines: 2, maxLines: 4,
         decoration: const InputDecoration(labelText: 'نبذة عنك'),
       ),

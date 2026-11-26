@@ -264,7 +264,7 @@ void main() {
             find.text(
                 'يصلك تذكير كل ٢٤ ساعة حتى تأكيد سداد المستحق.'),
             findsOneWidget);
-        expect(find.textContaining('آخر مهلة للسداد'), findsOneWidget);
+        expect(find.textContaining('موعد السداد'), findsOneWidget);
         expect(
             find.text(type == 'rent'
                 ? 'الإيجار الشهري: 320000.00 ر.ي'
