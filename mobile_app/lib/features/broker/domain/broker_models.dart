@@ -116,8 +116,8 @@ class BrokerAvailability {
   factory BrokerAvailability.fromJson(Map<String, dynamic> j) => BrokerAvailability(id: brokerInt(j['id']), title: '${j['title'] ?? 'العقار'}',
     purpose: '${j['purpose'] ?? 'sale'}', status: '${j['availability_status'] ?? 'available'}', needsConfirmation: j['needs_confirmation'] == true,
     confirmedAt: DateTime.tryParse('${j['confirmed_at'] ?? ''}'), dueAt: DateTime.tryParse('${j['due_at'] ?? ''}'));
-  String get label => switch (status) {'confirmation_paused' => 'متوقف مؤقتًا حتى تأكيد التوفر', 'paused' => 'متوقف مؤقتًا',
-    'sold' => 'تم البيع', 'rented' => 'تم التأجير', _ => needsConfirmation ? 'يحتاج تأكيد التوفر' : 'متوفر'};
+  String get label => switch (status) {'confirmation_paused' => 'يحتاج تحديثًا', 'paused' => 'متوقف مؤقتًا',
+    'sold' => 'تم البيع', 'rented' => 'تم التأجير', _ => needsConfirmation ? 'يحتاج تحديثًا' : 'متوفر'};
 }
 
 class BrokerPage<T> {

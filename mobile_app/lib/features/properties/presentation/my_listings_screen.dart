@@ -875,7 +875,7 @@ bool _published(PropertyDetails item) =>
     'sold' => ('تم البيع', AppStatusTone.neutral),
     'rented' => ('تم التأجير', AppStatusTone.neutral),
     'paused' => ('متوقف مؤقتًا', AppStatusTone.neutral),
-    'confirmation_paused' => ('يحتاج تأكيد التوفر', AppStatusTone.warning),
+    'confirmation_paused' => ('يحتاج تحديثًا', AppStatusTone.warning),
     _ when _published(property) => ('منشور', AppStatusTone.success),
     _ when property.status == 'archived' => ('مؤرشف', AppStatusTone.neutral),
     _ => null,
