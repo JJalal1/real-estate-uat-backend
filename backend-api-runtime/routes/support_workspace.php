@@ -10,6 +10,7 @@ Route::get('/general-manager/insights', GeneralManagerDashboardController::class
 Route::get('/general-manager/team', [GeneralManagerInsightsController::class, 'team']);
 Route::get('/general-manager/place-search', [GeneralManagerInsightsController::class, 'placeSearch']);
 Route::get('/tasks', [SupportWorkspaceController::class, 'index']);
+Route::get('/tasks/{taskId}', [SupportWorkspaceController::class, 'show'])->whereNumber('taskId');
 Route::post('/tasks/{task}/claim', [SupportWorkspaceController::class, 'claim']);
 Route::post('/tasks/{task}/release', [SupportWorkspaceController::class, 'release']);
 Route::put('/tasks/{task}/assign', [SupportWorkspaceController::class, 'assign']);

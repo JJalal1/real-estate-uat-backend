@@ -55,10 +55,6 @@ class FinancialPropertyController extends PropertyController
 
     public function show(Request $request, Property $property): JsonResponse
     {
-        $viewer=$this->financialTokens->authenticate($request,false);
-        $isOwner=$viewer && (int)$viewer->id===(int)$property->user_id;
-        if (!$isOwner && !$property->isPubliclyAvailable()) abort(404);
-        if(!$isOwner && $property->status==='published' && $this->finance->hasOverdueReceivable((int)$property->user_id)) abort(404);
         return $this->enrich(parent::show($request,$property),$request,false);
     }
 

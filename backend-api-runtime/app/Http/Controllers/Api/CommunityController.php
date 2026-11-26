@@ -22,7 +22,7 @@ class CommunityController extends Controller
 
     public function comments(Request $request, Property $property): JsonResponse
     {
-        abort_unless($property->status === 'published',404);
+        abort_unless($property->isPubliclyVisible(), 404);
         $viewer=$this->tokens->authenticate($request,false);
         $rows=ListingComment::query()->where('property_id',$property->id)->where('status','visible')->latest('id')->limit(100)->get();
         return response()->json(['data'=>$rows->map(fn(ListingComment $comment)=>$this->commentData($comment,$viewer))->values()]);
@@ -31,7 +31,7 @@ class CommunityController extends Controller
     public function storeComment(Request $request, Property $property): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        abort_unless($property->status === 'published',404);
+        abort_unless($property->isPubliclyVisible(), 404);
         $validated=$request->validate(['body'=>['required','string','min:2','max:1500']]);
         $comment=ListingComment::query()->create([
             'property_id'=>$property->id,'author_user_id'=>$user->id,'author_name_snapshot'=>$user->name,

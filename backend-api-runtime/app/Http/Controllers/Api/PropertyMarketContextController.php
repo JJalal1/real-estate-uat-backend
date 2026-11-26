@@ -15,7 +15,7 @@ class PropertyMarketContextController extends Controller
     {
         $row = Property::query()
             ->whereKey($property)
-            ->where('status', 'published')
+            ->publiclyVisible()
             ->firstOrFail();
 
         return response()->json(['data' => $this->market->contextFor($row)]);

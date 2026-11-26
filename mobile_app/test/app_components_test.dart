@@ -125,7 +125,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('هذا العقار غير متاح حالياً'), findsOneWidget);
+    expect(find.text('الإعلان غير منشور'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

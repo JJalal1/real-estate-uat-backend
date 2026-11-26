@@ -49,7 +49,7 @@ class PropertySaiPublicLine extends ConsumerWidget {
           return Padding(
             padding: const EdgeInsetsDirectional.only(top: AppSpacing.s8),
             child: Text(
-              'بيانات السعي غير متاحة لهذا الإعلان.',
+              'لم تُعرض بيانات السعي لهذا الإعلان.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           );

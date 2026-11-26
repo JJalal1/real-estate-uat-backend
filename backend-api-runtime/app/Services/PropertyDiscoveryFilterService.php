@@ -23,7 +23,7 @@ class PropertyDiscoveryFilterService
     public function publicQuery(): Builder
     {
         return Property::query()->withoutGlobalScope('financial_public_visibility')
-            ->publiclyAvailable()->withoutOverdueListingRestriction();
+            ->publiclyVisible();
     }
 
     public static function nearbyVisibilityGeneration(): string

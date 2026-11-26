@@ -12,7 +12,32 @@ class ExplicitSearchAmendments
 
     private const BUDGET_FIELDS = ['min_price', 'max_price', 'currency'];
 
+    private const BUDGET_BOUNDS = [
+        'max_price' => '(?:ب?(?:ال)?حد\s+(?:ال)?اقصي|لا\s+(?:يزيد|تزيد)\s+عن|لا\s+يتجاوز|حتي|اقل\s+من)',
+        'min_price' => '(?:ب?(?:ال)?حد\s+(?:ال)?ادني|لا\s+(?:يقل|تقل)\s+عن|(?:اكثر|اكبر)\s+من)',
+    ];
+
     public function __construct(private readonly ArabicListingNumber $numbers) {}
+
+    public function completeDetails(string $details): ?array
+    {
+        $details = rtrim(trim(ArabicListingNumber::normalize($details)), ' .');
+        $number = $this->numbers->pattern();
+        $clauses = [];
+        foreach (self::SPECIFICATION_UNITS as [$unit, $dual]) {
+            $clauses[] = '(?:(?:فيها|فيه|مع)\s+)?(?:'.$number.'\s*'.$unit.'|'.$dual.')';
+        }
+        foreach (self::BUDGET_BOUNDS as $bound) {
+            $clauses[] = $this->budgetPattern($bound).'(?:\s+شهريا)?';
+        }
+        // Every word must be part of a supported clause before applying a direct search.
+        $count = preg_match_all('/\G(?:\A|\s+)(?:و\s*)?(?:'.implode('|', $clauses).')(?=\s|\z)/u', $details, $matches);
+        if (! $count || implode('', $matches[0]) !== $details) {
+            return null;
+        }
+        $fields = $this->reconcile($details, ['set' => [], 'remove' => []])['set'];
+        return count(array_diff_key($fields, ['currency' => true])) === $count ? $fields : null;
+    }
 
     public function reconcile(string $message, array $patch): array
     {
@@ -86,17 +111,18 @@ class ExplicitSearchAmendments
         return $this->negated(substr($text, 0, $matches[0][0][1])) ? null : 2;
     }
 
-    private function budget(string $text): array
+    private function budgetPattern(string $bound): string
     {
-        $bounds = [
-            'max_price' => '(?:ب?(?:ال)?حد\s+(?:ال)?اقصي|لا\s+(?:يزيد|تزيد)\s+عن|لا\s+يتجاوز|حتي|اقل\s+من)',
-            'min_price' => '(?:ب?(?:ال)?حد\s+(?:ال)?ادني|لا\s+(?:يقل|تقل)\s+عن|(?:اكثر|اكبر)\s+من)',
-        ];
         $gap = '(?:\s+(?:للسعر|للايجار|للميزانيه|السعر|الايجار|الشهري|شهريا|الميزانيه)){0,4}\s*[:=]?\s*';
         $currency = '(ريال(?:\s*(?:يمني|سعودي))?|دولار|سعودي)';
+        return $bound.$gap.'('.$this->numbers->pattern().')\s*'.$currency;
+    }
+
+    private function budget(string $text): array
+    {
         $facts = []; $currencies = [];
-        foreach ($bounds as $key => $bound) {
-            $total = preg_match_all('/(?<!\pL)(?:و)?'.$bound.$gap.'('.$this->numbers->pattern().')\s*'.$currency.'(?!\pL)/u',
+        foreach (self::BUDGET_BOUNDS as $key => $bound) {
+            $total = preg_match_all('/(?<!\pL)(?:و)?'.$this->budgetPattern($bound).'(?!\pL)/u',
                 $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
             if ($total > 1) return [];
             if ($total !== 1) continue;

@@ -30,6 +30,15 @@ class SupportWorkspaceController extends Controller
         return response()->json(['data'=>collect($page->items())->map(fn(SupportTask $task)=>$this->tasks->taskData($task,$actor))->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),'total'=>$page->total()]]);
     }
 
+    public function show(Request $request, int $taskId): JsonResponse
+    {
+        $request->validate(['acting_as_agent'=>['nullable', 'boolean']]);
+        $actor = $request->user();
+        $task = $this->tasks->taskFor($actor, $taskId, $request->boolean('acting_as_agent'));
+
+        return response()->json(['data' => $this->tasks->taskData($task, $actor)]);
+    }
+
     public function claim(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['acting_as_agent'=>['nullable','boolean']]);$task=$this->tasks->claim($request->user(),$task,$request,(bool)($v['acting_as_agent']??false));return response()->json(['message'=>'تم استلام المهمة.','data'=>$this->tasks->taskData($task,$request->user())]); }
     public function assign(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['user_id'=>['required','integer','exists:users,id']]);$task=$this->tasks->assign($request->user(),$task,User::query()->findOrFail((int)$v['user_id']),$request);return response()->json(['message'=>'تم إسناد المهمة.','data'=>$this->tasks->taskData($task,$request->user())]); }
     public function release(Request $request, SupportTask $task): JsonResponse { $task=$this->tasks->releaseTask($request->user(),$task,$request);return response()->json(['message'=>'تمت إعادة المهمة إلى الوارد.','data'=>$this->tasks->taskData($task,$request->user())]); }

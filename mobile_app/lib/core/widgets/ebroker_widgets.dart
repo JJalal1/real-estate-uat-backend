@@ -359,11 +359,11 @@ class EbrokerPropertyPlaceholder extends StatelessWidget {
       final captionHeight = MediaQuery.textScalerOf(context).scale(12.rf(context)) * 1.3;
       final compact = constraints.maxHeight < size + 4 + captionHeight;
       final image = PropertyTypeIcon(type: type, size: size, color: Theme.of(context).colorScheme.primary.withValues(alpha: .45));
-      if (compact) return Semantics(label: 'صورة العقار غير متاحة', child: Center(child: image));
+      if (compact) return Semantics(label: 'تعذر عرض صورة العقار', child: Center(child: image));
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         image,
         const SizedBox(height: 4),
-        EbrokerText('الصورة غير متاحة', size: 10, maxLines: 1, align: TextAlign.center,
+        EbrokerText('تعذر عرض الصورة', size: 10, maxLines: 1, align: TextAlign.center,
           color: Theme.of(context).colorScheme.primary),
       ]));
     }));

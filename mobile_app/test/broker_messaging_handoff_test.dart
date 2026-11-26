@@ -68,8 +68,9 @@ class _Broker implements BrokerRepository {
 }
 
 class _Messages implements MessageRepository {
-  _Messages(this.broker);
+  _Messages(this.broker, {this.propertyStatus = 'published'});
   final _Broker broker;
+  final String propertyStatus;
   final sent = <String>[];
 
   @override
@@ -80,7 +81,7 @@ class _Messages implements MessageRepository {
         'id': _threadId,
         'property_id': _propertyId,
         'property_title': 'عنوان الإعلان القديم',
-        'property_status': 'paused',
+        'property_status': propertyStatus,
         'can_manage_customer': true,
         'lead_stage': broker.stage,
         'customer_stage_classification_v2': true,
@@ -248,6 +249,17 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('closed broker thread keeps chat history and hides the listing action',
+      (tester) async {
+    final broker = _Broker();
+    await _mount(tester, broker, messages: _Messages(broker, propertyStatus: 'unavailable'));
+    expect(_property, findsNothing);
+    expect(find.text('غير متاح'), findsNothing);
+    expect(find.text('سأرسل التفاصيل'), findsOneWidget);
+    expect(_classification, findsOneWidget);
+    expect(_followup, findsOneWidget);
+  });
 
   testWidgets('private followup restores the note and both reminder choices',
       (tester) async {

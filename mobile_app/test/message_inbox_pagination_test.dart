@@ -488,7 +488,7 @@ void main() {
     });
   }
 
-  phase23WidgetTest('broker inbox moves an unavailable listing cue into the opened chat', (tester) async {
+  phase23WidgetTest('inbox and chat keep conversation history without an unavailable listing cue', (tester) async {
     const property = 'عنوان عقار طويل في حي المطار، بجانب السوق والمدرسة والمسجد';
     const firstLine = 'أرجو إرسال تفاصيل العقار والموقع وطريقة الوصول إليه';
     const secondLine = 'والوقت المناسب لمواصلة المحادثة حول هذا العقار.';
@@ -520,18 +520,16 @@ void main() {
     expect(inCard(find.text('${messageTime.day}/${messageTime.month}')), findsOneWidget);
     expect(inCard(find.text('3')), findsOneWidget);
     expect(inCard(find.textContaining('غير متاح')), findsNothing);
-    final title = tester.widget<Text>(inCard(find.text(property)));
+    expect(inCard(find.text(property)), findsNothing);
     final preview = tester.widget<Text>(inCard(find.text('$firstLine $secondLine')));
-    expect(title.maxLines, 1);
-    expect(title.overflow, TextOverflow.ellipsis);
     expect(preview.maxLines, 1);
     expect(preview.softWrap, isFalse);
     expect(preview.overflow, TextOverflow.ellipsis);
 
     await tester.tap(card);
     await tester.pumpAndSettle();
-    expect(find.text(property), findsOneWidget);
-    expect(find.text('غير متاح'), findsOneWidget);
+    expect(find.text(property), findsNothing);
+    expect(find.text('غير متاح'), findsNothing);
     expect(find.text(history), findsOneWidget);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
     expect(tester.takeException(), isNull);

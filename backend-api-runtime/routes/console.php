@@ -154,6 +154,12 @@ Schedule::command('support:process-contact-followups')->hourly();
 });
 \Illuminate\Support\Facades\Schedule::command('broker:process-followups')->everyMinute()->withoutOverlapping();
 
+Artisan::command('broker:remind-pending-deal-prices', function (): void {
+    $sent = app(\App\Services\BrokerDealService::class)->remindSupportOfPendingPrices(500);
+    $this->info("Pending deal confirmations reminded: {$sent}.");
+});
+Schedule::command('broker:remind-pending-deal-prices')->everyMinute()->withoutOverlapping();
+
 Artisan::command('uat:signed-tus-storage-probe', function (CloudAssetStorageService $storage): int {
     if (! app()->environment('staging') || ! $storage->cloudEnabled()) {
         $this->error('This test requires private UAT storage.');

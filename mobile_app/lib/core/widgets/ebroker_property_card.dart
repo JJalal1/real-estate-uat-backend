@@ -107,7 +107,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
         if (trailing != null) trailing!,
       ]),
       if (unavailable) const Padding(padding: EdgeInsets.only(top: 8),
-        child: AppInlineMessage(message: 'هذا العقار غير متاح حاليًا', tone: AppStatusTone.neutral)),
+        child: AppInlineMessage(message: 'الإعلان غير منشور', tone: AppStatusTone.neutral)),
     ]);
     return embedded ? InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Padding(padding: inset, child: content))
       : AppSurface(onTap: onTap, padding: inset, child: content);

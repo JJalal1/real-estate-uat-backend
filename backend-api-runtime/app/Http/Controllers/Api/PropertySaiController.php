@@ -37,7 +37,7 @@ class PropertySaiController extends Controller
     {
         $viewer = $this->tokens->authenticate($request, false);
         $isOwner = $viewer !== null && (int) $viewer->id === (int) $property->user_id;
-        abort_unless($property->status === 'published' || $isOwner, 404);
+        abort_unless($isOwner || $property->isPubliclyVisible(), 404);
 
         $data = ['sai' => $this->sai->publicData($property)];
         // A published listing response is always public-safe, even when its

@@ -124,7 +124,6 @@ class BrokerExperienceController extends Controller
     {
         $actor=$this->professional($request);
         $original=app(ProfessionalWorkspaceController::class)->show($request)->getData(true)['data'];
-        $own=Property::query()->withoutGlobalScopes()->where('user_id',$actor->id);
         $threads=$this->customerQuery($actor);
         $unread=DB::table('private_messages as m')
             ->join('message_thread_participants as p',fn ($join) => $join->on('p.thread_id','=','m.thread_id')->where('p.user_id','=',$actor->id))
@@ -132,8 +131,7 @@ class BrokerExperienceController extends Controller
             ->where(fn ($q) => $q->whereNull('p.last_read_message_id')->orWhereColumn('m.id','>','p.last_read_message_id'))
             ->distinct()->count('m.thread_id');
         $completed=BrokerDealOutcome::query()->where('advertiser_user_id',$actor->id)->where('status','confirmed')->count();
-        $freshness=(clone $own)->where('status','published')->where(fn ($q) => $q->where('availability_status','confirmation_paused')
-            ->orWhere(fn ($n) => $n->where('availability_status','available')->where('availability_due_at','<=',now())))->count();
+        $freshness=$this->availability->updateCandidates($actor, true)->count();
         $profile=$this->ranking->query(null,false)->where('users.id',$actor->id)->first();
         $original['broker_profile']=$profile ? $this->ranking->publicData($profile) : null;
         $original['customer_activity']['unread_conversations']=$unread;
@@ -152,7 +150,8 @@ class BrokerExperienceController extends Controller
             ->whereColumn('amount_paid', '<', 'amount_total')
             ->count();
         $original['financial_summary']=$this->finance->financialSummaryFor($actor);
-        $original['best_listing']=(clone $own)->where('status','published')->orderByDesc('view_count')->first(['id','title','view_count']);
+        $original['best_listing']=$this->availability->updateCandidates($actor, false)
+            ->orderByDesc('view_count')->first(['id','title','view_count']);
         $original['achievements'] = $this->achievements($actor, $threads, $completed > 0);
         $original['capabilities'] = [
             'customer_stage_classification_v2' => true,
@@ -348,18 +347,13 @@ class BrokerExperienceController extends Controller
         $actor=$this->advertiser($request);
         $v=$request->validate(['page'=>['nullable','integer','min:1'],
             'per_page'=>['nullable','integer','min:1','max:250'],'only_due'=>['nullable','boolean']]);
-        $query=Property::query()->withoutGlobalScopes()->where('user_id',$actor->id)->where('status','published')
-            ->whereNotIn('availability_status',['sold','rented']);
-        if ($request->boolean('only_due')) {
-            $query->where(fn ($q) => $q->where('availability_due_at','<',now())
-                ->orWhere('availability_status','confirmation_paused'));
-        }
+        $query=$this->availability->updateCandidates($actor, $request->boolean('only_due'));
         // Keep the legacy first-page size; explicit clients can traverse every owned row.
         $page=$query->orderBy('availability_due_at')->orderBy('id')->paginate((int)($v['per_page'] ?? 250));
         return response()->json(['data'=>collect($page->items())->map(fn ($p) => [
             'id'=>$p->id,'title'=>$p->title,'purpose'=>$p->purpose,'availability_status'=>$p->availability_status,
             'confirmed_at'=>$p->availability_confirmed_at?->toIso8601String(),'due_at'=>$p->availability_due_at?->toIso8601String(),
-            'notified_at'=>$p->availability_notified_at?->toIso8601String(),'needs_confirmation'=>$p->availability_due_at?->isPast() ?? false,
+            'notified_at'=>$p->availability_notified_at?->toIso8601String(),'needs_confirmation'=>$p->availability_due_at?->lte(now()) ?? false,
         ])->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),
             'per_page'=>$page->perPage(),'total'=>$page->total()]]);
     }
@@ -367,8 +361,18 @@ class BrokerExperienceController extends Controller
     public function changeAvailability(Request $request): JsonResponse
     {
         $v=$request->validate(['property_ids'=>['required','array','min:1','max:100'],'property_ids.*'=>['required','integer','distinct','min:1'],
-            'state'=>['required',Rule::in(['available','paused','sold','rented'])]]);
-        $rows=$this->availability->change($this->advertiser($request),$v['property_ids'],$v['state'],$request);
+            'state'=>['required',Rule::in(['available','sold','rented'])]]);
+        $actor = $this->advertiser($request);
+        $rows = DB::transaction(function () use ($actor, $v, $request): array {
+            $rows = $this->availability->change($actor, $v['property_ids'], $v['state'], $request);
+            if ($v['state'] !== 'available') {
+                $externalClosure = app(\App\Services\ExternalListingClosureService::class);
+                foreach ($rows as $property) {
+                    $externalClosure->record($actor, $property, $request);
+                }
+            }
+            return $rows;
+        });
         return response()->json(['data'=>['updated'=>count($rows),'property_ids'=>array_map(fn ($p) => $p->id,$rows),'state'=>$v['state']]]);
     }
 
@@ -376,7 +380,8 @@ class BrokerExperienceController extends Controller
     {
         $v=$request->validate(['basis_amount'=>['nullable','numeric','gt:0','max:9999999999999']]);
         $outcome=$this->deals->report($this->advertiser($request),$thread,isset($v['basis_amount']) ? (float)$v['basis_amount'] : null,$request);
-        return response()->json(['data'=>$this->outcomeData($outcome,$request->user())],201);
+        $status = $this->platformDuesForDeals((int) $request->user()->id, [$outcome->id])[$outcome->id] ?? null;
+        return response()->json(['data'=>$this->outcomeData($outcome,$request->user(),$status)],201);
     }
 
     public function activity(Request $request): JsonResponse
@@ -490,7 +495,7 @@ class BrokerExperienceController extends Controller
 
     public function resolveDeal(Request $request, SupportTask $task): JsonResponse
     {
-        $v=$request->validate(['decision'=>['required',Rule::in(['retry','cancel'])],'note'=>['required','string','min:5','max:2000'],'acting_as_agent'=>['nullable','boolean']]);
+        $v=$request->validate(['decision'=>['required',Rule::in(['approve','retry','cancel'])],'note'=>['required','string','min:5','max:2000'],'acting_as_agent'=>['nullable','boolean']]);
         $result=$this->deals->resolveSupport($request->user(),$task,$v['decision'],$v['note'],$request,(bool)($v['acting_as_agent'] ?? false));
         return response()->json(['data'=>['id'=>$result->id,'status'=>$result->status]]);
     }
@@ -524,6 +529,7 @@ class BrokerExperienceController extends Controller
             'advertiser_view_revision'=>$viewRevision,
             'thread_id'=>$outcome->message_thread_id,'advertiser_id'=>$outcome->advertiser_user_id,'customer_id'=>$outcome->customer_user_id,
             'status'=>$outcome->status,'platform_due_status'=>$platformDueStatus,
+            'price_confirmation_required'=>$outcome->requiresPriceConfirmation(),
             'transaction_type'=>$outcome->transaction_type,'basis_amount'=>$outcome->basis_amount,'currency'=>$outcome->currency,
             'listing_price'=>$outcome->snapshot['listing_price'] ?? null,'listing_currency'=>$outcome->snapshot['listing_currency'] ?? null,
             'property_title'=>$outcome->snapshot['property_title'],'customer_name'=>$outcome->snapshot['customer_name'],

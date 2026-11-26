@@ -36,6 +36,15 @@ class UatThreeRoleSupportWorkspaceApiTest extends TestCase
         $this->assertSame($caseId, (int) $firstQueue->json('data.0.source_id'));
         $this->assertTrue((bool) $firstQueue->json('data.0.can_claim'));
 
+        $this->withHeaders($requesterHeaders)
+            ->getJson("/api/admin/workspace/tasks/$taskId")
+            ->assertForbidden();
+        $this->withHeaders($agentAHeaders)
+            ->getJson("/api/admin/workspace/tasks/$taskId")
+            ->assertOk()
+            ->assertJsonPath('data.source_id', $caseId)
+            ->assertJsonPath('data.can_claim', true);
+
         $this->withHeaders($agentBHeaders)
             ->getJson('/api/admin/workspace/tasks?scope=inbox&type=support_ticket')
             ->assertOk()
@@ -51,6 +60,22 @@ class UatThreeRoleSupportWorkspaceApiTest extends TestCase
             ->getJson('/api/admin/workspace/tasks?scope=inbox&type=support_ticket')
             ->assertOk()
             ->assertJsonPath('meta.total', 0);
+
+        $this->withHeaders($agentBHeaders)
+            ->getJson("/api/admin/workspace/tasks/$taskId")
+            ->assertNotFound();
+        $this->withHeaders($agentAHeaders)
+            ->getJson("/api/admin/workspace/tasks/$taskId")
+            ->assertOk()
+            ->assertJsonPath('data.id', $taskId)
+            ->assertJsonPath('data.is_mine', true);
+        $this->withHeaders($managerHeaders)
+            ->getJson("/api/admin/workspace/tasks/$taskId")
+            ->assertOk()
+            ->assertJsonPath('data.id', $taskId);
+        $this->withHeaders($managerHeaders)
+            ->getJson("/api/admin/workspace/tasks/$taskId?acting_as_agent=1")
+            ->assertNotFound();
 
         $this->withHeaders($agentBHeaders)
             ->postJson("/api/admin/workspace/tasks/$taskId/claim")

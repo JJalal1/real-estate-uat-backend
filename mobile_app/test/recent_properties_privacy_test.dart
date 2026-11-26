@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:real_estate_mobile/core/offline/offline_connection.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
+import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/data/recent_properties_store.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'support/wave3_fakes.dart';
 
 AuthUser _user(int id) => AuthUser.fromJson({'id': id, 'name': 'حساب اصطناعي', 'account_status': 'active'});
 PropertySummary _property(int id, {String status = 'published'}) => PropertySummary.fromJson({
@@ -19,7 +22,44 @@ class _Account extends AuthController {
   void pending() { state = const AsyncLoading(); }
 }
 
+class _PublicProperties extends Wave3PropertiesFake {
+  Set<int> visible = {11, 22};
+  List<int> checked = [];
+
+  @override
+  Future<Set<int>> publiclyVisibleIds(Iterable<int> propertyIds) async {
+    checked = propertyIds.toList();
+    return visible.intersection(checked.toSet());
+  }
+}
+
 void main() {
+  test('recent history filters closed public listings while preserving order and local records', () async {
+    final directory = await Directory.systemTemp.createTemp('aqer-recent-test-');
+    addTearDown(() => directory.delete(recursive: true));
+    final repository = _PublicProperties();
+    final container = ProviderContainer(overrides: [
+      authControllerProvider.overrideWith(_Account.new),
+      recentHistoryDirectoryProvider.overrideWithValue(() async => directory),
+      propertyRepositoryProvider.overrideWithValue(repository),
+    ]);
+    addTearDown(container.dispose);
+    await container.read(authControllerProvider.future);
+    final store = container.read(recentPropertiesStoreProvider);
+    await store.record(_property(11));
+    await store.record(_property(22));
+    container.read(offlineConnectionProvider.notifier).online();
+
+    expect((await container.read(recentPropertiesProvider.future)).map((p) => p.id), [22, 11]);
+    expect(repository.checked, [22, 11]);
+
+    repository.visible = {11};
+    container.read(propertyDataRevisionProvider.notifier).state++;
+    expect((await container.read(recentPropertiesProvider.future)).map((p) => p.id), [11]);
+    expect((await store.load()).map((p) => p.id), [22, 11]);
+  });
+
+
   test('account and guest histories remain isolated across logout and return', () async {
     final directory = await Directory.systemTemp.createTemp('aqer-recent-test-');
     addTearDown(() => directory.delete(recursive: true));

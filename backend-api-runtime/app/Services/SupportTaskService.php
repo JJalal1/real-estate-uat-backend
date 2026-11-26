@@ -43,16 +43,11 @@ class SupportTaskService
 
     public function queryFor(User $actor, array $filters): Builder
     {
-        if (! $this->isSupportAgent($actor) && ! $this->isManager($actor)) abort(403);
-        $this->ensureWorkspaceSeeded();
-        $this->ensureSupportStaffMembership($actor);
+        $query = $this->visibleTaskQuery($actor);
         $actingAsAgent = (bool)($filters['acting_as_agent'] ?? false);
-        $query = SupportTask::query()->with(['team:id,name_ar','governorate:id,name_ar']);
-        $this->applyActorTeamScope($query, $actor);
         $scope = (string)($filters['scope'] ?? 'inbox');
 
         if ($this->isSupportAgent($actor) || ($this->isManager($actor) && $actingAsAgent)) {
-            if ($this->isSupportAgent($actor)) $this->applyAgentTypePermissions($query, $actor);
             if ($scope === 'mine') {
                 $query->where('assigned_to_user_id', $actor->id)->whereIn('status', self::ACTIVE_STATUSES);
             } elseif ($scope === 'completed') {
@@ -87,6 +82,35 @@ class SupportTaskService
             ->orderBy('sla_due_at')->orderBy('created_at')
             // Keep page boundaries stable when priority and timestamps are equal.
             ->orderBy('id');
+    }
+
+    public function taskFor(User $actor, int $taskId, bool $actingAsAgent): SupportTask
+    {
+        $query = $this->visibleTaskQuery($actor);
+        if ($this->isSupportAgent($actor) || $actingAsAgent) {
+            $query->where(function (Builder $visible) use ($actor): void {
+                $visible->where('assigned_to_user_id', $actor->id)
+                    ->orWhere(function (Builder $inbox): void {
+                        $inbox->whereNull('assigned_to_user_id')->whereIn('status', self::INBOX_STATUSES);
+                    });
+            });
+        }
+
+        return $query->findOrFail($taskId);
+    }
+
+    private function visibleTaskQuery(User $actor): Builder
+    {
+        abort_unless($this->isSupportAgent($actor) || $this->isManager($actor), 403);
+        $this->ensureWorkspaceSeeded();
+        $this->ensureSupportStaffMembership($actor);
+        $query = SupportTask::query()->with(['team:id,name_ar', 'governorate:id,name_ar']);
+        $this->applyActorTeamScope($query, $actor);
+        if ($this->isSupportAgent($actor)) {
+            $this->applyAgentTypePermissions($query, $actor);
+        }
+
+        return $query;
     }
 
     public function claim(User $actor, SupportTask $task, Request $request, bool $actingAsAgent=false): SupportTask
@@ -1247,6 +1271,30 @@ class SupportTaskService
         if($task->source_type==='payment_review'){PropertyPayment::query()->whereKey($task->source_id)->where('status','under_review')->update(['status'=>'proof_submitted','updated_at'=>now()]);return;}
         if($task->source_type==='listing_review'){Property::query()->whereKey($task->source_id)->where('review_status','under_review')->update(['review_status'=>'submitted','status'=>'pending','review_assigned_to_user_id'=>null,'review_assigned_at'=>null,'updated_at'=>now()]);return;}
         if(in_array($task->source_type,['support_ticket','report'],true)){$case=SupportCase::query()->find($task->source_id);if(!$case)return;$status=$case->status==='in_progress'?'open':$case->status;$case->forceFill(['status'=>$status,'assigned_to_user_id'=>null,'assigned_to_name_snapshot'=>null,'last_activity_at'=>now()])->save();}
+    }
+
+    public function notifyDealPriceConfirmationDue(SupportTask $task, int $dealId): bool
+    {
+        $this->ensureSupportStaffMemberships();
+        $teamMembers = DB::table('support_team_members')->where('support_team_id', $task->support_team_id)->select('user_id');
+        $teamManager = DB::table('support_teams')->where('id', $task->support_team_id)->value('manager_user_id');
+        $recipients = User::query()->where('account_status', User::STATUS_ACTIVE)->where(function ($query) use ($teamMembers, $teamManager): void {
+            $query->whereIn('id', $teamMembers)->orWhere('id', $teamManager)->orWhere('is_platform_owner', true)
+                ->orWhereHas('roles', fn ($roles) => $roles->where('roles.key', 'super_admin'));
+        })->get();
+        $sent = false;
+        foreach ($recipients as $recipient) {
+            $manager = $this->isManager($recipient);
+            if (!$recipient->hasPermission('support.handle_reports') || (!$manager && !$this->isSupportAgent($recipient))) continue;
+            $scope = $manager ? 'all' : ($task->assigned_to_user_id ? 'mine' : 'inbox');
+            if (!$this->queryFor($recipient, ['scope' => $scope])->whereKey($task->id)->exists()) continue;
+            $notice = $this->notifications->create((int) $recipient->id, 'support_deal_confirmation_reminder',
+                'تأكيد سعر الصفقة ينتظر المتابعة', 'مرّ ٢٤ ساعة على طلب تأكيد السعر. تابع العميل من الطلب نفسه.',
+                'support_task', $task->id, ['task_id' => $task->id, 'source_id' => $task->source_id, 'deal_id' => $dealId],
+                deliverPush: false);
+            $sent = $sent || $notice !== null;
+        }
+        return $sent;
     }
 
     private function notifyTaskManagers(SupportTask $task, string $title, string $body): void

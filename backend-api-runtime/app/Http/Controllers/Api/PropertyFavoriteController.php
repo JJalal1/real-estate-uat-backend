@@ -21,7 +21,7 @@ class PropertyFavoriteController extends Controller
         $page = PropertyFavorite::query()
             ->with(['property.images'])
             ->where('user_id', $user->id)
-            ->whereHas('property', fn ($query) => $query->where('status', 'published')->withoutOverdueListingRestriction())
+            ->whereHas('property', fn ($query) => $query->publiclyVisible())
             ->latest('id')
             ->paginate($perPage);
 
@@ -50,7 +50,7 @@ class PropertyFavoriteController extends Controller
 
         $ids = PropertyFavorite::query()
             ->where('user_id', $user->id)
-            ->whereHas('property', fn ($query) => $query->where('status', 'published')->withoutOverdueListingRestriction())
+            ->whereHas('property', fn ($query) => $query->publiclyVisible())
             ->latest('id')
             ->limit(5000)
             ->pluck('property_id')
@@ -123,8 +123,7 @@ class PropertyFavoriteController extends Controller
 
     private function assertPubliclyAvailable(Property $property): void
     {
-        abort_unless(Property::query()->whereKey($property->id)->publiclyAvailable()
-            ->withoutOverdueListingRestriction()->exists(), 404);
+        abort_unless($property->isPubliclyVisible(), 404);
     }
 
     private function summary(Property $property, Request $request): array

@@ -163,7 +163,7 @@ void main() {
       final before = tester.state<ScrollableState>(_vertical).position.pixels;
       expect(retry.hitTestable(), findsOneWidget);
       if (surface == 'favorites') expect(c.read(favoritePagesProvider).items.length, size);
-      if (surface == 'availability') expect(c.read(brokerAvailabilityPagesProvider(false)).items.length, size);
+      if (surface == 'availability') expect(c.read(brokerAvailabilityPagesProvider(true)).items.length, size);
       fail = false; await tester.tap(retry); await tester.pumpAndSettle();
       expect(wire.pages, [1, 2, 2]);
       expect(tester.state<ScrollableState>(_vertical).position.pixels, greaterThan(before - 200));
@@ -171,7 +171,7 @@ void main() {
       expect(find.byKey(ValueKey('$prefix-more')), findsNothing);
       expect(find.byKey(ValueKey('$prefix-page-status')), findsNothing);
       if (surface == 'favorites') expect(c.read(favoritePagesProvider).items.length, size + 1);
-      if (surface == 'availability') expect(c.read(brokerAvailabilityPagesProvider(false)).items.length, size + 1);
+      if (surface == 'availability') expect(c.read(brokerAvailabilityPagesProvider(true)).items.length, size + 1);
       expect(tester.takeException(), isNull);
     });
 
@@ -196,39 +196,25 @@ void main() {
     }
   }
 
-  phase23WidgetTest('availability server filter replaces pending pages and resets selected IDs', (tester) async {
-    final pending = Completer<Map<String, dynamic>>();
-    final wire = _Wire((r) async {
-      if (r.queryParameters['only_due'] == 1) return _page(1, [_row('availability', 101, due: true)]);
-      if (r.queryParameters['page'] == 2) return pending.future;
-      return _page(1, [_row('availability', 1)], last: 2);
-    });
-    final c = await _open(tester, wire, const BrokerAvailabilityScreen(), scale: 2.4);
-    await _more(tester, 'broker-availability-more');
-    final chip = find.text('تحتاج تأكيد التوفر');
-    await tester.scrollUntilVisible(chip, -400, scrollable: _vertical, maxScrolls: 30);
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(chip.hitTestable(), findsOneWidget);
-    await tester.tap(chip); await tester.pumpAndSettle();
-    expect(wire.requests.last.queryParameters, {'page': 1, 'per_page': 50, 'only_due': 1});
-    pending.complete(_page(2, [_row('availability', 999)], last: 2)); await tester.pumpAndSettle();
-    expect(c.read(brokerAvailabilityPagesProvider(true)).items.map((item) => item.id), [101]);
-    final row = find.byKey(const ValueKey('broker-availability-101'));
-    await tester.scrollUntilVisible(row, 300, scrollable: _vertical, maxScrolls: 20);
-    await tester.pumpAndSettle();
-    expect(find.text('Synthetic availability 101'), findsOneWidget);
-    expect(find.text('Synthetic availability 999'), findsNothing);
-    final selectedRow = find.descendant(of: row, matching: find.byType(CheckboxListTile));
-    expect(tester.widget<CheckboxListTile>(selectedRow).value, isFalse);
+  phase23WidgetTest('updates load only due rows and require an explicit selection', (tester) async {
+    final wire = _Wire((request) async => _page(1, [_row('availability', 101, due: true)]));
+    final container = await _open(tester, wire, const BrokerAvailabilityScreen(), scale: 2.4);
+    expect(wire.requests.single.queryParameters, {'page': 1, 'per_page': 50, 'only_due': 1});
+    expect(container.read(brokerAvailabilityPagesProvider(true)).items.map((item) => item.id), [101]);
+    expect(find.text('كل إعلاناتي'), findsNothing);
+    final available = find.byKey(const ValueKey('broker-availability-available-101'));
     final confirm = find.byKey(const ValueKey('broker-availability-confirm'));
+    expect(tester.widget<AppButton>(available).style, AppButtonStyle.outlined);
     expect(tester.widget<AppButton>(confirm).onPressed, isNull);
-    await tester.tap(selectedRow);
+    await tester.ensureVisible(available);
+    await tester.tap(available);
     await tester.pumpAndSettle();
-    expect(find.text('تأكيد التوفر (1)').hitTestable(), findsOneWidget);
+    expect(tester.widget<AppButton>(available).style, AppButtonStyle.tonal);
+    expect(find.text('تحديث (1)').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  phase23WidgetTest('select all covers every active tab page and retries only unconfirmed batches', (tester) async {
+  phase23WidgetTest('select all covers every due page and retries only unconfirmed batches', (tester) async {
     final submitted = <List<int>>[];
     final wire = _Wire((r) async {
       if (r.method == 'POST') {
@@ -253,7 +239,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(wire.pages, [1, 2, 3]);
     expect(tester.widget<CheckboxListTile>(selectAll).value, isTrue);
-    expect(find.text('تأكيد التوفر (102)'), findsOneWidget);
+    expect(find.text('تحديث (102)'), findsOneWidget);
     expect(submitted, isEmpty);
 
     await tester.tap(selectAll);
@@ -264,11 +250,11 @@ void main() {
     await tester.tap(confirm);
     await tester.pumpAndSettle();
     expect(submitted, [List.generate(100, (i) => i + 1), [101, 102]]);
-    expect(find.text('تأكيد التوفر (2)'), findsOneWidget);
+    expect(find.text('تحديث (2)'), findsOneWidget);
     await tester.tap(confirm);
     await tester.pumpAndSettle();
     expect(submitted, [List.generate(100, (i) => i + 1), [101, 102], [101, 102]]);
-    expect(tester.widget<AppButton>(confirm).onPressed, isNull);
+    expect(confirm, findsNothing);
     expect(tester.takeException(), isNull);
   });
 

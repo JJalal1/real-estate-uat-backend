@@ -204,6 +204,7 @@ class AppNotificationItem {
   int? get messageThreadId => _asInt(data['message_thread_id']);
   int? get agreementId => _asInt(data['agreement_id']);
   int? get rentalContractId => _asInt(data['rental_contract_id']);
+  int? get supportTaskId => _asInt(data['task_id']);
   int? get previousPropertyId {
     if (type != 'listing_duplicate_rejected') return null;
     final id = _asInt(data['previous_property_id']);

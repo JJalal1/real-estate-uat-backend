@@ -77,7 +77,7 @@ class AiAssistantController extends Controller
 
     public function question(Request $request, Property $property, ListingAiService $service): JsonResponse
     {
-        abort_unless($property->isPubliclyAvailable(), 404);
+        abort_unless($property->isPubliclyVisible(), 404);
         abort_if(app(\App\Services\PropertyFinancialService::class)->hasOverdueReceivable((int) $property->user_id), 404);
         $v = $request->validate(['question' => ['required', 'string', 'max:800']]);
         return response()->json(['data' => $service->question($property, $v['question'])]);

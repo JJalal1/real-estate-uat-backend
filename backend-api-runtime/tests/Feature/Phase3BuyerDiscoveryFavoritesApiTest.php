@@ -97,6 +97,32 @@ class Phase3BuyerDiscoveryFavoritesApiTest extends TestCase
         ]);
     }
 
+    public function test_closed_listing_disappears_from_public_links_and_saved_cards_without_erasing_favorites(): void
+    {
+        [$owner, $ownerHeaders] = $this->activeUser('phase3-closed-owner@example.test', '+967700003020');
+        [$buyer, $buyerHeaders] = $this->activeUser('phase3-closed-buyer@example.test', '+967700003021');
+        $closed = $this->property($owner, 'Closed property', 'published');
+        $open = $this->property($owner, 'Open property', 'published');
+        $draft = $this->property($owner, 'Private property', 'draft');
+        $this->withHeaders($buyerHeaders)->putJson("/api/properties/{$closed->id}/favorite")->assertOk();
+
+        $closed->forceFill(['availability_status' => 'rented'])->saveQuietly();
+
+        $this->getJson('/api/properties/visible?'.http_build_query(['ids' => [$closed->id, $open->id, $draft->id]]))
+            ->assertOk()->assertExactJson(['data' => ['property_ids' => [$open->id]]]);
+        $this->getJson('/api/properties/visible?'.http_build_query(['ids' => array_fill(0, 31, $open->id)]))
+            ->assertUnprocessable();
+        $this->getJson('/api/properties')->assertOk()->assertJsonPath('meta.total', 1);
+        $this->getJson("/api/properties/{$closed->id}")->assertNotFound();
+        $this->getJson("/api/properties/{$closed->id}/comments")->assertNotFound();
+        $this->getJson("/api/properties/{$closed->id}/sai")->assertNotFound();
+        $this->getJson('/api/favorites')->assertOk()->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/favorites/ids')->assertOk()->assertJsonPath('data.property_ids', []);
+        $this->assertDatabaseHas('property_favorites', ['user_id' => $buyer->id, 'property_id' => $closed->id]);
+        $this->withHeaders($ownerHeaders)->getJson("/api/properties/{$closed->id}")
+            ->assertOk()->assertJsonPath('data.is_owner', true);
+    }
+
     public function test_anonymous_discovery_only_exposes_public_property_fields(): void
     {
         [$owner] = $this->activeUser('phase3-public-owner@example.test', '+967700003011');

@@ -17,6 +17,7 @@ use App\Services\ListingWorkflowService;
 use App\Services\PropertyAssetService;
 use App\Services\PropertyIdentityService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -96,6 +97,20 @@ class PropertyController extends Controller
         ])->header('X-Aqer-Filter-Contract', '2');
     }
 
+    public function visible(Request $request): JsonResponse
+    {
+        $input = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:30'],
+            'ids.*' => ['required', 'integer', 'distinct', 'min:1', 'max:9223372036854775807'],
+        ]);
+
+        $ids = app(\App\Services\PropertyDiscoveryFilterService::class)->publicQuery()
+            ->whereKey($input['ids'])->pluck('id')->map(fn ($id) => (int) $id);
+
+        return response()->json(['data' => ['property_ids' => $ids]])
+            ->header('Cache-Control', 'no-store');
+    }
+
     public function nearby(Request $request): JsonResponse
     {
         // Ranked consumers use exactly the same ordered pages and summary
@@ -148,7 +163,7 @@ class PropertyController extends Controller
             $cached = $cache->get($cacheKey);
             if (is_array($cached)) {
                 return response()->json(['data' => $cached], 200, [
-                    'Cache-Control' => 'public, max-age=10, stale-while-revalidate=20',
+                    'Cache-Control' => 'public, max-age=0, must-revalidate',
                     'X-Aqer-Nearby-Cache' => 'HIT',
                     'X-Aqer-Filter-Contract' => '2',
                 ]);
@@ -202,7 +217,7 @@ class PropertyController extends Controller
             }
 
             return response()->json(['data' => $properties], 200, [
-                'Cache-Control' => 'public, max-age=10, stale-while-revalidate=20',
+                'Cache-Control' => 'public, max-age=0, must-revalidate',
                 'X-Aqer-Nearby-Cache' => 'MISS',
                 'X-Aqer-Filter-Contract' => '2',
             ]);
@@ -253,7 +268,7 @@ class PropertyController extends Controller
         $context = app(\App\Services\MarketplaceContextService::class)->resolve($v);
         $context['purpose'] = $filters['purpose'] ?? null;
         $context['filters'] = $filters;
-        $base = $this->publicQuery();
+        $base = $this->publicQuery()->without('images');
         if ($context['governorate_code'] === null) $base->whereRaw('1=0');
         else {
             $regionalFilters = array_replace($filters, ['governorate' => $context['governorate']]);
@@ -261,19 +276,19 @@ class PropertyController extends Controller
             if (isset($v['governorate_code']) || isset($v['latitude'], $v['longitude'])) $regionalFilters['governorate_code'] = $context['governorate_code'];
             $this->applyFilters($base, $regionalFilters);
         }
-        $sections = [];
+        $sectionRows = [];
         foreach (['spotlight', 'latest', 'sale', 'rent'] as $section) {
             if (isset($v['purpose']) && in_array($section, ['sale', 'rent'], true) && $section !== $v['purpose']) {
-                $sections[$section] = [];
+                $sectionRows[$section] = new EloquentCollection();
                 continue;
             }
             $query = clone $base;
             if ($section === 'spotlight') $query->where('spotlight_until', '>', now());
             if (in_array($section, ['sale', 'rent'], true)) $query->where('purpose', $section);
-            $sections[$section] = $query->latest('id')->limit(6)->get()->map(fn ($p) => $this->summaryData($p, $request))->values()->all();
+            $sectionRows[$section] = $query->latest('id')->limit(6)->get();
         }
         if (isset($v['latitude'],$v['longitude'])) {
-            $nearby=$this->publicQuery();
+            $nearby=$this->publicQuery()->without('images');
             $nearbyFilters=$filters;unset($nearbyFilters['governorate'], $nearbyFilters['governorate_code']);$this->applyFilters($nearby,$nearbyFilters);
             $lat=(float)$v['latitude'];$lon=(float)$v['longitude'];
             if(DB::getDriverName()==='pgsql'){
@@ -285,8 +300,22 @@ class PropertyController extends Controller
                 $nearbyRows=$nearby->limit(1000)->get()->filter(fn($p)=>$this->distanceKm($lat,$lon,(float)$p->latitude,(float)$p->longitude)<=30)
                     ->sortBy(fn($p)=>$this->distanceKm($lat,$lon,(float)$p->latitude,(float)$p->longitude))->take(6);
             }
-            $sections['nearby']=$nearbyRows->map(fn($p)=>$this->summaryData($p,$request))->values()->all();
+            $sectionRows['nearby'] = $nearbyRows;
         }
+
+        $listings = new EloquentCollection();
+        foreach ($sectionRows as $rows) {
+            $listings = $listings->merge($rows);
+        }
+        $listings->load('images');
+        $summaries = $listings->mapWithKeys(fn (Property $listing) => [
+            $listing->getKey() => $this->summaryData($listing, $request),
+        ]);
+        $sections = array_map(
+            fn (EloquentCollection $rows) => $rows->map(fn (Property $listing) => $summaries->get($listing->getKey()))->values()->all(),
+            $sectionRows,
+        );
+
         $purposeOrder=count($sections['rent'])>count($sections['sale'])?['rent','sale']:['sale','rent'];
         $sectionOrder=array_values(array_filter(array_merge(['nearby','spotlight','latest'],$purposeOrder),fn($key)=>!empty($sections[$key])));
         $ranking = app(\App\Services\BrokerRankingService::class);
@@ -331,7 +360,7 @@ class PropertyController extends Controller
     {
         $user = $this->tokens->authenticate($request, false);
         $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
-        abort_unless($property->isPubliclyAvailable() || $isOwner, 404);
+        abort_unless($isOwner || $property->isPubliclyVisible(), 404);
 
         $property->load('images');
 
@@ -493,19 +522,20 @@ class PropertyController extends Controller
 
     public function media(Request $request, PropertyImage $image)
     {
-        $image->loadMissing('property');
-        $property = $image->property;
-        abort_unless($property, 404);
+        $isPublic = app(\App\Services\PropertyDiscoveryFilterService::class)->publicQuery()
+            ->whereKey($image->property_id)->exists();
 
-        if ($property->status !== 'published') {
+        if (! $isPublic) {
             $user = $this->tokens->authenticate($request, false);
-            $isOwner = $user !== null && (int) $property->user_id === (int) $user->id;
-            $isReviewer = $user !== null && $user->hasPermission('listings.moderate');
+            abort_unless($user, 404);
+            $property = $image->property()->firstOrFail();
+            $isOwner = (int) $property->user_id === (int) $user->id;
+            $isReviewer = $user->hasPermission('listings.moderate');
             abort_unless($isOwner || $isReviewer, 404);
         }
         abort_if($image->cdn_url, 404);
         return app(\App\Services\ListingImageService::class)->response($image->path,
-            (string)$request->query('variant','detail'),$property->status==='published');
+            (string)$request->query('variant','detail'),$isPublic);
     }
 
     private function filterRules(): array

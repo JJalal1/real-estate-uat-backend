@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
+import '../../../core/offline/offline_connection.dart';
 import '../../account/data/private_collection.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
 import '../domain/property_marker.dart';
+import 'property_repository.dart';
 
 final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
   return FavoritesRepository(
@@ -29,6 +31,8 @@ final pendingFavoriteAfterAuthProvider = StateProvider<int?>((ref) => null);
 final favoritePropertiesProvider =
     FutureProvider.autoDispose<List<PropertyMarker>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
+  ref.watch(propertyDataRevisionProvider);
+  ref.watch(offlineResumeRevisionProvider);
   ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(favoritesRepositoryProvider).favorites();
 });
@@ -36,6 +40,8 @@ final favoritePropertiesProvider =
 final favoritePagesProvider = StateNotifierProvider.autoDispose<
     PrivateCollectionController<PropertyMarker>, PrivateCollectionState<PropertyMarker>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
+  ref.watch(propertyDataRevisionProvider);
+  ref.watch(offlineResumeRevisionProvider);
   final repository = ref.watch(favoritesRepositoryProvider);
   return accountCollection(ref, load: (page) => repository.favoritesPage(page: page),
     idOf: (PropertyMarker item) => item.id);
@@ -44,6 +50,8 @@ final favoritePagesProvider = StateNotifierProvider.autoDispose<
 final favoritePropertyIdsProvider =
     FutureProvider.autoDispose<Set<int>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
+  ref.watch(propertyDataRevisionProvider);
+  ref.watch(offlineResumeRevisionProvider);
   ref.watch(authControllerProvider.select((state) => state.asData?.value?.id));
   return ref.watch(favoritesRepositoryProvider).favoriteIds();
 });

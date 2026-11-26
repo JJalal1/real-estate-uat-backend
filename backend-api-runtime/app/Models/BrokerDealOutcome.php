@@ -15,6 +15,11 @@ class BrokerDealOutcome extends Model
             'customer_confirmed_at'=>'datetime', 'confirmed_at'=>'datetime'];
     }
 
+    public function requiresPriceConfirmation(): bool
+    {
+        return ($this->snapshot['price_confirmation_required'] ?? false) === true;
+    }
+
     public function property(): BelongsTo { return $this->belongsTo(Property::class); }
     public function thread(): BelongsTo { return $this->belongsTo(MessageThread::class, 'message_thread_id'); }
     public function customer(): BelongsTo { return $this->belongsTo(User::class, 'customer_user_id'); }

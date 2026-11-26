@@ -18,6 +18,7 @@ return [
         'reports' => env('BG_REPORTS', false),
     ],
     'registration' => env('BG_PUSH_REGISTRATION', env('PUSH_NOTIFICATIONS_ENABLED', false)),
+    'deal_confirmation_reminder_token' => env('DEAL_CONFIRMATION_REMINDER_TOKEN'),
     'capacity' => (int) env('BG_QUEUE_CAPACITY', 200),
     'receivable_lead_minutes' => (int) env('BG_RECEIVABLE_LEAD_MINUTES', 0),
     'entitlement_lead_minutes' => (int) env('BG_ENTITLEMENT_LEAD_MINUTES', 0),

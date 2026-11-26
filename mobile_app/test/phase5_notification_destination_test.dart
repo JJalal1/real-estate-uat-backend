@@ -53,4 +53,31 @@ void main() {
 
     expect(notificationDestination(item), '/messages/91');
   });
+
+  test('support deal reminder opens the exact task before its thread', () {
+    const item = AppNotificationItem(
+      id: 3,
+      type: 'support_deal_confirmation_reminder',
+      title: 'confirmation reminder',
+      isRead: false,
+      entityType: 'support_task',
+      entityId: 51,
+      data: {'deal_id': 20, 'message_thread_id': 91},
+    );
+
+    expect(notificationDestination(item), '/support/workspace/tasks/51');
+  });
+
+  test('external closing notice can restore its task from payload data', () {
+    const item = AppNotificationItem(
+      id: 4,
+      type: 'support_external_listing_closure',
+      title: 'external listing closure',
+      isRead: false,
+      entityType: 'support_task',
+      data: {'task_id': '52'},
+    );
+
+    expect(notificationDestination(item), '/support/workspace/tasks/52');
+  });
 }

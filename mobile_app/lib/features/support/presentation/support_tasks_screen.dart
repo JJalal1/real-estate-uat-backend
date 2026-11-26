@@ -32,6 +32,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
     this.initialSeverity,
     this.overdueOnly = false,
     this.actingAsAgent = false,
+    this.initialTaskId,
     this.title,
   });
 
@@ -41,6 +42,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
   final String? initialSeverity;
   final bool overdueOnly;
   final bool actingAsAgent;
+  final int? initialTaskId;
   final String? title;
 
   @override
@@ -69,6 +71,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   int? _actor;
   int _sessionEpoch = 0;
   String? _query;
+  bool _initialTaskOpened = false;
 
   @override
   void initState() {
@@ -105,7 +108,50 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     Future<void>.microtask(_load);
   }
 
-  Future<void> _load() => _fetchPage(1);
+  Future<void> _load() {
+    final taskId = widget.initialTaskId;
+    return taskId == null ? _fetchPage(1) : _loadTask(taskId);
+  }
+
+  Future<void> _loadTask(int taskId) async {
+    if (!mounted) return;
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final request = ++_request;
+    bool current() =>
+        mounted &&
+        request == _request &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
+        actor == ref.read(authControllerProvider).asData?.value?.id;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final item = await ref
+          .read(supportWorkspaceRepositoryProvider)
+          .task(taskId);
+      if (!current()) return;
+      setState(() {
+        _items = [item];
+        _loading = false;
+      });
+      if (!_initialTaskOpened) {
+        _initialTaskOpened = true;
+        if (item.isMine && (!item.isClosed || item.sourceType == 'support_ticket')) {
+          await _open(item, false);
+        }
+      }
+    } catch (error) {
+      if (!current()) return;
+      setState(() {
+        if (!isTransientApiFailure(error)) _items = const [];
+        _error = friendlyApiError(error);
+        _loading = false;
+      });
+    }
+  }
 
   Future<void> _loadMore() async {
     if (_loading || _loadingMore || !_hasMore) return;
@@ -200,7 +246,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         user.roles.contains('super_admin') == true ||
         user.roles.contains('support_manager') == true ||
         user.hasPermission('support.manage') == true;
-    final managerMode = manager && !widget.actingAsAgent;
+    final reviewingAssignedTask = widget.initialTaskId != null &&
+        _items.any((task) => !task.isMine && !task.canClaim);
+    final managerMode = manager && (!widget.actingAsAgent || reviewingAssignedTask);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -217,7 +265,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         ),
         body: Column(
           children: [
-            if (widget.actingAsAgent)
+            if (manager && widget.actingAsAgent && !managerMode)
               Material(
                 color: Theme.of(context).colorScheme.primaryContainer,
                 child: const ListTile(
@@ -228,7 +276,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       'استلم الطلب أولاً ثم عالجه بنفس قواعد موظفي الدعم. الرجوع يغلق هذا الوضع.'),
                 ),
               ),
-            _filters(managerMode),
+            if (widget.initialTaskId == null) _filters(managerMode),
             if (_items.isNotEmpty && (_loading || _error != null)) AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
             Expanded(child: _body(managerMode)),
           ],
@@ -902,37 +950,53 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   Future<void> _supportCaseDialog(SupportTaskItem task) async {
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final scope = ref.read(accountRequestScopeProvider);
+    final support = ref.read(supportRepositoryProvider);
+    final broker = ref.read(brokerRepositoryProvider);
+    bool current() =>
+        mounted &&
+        scope.isCurrent &&
+        actor == ref.read(authControllerProvider).asData?.value?.id &&
+        epoch == Stage6SecureSessionStore.instance.sessionEpoch;
+    void verify() {
+      if (!current()) throw StateError('ACCOUNT_CHANGED');
+    }
+
     SupportCaseDetails details;
     try {
-      details =
-          await ref.read(supportRepositoryProvider).adminDetails(task.sourceId);
+      details = await support.adminDetails(task.sourceId);
     } catch (error) {
-      _message(friendlyApiError(error));
+      if (current()) _message(friendlyApiError(error));
       return;
     }
-    if (!mounted) return;
-    await showDialog<void>(
+    if (!mounted || !current()) return;
+    await showActorDialog<void>(
       context: context,
+      ref: ref,
       builder: (dialogContext) => _SupportCaseDialog(
         details: details,
-        onReply: (text) async {
-          await ref
-              .read(supportRepositoryProvider)
-              .adminReply(task.sourceId, text);
+        onReply: (text) {
+          verify();
+          return support.adminReply(task.sourceId, text);
         },
-        onInternalNote: (text) async {
-          await ref
-              .read(supportRepositoryProvider)
-              .internalNote(task.sourceId, text);
+        onInternalNote: (text) {
+          verify();
+          return support.internalNote(task.sourceId, text);
         },
         onStatus: (status) async {
-          await ref
-              .read(supportRepositoryProvider)
-              .setStatus(task.sourceId, status);
+          verify();
+          await support.setStatus(task.sourceId, status);
         },
-        onDealResolution: details.summary.targetType == 'broker_deal_outcome' ? (decision, note) async {
-          await ref.read(brokerRepositoryProvider).resolveSupport(task.id, decision, note, actingAsAgent: widget.actingAsAgent);
-        } : null,
+        onDealResolution: details.summary.targetType == 'broker_deal_outcome'
+            ? (decision, note) {
+                verify();
+                return broker.resolveSupport(task.id, decision, note,
+                    actingAsAgent: widget.actingAsAgent);
+              }
+            : null,
       ),
     );
   }
@@ -1527,8 +1591,8 @@ class _SupportCaseDialog extends StatefulWidget {
   });
 
   final SupportCaseDetails details;
-  final Future<void> Function(String) onReply;
-  final Future<void> Function(String) onInternalNote;
+  final Future<SupportCaseDetails> Function(String) onReply;
+  final Future<SupportCaseDetails> Function(String) onInternalNote;
   final Future<void> Function(String) onStatus;
   final Future<void> Function(String, String)? onDealResolution;
 
@@ -1537,12 +1601,35 @@ class _SupportCaseDialog extends StatefulWidget {
 }
 
 class _SupportCaseDialogState extends State<_SupportCaseDialog> {
+  late SupportCaseDetails _details = widget.details;
   bool _busy = false;
   final _statusMenuKey = GlobalKey<PopupMenuButtonState<String>>();
 
+  bool get _linkedCustomerCase =>
+      _details.summary.reasonCode == 'external_listing_closure' ||
+      _details.summary.reasonCode == 'deal_price_confirmation';
+
+  String? _amount(String key, String currencyKey) {
+    final amount = _details.targetPreview?[key];
+    final currency = _details.targetPreview?[currencyKey];
+    return amount != null && currency is String ? moneyLabel(amount, currency) : null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final d = widget.details;
+    final d = _details;
+    final dealStatus = d.targetPreview?['status'];
+    final canResolve = widget.onDealResolution != null && !d.summary.isClosed;
+    final canApprove = canResolve &&
+        d.summary.reasonCode == 'deal_price_confirmation' &&
+        dealStatus == 'pending_customer';
+    final canRetry = canResolve &&
+        (dealStatus == 'disputed' ||
+            (dealStatus == null && d.summary.status != 'waiting_requester'));
+    final title = d.targetPreview?['title'];
+    final listingPrice = _amount('listing_price', 'listing_currency');
+    final reportedAmount = _amount('basis_amount', 'currency');
+    final isRent = d.targetPreview?['transaction_type'] == 'rent';
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Dialog(
@@ -1566,6 +1653,12 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                   padding: const EdgeInsets.all(14),
                   children: [
                     Text(d.description),
+                    if (title is String && (_linkedCustomerCase || widget.onDealResolution != null))
+                      Text('الإعلان · $title'),
+                    if (listingPrice != null)
+                      Text('${isRent ? 'الإيجار الشهري في الإعلان' : 'السعر في الإعلان'} · $listingPrice'),
+                    if (reportedAmount != null)
+                      Text('${dealStatus == 'confirmed' ? 'المبلغ المعتمد' : 'المبلغ الذي أبلغ به الدلال'} · $reportedAmount'),
                     const SizedBox(height: 14),
                     ...d.messages.map(
                       (m) => Card(
@@ -1600,15 +1693,27 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    EbrokerFilledButton.tonalIcon(
-                      onPressed: _busy ? null : () => _compose(false),
-                      icon: const EbrokerIcon(Icons.reply),
-                      label: const Text('رد'),
-                    ),
-                    if (widget.onDealResolution != null && d.summary.status != 'waiting_requester' && !['resolved', 'dismissed'].contains(d.summary.status)) ...[
-                      EbrokerFilledButton(onPressed: _busy ? null : () => _resolveBroker('retry'), child: const Text('طلب تأكيد العميل مجددًا')),
-                      EbrokerOutlinedButton(onPressed: _busy ? null : () => _resolveBroker('cancel'), child: const Text('إلغاء نتيجة الصفقة')),
-                    ],
+                    if (!_linkedCustomerCase || !d.summary.isClosed)
+                      EbrokerFilledButton.tonalIcon(
+                        onPressed: _busy ? null : () => _compose(false),
+                        icon: const EbrokerIcon(Icons.reply),
+                        label: Text(_linkedCustomerCase ? 'مراسلة العميل' : 'رد'),
+                      ),
+                    if (canApprove)
+                      EbrokerFilledButton(
+                        onPressed: _busy ? null : () => _resolveBroker('approve'),
+                        child: const Text('اعتماد المبلغ'),
+                      ),
+                    if (canRetry)
+                      EbrokerFilledButton(
+                        onPressed: _busy ? null : () => _resolveBroker('retry'),
+                        child: const Text('طلب تأكيد العميل مجددًا'),
+                      ),
+                    if (canApprove || canRetry)
+                      EbrokerOutlinedButton(
+                        onPressed: _busy ? null : () => _resolveBroker('cancel'),
+                        child: const Text('إلغاء نتيجة الصفقة'),
+                      ),
                     EbrokerOutlinedButton.icon(
                       onPressed: _busy ? null : () => _compose(true),
                       icon: const EbrokerIcon(Icons.note_alt_outlined),
@@ -1649,19 +1754,19 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
   }
 
   Future<void> _compose(bool internal) async {
-    final c = TextEditingController();
+    String draft = '';
     final text = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(internal ? 'ملاحظة داخلية' : 'رد على المستخدم'),
-        content: TextField(controller: c, minLines: 3, maxLines: 6),
+        title: Text(internal ? 'ملاحظة داخلية' : _linkedCustomerCase ? 'مراسلة العميل' : 'رد على المستخدم'),
+        content: TextField(onChanged: (value) => draft = value, minLines: 3, maxLines: 6),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('إلغاء')),
           EbrokerFilledButton(
             onPressed: () {
-              final value = c.text.trim();
+              final value = draft.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
             child: const Text('إرسال'),
@@ -1669,16 +1774,23 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
         ],
       ),
     );
-    c.dispose();
-    if (text == null) return;
+    if (text == null || !mounted) return;
     setState(() => _busy = true);
     try {
-      if (internal) {
-        await widget.onInternalNote(text);
+      final updated = internal
+          ? await widget.onInternalNote(text)
+          : await widget.onReply(text);
+      if (!mounted) return;
+      if (_linkedCustomerCase) {
+        setState(() => _details = updated);
       } else {
-        await widget.onReply(text);
+        Navigator.pop(context);
       }
-      if (mounted) Navigator.pop(context);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(friendlyApiError(error))));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1687,11 +1799,23 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
   Future<void> _resolveBroker(String decision) async {
     String note = '';
     final form = GlobalKey<FormState>();
+    final title = switch (decision) {
+      'approve' => 'اعتماد المبلغ',
+      'retry' => 'طلب تأكيد النتيجة',
+      _ => 'إلغاء النتيجة',
+    };
+    final reportedAmount = _amount('basis_amount', 'currency');
     final ok = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
-      title: Text(decision == 'retry' ? 'طلب تأكيد النتيجة' : 'إلغاء النتيجة'),
-      content: Form(key: form, child: TextFormField(onChanged: (text) => note = text, minLines: 2, maxLines: 4,
-        validator: (text) => (text?.trim().length ?? 0) < 5 ? 'اكتب سبب المراجعة.' : null,
-        decoration: const InputDecoration(labelText: 'سبب القرار', helperText: 'احتساب الصفقة يتطلب تأكيد العميل الفعلي.'))),
+      title: Text(title),
+      content: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (decision == 'approve' && reportedAmount != null) ...[
+          Text('اعتماد المبلغ المبلّغ عنه · $reportedAmount'),
+          const SizedBox(height: 8),
+        ],
+        TextFormField(onChanged: (text) => note = text, minLines: 2, maxLines: 4,
+          validator: (text) => (text?.trim().length ?? 0) < 5 ? 'اكتب سبب القرار.' : null,
+          decoration: const InputDecoration(labelText: 'سبب القرار')),
+      ])),
       actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('رجوع')),
         EbrokerFilledButton(onPressed: () { if (form.currentState?.validate() == true) Navigator.pop(c, true); }, child: const Text('حفظ القرار'))]));
     if (ok != true || !mounted) return;

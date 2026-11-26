@@ -29,25 +29,31 @@ class BrokerDeal {
     required this.propertyTitle, required this.customerName, required this.advertiserName, required this.status,
     required this.amount, required this.currency, required this.canConfirm, required this.canRate, this.canViewSupportCase = false, this.supportCaseId,
     this.advertiserViewRevision, this.listingPrice, this.listingCurrency, this.saiAmount, this.saiCurrency,
-    this.saiRatePercent, this.saiPaymentStatus, this.confirmedAt, this.platformDueStatus, this.transactionType});
+    this.saiRatePercent, this.saiPaymentStatus, this.confirmedAt, this.platformDueStatus, this.transactionType,
+    this.priceConfirmationRequired = false});
   final int id, threadId, propertyId, advertiserId;
   final String propertyTitle, customerName, advertiserName, status, currency;
   final double amount;
   final double? listingPrice, saiAmount, saiRatePercent;
   final String? listingCurrency, saiCurrency, saiPaymentStatus, platformDueStatus, transactionType;
   final DateTime? confirmedAt;
-  final bool canConfirm, canRate;
+  final bool canConfirm, canRate, priceConfirmationRequired;
   final bool canViewSupportCase;
   final int? supportCaseId;
   final int? advertiserViewRevision;
   String otherPartyName(int? viewerId) => viewerId == advertiserId ? customerName : advertiserName;
+  String get resultActionLabel => switch ((canConfirm, priceConfirmationRequired)) {
+    (true, true) => 'تأكيد مبلغ الصفقة',
+    (true, false) => 'تأكيد نتيجة الصفقة',
+    _ => 'عرض نتيجة الصفقة',
+  };
   String get statusLabel => switch ((status, platformDueStatus)) {
     ('confirmed', 'pending_payment') => 'بانتظار سداد مستحق المنصة',
     ('confirmed', 'pending_review') => 'إثبات السداد قيد التحقق',
     ('confirmed', _) => 'صفقة مؤكدة',
     ('disputed', _) => 'تحتاج مراجعة',
     ('cancelled', _) => 'ملغاة',
-    _ => 'بانتظار تأكيد العميل',
+    _ => priceConfirmationRequired ? 'بانتظار تأكيد المبلغ' : 'بانتظار تأكيد العميل',
   };
   factory BrokerDeal.fromJson(Map<String, dynamic> j) => BrokerDeal(id: brokerInt(j['id']), threadId: brokerInt(j['thread_id']),
     propertyId: brokerInt(j['property_id']), advertiserId: brokerInt(j['advertiser_id']), propertyTitle: '${j['property_title'] ?? 'العقار'}',
@@ -59,6 +65,7 @@ class BrokerDeal {
     saiAmount: _recordedNumber(j['sai_amount']), saiCurrency: j['sai_currency']?.toString(),
     saiRatePercent: _recordedNumber(j['sai_rate_percent']), saiPaymentStatus: j['sai_payment_status']?.toString(),
     platformDueStatus: j['platform_due_status']?.toString(), transactionType: j['transaction_type']?.toString(),
+    priceConfirmationRequired: j['price_confirmation_required'] == true,
     confirmedAt: DateTime.tryParse('${j['confirmed_at'] ?? ''}'));
 
   static double? _recordedNumber(dynamic value) {

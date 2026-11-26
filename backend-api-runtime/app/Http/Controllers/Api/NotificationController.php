@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Services\BrokerAvailabilityService;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -81,6 +82,11 @@ class NotificationController extends Controller
 
     private function data(UserNotification $n): array
     {
-        return ['id'=>$n->id,'type'=>$n->type,'title'=>$n->title,'body'=>$n->body,'entity_type'=>$n->entity_type,'entity_id'=>$n->entity_id,'data'=>$n->data,'read_at'=>$n->read_at?->toIso8601String(),'created_at'=>$n->created_at?->toIso8601String()];
+        $isListingReminder = $n->type === 'broker_availability_due';
+        return ['id'=>$n->id,'type'=>$n->type,
+            'title'=>$isListingReminder ? BrokerAvailabilityService::REMINDER_TITLE : $n->title,
+            'body'=>$isListingReminder ? BrokerAvailabilityService::REMINDER_BODY : $n->body,
+            'entity_type'=>$n->entity_type,'entity_id'=>$n->entity_id,'data'=>$n->data,
+            'read_at'=>$n->read_at?->toIso8601String(),'created_at'=>$n->created_at?->toIso8601String()];
     }
 }

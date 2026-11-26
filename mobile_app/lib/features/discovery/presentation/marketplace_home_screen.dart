@@ -212,6 +212,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         child: RefreshIndicator(onRefresh: () async {
         ref.read(marketplaceRepositoryProvider).invalidateFeed(query);
         ref.invalidate(marketplaceFeedProvider(query));
+        ref.invalidate(recentPropertiesProvider);
         if (useDhamar) ref.invalidate(marketplaceDhamarPreviewProvider(query));
         try { await Future.wait([
           ref.read(marketplaceFeedProvider(query).future),

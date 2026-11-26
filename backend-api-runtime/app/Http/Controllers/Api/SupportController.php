@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AdvertiserRating;
 use App\Models\AuditLog;
+use App\Models\BrokerDealOutcome;
 use App\Models\ListingComment;
 use App\Models\Property;
 use App\Models\SupportCase;
@@ -337,6 +338,33 @@ class SupportController extends Controller
 
     private function targetPreview(SupportCase $case): ?array
     {
+        if ($case->target_type === 'broker_deal_outcome' && $case->target_id) {
+            $deal = BrokerDealOutcome::query()->find($case->target_id);
+            if (!$deal) {
+                return null;
+            }
+
+            return [
+                'type' => 'broker_deal_outcome',
+                'id' => $deal->id,
+                'title' => $deal->snapshot['property_title'] ?? null,
+                'status' => $deal->status,
+                'transaction_type' => $deal->transaction_type,
+                'listing_price' => $deal->snapshot['listing_price'] ?? null,
+                'listing_currency' => $deal->snapshot['listing_currency'] ?? null,
+                'basis_amount' => $deal->basis_amount,
+                'currency' => $deal->currency,
+            ];
+        }
+        if ($case->reason_code === 'external_listing_closure' && $case->target_type === 'property' && $case->target_id) {
+            $property = Property::query()->withoutGlobalScopes()->find($case->target_id);
+            return $property ? [
+                'type' => 'property',
+                'id' => $property->id,
+                'title' => $property->title,
+                'transaction_type' => $property->purpose,
+            ] : null;
+        }
         if($case->kind!=='report'||!$case->target_type||!$case->target_id) return null;
         return match($case->target_type){
             'listing'=>($item=Property::query()->find($case->target_id))?['type'=>'listing','id'=>$item->id,'title'=>$item->title,'status'=>$item->status,'review_status'=>$item->review_status,'owner_user_id'=>$item->user_id]:null,

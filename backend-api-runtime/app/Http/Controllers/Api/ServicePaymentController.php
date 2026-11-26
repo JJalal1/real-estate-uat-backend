@@ -30,7 +30,7 @@ class ServicePaymentController extends Controller
 
     public function propertyServices(Property $property): JsonResponse
     {
-        abort_unless($property->status==='published' && $property->review_status==='approved',404);
+        abort_unless($property->review_status==='approved' && $property->isPubliclyVisible(),404);
         $rows=ServiceEntitlement::query()->where('target_type','property')->where('target_id',$property->id)->where('status','active')
             ->where(function($q){$q->whereNull('ends_at')->orWhere('ends_at','>',now());})->orderBy('ends_at')->get();
         return response()->json(['data'=>$rows->map(fn(ServiceEntitlement $e)=>$this->entitlementData($e))->values()]);

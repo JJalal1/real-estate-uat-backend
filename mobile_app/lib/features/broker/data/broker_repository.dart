@@ -61,8 +61,22 @@ class BrokerRepository {
     verify();
     return r.data ?? const {};
   }
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> data) async =>
-    (await _dio.post<Map<String, dynamic>>(path, data: data, options: await _auth.requiredAuthOptions())).data ?? const {};
+  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> data) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    void verify() {
+      _requestScope?.verify();
+      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+        throw StateError('ACCOUNT_CHANGED');
+      }
+    }
+
+    verify();
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    verify();
+    final response = await _dio.post<Map<String, dynamic>>(path, data: data, options: options);
+    verify();
+    return response.data ?? const {};
+  }
   BrokerPage<T> _page<T>(Map<String, dynamic> body, T Function(Map<String, dynamic>) parse) {
     final meta = brokerMap(body['meta']);
     return BrokerPage(items: brokerRows(body['data']).map(parse).toList(), page: brokerInt(meta['current_page']) == 0 ? 1 : brokerInt(meta['current_page']),

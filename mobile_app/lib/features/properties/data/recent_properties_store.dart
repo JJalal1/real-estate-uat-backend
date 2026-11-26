@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/offline/offline_connection.dart';
 import '../domain/property_details.dart';
+import 'property_repository.dart';
 import '../../account/data/auth_controller.dart';
 
 final recentHistoryDirectoryProvider = Provider<Future<Directory> Function()>((ref) => getApplicationSupportDirectory);
@@ -21,9 +23,26 @@ final Provider<RecentPropertiesStore> recentPropertiesStoreProvider = Provider((
     });
 });
 
-final FutureProvider<List<PropertySummary>> recentPropertiesProvider = FutureProvider((ref) {
+final FutureProvider<List<PropertySummary>> recentPropertiesProvider = FutureProvider((ref) async {
   ref.watch(_recentPropertiesRevisionProvider);
-  return ref.watch(recentPropertiesStoreProvider).load();
+  ref.watch(propertyDataRevisionProvider);
+  ref.watch(offlineResumeRevisionProvider);
+  final canCheckVisibility = ref.watch(offlineConnectionProvider.select(
+    (connection) => connection != OfflineConnection.unknown,
+  ));
+  final store = ref.watch(recentPropertiesStoreProvider);
+  final repository = canCheckVisibility ? ref.watch(propertyRepositoryProvider) : null;
+  final properties = await store.load();
+  if (repository == null || properties.isEmpty) return properties;
+
+  try {
+    final visible = await repository.publiclyVisibleIds(properties.map((item) => item.id));
+    return properties.where((item) => visible.contains(item.id)).toList(growable: false);
+  } catch (_) {
+    // Retain the device's history when neither the service nor its last
+    // visibility snapshot can answer, including on older servers.
+    return properties;
+  }
 });
 
 class RecentPropertiesStore {
@@ -70,7 +89,7 @@ class RecentPropertiesStore {
       return raw
           .whereType<Map>()
           .map((row) => PropertySummary.fromJson(Map<String, dynamic>.from(row)))
-          .where((item) => item.id > 0)
+          .where((item) => item.id > 0 && item.status == 'published')
           .take(_limit)
           .toList(growable: false);
     } on FormatException {

@@ -113,6 +113,22 @@ class SupportWorkspaceRepository {
     return _task(response.data);
   }
 
+  Future<SupportTaskItem> task(int taskId) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/workspace/tasks/$taskId',
+      options: options,
+    );
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
+    final item = _task(response.data);
+    if (item.id != taskId) throw StateError('Invalid support task response.');
+    return item;
+  }
+
   Future<SupportTaskItem> release(int taskId) =>
       _taskPost('/admin/workspace/tasks/$taskId/release');
 

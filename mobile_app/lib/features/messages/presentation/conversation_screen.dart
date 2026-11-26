@@ -10,7 +10,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/network/api_error_message.dart';
-import '../../../core/theme/app_semantic_colors.dart';
 import '../../../core/theme/messaging_system_navigation.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../broker/data/broker_repository.dart';
@@ -289,7 +288,6 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
 
   Widget _propertyContext(MessageThreadSummary thread) {
     final theme = Theme.of(context);
-    final warning = theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     return ColoredBox(
       color: theme.colorScheme.surface,
       child: Padding(
@@ -304,34 +302,6 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall,
             )),
-            if (thread.isPropertyUnavailable) ...[
-              const SizedBox(width: 8),
-              Tooltip(
-                message: 'الإعلان غير متاح حاليًا. سجل المحادثة محفوظ.',
-                child: Text('غير متاح', style: theme.textTheme.labelSmall?.copyWith(color: warning.warning)),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _propertyAvailabilityBanner() {
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: const Padding(
-        padding: EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            EbrokerIcon(Icons.info_outline),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'هذا الإعلان لم يعد منشوراً. تبقى المحادثة وسجلها متاحين للتنسيق، لكن لا تعتمد على الإعلان كعرض متاح حالياً.',
-              ),
-            ),
           ],
         ),
       ),
@@ -458,12 +428,12 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
                   if (action == 'deal' && deal != null) {
                     context.push('/broker/deals/${deal.id}');
                   } else if (action == 'record-deal' && mayRecordDeal) {
-                    reportBrokerDeal(context, ref, thread.id);
+                    reportBrokerDeal(context, ref, thread.id, propertyId: thread.propertyId);
                   } else if (action == 'block') {
                     _changeBlock();
                   }
                 }, itemBuilder: (_) => [
-                  if (deal != null) PopupMenuItem(value: 'deal', child: Text(deal.canConfirm ? 'تأكيد نتيجة الصفقة' : 'عرض نتيجة الصفقة')),
+                  if (deal != null) PopupMenuItem(value: 'deal', child: Text(deal.resultActionLabel)),
                   if (mayRecordDeal) const PopupMenuItem(value: 'record-deal', child: Text('تسجيل نتيجة الصفقة')),
                   PopupMenuItem(value: 'block', child: Text(thread.blockedByMe ? 'إلغاء الحظر' : 'حظر الحساب')),
                 ]),
@@ -474,8 +444,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
           if (!_loading && thread?.canSend == false) Padding(padding: const EdgeInsets.all(12), child: Text(thread!.blockedByMe
             ? 'هذا الحساب محظور لديك. تبقى المحادثة السابقة محفوظة.' : 'الرسائل الجديدة غير متاحة حاليًا. يبقى تاريخ المحادثة والبلاغ متاحين.')),
           if (_blocking) const LinearProgressIndicator(),
-          if (showPropertyContext) _propertyContext(thread!)
-          else if (!brokerLayout && !_loading && thread?.isPropertyUnavailable == true) _propertyAvailabilityBanner(),
+          if (showPropertyContext && !thread!.isPropertyUnavailable) _propertyContext(thread),
           if (!brokerLayout && !_loading && thread != null) BrokerConversationTools(thread: thread),
           Expanded(
               child: Container(

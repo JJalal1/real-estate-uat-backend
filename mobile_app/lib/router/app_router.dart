@@ -47,6 +47,7 @@ import '../features/reviews/presentation/listing_review_screen.dart';
 import '../features/services/presentation/services_screen.dart';
 import '../features/support/presentation/support_admin_screen.dart';
 import '../features/support/presentation/support_center_screen.dart';
+import '../features/support/presentation/support_tasks_screen.dart';
 import '../features/support/presentation/support_users_screen.dart';
 import '../features/support/presentation/support_work_log_screen.dart';
 import '../features/support/presentation/support_workspace_screen.dart';
@@ -277,6 +278,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const Stage6AuthGate(
           child: SupportWorkspaceScreen(),
         ),
+      ),
+      GoRoute(
+        path: '/support/workspace/tasks/:id',
+        builder: (context, state) {
+          final taskId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          if (taskId <= 0) return const _RouteErrorScreen();
+          return Stage6AuthGate(
+            child: SupportTasksScreen(
+              key: ValueKey(taskId),
+              initialTaskId: taskId,
+              actingAsAgent: true,
+              title: 'طلب الدعم',
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/support/users',

@@ -83,14 +83,16 @@ Future<ProviderContainer> _container(_Wire wire, {_Credentials? credentials}) as
   return container;
 }
 
-Future<ProviderContainer> _open(WidgetTester tester, _Wire wire) async {
+Future<ProviderContainer> _open(WidgetTester tester, _Wire wire,
+    {int? initialTaskId}) async {
   tester.view.physicalSize = const Size(390, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
   final container = await _container(wire);
   await tester.pumpWidget(UncontrolledProviderScope(container: container,
-    child: MaterialApp(theme: AppTheme.light, home: const SupportTasksScreen())));
+    child: MaterialApp(theme: AppTheme.light,
+      home: SupportTasksScreen(initialTaskId: initialTaskId))));
   await tester.pumpAndSettle();
   return container;
 }
@@ -107,6 +109,94 @@ Future<void> _next(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('a focused pending-price task can approve the reported amount immediately',
+      (tester) async {
+    final wire = _Wire((request) async {
+      switch (request.path) {
+        case '/admin/workspace/tasks/10':
+          return {'data': {
+            ..._task(10), 'source_type': 'support_ticket', 'source_id': 20,
+            'status': 'waiting_user', 'is_mine': true,
+          }};
+        case '/admin/support/cases/20':
+          return {'data': {
+            'id': 20,
+            'target_type': 'broker_deal_outcome',
+            'target_id': 30,
+            'status': 'waiting_requester',
+            'reason_code': 'deal_price_confirmation',
+            'requester': {'id': 2, 'name': 'عميل الإعلان'},
+            'target_preview': {
+              'status': 'pending_customer',
+              'transaction_type': 'sale',
+              'listing_price': 24000000,
+              'listing_currency': 'YER',
+              'basis_amount': 21900000,
+              'currency': 'YER',
+            },
+          }};
+        case '/broker/support/tasks/10/resolution':
+          return {};
+        default:
+          throw StateError('Unexpected support request: ${request.path}');
+      }
+    });
+    await _open(tester, wire, initialTaskId: 10);
+
+    expect(wire.requests.first.path, '/admin/workspace/tasks/10');
+    expect(find.text('مراسلة العميل'), findsOneWidget);
+    expect(find.textContaining('٢٤٬٠٠٠٬٠٠٠'), findsOneWidget);
+    expect(find.textContaining('٢١٬٩٠٠٬٠٠٠'), findsOneWidget);
+    await tester.tap(find.text('اعتماد المبلغ'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'تحقق الدعم من المبلغ');
+    await tester.tap(find.text('حفظ القرار'));
+    await tester.pumpAndSettle();
+
+    final resolution = wire.requests.singleWhere(
+      (request) => request.path == '/broker/support/tasks/10/resolution',
+    );
+    expect(resolution.method, 'POST');
+    expect(resolution.data, containsPair('decision', 'approve'));
+  });
+
+  testWidgets('an external closure can message the linked customer without approval',
+      (tester) async {
+    final caseData = {
+      'id': 21, 'target_type': 'property', 'target_id': 30,
+      'status': 'in_progress', 'reason_code': 'external_listing_closure',
+      'requester': {'id': 2, 'name': 'عميل الإعلان'},
+    };
+    final wire = _Wire((request) async {
+      switch (request.path) {
+        case '/admin/workspace/tasks/11':
+          return {'data': {
+            ..._task(11), 'source_type': 'support_ticket', 'source_id': 21,
+            'status': 'in_progress', 'is_mine': true,
+          }};
+        case '/admin/support/cases/21':
+          return {'data': caseData};
+        case '/admin/support/cases/21/reply':
+          return {'data': {...caseData, 'messages': [{
+            'id': 1, 'body': 'يمكنك مراجعة حالة العقار من هذه التذكرة.',
+          }]}};
+        default:
+          throw StateError('Unexpected support request: ${request.path}');
+      }
+    });
+    await _open(tester, wire, initialTaskId: 11);
+
+    expect(find.text('اعتماد المبلغ'), findsNothing);
+    await tester.tap(find.text('مراسلة العميل'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'يمكنك مراجعة حالة العقار من هذه التذكرة.');
+    await tester.tap(find.text('إرسال'));
+    await tester.pumpAndSettle();
+
+    expect(wire.requests.last.path, '/admin/support/cases/21/reply');
+    expect(find.text('يمكنك مراجعة حالة العقار من هذه التذكرة.'), findsOneWidget);
+  });
+
   test('task repository sends page and filters and reads the server page boundary', () async {
     final wire = _Wire((r) async => _page(2, [_task(40), _task(41)], last: 3, total: 81));
     final container = await _container(wire);

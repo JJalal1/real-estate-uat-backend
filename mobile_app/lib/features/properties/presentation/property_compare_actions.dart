@@ -15,6 +15,11 @@ class PropertyCompareSelection extends StateNotifier<Set<int>> {
     state = Set.unmodifiable(next);
     return true;
   }
+  void removeAll(Iterable<int> ids) {
+    final next = state.difference(ids.toSet());
+    if (next.length != state.length) state = Set.unmodifiable(next);
+  }
+
   void clear() => state = const {};
 }
 

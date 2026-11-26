@@ -17,6 +17,7 @@ class UserNotificationService
         ?string $entityType = null,
         ?int $entityId = null,
         array $data = [],
+        bool $deliverPush = true,
     ): ?UserNotification {
         if (in_array($type, UserNotification::RETIRED_VIEWING_TYPES, true) || $entityType === 'viewing_booking') return null;
         $category = $this->preferenceCategory($type);
@@ -37,7 +38,7 @@ class UserNotificationService
             'created_at' => now(),
         ]);
 
-        if ($canPush && config('push.enabled',false)) {
+        if ($deliverPush && $canPush && config('push.enabled',false)) {
             $feature = $type === 'message_received' ? 'push_messages' : 'push_other';
             $queues = app(BackgroundQueue::class);
             if ($queues->enabled($feature)) {

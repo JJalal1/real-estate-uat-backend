@@ -108,7 +108,7 @@ class MessagingController extends Controller
     public function startForProperty(Request $request, Property $property): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        abort_unless($property->isPubliclyAvailable(),404);
+        abort_unless($property->isPubliclyVisible(),404);
         if((int)$property->user_id===(int)$user->id) throw ValidationException::withMessages(['property_id'=>['You cannot start a conversation with yourself.']]);
         $owner=User::query()->findOrFail((int)$property->user_id);
         abort_unless($owner->isActive(),409,'The advertiser is unavailable.');
@@ -118,7 +118,7 @@ class MessagingController extends Controller
             $this->advisoryLock('message-thread:'.$key);
             app(\App\Services\UserMessagingBlockService::class)->assertCanSend($user->id,$owner->id);
             $current=Property::query()->lockForUpdate()->findOrFail($property->id);
-            abort_unless($current->isPubliclyAvailable() && (int)$current->user_id === (int)$owner->id,409,'العقار لم يعد متاحًا للتواصل الجديد.');
+            abort_unless($current->isPubliclyVisible() && (int)$current->user_id === (int)$owner->id,409,'لا يمكن بدء محادثة جديدة لهذا الإعلان.');
             $thread=MessageThread::query()->firstOrCreate(['conversation_key'=>$key],[
                 'property_id'=>$property->id,'started_by_user_id'=>$user->id,'last_message_at'=>now(),
             ]);
@@ -272,7 +272,7 @@ class MessagingController extends Controller
         /** @var User $user */ $user=$request->user();
         $this->participant($thread,$user);
         $property=Property::query()->withoutGlobalScopes()->findOrFail((int)$thread->property_id);
-        abort_unless($property->isPubliclyAvailable(),409,'لا يمكن بدء اتصال جديد لأن الإعلان لم يعد منشوراً.');
+        abort_unless($property->isPubliclyVisible(),409,'لا يمكن بدء اتصال جديد لهذا الإعلان.');
         abort_if((int)$property->user_id===(int)$user->id,403,'المعلن لا يستخدم هذا الإجراء للاتصال بنفسه.');
 
         $advertiser=User::query()->findOrFail((int)$property->user_id);

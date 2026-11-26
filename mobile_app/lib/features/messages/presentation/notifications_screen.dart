@@ -537,11 +537,16 @@ class _NotificationCard extends StatelessWidget {
     const radius = BorderRadius.all(Radius.circular(12));
     final largeText = MediaQuery.textScalerOf(context).scale(12) > 18;
     final isDuplicateRejection = item.type == 'listing_duplicate_rejected';
+    final isAvailabilityReminder = item.type == 'broker_availability_due';
+    final title = isAvailabilityReminder ? 'حدّث إعلاناتك' : item.title;
+    final body = isAvailabilityReminder
+        ? 'حان موعد تحديث إعلاناتك. افتح التحديثات من لوحة الدلال.'
+        : item.body;
     final time = item.createdAt == null ? null : Text(_relativeTime(item.createdAt!),
         style: theme.textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant));
     return Semantics(
       button: true,
-      label: unread ? 'غير مقروء: ${item.title}' : 'مقروء: ${item.title}',
+      label: unread ? 'غير مقروء: $title' : 'مقروء: $title',
       child: Material(
         color: unread ? unreadFill : scheme.surface,
         borderRadius: radius,
@@ -565,11 +570,11 @@ class _NotificationCard extends StatelessWidget {
                       decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
                     const SizedBox(width: 5),
                   ],
-                  Flexible(child: Text(item.title, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700))),
+                  Flexible(child: Text(title, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700))),
                 ]),
-                if (item.body != null && item.body!.isNotEmpty) ...[
+                if (body != null && body.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(item.body!, maxLines: isDuplicateRejection ? null : 2,
+                  Text(body, maxLines: isDuplicateRejection ? null : 2,
                     overflow: isDuplicateRejection ? null : TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                 ],

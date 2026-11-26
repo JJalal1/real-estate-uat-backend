@@ -14,6 +14,8 @@ import '../../community/data/community_repository.dart';
 import '../../financial/presentation/receivable_payment_screen.dart';
 import '../../financial/data/financial_repository.dart';
 import '../../messages/domain/message_models.dart';
+import '../../properties/data/property_repository.dart';
+import '../../properties/domain/property_details.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
 import 'broker_workspaces.dart';
@@ -21,38 +23,154 @@ import 'customer_followup_sheet.dart';
 
 String brokerMoney(dynamic amount, String currency) => '${brokerNumber(amount).toStringAsFixed(2)} ${currency == 'YER' ? 'ر.ي' : currency}';
 
-Future<void> reportBrokerDeal(BuildContext context, WidgetRef ref, int threadId, {bool openResult = true}) async {
+Future<bool> reportBrokerDeal(
+  BuildContext context,
+  WidgetRef ref,
+  int threadId, {
+  int? propertyId,
+  bool openResult = true,
+}) async {
   final scope = ref.read(accountRequestScopeProvider);
-  String raw = '';
-  final form = GlobalKey<FormState>();
-  final amount = await showActorDialog<double>(context: context, ref: ref, builder: (dialogContext) => AlertDialog(
-    title: const Text('تسجيل نتيجة الصفقة'),
-    content: SingleChildScrollView(child: Form(key: form, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('سجّل البيع أو التأجير الذي تم مع هذا العميل خارج التطبيق. سيُغلق الإعلان ويُطلب من العميل تأكيد النتيجة.'),
-      const SizedBox(height: 12),
-      TextFormField(onChanged: (value) => raw = value, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        validator: (value) => value?.trim().isNotEmpty == true && (_brokerAmount(value!) == null || _brokerAmount(value)! <= 0) ? 'أدخل مبلغًا صحيحًا أكبر من صفر.' : null,
-        decoration: const InputDecoration(labelText: 'المبلغ الفعلي', helperText: 'للإيجار: الإيجار الشهري. اتركه فارغًا لاستخدام مبلغ الإعلان.')),
-    ]))),
-    actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
-      AppButton(label: 'إرسال للتأكيد', onPressed: () {
-        if (form.currentState?.validate() != true) return;
-        Navigator.pop(dialogContext, raw.trim().isEmpty ? -1.0 : _brokerAmount(raw));
-      })],
-  ));
-  if (amount == null || !context.mounted || !scope.isCurrent) return;
+  final repository = ref.read(propertyRepositoryProvider);
+  final amount = await showActorDialog<_DealAmount>(
+    context: context,
+    ref: ref,
+    builder: (_) => _BrokerDealAmountDialog(
+      loadProperty: propertyId == null ? null : () => repository.details(propertyId),
+    ),
+  );
+  if (amount == null || !context.mounted || !scope.isCurrent) return false;
   try {
-    final deal = await _reportWithSaiConsent(context, ref, scope, threadId, amount < 0 ? null : amount);
-    if (deal == null || !context.mounted || !scope.isCurrent) return;
+    final deal = await _reportWithSaiConsent(context, ref, scope, threadId, amount.manual);
+    if (deal == null || !context.mounted || !scope.isCurrent) return false;
     refreshBrokerData(ref);
     if (openResult) {
       await context.push('/broker/deals/${deal.id}');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أُرسلت نتيجة الصفقة للعميل للتأكيد.')));
+      final message = deal.status == 'pending_customer'
+          ? 'أُرسل مبلغ الصفقة للعميل للتأكيد.'
+          : 'تم تسجيل الصفقة.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }
+    return true;
   } catch (error) {
-    if (context.mounted && scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    if (context.mounted && scope.isCurrent) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    }
+    return false;
   }
+}
+
+enum _DealPriceChoice { advertised, manual }
+
+class _DealAmount {
+  const _DealAmount([this.manual]);
+  final double? manual;
+}
+
+class _BrokerDealAmountDialog extends StatefulWidget {
+  const _BrokerDealAmountDialog({required this.loadProperty});
+  final Future<PropertyDetails> Function()? loadProperty;
+
+  @override
+  State<_BrokerDealAmountDialog> createState() => _BrokerDealAmountDialogState();
+}
+
+class _BrokerDealAmountDialogState extends State<_BrokerDealAmountDialog> {
+  _DealPriceChoice? _choice;
+  Future<PropertyDetails>? _property;
+  String _raw = '';
+
+  void _choose(_DealPriceChoice? choice) => setState(() {
+    _choice = choice;
+    if (choice == _DealPriceChoice.manual) _property ??= widget.loadProperty?.call();
+  });
+
+  double? _advertisedPrice(PropertyDetails? property) {
+    if (property == null) return null;
+    final monthlyRent = property.monthlyRent;
+    return property.purpose == 'rent' && monthlyRent != null && monthlyRent > 0
+        ? monthlyRent
+        : property.editablePrice;
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<PropertyDetails>(
+    future: _property,
+    builder: (context, snapshot) {
+      final enteringAmount = _choice == _DealPriceChoice.manual;
+      final property = snapshot.data;
+      final advertised = _advertisedPrice(property);
+      final amount = _brokerAmount(_raw);
+      final amountValid = amount != null &&
+          amount > 0 && amount <= 9999999999999 && (amount * 100).round() > 0;
+      final requiresConfirmation = enteringAmount && amountValid && advertised != null &&
+          (amount * 100).round() < (advertised * 100).round();
+      final canSubmit = _choice == _DealPriceChoice.advertised ||
+          (enteringAmount && advertised != null && advertised > 0 && amountValid);
+      final priceLabel = property?.purpose == 'sale' && property?.editablePrice != property?.price
+          ? 'سعر الإعلان دون السعي'
+          : 'السعر المعروض';
+
+      return AlertDialog(
+        title: const Text('مبلغ الصفقة'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<_DealPriceChoice>(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('بنفس السعر المعروض'),
+                value: _DealPriceChoice.advertised,
+                groupValue: _choice,
+                onChanged: _choose,
+              ),
+              RadioListTile<_DealPriceChoice>(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('إدخال المبلغ'),
+                value: _DealPriceChoice.manual,
+                groupValue: _choice,
+                onChanged: widget.loadProperty == null ? null : _choose,
+              ),
+              if (enteringAmount) ...[
+                if (snapshot.hasError)
+                  TextButton(
+                    onPressed: () => setState(() => _property = widget.loadProperty?.call()),
+                    child: const Text('إعادة محاولة تحميل السعر المعروض'),
+                  )
+                else if (advertised == null)
+                  const LinearProgressIndicator()
+                else if (advertised <= 0)
+                  const Text('أضف سعر الإعلان قبل تسجيل الصفقة.')
+                else
+                  TextFormField(
+                    initialValue: _raw,
+                    onChanged: (value) => setState(() => _raw = value),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: property?.purpose == 'rent' ? 'الإيجار الشهري' : 'المبلغ',
+                      helperText: '$priceLabel: ${brokerMoney(advertised, property!.currency)}',
+                      errorText: _raw.trim().isNotEmpty && !amountValid
+                          ? 'أدخل مبلغًا صحيحًا.'
+                          : null,
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+          AppButton(
+            label: requiresConfirmation ? 'طلب تأكيد المبلغ' : 'تسجيل الصفقة',
+            onPressed: canSubmit
+                ? () => Navigator.pop(context, _DealAmount(enteringAmount ? amount : null))
+                : null,
+          ),
+        ],
+      );
+    },
+  );
 }
 
 Future<BrokerDeal?> _reportWithSaiConsent(BuildContext context, WidgetRef ref, AccountRequestScope scope, int threadId, double? amount) async {
@@ -213,12 +331,33 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
     }
   }
 
-  Future<void> _decide(bool yes) async {
+  Future<void> _decide(BrokerDeal deal, bool yes) async {
     final scope = ref.read(accountRequestScopeProvider);
-    final ok = await showActorDialog<bool>(context: context, ref: ref, builder: (c) => AlertDialog(title: Text(yes ? 'هل تمت الصفقة؟' : 'لم تتم الصفقة؟'),
-      content: Text(yes ? 'أكد فقط إن تم البيع أو التأجير بالفعل. سيُحسب الإنجاز ويُفتح التقييم وفق شروط السعي المحفوظة.' : 'سيسجل رفضك ويحيل النتيجة للدعم للمراجعة، دون احتساب صفقة أو مستحق جديد.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('رجوع')),
-        AppButton(label: yes ? 'نعم، تمت' : 'لم تتم', onPressed: () => Navigator.pop(c, true))]));
+    final amount = brokerMoney(deal.amount, deal.currency);
+    final confirmingAmount = deal.priceConfirmationRequired;
+    final ok = await showActorDialog<bool>(
+      context: context,
+      ref: ref,
+      builder: (dialog) => AlertDialog(
+        title: Text(confirmingAmount
+            ? (yes ? 'تأكيد المبلغ' : 'رفض المبلغ')
+            : (yes ? 'هل تمت الصفقة؟' : 'لم تتم الصفقة؟')),
+        content: Text(confirmingAmount
+            ? (yes ? 'هل تؤكد المبلغ $amount؟' : 'سيُحال اختلاف المبلغ إلى الدعم للمراجعة.')
+            : (yes
+                ? 'أكد فقط إن تم البيع أو التأجير بالفعل. سيُحسب الإنجاز ويُفتح التقييم وفق شروط السعي المحفوظة.'
+                : 'سيسجل رفضك ويحيل النتيجة للدعم للمراجعة، دون احتساب صفقة أو مستحق جديد.')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('رجوع')),
+          AppButton(
+            label: confirmingAmount
+                ? (yes ? 'أؤكد المبلغ' : 'أرفض المبلغ')
+                : (yes ? 'نعم، تمت' : 'لم تتم'),
+            onPressed: () => Navigator.pop(dialog, true),
+          ),
+        ],
+      ),
+    );
     if (ok != true || !mounted || !scope.isCurrent) return;
     setState(() => _busy = true);
     try {
@@ -264,15 +403,29 @@ class _BrokerDealScreenState extends ConsumerState<BrokerDealScreen> {
 
   List<Widget> _actions(BrokerDeal deal) => [
     if (deal.canConfirm) ...[
-      const Text('هل تم البيع أو التأجير فعلًا مع هذا المعلن؟'),
+      Text(deal.priceConfirmationRequired
+          ? 'هل توافق على ${deal.transactionType == 'rent' ? 'الإيجار الشهري' : 'مبلغ البيع'} ${brokerMoney(deal.amount, deal.currency)}؟'
+          : 'هل تم البيع أو التأجير فعلًا مع هذا المعلن؟'),
       const SizedBox(height: 12),
-      AppButton(label: 'نعم، تمت الصفقة', loading: _busy, expand: true, onPressed: _busy ? null : () => _decide(true)),
+      AppButton(
+        label: deal.priceConfirmationRequired ? 'أوافق على المبلغ' : 'نعم، تمت الصفقة',
+        loading: _busy,
+        expand: true,
+        onPressed: _busy ? null : () => _decide(deal, true),
+      ),
       const SizedBox(height: 10),
-      AppButton(label: 'لم تتم الصفقة', expand: true, onPressed: _busy ? null : () => _decide(false)),
+      AppButton(
+        label: deal.priceConfirmationRequired ? 'لا أوافق على المبلغ' : 'لم تتم الصفقة',
+        expand: true,
+        style: deal.priceConfirmationRequired ? AppButtonStyle.outlined : AppButtonStyle.filled,
+        onPressed: _busy ? null : () => _decide(deal, false),
+      ),
     ],
     if (deal.canRate) AppButton(label: 'تقييم المعلن', icon: Icons.star_outline, expand: true, onPressed: _busy ? null : () => _rate(deal)),
     if (!widget._inDialog && deal.status == 'pending_customer' && !deal.canConfirm)
-      const Text('تم إرسال طلب تأكيد النتيجة للعميل. لن تُحتسب حتى يؤكدها.'),
+      Text(deal.priceConfirmationRequired
+          ? 'أُرسل مبلغ الصفقة للعميل للتأكيد.'
+          : 'تم إرسال طلب تأكيد النتيجة للعميل. لن تُحتسب حتى يؤكدها.'),
     if (deal.supportCaseId != null)
       AppButton(label: 'متابعة مراجعة الدعم', onPressed: () => _openSupport(deal)),
   ];
@@ -458,9 +611,11 @@ class BrokerConversationTools extends ConsumerWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(children: [
-          action('هذا الإعلان', 'conversation-property',
-              () => context.push('/properties/${thread.propertyId}')),
-          const SizedBox(width: 6),
+          if (!thread.isPropertyUnavailable) ...[
+            action('هذا الإعلان', 'conversation-property',
+                () => context.push('/properties/${thread.propertyId}')),
+            const SizedBox(width: 6),
+          ],
           action('تصنيف العميل', 'conversation-classification',
               thread.canManageCustomer && stage != 'completed'
                   ? () => _openClassification(context, ref, stage) : null,
@@ -498,7 +653,7 @@ class BrokerConversationTools extends ConsumerWidget {
             if (deal != null) ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.handshake_outlined),
-              title: Text(deal.canConfirm ? 'تأكيد نتيجة الصفقة' : 'عرض نتيجة الصفقة'),
+              title: Text(deal.resultActionLabel),
               subtitle: Text(deal.statusLabel),
               onTap: () {
                 Navigator.pop(sheet);
@@ -512,7 +667,9 @@ class BrokerConversationTools extends ConsumerWidget {
                 title: const Text('تسجيل نتيجة الصفقة'),
                 onTap: () {
                   Navigator.pop(sheet);
-                  if (context.mounted && scope.isCurrent) reportBrokerDeal(context, ref, thread.id);
+                  if (context.mounted && scope.isCurrent) {
+                    reportBrokerDeal(context, ref, thread.id, propertyId: thread.propertyId);
+                  }
                 },
               ),
               ListTile(

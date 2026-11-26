@@ -1,6 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/network/api_error_message.dart';
+import '../../../core/offline/offline_connection.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/property_type_icon.dart';
@@ -19,6 +22,7 @@ class PropertyCompareScreen extends ConsumerStatefulWidget {
 class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
   late List<int> _ids;
   late Future<List<_CompareItem>> _future;
+  int _loadRevision = 0;
   bool _differences=false,_syncing=false;
   final _scrolls=<String,ScrollController>{};
   @override
@@ -34,13 +38,40 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
     _syncing=false;
   });return c;});
   void _reload()=>setState(()=>_future=_load());
-  Future<List<_CompareItem>> _load() async{
-    final repo=ref.read(propertyRepositoryProvider);
-    return Future.wait(_ids.map((id)async{try{
-      final p=await repo.details(id);if(p.status!='published' || p.availabilityStatus!='available' || p.financialHold)return _CompareItem(id);
-      PropertySaiEnvelope? sai;try{sai=await repo.sai(id);}catch(_){}
-      return _CompareItem(id,property:p,sai:sai);
-    }catch(_){return _CompareItem(id);}}));
+  Future<List<_CompareItem>> _load() async {
+    final revision = ++_loadRevision;
+    final ids = List<int>.of(_ids);
+    final repository = ref.read(propertyRepositoryProvider);
+    final items = (await Future.wait(ids.map((id) async {
+      final PropertyDetails property;
+      try {
+        property = await repository.details(id);
+      } on DioException catch (error) {
+        if (const [404, 410].contains(error.response?.statusCode)) return null;
+        rethrow;
+      }
+      if (property.status != 'published' ||
+          property.availabilityStatus != 'available' ||
+          property.financialHold) {
+        return null;
+      }
+
+      PropertySaiEnvelope? sai;
+      try {
+        sai = await repository.sai(id);
+      } catch (_) {
+        // Missing SAI data does not prevent comparison of the other facts.
+      }
+      return _CompareItem(id, property: property, sai: sai);
+    }))).whereType<_CompareItem>().toList(growable: false);
+
+    if (mounted && revision == _loadRevision && items.length != ids.length) {
+      final visible = items.map((item) => item.id).toSet();
+      final removed = ids.where((id) => !visible.contains(id)).toSet();
+      _ids.removeWhere(removed.contains);
+      ref.read(propertyCompareSelectionProvider.notifier).removeAll(removed);
+    }
+    return items;
   }
   void _remove(int id){if(ref.read(propertyCompareSelectionProvider).contains(id))ref.read(propertyCompareSelectionProvider.notifier).toggle(id);
     setState((){_ids.remove(id);_future=_future.then((rows)=>rows.where((r)=>r.id!=id).toList());});}
@@ -48,18 +79,32 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
     if(oldId==null && _ids.length>=2)return;
     final id=await showModalBottomSheet<int>(context:context,isScrollControlled:true,useSafeArea:true,
       builder:(_)=>_ComparePicker(excluded:_ids.toSet()));
-    if(id==null || !mounted)return;
-    final selected=ref.read(propertyCompareSelectionProvider),selection=ref.read(propertyCompareSelectionProvider.notifier);
-    if(oldId!=null && selected.contains(oldId))selection.toggle(oldId);
-    if(!ref.read(propertyCompareSelectionProvider).contains(id))selection.toggle(id);
-    setState((){if(oldId==null){_ids.add(id);}else{_ids[_ids.indexOf(oldId)]=id;}_future=_load();});
+    if (id == null || !mounted || _ids.contains(id)) return;
+    final index = oldId == null ? -1 : _ids.indexOf(oldId);
+    if (index < 0 && _ids.length >= 2) return;
+
+    final selection = ref.read(propertyCompareSelectionProvider.notifier);
+    if (oldId != null) selection.removeAll([oldId]);
+    if (!ref.read(propertyCompareSelectionProvider).contains(id)) selection.toggle(id);
+    setState(() {
+      if (index < 0) {
+        _ids.add(id);
+      } else {
+        _ids[index] = id;
+      }
+      _future = _load();
+    });
   }
   @override
   Widget build(BuildContext context){
     ref.listen<int>(propertyDataRevisionProvider,(_,__)=>_reload());
+    ref.listen<int>(offlineResumeRevisionProvider,(_,__)=>_reload());
     return Directionality(textDirection:TextDirection.rtl,child:Scaffold(appBar:AppAppBar(title:'مقارنة العقارات',actions:[IconButton(onPressed:_reload,tooltip:'تحديث المقارنة',icon:const Icon(Icons.refresh))]),
       body:FutureBuilder<List<_CompareItem>>(future:_future,builder:(context,snapshot){
         if(snapshot.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator());
+        if (snapshot.hasError) {
+          return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _reload);
+        }
         final items=snapshot.data??const <_CompareItem>[];
         if(items.isEmpty)return AppEmptyState(title:'اختر عقارين للمقارنة',message:'المقارنة بين عقارين فقط.',actionLabel:'اختيار العقار الأول',onAction:_replace);
         return LayoutBuilder(builder:(context,constraints){
@@ -72,12 +117,15 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
           final highlights=propertyComparisonHighlights(items.map((i)=>i.property).toList());
           return ListView(padding:const EdgeInsets.fromLTRB(16,16,16,40),children:[
             columns('cards',[for(final item in items)AppSurface(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-              Row(children:[PropertyTypeIcon(type:item.property?.type),const SizedBox(width:4),Expanded(child:Text(item.property==null?'غير متاح':ebrokerPropertyTypeLabel(item.property!.type),style:Theme.of(context).textTheme.bodySmall)),
+              Row(children:[PropertyTypeIcon(type:item.property.type),const SizedBox(width:4),Expanded(child:Text(ebrokerPropertyTypeLabel(item.property.type),style:Theme.of(context).textTheme.bodySmall)),
                 IconButton(key:ValueKey('remove-compare-${item.id}'),tooltip:'إزالة من المقارنة',onPressed:()=>_remove(item.id),icon:const Icon(Icons.close_rounded,size:19))]),
-              ClipRRect(borderRadius:BorderRadius.circular(16),child:AppPropertyMedia(imageUrl:item.property?.mainImage,propertyType:item.property?.type,height:110)),const SizedBox(height:10),
-              Text(item.property?.title??'العقار غير متاح حاليًا',maxLines:2,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.titleSmall),
-              if(item.property!=null)...[const SizedBox(height:6),Text(item.property!.address??'الموقع غير مذكور',maxLines:2,overflow:TextOverflow.ellipsis),const SizedBox(height:6),Text(comparisonMoney(item.property!),style:Theme.of(context).textTheme.titleSmall)],
-              TextButton.icon(onPressed:item.property==null?null:()=>context.push('/properties/${item.id}'),icon:const Icon(Icons.open_in_new,size:16),label:const Text('عرض العقار')),
+              ClipRRect(borderRadius:BorderRadius.circular(16),child:AppPropertyMedia(imageUrl:item.property.mainImage,propertyType:item.property.type,height:110)),const SizedBox(height:10),
+              Text(item.property.title,maxLines:2,overflow:TextOverflow.ellipsis,style:Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height:6),
+              Text(item.property.address??'الموقع غير مذكور',maxLines:2,overflow:TextOverflow.ellipsis),
+              const SizedBox(height:6),
+              Text(comparisonMoney(item.property),style:Theme.of(context).textTheme.titleSmall),
+              TextButton.icon(onPressed:()=>context.push('/properties/${item.id}'),icon:const Icon(Icons.open_in_new,size:16),label:const Text('عرض العقار')),
               TextButton.icon(onPressed:()=>_replace(oldId:item.id),icon:const Icon(Icons.swap_horiz,size:16),label:const Text('استبدال')),
             ]))]),
             if(_ids.length<2)Align(alignment:AlignmentDirectional.centerStart,child:TextButton.icon(onPressed:_replace,icon:const Icon(Icons.add),label:const Text('اختر العقار الثاني'))),
@@ -94,7 +142,7 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
                 Text(group,style:Theme.of(context).textTheme.titleMedium),const SizedBox(height:10),
                 for(final fact in filtered.where((f)=>f.group==group))...[
                   const Divider(height:20),Text(fact.label,style:Theme.of(context).textTheme.labelLarge),const SizedBox(height:8),
-                  columns(fact.label,[for(var i=0;i<items.length;i++)Padding(padding:const EdgeInsetsDirectional.only(end:12),child:Text(items[i].property==null?'غير متاح':fact.values[i]??'غير مذكور'))]),
+                  columns(fact.label,[for(var i=0;i<items.length;i++)Padding(padding:const EdgeInsetsDirectional.only(end:12),child:Text(fact.values[i]??'غير مذكور'))]),
                 ],
               ]))),
           ]);
@@ -103,8 +151,10 @@ class _PropertyCompareState extends ConsumerState<PropertyCompareScreen>{
   }
 }
 class _CompareItem{
-  const _CompareItem(this.id,{this.property,this.sai});
-  final int id;final PropertyDetails? property;final PropertySaiEnvelope? sai;
+  const _CompareItem(this.id, {required this.property, this.sai});
+  final int id;
+  final PropertyDetails property;
+  final PropertySaiEnvelope? sai;
 }
 class _ComparePicker extends ConsumerStatefulWidget{
   const _ComparePicker({required this.excluded});final Set<int> excluded;

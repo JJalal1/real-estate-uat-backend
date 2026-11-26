@@ -27,8 +27,9 @@ class SupportCaseService
         ?string $reasonCode,
         string $priority,
         Request $request,
+        ?User $initiator = null,
     ): SupportCase {
-        return DB::transaction(function () use ($requester,$kind,$subject,$description,$targetType,$targetId,$reasonCode,$priority,$request): SupportCase {
+        return DB::transaction(function () use ($requester,$kind,$subject,$description,$targetType,$targetId,$reasonCode,$priority,$request,$initiator): SupportCase {
             $case=SupportCase::query()->create([
                 'reference'=>$this->reference(),
                 'kind'=>$kind,
@@ -45,11 +46,12 @@ class SupportCaseService
                 'sla_due_at'=>now()->addHours((int)$this->settings->get('support.sla_hours',48)),
                 'last_activity_at'=>now(),
             ]);
-            $this->message($case,$requester,'requester',false,$description);
-            $this->event($case,$requester,'created',null,'open',[
+            $actor = $initiator ?? $requester;
+            $this->message($case,$initiator ? null : $requester,$initiator ? 'system' : 'requester',false,$description);
+            $this->event($case,$actor,'created',null,'open',[
                 'kind'=>$kind,'target_type'=>$targetType,'target_id'=>$targetId,'reason_code'=>$reasonCode,
             ]);
-            $this->audit->record($requester,'support.case_created',$case,[
+            $this->audit->record($actor,'support.case_created',$case,[
                 'reference'=>$case->reference,'kind'=>$kind,'target_type'=>$targetType,'target_id'=>$targetId,
             ],$request,$requester->id);
             return $this->projected($case->fresh());

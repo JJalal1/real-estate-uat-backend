@@ -498,7 +498,7 @@ class _ConversationCard extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (item.propertyTitle != null) ...[
+                    if (item.propertyTitle != null && !item.isPropertyUnavailable) ...[
                       if (!compact) const SizedBox(height: AppSpacing.s4),
                       Row(
                         children: [
@@ -536,14 +536,6 @@ class _ConversationCard extends StatelessWidget {
                                 unread ? FontWeight.w600 : FontWeight.normal,
                           ),
                     ),
-                    if (!compact && item.isPropertyUnavailable) ...[
-                      const SizedBox(height: AppSpacing.s8),
-                      const AppStatusBadge(
-                        label: 'الإعلان غير متاح حاليًا • المحادثة محفوظة',
-                        tone: AppStatusTone.warning,
-                        icon: Icons.info_outline,
-                      ),
-                    ],
                   ],
                 ),
               ),

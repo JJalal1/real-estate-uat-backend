@@ -18,7 +18,7 @@ class PropertyMarketContextService
         }
 
         $query = Property::query()
-            ->where('status', 'published')
+            ->publiclyVisible()
             ->where('id', '<>', $property->id)
             ->where('purpose', $property->purpose)
             ->where('type', $property->type)

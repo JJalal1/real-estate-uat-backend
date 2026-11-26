@@ -12,7 +12,6 @@ import '../../../core/widgets/property_card_gallery.dart';
 import '../../../core/widgets/property_type_icon.dart';
 import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
-import '../../broker/data/broker_repository.dart';
 import '../../broker/presentation/broker_workspaces.dart';
 import '../../financial/data/financial_repository.dart';
 import '../data/my_listings_pages.dart';
@@ -49,20 +48,16 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
   late bool _onlyCorrections = widget.initiallyShowCorrections;
   final Set<int> _updating = {};
 
-  Future<void> _availability(PropertyDetails item, String state) async {
+  Future<void> _updateListing(PropertyDetails item) async {
     if (_updating.contains(item.id)) return;
     setState(() => _updating.add(item.id));
-    try { await ref.read(brokerRepositoryProvider).updateAvailability([item.id], state); refreshBrokerData(ref); }
-    catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e)))); }
-    finally { if (mounted) setState(() => _updating.remove(item.id)); }
+    try {
+      await showBrokerListingUpdate(context, ref, item);
+    } finally {
+      if (mounted) setState(() => _updating.remove(item.id));
+    }
   }
-  Future<void> _closeListing(PropertyDetails item) => closeBrokerListing(
-        context,
-        ref,
-        propertyId: item.id,
-        purpose: item.purpose,
-        onExternal: (state) => _availability(item, state),
-      );
+
   Future<void> _share(PropertyDetails item) async {
     await Clipboard.setData(ClipboardData(text: '${item.title}\n${propertyAppDeepLink(item.id)}'));
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ رابط العقار للمشاركة.')));
@@ -174,8 +169,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
                     onAttest: item.saiAttestationRequired
                         ? () => _attestSai(context, ref, item)
                         : null,
-                    onAvailability: _updating.contains(item.id) ? null : (state) => _availability(item, state),
-                    onClose: _updating.contains(item.id) ? null : () => _closeListing(item),
+                    onUpdate: _updating.contains(item.id) ? null : () => _updateListing(item),
                     onShare: () => _share(item),
                   );
                 },
@@ -530,8 +524,7 @@ class _ListingCard extends StatelessWidget {
     required this.onSubmit,
     required this.onDelete,
     required this.onAttest,
-    this.onAvailability,
-    this.onClose,
+    this.onUpdate,
     this.onShare,
     super.key,
   });
@@ -540,17 +533,11 @@ class _ListingCard extends StatelessWidget {
   final bool showStatus;
   final VoidCallback onOpen;
   final VoidCallback? onEdit, onSubmit, onDelete, onAttest;
-  final ValueChanged<String>? onAvailability;
-  final VoidCallback? onClose, onShare;
+  final VoidCallback? onUpdate, onShare;
 
   List<EbrokerCardAction> _actions({required bool inlineEdit}) {
     final published = property.status == 'published';
     final availability = property.availabilityStatus;
-    final canUpdate = published &&
-        property.reviewStatus == 'approved' &&
-        availability != 'sold' &&
-        availability != 'rented';
-    final changeAvailability = onAvailability;
     return [
       if (onSubmit != null)
         EbrokerCardAction(
@@ -561,27 +548,8 @@ class _ListingCard extends StatelessWidget {
       if (onAttest != null)
         EbrokerCardAction('إقرار السعي', onAttest,
             icon: Icons.verified_user_outlined),
-      if (canUpdate) ...[
-        EbrokerCardAction(
-          availability == 'confirmation_paused'
-              ? 'أكد التوفر لإعادة إظهاره'
-              : 'ما زال متوفرًا',
-          changeAvailability == null
-              ? null
-              : () => changeAvailability('available'),
-          icon: Icons.check_circle_outline,
-        ),
-        if (availability == 'available')
-          EbrokerCardAction(
-              'إيقاف مؤقت',
-              changeAvailability == null
-                  ? null
-                  : () => changeAvailability('paused'),
-              icon: Icons.pause_circle_outline),
-        EbrokerCardAction(
-            property.purpose == 'rent' ? 'تم التأجير' : 'تم البيع', onClose,
-            icon: Icons.task_alt),
-      ],
+      if (canUpdateBrokerListing(property))
+        EbrokerCardAction('تحديث حالة الإعلان', onUpdate, icon: Icons.update_rounded),
       if (published && availability == 'available')
         EbrokerCardAction('مشاركة', onShare, icon: Icons.share_outlined),
       if (onEdit != null && !inlineEdit)

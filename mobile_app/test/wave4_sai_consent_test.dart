@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_activity.dart';
 import 'package:real_estate_mobile/features/financial/data/financial_repository.dart';
-import 'broker_experience_ui_test.dart' show BrokerTestRepository;
+import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
+import 'broker_experience_ui_test.dart' show BrokerTestAuth, BrokerTestProperties, BrokerTestRepository;
 
 class _Broker extends BrokerTestRepository {
   int attempts = 0;
@@ -39,16 +41,29 @@ void main() {
     testWidgets('completion asks for its exact frozen Sai terms; explicit acceptance=$accepts', (tester) async {
       final broker = _Broker(), finance = _Finance();
       final router = GoRouter(routes: [
-        GoRoute(path: '/', builder: (_, __) => Scaffold(body: Consumer(builder: (context, ref, _) =>
-          TextButton(onPressed: () => reportBrokerDeal(context, ref, 19), child: const Text('تسجيل النتيجة'))))),
+        GoRoute(path: '/', builder: (_, __) => Scaffold(body: Consumer(builder: (context, ref, _) {
+          final user = ref.watch(authControllerProvider).asData?.value;
+          return TextButton(
+            onPressed: user == null ? null : () => reportBrokerDeal(context, ref, 19, propertyId: 11),
+            child: const Text('تسجيل النتيجة'),
+          );
+        }))),
         GoRoute(path: '/broker/deals/:id', builder: (_, state) => Scaffold(body: Text('النتيجة ${state.pathParameters['id']}'))),
       ]);
       addTearDown(router.dispose);
-      await tester.pumpWidget(ProviderScope(overrides: [brokerRepositoryProvider.overrideWithValue(broker),
-        financialRepositoryProvider.overrideWithValue(finance)], child: MaterialApp.router(routerConfig: router)));
+      await tester.pumpWidget(ProviderScope(overrides: [
+        authControllerProvider.overrideWith(BrokerTestAuth.new),
+        brokerRepositoryProvider.overrideWithValue(broker),
+        financialRepositoryProvider.overrideWithValue(finance),
+        propertyRepositoryProvider.overrideWithValue(BrokerTestProperties()),
+      ], child: MaterialApp.router(routerConfig: router)));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('تسجيل النتيجة')); await tester.pumpAndSettle();
+      await tester.tap(find.text('إدخال المبلغ'));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), '110000');
-      await tester.tap(find.text('إرسال للتأكيد')); await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('طلب تأكيد المبلغ')); await tester.pumpAndSettle();
       expect(find.text('إقرار السعي لهذه المحادثة'), findsOneWidget);
       expect(find.textContaining('50%'), findsOneWidget);
       expect(finance.receipts, isEmpty); expect(broker.attempts, 1);

@@ -36,6 +36,7 @@ class OfflineHttpInterceptor extends Interceptor {
           '/marketplace/locations',
           '/properties',
           '/properties/nearby',
+          '/properties/visible',
           '/properties/mine/list',
           '/auth/me',
           '/messages/threads',

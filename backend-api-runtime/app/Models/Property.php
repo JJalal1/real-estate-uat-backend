@@ -76,6 +76,11 @@ class Property extends Model
         return $query->where('status', 'published')->where('availability_status', 'available');
     }
 
+    public function scopePubliclyVisible(Builder $query): Builder
+    {
+        return $query->publiclyAvailable()->withoutOverdueListingRestriction();
+    }
+
     public function scopeWithoutOverdueListingRestriction(Builder $query): Builder
     {
         return $query->whereNotExists(PropertyPlatformReceivable::query()
@@ -87,6 +92,15 @@ class Property extends Model
     public function isPubliclyAvailable(): bool
     {
         return $this->status === 'published' && ($this->availability_status ?? 'available') === 'available';
+    }
+
+    public function isPubliclyVisible(): bool
+    {
+        return $this->isPubliclyAvailable() && static::query()
+            ->withoutGlobalScope('financial_public_visibility')
+            ->whereKey($this->getKey())
+            ->publiclyVisible()
+            ->exists();
     }
 
     public function user(): BelongsTo { return $this->belongsTo(User::class); }

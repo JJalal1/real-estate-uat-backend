@@ -121,7 +121,7 @@ class _VerificationCard extends ConsumerWidget {
                 EbrokerOutlinedButton.icon(
                   onPressed: () => _respond(context, ref, 'unavailable'),
                   icon: const EbrokerIcon(Icons.block_outlined),
-                  label: const Text('العقار غير متاح'),
+                  label: const Text('العقار خارج العرض'),
                 ),
                 EbrokerOutlinedButton.icon(
                   onPressed: () => _respond(context, ref, 'unable_to_verify'),
@@ -143,7 +143,7 @@ class _VerificationCard extends ConsumerWidget {
       note = await _noteDialog(
         context,
         status == 'unavailable'
-            ? 'وضح سبب أن العقار غير متاح'
+            ? 'وضح سبب خروج العقار من العرض'
             : 'اكتب ما يمنعك من التأكد',
       );
       if (note == null || !context.mounted) return;

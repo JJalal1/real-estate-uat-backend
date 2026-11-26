@@ -24,7 +24,7 @@ class PropertySai {
   /// Presentation only; the authoritative payer and financial contract remain intact.
   String get presentationText {
     if (amountType == 'fixed') {
-      if (fixedAmount == null) return 'مبلغ السعي غير متاح';
+      if (fixedAmount == null) return 'لم يُحدد مبلغ السعي';
       final value = currency?.isNotEmpty == true ? moneyLabel(fixedAmount!, currency!) : formatMoneyAmount(fixedAmount!);
       return 'السعي $value';
     }

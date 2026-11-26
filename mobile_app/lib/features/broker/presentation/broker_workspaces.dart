@@ -16,6 +16,7 @@ import '../../account/data/auth_controller.dart';
 import '../../messages/data/message_repository.dart';
 import '../../messages/presentation/unread_inbox_badge.dart';
 import '../../properties/data/property_repository.dart';
+import '../../properties/domain/property_details.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
 
@@ -26,12 +27,80 @@ void refreshBrokerData(WidgetRef ref) {
   ref.invalidate(brokerFinanceProvider);
   ref.invalidate(brokerThreadDealProvider);
   ref.invalidate(brokerDirectoryProvider);
+  ref.read(messageDataRevisionProvider.notifier).state++;
   ref.read(propertyDataRevisionProvider.notifier).state++;
 }
 
 enum _ListingCloseSource { appCustomer, external }
+enum _ListingUpdateChoice { available, closed }
 
-Future<void> closeBrokerListing(
+bool canUpdateBrokerListing(PropertyDetails property) {
+  final paused = property.availabilityStatus == 'paused' ||
+      property.availabilityStatus == 'confirmation_paused';
+  final published = property.status == 'published' ||
+      (property.isOwner && property.status == 'unavailable' && paused);
+  return published && property.reviewStatus == 'approved' &&
+      (property.availabilityStatus == 'available' || paused);
+}
+
+Future<void> showBrokerListingUpdate(
+  BuildContext context,
+  WidgetRef ref,
+  PropertyDetails property,
+) async {
+  final scope = ref.read(accountRequestScopeProvider);
+  final choice = await showActorDialog<_ListingUpdateChoice>(
+    context: context,
+    ref: ref,
+    builder: (dialog) => AlertDialog(
+      title: const Text('تحديث حالة الإعلان'),
+      content: SingleChildScrollView(
+        child: _ListingUpdateOptions(
+          title: property.title,
+          purpose: property.purpose,
+          onAvailable: () => Navigator.pop(dialog, _ListingUpdateChoice.available),
+          onClosed: () => Navigator.pop(dialog, _ListingUpdateChoice.closed),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('رجوع')),
+      ],
+    ),
+  );
+  if (choice == null || !context.mounted || !scope.isCurrent) return;
+
+  final repository = ref.read(brokerRepositoryProvider);
+  Future<void> update(String state) async {
+    await repository.updateAvailability([property.id], state);
+    if (!context.mounted || !scope.isCurrent) return;
+    refreshBrokerData(ref);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم تحديث حالة الإعلان.')),
+    );
+  }
+
+  try {
+    if (choice == _ListingUpdateChoice.available) {
+      await update('available');
+      return;
+    }
+    await closeBrokerListing(
+      context,
+      ref,
+      propertyId: property.id,
+      purpose: property.purpose,
+      onExternal: update,
+    );
+  } catch (error) {
+    if (context.mounted && scope.isCurrent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyApiError(error))),
+      );
+    }
+  }
+}
+
+Future<bool> closeBrokerListing(
   BuildContext context,
   WidgetRef ref, {
   required int propertyId,
@@ -48,24 +117,35 @@ Future<void> closeBrokerListing(
     context: context,
     ref: ref,
     builder: (dialog) => AlertDialog(
-      title: Text(purpose == 'rent' ? 'تم التأجير' : 'تم البيع'),
-      content: const SingleChildScrollView(
-        child: Text('كيف تمت الصفقة؟ إغلاق إعلان خارج المنصة يحدّث التوفر فقط. '
-          'الصفقة مع عميل من التطبيق تحتاج اختياره وتأكيده.'),
+      title: const Text('كيف تمت الصفقة؟'),
+      scrollable: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppButton(
+            label: 'مع عميل من التطبيق',
+            onPressed: () => Navigator.pop(dialog, _ListingCloseSource.appCustomer),
+            expand: true,
+          ),
+          const SizedBox(height: 8),
+          AppButton(
+            label: 'خارج التطبيق',
+            style: AppButtonStyle.outlined,
+            onPressed: () => Navigator.pop(dialog, _ListingCloseSource.external),
+            expand: true,
+          ),
+        ],
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('رجوع')),
-        AppButton(label: 'خارج المنصة', style: AppButtonStyle.outlined,
-          onPressed: () => Navigator.pop(dialog, _ListingCloseSource.external)),
-        AppButton(label: 'مع عميل من التطبيق',
-          onPressed: () => Navigator.pop(dialog, _ListingCloseSource.appCustomer)),
       ],
     ),
   );
-  if (source == null || !context.mounted || !current()) return;
+  if (source == null || !context.mounted || !current()) return false;
   if (source == _ListingCloseSource.external) {
     await onExternal(purpose == 'rent' ? 'rented' : 'sold');
-    return;
+    return current();
   }
 
   final actor = ref.read(authControllerProvider).asData?.value?.id;
@@ -78,9 +158,62 @@ Future<void> closeBrokerListing(
       builder: (_) => BrokerCustomersScreen(propertyId: propertyId, selectForDeal: true),
     )),
   );
-  if (customer != null && context.mounted && current()) {
-    await reportBrokerDeal(context, ref, customer.threadId, openResult: openResult);
-  }
+  if (customer == null || !context.mounted || !current()) return false;
+  return reportBrokerDeal(
+    context, ref, customer.threadId, propertyId: propertyId, openResult: openResult,
+  );
+}
+
+class _ListingUpdateOptions extends StatelessWidget {
+  const _ListingUpdateOptions({
+    required this.title,
+    required this.purpose,
+    required this.onAvailable,
+    required this.onClosed,
+    this.availableKey,
+    this.closedKey,
+    this.selected = false,
+  });
+
+  final String title;
+  final String purpose;
+  final VoidCallback? onAvailable;
+  final VoidCallback? onClosed;
+  final Key? availableKey, closedKey;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 4),
+      const Text('هل ما زال العقار متوفرًا؟'),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          Semantics(
+            selected: selected,
+            child: AppButton(
+              key: availableKey,
+              label: 'نعم، ما زال متوفرًا',
+              style: selected ? AppButtonStyle.tonal : AppButtonStyle.outlined,
+              icon: selected ? Icons.check_rounded : null,
+              onPressed: onAvailable,
+            ),
+          ),
+          AppButton(
+            key: closedKey,
+            label: purpose == 'rent' ? 'تم تأجيره' : 'تم بيعه',
+            style: AppButtonStyle.outlined,
+            onPressed: onClosed,
+          ),
+        ],
+      ),
+    ],
+  );
 }
 
 class BrokerScaffold extends StatelessWidget {
@@ -177,7 +310,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
             (label: 'الصفقات', icon: Icons.handshake_outlined, badge: unseenDeals,
               action: () => context.push('/broker/activity')),
             (label: 'التحديثات', icon: Icons.update, badge: availability,
-              action: () => context.push(availability > 0 ? '/broker/availability?due=1' : '/broker/availability')),
+              action: () => context.push('/broker/availability?due=1')),
             (label: 'المستحقات', icon: Icons.account_balance_wallet_outlined, badge: receivables,
               action: () => context.push('/broker/finance')),
             (label: 'الإحصاءات', icon: Icons.bar_chart_outlined, badge: 0,
@@ -707,8 +840,7 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
   final _selected = <int>{};
   _AvailabilityOperation? _operation;
   bool get _busy => _operation != null;
-  Object? _snapshot;
-  late bool _onlyDue = widget.initiallyDue;
+  final _confirmed = <int>{};
 
   bool Function() _sessionGuard() {
     final scope = ref.read(accountRequestScopeProvider);
@@ -724,7 +856,7 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
   Future<void> _selectAll(PrivateCollectionController<BrokerAvailability> controller) async {
     if (_busy) return;
     final current = _sessionGuard();
-    final provider = brokerAvailabilityPagesProvider(_onlyDue);
+    final provider = brokerAvailabilityPagesProvider(true);
     setState(() => _operation = _AvailabilityOperation.selectingAll);
     try {
       var state = ref.read(provider);
@@ -745,7 +877,9 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
         _showMessage('تغيّرت قائمة الإعلانات أثناء التحميل. حدّث القائمة ثم أعد تحديد الكل.');
         return;
       }
-      setState(() => _selected.addAll(state.items.map((item) => item.id)));
+      setState(() => _selected.addAll(
+        state.items.map((item) => item.id).where((id) => !_confirmed.contains(id)),
+      ));
     } catch (error) {
       if (current()) _showMessage(friendlyApiError(error));
     } finally {
@@ -768,7 +902,10 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
         await repository.updateAvailability(batch, 'available');
         if (!current()) return;
         confirmed += batch.length;
-        setState(() => _selected.removeAll(batch));
+        setState(() {
+          _selected.removeAll(batch);
+          _confirmed.addAll(batch);
+        });
       }
       refreshBrokerData(ref);
     } catch (error) {
@@ -790,13 +927,20 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
     final current = _sessionGuard();
     setState(() => _operation = _AvailabilityOperation.closing);
     try {
-      await closeBrokerListing(context, ref, propertyId: item.id, purpose: item.purpose,
-        openResult: false, onExternal: (state) async {
+      final updated = await closeBrokerListing(
+        context,
+        ref,
+        propertyId: item.id,
+        purpose: item.purpose,
+        openResult: false,
+        onExternal: (state) async {
           await ref.read(brokerRepositoryProvider).updateAvailability([item.id], state);
           if (!current()) return;
+          setState(() => _confirmed.add(item.id));
           refreshBrokerData(ref);
         },
       );
+      if (updated && current()) setState(() => _selected.remove(item.id));
     } catch (error) {
       if (current()) _showMessage(friendlyApiError(error));
     } finally {
@@ -804,50 +948,36 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
     }
   }
 
-  void _filter(bool due) {
-    if (_onlyDue == due || _busy) return;
-    setState(() {
-      _onlyDue = due;
-      _selected.clear();
-      _snapshot = null;
-    });
-  }
-
   Future<void> _refresh(PrivateCollectionController<BrokerAvailability> controller) async {
     if (_busy) return;
+    final current = _sessionGuard();
     setState(_selected.clear);
     await controller.refresh();
+    if (current() && ref.read(brokerAvailabilityPagesProvider(true)).error == null) {
+      setState(_confirmed.clear);
+    }
   }
 
   Widget _listingCard(BrokerAvailability item, {required bool controlsEnabled}) {
+    final selected = _selected.contains(item.id);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: BrokerPanel(
         key: ValueKey('broker-availability-${item.id}'),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _selected.contains(item.id),
-              onChanged: controlsEnabled ? (value) => setState(() {
-                if (value == true) {
-                  _selected.add(item.id);
-                } else {
-                  _selected.remove(item.id);
-                }
-              }) : null,
-              title: Text(item.title),
-              subtitle: Text(item.label),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
-            AppButton(
-              key: ValueKey('broker-availability-close-${item.id}'),
-              label: item.purpose == 'rent' ? 'تم التأجير' : 'تم البيع',
-              style: AppButtonStyle.outlined,
-              onPressed: controlsEnabled ? () => _close(item) : null,
-            ),
-          ],
+        child: _ListingUpdateOptions(
+          title: item.title,
+          purpose: item.purpose,
+          selected: selected,
+          availableKey: ValueKey('broker-availability-available-${item.id}'),
+          closedKey: ValueKey('broker-availability-close-${item.id}'),
+          onAvailable: controlsEnabled ? () => setState(() {
+            if (selected) {
+              _selected.remove(item.id);
+            } else {
+              _selected.add(item.id);
+            }
+          }) : null,
+          onClosed: controlsEnabled ? () => _close(item) : null,
         ),
       ),
     );
@@ -855,14 +985,12 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = brokerAvailabilityPagesProvider(_onlyDue);
+    final provider = brokerAvailabilityPagesProvider(true);
     final state = ref.watch(provider);
     final controller = ref.read(provider.notifier);
-    final items = state.items;
-    if (!identical(_snapshot, controller)) {
-      _snapshot = controller;
-      _selected.clear();
-    }
+    final items = state.items
+        .where((item) => !_confirmed.contains(item.id))
+        .toList(growable: false);
     final controlsEnabled = !_busy && !state.loading && !state.loadingMore && state.error == null;
     final allSelected = items.isNotEmpty && state.page?.hasMore == false &&
         items.every((item) => _selected.contains(item.id));
@@ -874,98 +1002,96 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: AppButton(
           key: const ValueKey('broker-availability-confirm'),
-          label: _selected.isEmpty ? 'تأكيد التوفر' : 'تأكيد التوفر (${_selected.length})',
+          label: _selected.isEmpty ? 'تحديث' : 'تحديث (${_selected.length})',
           loading: _operation == _AvailabilityOperation.confirming,
           onPressed: controlsEnabled && _selected.isNotEmpty ? _confirm : null,
           expand: true,
         ),
       ),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Wrap(spacing: 8, runSpacing: 4, children: [
-              EbrokerChoiceChip(label: const Text('تحتاج تأكيد التوفر'),
-                selected: _onlyDue, onSelected: _busy ? null : (_) => _filter(true)),
-              EbrokerChoiceChip(label: const Text('كل إعلاناتي'),
-                selected: !_onlyDue, onSelected: _busy ? null : (_) => _filter(false)),
-            ]),
-          ),
-        ),
-        Expanded(
-          child: state.loading && items.isEmpty ? const AppLoadingState()
-            : state.error != null && items.isEmpty
-              ? AppErrorState(message: friendlyApiError(state.error!), onRetry: () => _refresh(controller))
-              : RefreshIndicator(
-                onRefresh: () => _refresh(controller),
-                child: CustomScrollView(
-                  key: ObjectKey(controller),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    if (state.loading || state.error != null)
-                      SliverToBoxAdapter(child: AppRefreshStatus(
-                        loading: state.loading,
-                        error: state.error == null ? null : friendlyApiError(state.error!),
-                        onRetry: _busy ? null : () => _refresh(controller),
-                      )),
-                    if (items.isEmpty)
-                      const SliverPadding(
-                        padding: EdgeInsets.all(16),
-                        sliver: SliverToBoxAdapter(
-                          child: BrokerPanel(child: Text('لا توجد إعلانات في هذه القائمة حاليًا.')),
-                        ),
-                      )
-                    else ...[
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        sliver: SliverToBoxAdapter(
-                          child: CheckboxListTile(
-                            key: const ValueKey('broker-availability-select-all'),
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(_operation == _AvailabilityOperation.selectingAll
-                              ? 'جارٍ تحميل الإعلانات لتحديدها' : 'تحديد الكل'),
-                            tristate: true,
-                            value: allSelected ? true : _selected.isEmpty ? false : null,
-                            onChanged: controlsEnabled ? (_) {
-                              if (allSelected) {
-                                setState(_selected.clear);
-                              } else {
-                                unawaited(_selectAll(controller));
-                              }
-                            } : null,
-                          ),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        sliver: SliverList.builder(
-                          itemCount: items.length,
-                          itemBuilder: (_, index) => _listingCard(
-                            items[index], controlsEnabled: controlsEnabled,
-                          ),
-                        ),
-                      ),
-                    ],
-                    if (state.loadingMore || state.pageError != null)
-                      SliverToBoxAdapter(child: AppRefreshStatus(
-                        key: const ValueKey('broker-availability-page-status'),
-                        loading: state.loadingMore,
-                        error: state.pageError == null ? null : friendlyApiError(state.pageError!),
-                        onRetry: _busy ? null : controller.loadMore,
-                      ))
-                    else if (state.page?.hasMore ?? false)
-                      SliverToBoxAdapter(child: TextButton.icon(
-                        key: const ValueKey('broker-availability-more'),
-                        onPressed: controlsEnabled ? controller.loadMore : null,
-                        icon: const Icon(Icons.expand_more),
-                        label: const Text('المزيد من الإعلانات'),
-                      )),
-                  ],
+      body: _availabilityBody(state, controller, items, controlsEnabled, allSelected),
+    );
+  }
+
+  Widget _availabilityBody(
+    PrivateCollectionState<BrokerAvailability> state,
+    PrivateCollectionController<BrokerAvailability> controller,
+    List<BrokerAvailability> items,
+    bool controlsEnabled,
+    bool allSelected,
+  ) {
+    if (state.loading && items.isEmpty) return const AppLoadingState();
+    if (state.error != null && items.isEmpty) {
+      return AppErrorState(
+        message: friendlyApiError(state.error!),
+        onRetry: () => _refresh(controller),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: () => _refresh(controller),
+      child: CustomScrollView(
+        key: ObjectKey(controller),
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          if (state.loading || state.error != null)
+            SliverToBoxAdapter(child: AppRefreshStatus(
+              loading: state.loading,
+              error: state.error == null ? null : friendlyApiError(state.error!),
+              onRetry: _busy ? null : () => _refresh(controller),
+            )),
+          if (items.isEmpty)
+            const SliverPadding(
+              padding: EdgeInsets.all(16),
+              sliver: SliverToBoxAdapter(
+                child: BrokerPanel(child: Text('لا توجد إعلانات تحتاج تحديثًا حاليًا.')),
+              ),
+            )
+          else ...[
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverToBoxAdapter(
+                child: CheckboxListTile(
+                  key: const ValueKey('broker-availability-select-all'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(_operation == _AvailabilityOperation.selectingAll
+                      ? 'جارٍ تحميل الإعلانات لتحديدها' : 'تحديد الكل'),
+                  tristate: true,
+                  value: allSelected ? true : _selected.isEmpty ? false : null,
+                  onChanged: controlsEnabled ? (_) {
+                    if (allSelected) {
+                      setState(_selected.clear);
+                    } else {
+                      unawaited(_selectAll(controller));
+                    }
+                  } : null,
                 ),
               ),
-        ),
-      ]),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList.builder(
+                itemCount: items.length,
+                itemBuilder: (_, index) => _listingCard(
+                  items[index], controlsEnabled: controlsEnabled,
+                ),
+              ),
+            ),
+          ],
+          if (state.loadingMore || state.pageError != null)
+            SliverToBoxAdapter(child: AppRefreshStatus(
+              key: const ValueKey('broker-availability-page-status'),
+              loading: state.loadingMore,
+              error: state.pageError == null ? null : friendlyApiError(state.pageError!),
+              onRetry: _busy ? null : controller.loadMore,
+            ))
+          else if (state.page?.hasMore ?? false)
+            SliverToBoxAdapter(child: TextButton.icon(
+              key: const ValueKey('broker-availability-more'),
+              onPressed: controlsEnabled ? controller.loadMore : null,
+              icon: const Icon(Icons.expand_more),
+              label: const Text('المزيد من الإعلانات'),
+            )),
+        ],
+      ),
     );
   }
 }

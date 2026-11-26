@@ -26,10 +26,11 @@ class BrokerRankingService
             ->selectRaw('result.advertiser_user_id, COUNT(*) AS completed_deals')
             ->selectRaw('SUM(CASE WHEN result.confirmed_at >= ? THEN CASE WHEN due.id IS NULL OR due.status = ? THEN 1.0 ELSE 0.5 END ELSE 0 END) AS recent_deal_credit', [now()->subDays(90),'paid']);
         $listings = Property::query()->withoutGlobalScope('financial_public_visibility')
-            ->publiclyAvailable()->withoutOverdueListingRestriction()
-            ->where(function ($query): void { $query->whereNull('availability_notified_at')->orWhere('availability_notified_at','>',now()->subDays(2)); })
+            ->publiclyVisible()
             ->whereNull('financial_hold_at')->groupBy('user_id')->selectRaw('user_id, COUNT(*) AS active_listings')
-            ->selectRaw('SUM(CASE WHEN availability_confirmed_at >= ? OR published_at >= ? THEN 1 ELSE 0 END) AS recent_activity', [now()->subDays(30),now()->subDays(30)]);
+            ->selectRaw('SUM(CASE WHEN (availability_notified_at IS NULL OR availability_notified_at > ?) '
+                .'AND (availability_confirmed_at >= ? OR published_at >= ?) THEN 1 ELSE 0 END) AS recent_activity',
+                [now()->subDays(2), now()->subDays(30), now()->subDays(30)]);
         $closed=DB::table('properties')->whereIn('availability_status',['sold','rented'])->groupBy('user_id')->selectRaw("user_id, SUM(CASE WHEN availability_status = 'sold' THEN 1 ELSE 0 END) AS sold_listings, SUM(CASE WHEN availability_status = 'rented' THEN 1 ELSE 0 END) AS rented_listings");
         $query = User::query()->where('users.account_status','active')->whereNotNull('users.phone_verified_at')
             ->where(function ($eligible) use ($brokersOnly, $includePublicIndividuals): void {

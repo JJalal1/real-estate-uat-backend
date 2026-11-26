@@ -489,8 +489,8 @@ class AppErrorState extends StatelessWidget {
 
 class AppUnavailableState extends StatelessWidget {
   const AppUnavailableState({
-    this.title = 'هذا العقار غير متاح حالياً',
-    this.message = 'قد يكون الإعلان أُغلق أو لم يعد منشوراً.',
+    this.title = 'الإعلان غير منشور',
+    this.message = 'ربما أُغلق الإعلان أو أُزيل.',
     this.actionLabel,
     this.onAction,
     super.key,

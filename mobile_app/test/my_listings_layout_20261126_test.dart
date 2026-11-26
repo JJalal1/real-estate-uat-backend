@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/my_listings_page.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/presentation/my_listings_screen.dart';
+
+import 'broker_experience_ui_test.dart' show BrokerTestAuth, BrokerTestRepository;
 
 PropertyDetails _listing(
   int id,
@@ -50,6 +54,7 @@ Future<void> _open(
   WidgetTester tester,
   List<PropertyDetails> listings, {
   bool corrections = false,
+  BrokerTestRepository? broker,
   double textScale = 1,
 }) async {
   tester.view.physicalSize = const Size(390, 1000);
@@ -82,6 +87,8 @@ Future<void> _open(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (broker != null) authControllerProvider.overrideWith(BrokerTestAuth.new),
+        if (broker != null) brokerRepositoryProvider.overrideWithValue(broker),
         myListingsPagesProvider.overrideWith(
           (_) => MyListingsPagesController(
             load: (_) async => MyListingsPage(
@@ -99,12 +106,15 @@ Future<void> _open(
       child: MaterialApp.router(
         theme: AppTheme.light,
         routerConfig: router,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(textScale),
-          ),
-          child: child!,
-        ),
+        builder: (context, child) => Consumer(builder: (context, ref, _) {
+          if (broker != null) ref.watch(authControllerProvider);
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(textScale),
+            ),
+            child: child!,
+          );
+        }),
       ),
     ),
   );
@@ -220,6 +230,26 @@ void main() {
         findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  for (final status in ['available', 'paused']) {
+    testWidgets('owner menu opens the same listing update choices with $status status', (tester) async {
+      final broker = BrokerTestRepository();
+      await _open(tester, [_listing(11, 'عقار منشور', availability: status)], broker: broker);
+      final menu = find.descendant(of: _card(11), matching: find.byTooltip('خيارات البطاقة'));
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      expect(find.text('إيقاف مؤقت'), findsNothing);
+      await tester.tap(find.text('تحديث حالة الإعلان'));
+      await tester.pumpAndSettle();
+      expect(find.text('هل ما زال العقار متوفرًا؟'), findsOneWidget);
+      expect(find.text('تم بيعه'), findsOneWidget);
+      expect(broker.availabilityChanges, isEmpty);
+      await tester.tap(find.text('نعم، ما زال متوفرًا'));
+      await tester.pumpAndSettle();
+      expect(broker.availabilityChanges.single.$1, [11]);
+      expect(broker.availabilityChanges.single.$2, 'available');
+    });
+  }
 
   testWidgets('correction entry and existing resubmission action survive',
       (tester) async {

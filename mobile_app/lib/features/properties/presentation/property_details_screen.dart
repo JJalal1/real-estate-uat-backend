@@ -4,6 +4,7 @@ import 'adaptive_property_photo.dart';
 import '../../../core/network/adaptive_image_policy.dart';
 import '../domain/rental_condition_summary.dart';
 import 'property_summary_card.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/ebroker_screen_sections.dart';
@@ -15,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/contact_actions.dart';
 import '../../broker/data/broker_repository.dart';
+import '../../broker/presentation/broker_workspaces.dart';
 import '../../community/data/community_repository.dart';
 import '../../community/presentation/community_dialogs.dart';
 import 'property_compare_actions.dart';
@@ -67,7 +69,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   bool _consumingPendingFavorite = false;
   bool _viewRecorded = false;
   String? _recentRecordedScope;
-  bool _calling = false, _reporting = false;
+  bool _calling = false, _reporting = false, _updatingListing = false;
   String? _loadedScope;
 
   @override
@@ -105,7 +107,9 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     }
 
     final recentStore = ref.watch(recentPropertiesStoreProvider);
-    if (recentStore.enabled && _recentRecordedScope != scope && loaded != null && loaded.status == 'published') {
+    if (recentStore.enabled && _recentRecordedScope != scope &&
+        loaded != null && loaded.status == 'published' &&
+        loaded.availabilityStatus == 'available' && !loaded.financialHold) {
       _recentRecordedScope = scope;
       Future<void>.microtask(() async {
         try {
@@ -162,10 +166,12 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
           skipError: retain,
           loading: () => _PropertyDetailsSkeleton(scrollController: widget.scrollController,
             summary: widget.initialSummary?.id == widget.propertyId && widget.initialSummary?.status == 'published' ? widget.initialSummary : null),
-          error: (error, _) => AppErrorState(
-            message: friendlyApiError(error),
-            onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId)),
-          ),
+          error: (error, _) => error is DioException && error.response?.statusCode == 404
+              ? const AppUnavailableState()
+              : AppErrorState(
+                  message: friendlyApiError(error),
+                  onRetry: () => ref.invalidate(propertyDetailsProvider(widget.propertyId)),
+                ),
           data: (property) => Column(children: [
             if (details.isLoading || retain) AppRefreshStatus(loading: details.isLoading,
               error: retain ? friendlyApiError(details.error!) : null,
@@ -261,16 +267,22 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
             trailing: property.isOwner ? PopupMenuButton<String>(
               tooltip: 'إدارة الإعلان',
               onSelected: (action) => _ownerAction(action, property),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'edit', child: Text('تعديل الإعلان')),
-                PopupMenuItem(value: 'mine', child: Text('إعلاناتي')),
+              itemBuilder: (_) => [
+                if (canUpdateBrokerListing(property))
+                  PopupMenuItem(
+                    value: 'update',
+                    enabled: !_updatingListing,
+                    child: const Text('تحديث حالة الإعلان'),
+                  ),
+                const PopupMenuItem(value: 'edit', child: Text('تعديل الإعلان')),
+                const PopupMenuItem(value: 'mine', child: Text('إعلاناتي')),
               ],
             ) : null,
           ),
           PropertySaiPublicLine(propertyId: property.id),
           if (!published) ...[
             const SizedBox(height: AppSpacing.s12),
-            AppStatusBadge(label: _statusLabel(property.status),
+            AppStatusBadge(label: _statusLabel(property),
               tone: property.status == 'rejected' ? AppStatusTone.error : AppStatusTone.warning,
               icon: Icons.info_outline),
           ],
@@ -592,6 +604,15 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
   }
 
   Future<void> _ownerAction(String action, PropertyDetails property) async {
+    if (action == 'update' && !_updatingListing) {
+      setState(() => _updatingListing = true);
+      try {
+        await showBrokerListingUpdate(context, ref, property);
+      } finally {
+        if (mounted) setState(() => _updatingListing = false);
+      }
+      return;
+    }
     if (action == 'mine') {
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(builder: (_) => const MyListingsScreen()),
@@ -852,12 +873,16 @@ String _typeLabel(String value) => switch (value) {
       _ => value,
     };
 
-String _statusLabel(String value) => switch (value) {
-      'pending' => 'قيد المراجعة',
-      'rejected' => 'مرفوض',
-      'archived' => 'مؤرشف',
-      'draft' => 'مسودة',
-      _ => 'غير متاح',
+String _statusLabel(PropertyDetails property) => switch ((property.status, property.availabilityStatus)) {
+      ('pending', _) => 'قيد المراجعة',
+      ('rejected', _) => 'مرفوض',
+      ('archived', _) => 'مؤرشف',
+      ('draft', _) => 'مسودة',
+      (_, 'sold') => 'تم البيع',
+      (_, 'rented') => 'تم التأجير',
+      (_, 'paused') => 'متوقف مؤقتًا',
+      (_, 'confirmation_paused') => 'يحتاج تأكيد التوفر',
+      _ => 'الإعلان غير منشور',
     };
 
 String _formatPrice(double value) {

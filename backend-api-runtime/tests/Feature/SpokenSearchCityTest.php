@@ -57,6 +57,64 @@ class SpokenSearchCityTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_explicit_spoken_search_for_an_apartment_in_dhamar_works_without_the_model(): void
+    {
+        config(['gemini.enabled' => false]);
+        Http::fake();
+        $bounds = ['south' => 14.5, 'west' => 44.35, 'north' => 14.6, 'east' => 44.45];
+        $this->postJson('/api/ai/search', [
+            'message' => 'ابحث لي عن شقه للايجار في ذمار',
+            'filters' => $bounds + ['max_price' => 80000, 'types' => ['apartment', 'house']],
+            'revision' => 7,
+        ])->assertOk()->assertJsonPath('data.revision', 7)
+            ->assertJson(['data' => ['filters' => [
+                'type' => 'apartment', 'purpose' => 'rent', 'search' => 'ذمار', 'max_price' => 80000,
+            ] + $bounds]])
+            ->assertJsonMissingPath('data.filters.types')
+            ->assertJsonPath('data.changed', true);
+
+        $this->postJson('/api/ai/search', [
+            'message' => 'شقة للإيجار',
+            'filters' => ['search' => 'ذمار'],
+            'revision' => 8,
+        ])->assertOk()->assertJsonPath('data.filters.type', 'apartment')
+            ->assertJsonPath('data.filters.purpose', 'rent')
+            ->assertJsonPath('data.filters.search', 'ذمار');
+        Http::assertNothingSent();
+    }
+
+    public function test_complete_spoken_city_search_preserves_rooms_and_the_monthly_price_ceiling(): void
+    {
+        config(['gemini.enabled' => false]);
+        Http::fake();
+        $this->postJson('/api/ai/search', [
+            'message' => 'أبغى شقة للإيجار في ذمار فيها ثلاث غرف وبحد أقصى ٨٠٬٠٠٠ ريال شهرياً',
+            'filters' => (object) [],
+            'revision' => 3,
+        ])->assertOk()->assertJson(['data' => ['filters' => [
+            'type' => 'apartment', 'purpose' => 'rent', 'search' => 'ذمار',
+            'min_bedrooms' => 3, 'max_price' => 80000, 'currency' => 'YER',
+        ], 'revision' => 3]]);
+        Http::assertNothingSent();
+    }
+
+    public function test_spoken_city_search_with_more_criteria_passes_the_complete_text_to_the_model(): void
+    {
+        $message = 'أبغى شقة للإيجار في ذمار فيها ثلاث غرف وموقف سيارة';
+        $this->model(['set' => ['type' => 'apartment', 'types' => ['apartment'], 'purpose' => 'rent',
+            'search' => 'ذمار', 'min_bedrooms' => 3, 'has_parking' => true], 'remove' => []]);
+        $this->postJson('/api/ai/search', ['message' => $message, 'filters' => (object) [], 'revision' => 2])
+            ->assertOk()->assertJsonPath('data.filters.min_bedrooms', 3)
+            ->assertJsonPath('data.filters.type', 'apartment')->assertJsonMissingPath('data.filters.types')
+            ->assertJsonPath('data.filters.search', 'ذمار')->assertJsonPath('data.filters.has_parking', true);
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($message): bool {
+            $data = $request->data();
+            $input = json_decode($data['contents'][0]['parts'][0]['text'], true, flags: JSON_THROW_ON_ERROR);
+            $properties = $data['generationConfig']['responseFormat']['text']['schema']['properties']['set']['properties'];
+            return $input['follow_up'] === $message && isset($properties['types']) && ! isset($properties['type']);
+        });
+    }
+
     public function test_spoken_ibb_then_price_and_new_type_reuses_real_public_filters_without_writes(): void
     {
         $user = User::create(['name' => 'Fictional search fixture', 'email' => 'spoken-city@example.invalid', 'password' => 'fixture-only',

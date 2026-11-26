@@ -18,6 +18,12 @@ String? notificationDestination(AppNotificationItem item) {
   if (item.entityType == 'broker_deal_outcome' && item.entityId != null) return '/broker/deals/${item.entityId}';
   if (item.type == 'broker_availability_due') return '/broker/availability?due=1';
   if (item.entityType == 'property_platform_receivable') return '/broker/finance';
+  if (item.entityType == 'support_task') {
+    final taskId = item.entityId ?? item.supportTaskId;
+    return taskId != null && taskId > 0
+        ? '/support/workspace/tasks/$taskId'
+        : '/support/workspace';
+  }
   final agreementId = item.agreementId ??
       (item.entityType == 'property_agreement' ? item.entityId : null);
   if (agreementId != null &&
@@ -54,9 +60,6 @@ String? notificationDestination(AppNotificationItem item) {
   }
   if (item.entityType == 'support_case' && item.entityId != null) {
     return '/support?case=${item.entityId}';
-  }
-  if (item.entityType == 'support_task') {
-    return '/support/workspace';
   }
   if (item.entityType == 'property' && item.entityId != null) {
     return '/properties/${item.entityId}';

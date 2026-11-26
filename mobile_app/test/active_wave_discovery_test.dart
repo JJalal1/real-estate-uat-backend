@@ -37,6 +37,7 @@ PropertyDetails _property(int id) => PropertyDetails.fromJson({
   'description': 'شقة للإيجار في حدة. تضم ثلاث غرف نوم وحمامين، وتقع في الدور الثاني.',
   'price': 300000, 'monthly_rent': 100000, 'currency': 'YER', 'status': 'published',
   'address': 'صنعاء، حدة', 'latitude': 15.3694, 'longitude': 44.191,
+  if (id == 13) 'availability_status': 'sold',
   if (id == 11) ...{'bedrooms': 3, 'bathrooms': 2, 'floor_number': '2', 'has_parking': false},
   'advertiser': {'id': 1, 'name': exampleBroker.name, 'verification_status': 'approved',
     'verification_type': 'broker', 'rating_average': 4.6, 'rating_count': 7},
@@ -46,7 +47,6 @@ class _Properties extends Wave3PropertiesFake {
   int contacts = 0;
   @override
   Future<PropertyDetails> details(int id) async {
-    if (id == 13) throw StateError('Unavailable');
     return _property(id);
   }
   @override
@@ -171,10 +171,12 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
-  testWidgets('two-property comparison keeps an unavailable listing visible for replacement', (tester) async {
+  testWidgets('comparison removes a closed listing and permits adding a replacement', (tester) async {
     await _pump(tester, const PropertyCompareScreen(propertyIds: [11,13]));
-    expect(find.text('العقار غير متاح حاليًا'), findsOneWidget);
-    expect(find.text('استبدال'), findsNWidgets(2));
+    expect(find.text('شقة في حدة 13'), findsNothing);
+    expect(find.text('شقة في حدة 11'), findsOneWidget);
+    expect(find.text('استبدال'), findsOneWidget);
+    expect(find.text('اختر العقار الثاني'), findsOneWidget);
     expect(tester.takeException(),isNull);
   });
   for (final scale in [1.0,2.4]) {

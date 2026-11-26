@@ -271,6 +271,22 @@ class PropertyRepository {
     }, refresh: refresh, cancelToken: cancelToken);
   }
 
+  Future<Set<int>> publiclyVisibleIds(Iterable<int> propertyIds) async {
+    final ids = propertyIds.where((id) => id > 0).toSet().toList()..sort();
+    if (ids.isEmpty) return const {};
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/properties/visible',
+      queryParameters: {'ids': ids},
+      options: Options(listFormat: ListFormat.multiCompatible),
+    );
+    final data = response.data?['data'];
+    final visible = data is Map ? data['property_ids'] : null;
+    if (visible is! List || visible.any((id) => id is! int || !ids.contains(id))) {
+      throw const FormatException('Invalid public listing visibility response.');
+    }
+    return visible.cast<int>().toSet();
+  }
+
   Future<PropertyDetails> details(int propertyId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/properties/$propertyId',
