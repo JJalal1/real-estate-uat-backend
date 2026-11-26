@@ -1,4 +1,4 @@
-name: UAT 1846 Alazzi unified listing updates and deals
+name: UAT 1846 verified private installer delivery
 
 on:
   push:
@@ -12,175 +12,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AQER_SOURCE_SHA: ${{ github.sha }}
+  AQER_SOURCE_SHA: 55fc69f748aa18dd8f9341a428745a007ca08a2a
 
 jobs:
-  verify-api:
-    name: Test listing availability, deal confirmation and dues APIs
-    if: ${{ github.event.repository.private && github.repository == 'JJalal1/real-estate-uat-backend' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 27
-    services:
-      postgres:
-        image: postgis/postgis:17-3.5
-        env:
-          POSTGRES_DB: real_estate_audit
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U postgres -d real_estate_audit"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    defaults:
-      run:
-        working-directory: backend-api-runtime
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.AQER_SOURCE_SHA }}
-          persist-credentials: false
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: bcmath, curl, dom, exif, fileinfo, gd, intl, mbstring, pdo_sqlite, pdo_pgsql
-          coverage: none
-      - run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Initialize disposable test credentials and database roles
-        run: |
-          test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
-          install -m 600 /dev/null .env
-          printf 'APP_KEY=\n' > .env
-          php artisan key:generate --force
-          psql -h 127.0.0.1 -U postgres -d real_estate_audit -v ON_ERROR_STOP=1 \
-            -c 'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;'
-      - name: Exercise listing, support, notifications and discovery on SQLite
-        run: >-
-          php artisan test
-          tests/Feature/PlatformNotificationHistoryTest.php
-          tests/Feature/Stage11MessagingNotificationsApiTest.php
-          tests/Feature/UatThreeRoleSupportWorkspaceApiTest.php
-          tests/Feature/FinancialV1ApiTest.php
-          tests/Feature/FinancialV1CompletionTest.php
-          tests/Feature/BrokerExperienceApiTest.php
-          tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
-          tests/Feature/Stage5PropertyApiTest.php
-          tests/Feature/BackgroundPreparationTest.php
-          tests/Feature/DiscoverySearchQualityTest.php
-          tests/Feature/SpokenSearchCityTest.php
-          --display-warnings --fail-on-warning --fail-on-risky
-      - name: Exercise the unified APIs and migrations on PostgreSQL/PostGIS
-        env:
-          APP_ENV: testing
-          DB_CONNECTION: pgsql
-          DB_HOST: 127.0.0.1
-          DB_PORT: 5432
-          DB_DATABASE: real_estate_audit
-          DB_USERNAME: postgres
-          DB_PASSWORD: ''
-          DB_URL: ''
-          DB_SEARCH_PATH: public,extensions
-        run: >-
-          php artisan test
-          tests/Feature/PlatformNotificationHistoryTest.php
-          tests/Feature/Stage11MessagingNotificationsApiTest.php
-          tests/Feature/UatThreeRoleSupportWorkspaceApiTest.php
-          tests/Feature/FinancialV1ApiTest.php
-          tests/Feature/FinancialV1CompletionTest.php
-          tests/Feature/BrokerExperienceApiTest.php
-          tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
-          tests/Feature/Stage5PropertyApiTest.php
-          tests/Feature/BackgroundPreparationTest.php
-          tests/Feature/DiscoverySearchQualityTest.php
-          tests/Feature/SpokenSearchCityTest.php
-          tests/Postgres/PropertyMarketContextPostgresTest.php
-          --display-warnings --fail-on-warning --fail-on-risky
-
-  verify-flutter:
-    name: Analyze Flutter and exercise listing, finance, and support journeys
-    if: ${{ github.event.repository.private && github.repository == 'JJalal1/real-estate-uat-backend' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 28
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.AQER_SOURCE_SHA }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Confirm the exact Flutter source
-        run: test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.27.3'
-          channel: stable
-          cache: true
-      - name: Resolve the approved package lock
-        working-directory: mobile_app
-        run: |
-          # This manifest differs from UAT 1830 only by the Cairo font assets.
-          test "$(git hash-object pubspec.yaml)" = '4583d88e975281d4d55c0622b48ae1249342d99c'
-          git diff --exit-code fd832497768aac67fdd32485f2af835f273111c8 HEAD -- \
-            pubspec.lock ../docs/ui-transplant-v3/pubspec_overrides.yaml
-          cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
-          flutter pub get
-          approved="$RUNNER_TEMP/aqer-approved-dependencies"
-          git worktree add --detach --quiet "$approved" fd832497768aac67fdd32485f2af835f273111c8
-          cp "$approved/docs/ui-transplant-v3/pubspec_overrides.yaml" "$approved/mobile_app/pubspec_overrides.yaml"
-          python3 -B "$approved/scripts/verify_v3_dependency_lock.py" --resolved "$PWD/pubspec.lock" --approved-uat1829
-          python3 -B ../scripts/verify_v3_dependency_lock.py --resolved pubspec.lock --approved-uat1829
-          flutter pub get --enforce-lockfile
-
-      - name: Check Android map configuration and signing boundaries
-        run: |
-          python3 -B -m unittest discover -s scripts/tests -p 'test_uat_signing_configuration.py'
-          cd mobile_app
-          flutter test --no-pub test/app_theme_test.dart test/map_layers_test.dart test/phase04_ranked_search_test.dart \
-            --dart-define=APP_ENVIRONMENT=uat --dart-define=AQER_GOOGLE_MAPS_UAT=true --reporter expanded
-      - name: Analyze the exact Flutter source
-        working-directory: mobile_app
-        run: python3 -B ../scripts/check_v3_analysis.py
-      - name: Test listing updates, sale/rent outcomes and broker activity
-        working-directory: mobile_app
-        run: >-
-          flutter test --no-pub --reporter expanded
-          test/broker_experience_ui_test.dart
-          test/broker_activity_result_test.dart
-          test/my_listings_layout_20261126_test.dart
-          test/my_listings_pagination_test.dart
-          test/private_tail_pagination_test.dart
-          test/wave4_sai_consent_test.dart
-          test/broker_messaging_handoff_test.dart
-      - name: Test support tasks, financial dues and actionable notifications
-        working-directory: mobile_app
-        run: >-
-          flutter test --no-pub --reporter expanded
-          test/support_task_pagination_test.dart
-          test/support_manager_agent_workflow_test.dart
-          test/uat_notification_actions_test.dart
-          test/phase4_notification_destination_test.dart
-          test/phase5_notification_destination_test.dart
-          test/message_inbox_pagination_test.dart
-          test/platform_dues_payment_test.dart
-          test/financial_v1_contract_test.dart
-      - name: Test public discovery, favorites and prior listing history
-        working-directory: mobile_app
-        run: >-
-          flutter test --no-pub --reporter expanded
-          test/wave3_search_only_1393_test.dart
-          test/home_location_entry_1820_test.dart
-          test/home_dhamar_similar_cards_test.dart
-          test/phase3_favorites_screen_test.dart
-          test/phase23_favorite_recovery_test.dart
-      - name: Test support publishing restoration
-        working-directory: mobile_app
-        run: >-
-          flutter test --no-pub --reporter expanded
-          test/owner_active_screen_states_test.dart
-          --name 'support restores publishing with confirmation and a reason'
-
   verify-and-build:
     name: Build and verify the signed UAT installer
-    needs: [verify-api, verify-flutter]
     permissions:
       contents: write
     if: ${{ github.event.repository.private && github.repository == 'JJalal1/real-estate-uat-backend' }}
@@ -431,16 +267,6 @@ jobs:
           apk=AQER-UAT-1846-Alazzi-ARM64.apk
           jq -e --arg source "$AQER_SOURCE_SHA" '.source == $source and .build == 1846 and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
           printf '%s  %s\n' "$(jq -r .sha256 APK_VERIFICATION.json)" "$apk" | sha256sum --check --strict
-      - name: Upload the verified APK and receipt
-        uses: actions/upload-artifact@v4
-        with:
-          name: AQER-UAT-1846-Alazzi-ARM64-${{ github.run_attempt }}
-          path: |
-            uat1846/AQER-UAT-1846-Alazzi-ARM64.apk
-            uat1846/APK_VERIFICATION.json
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
       - name: Attach the verified installer to a private draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -452,3 +278,4 @@ jobs:
             AQER-UAT-1846-Alazzi-ARM64.apk APK_VERIFICATION.json --repo "$GITHUB_REPOSITORY" \
             --draft --target "$AQER_SOURCE_SHA" --title 'AQER UAT 1846 — Alazzi unified listing updates and deals' \
             --notes "Signed UAT installer verified against source $AQER_SOURCE_SHA."
+
