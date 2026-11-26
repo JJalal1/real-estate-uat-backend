@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: free
     region: frankfurt
-    branch: work/wave2-review-current
+    branch: العزي
     rootDir: backend-api-runtime
     dockerfilePath: ./Dockerfile.uat
     dockerContext: .
