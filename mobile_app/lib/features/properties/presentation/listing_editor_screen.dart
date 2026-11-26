@@ -809,8 +809,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final userId = _recoveryUserId;
     if (userId == null) { _recoveryReady = true; super.setState(() {}); return; }
     Map<String,dynamic>? local = widget.localRecovery;
-    if (local == null && !widget.startFresh &&
-        !(widget.resumeSavedProgress && widget.accountDraft != null)) {
+    // Account entry already reconciled the local checkpoint against its revision.
+    if (local == null && !widget.startFresh && widget.accountDraft == null) {
       try { local=await _recoveryStore.read(userId, widget.existingProperty?.id).timeout(const Duration(seconds:8)); }
       catch (_) { _recoveryFailed=true; }
     }

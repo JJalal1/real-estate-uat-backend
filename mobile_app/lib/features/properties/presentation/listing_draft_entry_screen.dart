@@ -352,7 +352,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
             .contains(ref.watch(offlineConnectionProvider));
     if (_open) {
       final editor = ListingEditorScreen(existingProperty: _property, accountDraft: _selected, localRecovery: _editorLocal,
-        startFresh: _fresh, startWithAssistant: _assistant, resumeSavedProgress: _selected != null || widget.resumeLatest);
+        startFresh: _fresh, startWithAssistant: _assistant, resumeSavedProgress: widget.resumeLatest);
       return editor;
     }
     if (_showSaved) return _saved();

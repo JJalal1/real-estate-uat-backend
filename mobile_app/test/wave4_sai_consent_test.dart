@@ -63,7 +63,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), '110000');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('طلب تأكيد المبلغ')); await tester.pumpAndSettle();
+      await tester.tap(find.text('تسجيل الصفقة')); await tester.pumpAndSettle();
       expect(find.text('إقرار السعي لهذه المحادثة'), findsOneWidget);
       expect(find.textContaining('50%'), findsOneWidget);
       expect(finance.receipts, isEmpty); expect(broker.attempts, 1);

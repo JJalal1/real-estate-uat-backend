@@ -18,7 +18,7 @@ return new class extends Migration {
 
         DB::table('properties')->where('status', 'draft')->where('review_status', 'draft')
             ->whereNull('first_listed_at')->whereNull('submitted_at')->whereNull('reviewed_at')->whereNull('published_at')
-            ->whereNotIn('id', DB::table('listing_reviews')->select('listing_id'))
+            ->whereNotIn('id', DB::table('listing_reviews')->whereNotNull('listing_id')->select('listing_id'))
             ->select('id', 'created_at')->addSelect(['checkpoint_created_at' => DB::table('listing_editor_drafts')
                 ->selectRaw('MIN(created_at)')->whereColumn('property_id', 'properties.id')])
             ->chunkById(200, function ($rows): void {
