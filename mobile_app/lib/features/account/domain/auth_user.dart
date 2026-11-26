@@ -130,6 +130,7 @@ class AuthUser {
   bool get hasVerifiedProfessionalProfile => verificationProfile.isApproved &&
       const {'broker', 'office'}.contains(verificationProfile.type);
   bool get hasMarketplaceProfessionalProfile => brokerEnrolled || hasVerifiedProfessionalProfile || isBrokerVerified;
+  bool get canEditPublicProfile => hasMarketplaceProfessionalProfile || hasVerifiedPublishingProfile;
   bool get canCreateListing => isActive && (listingEligible ?? !needsProfileCompletion);
   String get accountTypeLabel => brokerEnrolled ? 'دلال' : verificationProfile.typeLabel;
 
