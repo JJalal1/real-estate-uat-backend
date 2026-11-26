@@ -5,7 +5,7 @@ import 'package:real_estate_mobile/features/account/domain/account_verification.
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 
 void main() {
-  test('base account is a researcher/browser/buyer and cannot publish', () {
+  test('base account can prepare and publish its first listing', () {
     final user = AuthUser.fromJson({
       'id': 10,
       'name': 'أحمد محمد علي صالح',
@@ -28,8 +28,28 @@ void main() {
 
     expect(user.needsProfileCompletion, isFalse);
     expect(user.hasVerifiedPublishingProfile, isFalse);
-    expect(user.canCreateListing, isFalse);
+    expect(user.canCreateListing, isTrue);
+    expect(user.hasMarketplaceProfessionalProfile, isFalse);
     expect(user.accountTypeLabel, 'باحث / متصفح / مشتري');
+  });
+
+  test('enrolled owner gets a broker workspace without identity or staff privileges', () {
+    final user = AuthUser.fromJson({
+      'id': 14,
+      'broker_enrolled': true,
+      'account_type': 'broker',
+      'account_status': 'active',
+      'phone_verified_at': '2026-08-29T00:00:00Z',
+      'profile_completed_at': '2026-08-29T00:01:00Z',
+      'verification_profile': {'type': 'owner', 'status': 'not_submitted'},
+    });
+    expect(user.isOwner, isFalse);
+    expect(user.isBroker, isTrue);
+    expect(user.accountTypeLabel, 'دلال');
+    expect(user.hasMarketplaceProfessionalProfile, isTrue);
+    expect(user.isBrokerVerified, isFalse);
+    expect(user.verificationProfile.identityReviewed, isFalse);
+    expect(user.canAccessAdminPanel, isFalse);
   });
 
   test('approved owner account can create listing after account identity review',

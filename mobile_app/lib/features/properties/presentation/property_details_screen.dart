@@ -739,19 +739,11 @@ class _AdvertiserCard extends ConsumerWidget {
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          EbrokerAdvertiserCard(name: advertiser.name, compact: true, photoUrl: profile?.photoUrl, completedDeals: profile?.completedDeals, activeListings: profile?.activeListings,
-            identity: verified ? advertiser.verificationLabel : 'معلن غير موثق',
+          EbrokerAdvertiserCard(name: profile?.name ?? advertiser.name, compact: true, photoUrl: profile?.photoUrl, completedDeals: profile?.completedDeals, activeListings: profile?.activeListings,
+            identity: profile?.typeLabel ?? advertiser.verificationLabel,
             rating: advertiser.ratingAverage, ratingCount: advertiser.ratingCount,
-            verified: verified, onTap: () => context.push('/advertisers/${advertiser.id}')),
-          ExpansionTile(tilePadding: EdgeInsets.zero, title: const Text('التوثيق والتقييم'), children: [
-          Text(
-            verified
-                ? 'تم التحقق من صفة المعلن داخل المنصة. إشارات الثقة أدناه مبنية على بيانات تحقق فعلية وليست شارات دعائية.'
-                : 'لم يكتمل توثيق هذا المعلن داخل المنصة. استخدم المراسلة داخل التطبيق وناقش تفاصيل العقار مع المعلن قبل اتخاذ أي قرار.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-          ),
+            verified: profile?.verified ?? verified, onTap: () => context.push('/advertisers/${advertiser.id}')),
+          ExpansionTile(key: const ValueKey('property-advertiser-feedback'), tilePadding: EdgeInsets.zero, title: Text(signals.isEmpty ? 'التقييم والتعليقات' : 'التوثيق والتقييم'), children: [
           if (signals.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s12),
             Wrap(

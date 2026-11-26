@@ -38,6 +38,7 @@ class PropertySaiService
         }
 
         return DB::transaction(function () use ($actor, $property, $payer, $brokerRate, $platformTermsDecision, $request, $deferPlatformTerms, $amountType, $fixedAmount): PropertySaiTerm {
+            $actor = User::query()->lockForUpdate()->findOrFail($actor->id);
             $locked = Property::query()->whereKey($property->id)->lockForUpdate()->firstOrFail();
             if ($locked->status === 'published'
                 || in_array($locked->review_status, ['submitted', 'under_review', 'rejected_blocked'], true)) {
@@ -47,7 +48,9 @@ class PropertySaiService
             if ($deferPlatformTerms && ((int) $locked->listing_input_version < 6 || $platformTermsDecision !== null)) {
                 throw ValidationException::withMessages(['defer_platform_terms' => ['تأجيل الإقرار متاح لمسودة النموذج الجديد دون قرار قبول أو رفض مسبق.']]);
             }
-            $advertiserType = $this->advertiserType($actor);
+            $current = $locked->currentSaiTerm()->first();
+            $advertiserType = $current && $brokerRate === null && $amountType === 'percentage'
+                ? $this->termAdvertiserType($actor, $current) : $this->advertiserType($actor);
             $purpose = (string) $locked->purpose;
             $this->validatePayer($purpose, $payer, true);
             if (! in_array($amountType, ['percentage', 'fixed'], true)
@@ -153,9 +156,6 @@ class PropertySaiService
                 'created_by_user_id' => (int) $actor->id,
             ];
 
-            $current = $locked->current_sai_term_id
-                ? PropertySaiTerm::query()->find($locked->current_sai_term_id)
-                : null;
             if ($current && $this->equivalent($current, $candidate)) {
                 return $current;
             }
@@ -197,7 +197,7 @@ class PropertySaiService
             throw new ConflictHttpException('يجب تحديد شروط السعي والطرف الذي يتحمله قبل إرسال الإعلان للمراجعة.');
         }
 
-        $advertiserType = $this->advertiserType($advertiser);
+        $advertiserType = $this->termAdvertiserType($advertiser, $term);
         if ($term->purpose !== $property->purpose || $term->advertiser_type !== $advertiserType) {
             throw new ConflictHttpException('تغير نوع الإعلان أو صفة المعلن. أعد تأكيد شروط السعي قبل المتابعة.');
         }
@@ -300,7 +300,7 @@ class PropertySaiService
     public function managementData(Property $property, User $advertiser): array
     {
         $term = $this->currentTerm($property);
-        $type = $this->advertiserType($advertiser);
+        $type = $term ? $this->termAdvertiserType($advertiser, $term) : $this->advertiserType($advertiser);
         $purpose = (string) $property->purpose;
 
         if (! $term || $term->purpose !== $purpose || $term->advertiser_type !== $type) {
@@ -376,8 +376,20 @@ class PropertySaiService
         ];
     }
 
+    private function termAdvertiserType(User $user, PropertySaiTerm $term): string
+    {
+        // Enrollment does not rewrite owner terms already agreed for this property.
+        if ($term->advertiser_type === 'owner' && $user->broker_enrolled_at !== null
+            && $term->created_at?->lte($user->broker_enrolled_at)) {
+            return 'owner';
+        }
+
+        return $this->advertiserType($user);
+    }
+
     public function advertiserType(User $user): string
     {
+        if ($user->broker_enrolled_at !== null) return 'broker';
         $profile = $user->verificationProfile();
         if ($profile?->isApproved()) {
             return match ($profile->type) {
@@ -387,9 +399,8 @@ class PropertySaiService
             };
         }
 
-        // Historical local/test compatibility only. Current UAT advertisers
-        // are required to have an approved verification profile.
-        return $user->isBrokerAccount() ? 'broker' : 'owner';
+        return $user->isBrokerVerified() || ((int) $user->identity_policy_version === 0 && $user->isBrokerAccount())
+            ? 'broker' : 'owner';
     }
 
     public function fixedRate(string $purpose): float

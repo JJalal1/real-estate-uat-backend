@@ -111,9 +111,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(loadUxFixtures);
 
-  test('automatic save requires current progress of at least 50 percent', () {
+  test('automatic save requires current progress of more than 50 percent', () {
     expect(DynamicPropertySchema.canBeginAutomaticSave(49), isFalse);
-    expect(DynamicPropertySchema.canBeginAutomaticSave(50), isTrue);
+    expect(DynamicPropertySchema.canBeginAutomaticSave(50), isFalse);
     expect(DynamicPropertySchema.canBeginAutomaticSave(51), isTrue);
     final incomplete = <String, dynamic>{
       'editor_version': 11, 'type': 'apartment', 'purpose': 'sale',

@@ -472,7 +472,8 @@ void main() {
         return _page(1, [_row(1, unread: 0)], last: 2, total: 250);
       });
       await _open(tester, wire, MessagesScreen(embedded: compact, compact: compact));
-      expect(find.text('محادثاتك'), compact ? findsNothing : findsOneWidget);
+      expect(find.text('محادثاتك'), findsNothing);
+      expect(find.text('كل الحالات'), findsOneWidget);
       expect(find.text('كل الرسائل مقروءة'), findsNothing);
       await _more(tester, 'message-threads-more');
       final filter = find.text('غير المقروء فقط');
@@ -501,6 +502,7 @@ void main() {
       'property_status': 'paused',
       'last_message_at': messageTime.toIso8601String(),
       'last_message_preview': '$firstLine\n$secondLine',
+      'last_message_is_mine': true,
       'can_send': false,
     };
     final wire = _Wire((request) async => switch (request.path) {
@@ -517,11 +519,11 @@ void main() {
     final card = find.byKey(const ValueKey('message-thread-71'));
     Finder inCard(Finder widget) => find.descendant(of: card, matching: widget);
     expect(inCard(find.text('عميل الاختبار')), findsOneWidget);
-    expect(inCard(find.text('${messageTime.day}/${messageTime.month}')), findsOneWidget);
+    expect(inCard(find.text('${messageTime.year}/${messageTime.month.toString().padLeft(2, '0')}/${messageTime.day.toString().padLeft(2, '0')}')), findsOneWidget);
     expect(inCard(find.text('3')), findsOneWidget);
     expect(inCard(find.textContaining('غير متاح')), findsNothing);
     expect(inCard(find.text(property)), findsNothing);
-    final preview = tester.widget<Text>(inCard(find.text('$firstLine $secondLine')));
+    final preview = tester.widget<Text>(inCard(find.text('أنت: $firstLine $secondLine')));
     expect(preview.maxLines, 1);
     expect(preview.softWrap, isFalse);
     expect(preview.overflow, TextOverflow.ellipsis);
@@ -531,6 +533,9 @@ void main() {
     expect(find.text(property), findsNothing);
     expect(find.text('غير متاح'), findsNothing);
     expect(find.text(history), findsOneWidget);
+    expect(find.byTooltip('إرسال الرسالة'), findsOneWidget);
+    expect(find.text('تصنيف العميل'), findsNothing);
+    expect(find.text('ملاحظة وتذكير'), findsNothing);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
     expect(tester.takeException(), isNull);
   });

@@ -20,7 +20,7 @@ class BrokerCustomerFollowupService
                 $row->load(['user', 'thread.property'=>fn ($query) => $query->withoutGlobalScopes(), 'thread.participants']);
                 $actor = $row->user;
                 $thread = $row->thread;
-                if ($actor?->isActive() && $actor->hasApprovedVerificationProfile() && $thread &&
+                if ($actor?->isActive() && $actor->hasMarketplaceProfessionalProfile() && $thread &&
                     (int) $thread->property?->user_id === (int) $actor->id &&
                     $thread->participants->contains(fn ($p) => (int) $p->user_id === (int) $actor->id)) {
                     // A private reminder never sends a customer message or includes the private note.

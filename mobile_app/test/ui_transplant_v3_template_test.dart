@@ -399,20 +399,19 @@ void main() {
       expect(find.byKey(const ValueKey('create-listing-ai')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('create-listing-manual'))); await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
-      expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
+      expect(find.text('listing destination'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('consumer categories replace the old listing tab and personal listings remain protected', (tester) async {
+  testWidgets('consumer categories and personal listings are available to regular accounts', (tester) async {
     final router = await _pump(tester, user: _user());
     expect(find.byType(MarketplaceHomeScreen), findsOneWidget);
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
     expect(nav.destinations.map((d) => d.label), ['العقارات', 'الأقسام', 'الرسائل', 'حسابي']);
     router.push<void>('/my-listings');
     await tester.pumpAndSettle();
-    expect(find.text('توثيق نوع الحساب مطلوب'), findsOneWidget);
-    expect(find.byType(MyListingsScreen), findsNothing);
+    expect(find.byType(MyListingsScreen), findsOneWidget);
   });
 
   testWidgets('conversation keeps existing repository send and thread identity', (tester) async {

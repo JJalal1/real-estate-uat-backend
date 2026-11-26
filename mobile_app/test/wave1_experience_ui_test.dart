@@ -149,7 +149,7 @@ void main() {
     await uxPreview(tester, boundary, 'wave1-details-gallery-swipe');
     await tester.drag(find.byKey(const ValueKey('property-details-handle')), const Offset(0, -650));
     await tester.pumpAndSettle(); expect(draggable.controller!.size, greaterThan(.95));
-    final verification = find.text('التوثيق والتقييم');
+    final verification = find.byKey(const ValueKey('property-advertiser-feedback'));
     await tester.scrollUntilVisible(verification, 300, scrollable: find.descendant(
       of: find.byKey(const ValueKey('property-details-11')), matching: find.byType(Scrollable)).first);
     await tester.ensureVisible(verification); await tester.pumpAndSettle();

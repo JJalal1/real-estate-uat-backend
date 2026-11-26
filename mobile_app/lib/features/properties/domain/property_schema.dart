@@ -43,7 +43,7 @@ abstract final class DynamicPropertySchema {
     return (100 * complete / needed.length).round();
   }
 
-  static bool canBeginAutomaticSave(int progress) => progress >= 50;
+  static bool canBeginAutomaticSave(int progress) => progress > 50;
 
   static Map<String, dynamic> sanitize(Map<String, dynamic> input) {
     final result = Map<String, dynamic>.from(input);

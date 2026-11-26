@@ -2,7 +2,8 @@ import '../../../core/offline/offline_connection.dart';
 import '../data/message_outbox.dart';
 import 'pending_message_card.dart';
 import 'package:flutter/material.dart';
-import '../../../core/widgets/ebroker_widgets.dart';
+import '../../broker/presentation/broker_connections_screen.dart';
+import 'message_thread_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
@@ -22,7 +23,11 @@ class MessagesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final actor = ref.watch(authControllerProvider).asData?.value?.id;
+    final user = ref.watch(authControllerProvider).asData?.value;
+    final actor = user?.id;
+    if (user?.hasMarketplaceProfessionalProfile == true) {
+      return const BrokerConnectionsScreen();
+    }
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
       : _MessagesBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch)),
           embedded: embedded, compact: compact);
@@ -45,7 +50,6 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
   String? _pageError;
   bool _loadingMore = false;
   int _page = 0;
-  int _total = 0;
   bool _hasMore = false;
   List<MessageThreadSummary> _items = const [];
   int _request = 0;
@@ -68,7 +72,6 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
         _sessionEpoch = epoch;
         _items = const [];
         _page = 0;
-        _total = 0;
         _hasMore = false;
         _query = null;
         _error = null;
@@ -110,7 +113,6 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
     setState(() {
       if (_query != query || _actor != actor || _sessionEpoch != epoch) {
         _items = const [];
-        _total = 0;
       }
       _actor = actor;
       _sessionEpoch = epoch;
@@ -133,7 +135,6 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
       if (!mounted || request != _request) return;
       setState(() {
         _items = const [];
-        _total = 0;
         _page = 0;
         _hasMore = false;
         _loading = false;
@@ -152,7 +153,6 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
           for (final item in result.items) item.id: item,
         }.values.toList(growable: false);
         _page = result.currentPage;
-        _total = result.total;
         _hasMore = result.hasMore;
         _loading = false;
         _loadingMore = false;
@@ -167,7 +167,6 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
         } else {
           if (!isTransientApiFailure(error)) {
             _items = const [];
-            _total = 0;
           }
           _page = 0;
           _hasMore = false;
@@ -234,21 +233,11 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                     AppLayout.compactPageGutter,
                     0,
                   ),
-                  child: widget.compact
-                      ? Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: AppFilterChip(
-                            selected: _unreadOnly,
-                            icon: Icons.mark_email_unread_outlined,
-                            label: 'غير المقروء فقط',
-                            onSelected: _filterUnread,
-                          ),
-                        )
-                      : _InboxHeader(
-                          conversations: _total,
-                          unreadOnly: _unreadOnly,
-                          onUnreadChanged: _filterUnread,
-                        ),
+                  child: MessageInboxFilters(
+                    options: const {null: 'كل الحالات', 'unread': 'غير المقروء فقط'},
+                    selected: _unreadOnly ? 'unread' : null,
+                    onSelected: (value) => _filterUnread(value == 'unread'),
+                  ),
                 ),
               ),
               if (_items.isNotEmpty && (_loading || _error != null))
@@ -288,22 +277,23 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
                   ),
                   sliver: SliverList.separated(
                     itemCount: _items.length,
-                    separatorBuilder: (_, __) => SizedBox(
-                      height: widget.compact ? AppSpacing.s8 : AppSpacing.s10,
+                    separatorBuilder: (_, __) => const SizedBox(
+                      height: AppSpacing.s8,
                     ),
                     itemBuilder: (context, index) {
                       final item = _items[index];
-                      return _ConversationCard(
+                      return MessageThreadCard(
                         key: ValueKey('message-thread-${item.id}'),
-                        item: item,
-                        compact: widget.compact,
+                        threadId: item.id,
+                        otherUserName: item.otherUserName,
+                        lastMessagePreview: item.lastMessagePreview,
+                        lastMessageIsMine: item.lastMessageIsMine,
+                        lastMessageAt: item.lastMessageAt,
+                        unreadCount: item.unreadCount,
                         onTap: () async {
                           await Navigator.of(context).push<void>(
                             MaterialPageRoute<void>(
-                              builder: (_) => ConversationScreen(
-                                threadId: item.id,
-                                compactPropertyContext: widget.compact,
-                              ),
+                              builder: (_) => ConversationScreen(threadId: item.id),
                             ),
                           );
                           await _load();
@@ -336,222 +326,6 @@ class _MessagesScreenState extends ConsumerState<_MessagesBody> {
   }
 }
 
-class _InboxHeader extends StatelessWidget {
-  const _InboxHeader({
-    required this.conversations,
-    required this.unreadOnly,
-    required this.onUnreadChanged,
-  });
-
-  final int conversations;
-  final bool unreadOnly;
-  final ValueChanged<bool> onUnreadChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      unreadOnly ? 'المحادثات غير المقروءة' : 'محادثاتك',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.s4),
-                    Text(
-                      unreadOnly ? '$conversations محادثة غير مقروءة.' :
-                          '$conversations محادثة مرتبطة برحلات عقارية داخل التطبيق.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(AppRadii.control),
-                ),
-                child: EbrokerIcon(
-                  unreadOnly
-                      ? Icons.mark_chat_unread_outlined
-                      : Icons.mark_chat_read_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.s12),
-          EbrokerFilterChip(
-            selected: unreadOnly,
-            avatar: const EbrokerIcon(Icons.mark_email_unread_outlined, size: 18),
-            label: const Text('غير المقروء فقط'),
-            onSelected: onUnreadChanged,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ConversationCard extends StatelessWidget {
-  const _ConversationCard({
-    required this.item, required this.onTap, required this.compact, super.key,
-  });
-
-  final MessageThreadSummary item;
-  final VoidCallback onTap;
-  final bool compact;
-  static final _lineBreak = RegExp(r'\s*[\r\n\u2028\u2029]+\s*');
-
-  Widget _unreadBadge(ColorScheme scheme, TextTheme textTheme) => Container(
-    constraints: BoxConstraints(
-      minWidth: compact ? 22 : 28,
-      minHeight: compact ? 22 : 28,
-    ),
-    padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 8),
-    alignment: Alignment.center,
-    decoration: BoxDecoration(
-      color: scheme.primary,
-      borderRadius: BorderRadius.circular(AppRadii.pill),
-    ),
-    child: Text(
-      item.unreadCount > 99 ? '99+' : '${item.unreadCount}',
-      style: textTheme.labelSmall?.copyWith(
-        color: scheme.onPrimary,
-        fontWeight: FontWeight.w700,
-      ),
-    ),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final unread = item.unreadCount > 0;
-    final preview = item.lastMessagePreview ?? 'ابدأ المحادثة حول هذا العقار.';
-    final firstLetter = item.otherUserName.trim().isEmpty
-        ? '?'
-        : item.otherUserName.trim().characters.first;
-
-    return AppSurface(
-      padding: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsetsDirectional.all(compact ? AppSpacing.s10 : AppSpacing.s12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                radius: compact ? 17 : 24,
-                backgroundColor: unread
-                    ? scheme.primaryContainer
-                    : scheme.surfaceContainerHighest,
-                child: Text(
-                  firstLetter,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: unread ? scheme.primary : scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-              SizedBox(width: compact ? AppSpacing.s8 : AppSpacing.s12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            item.otherUserName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: (compact ? textTheme.titleSmall : textTheme.titleMedium)?.copyWith(
-                                  fontWeight:
-                                      unread ? FontWeight.w700 : FontWeight.w600,
-                                ),
-                          ),
-                        ),
-                        if (item.lastMessageAt != null)
-                          Text(
-                            _relativeTime(item.lastMessageAt!),
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                          ),
-                        if (compact && unread) ...[
-                          const SizedBox(width: AppSpacing.s8),
-                          _unreadBadge(scheme, textTheme),
-                        ],
-                      ],
-                    ),
-                    if (item.propertyTitle != null && !item.isPropertyUnavailable) ...[
-                      if (!compact) const SizedBox(height: AppSpacing.s4),
-                      Row(
-                        children: [
-                          EbrokerIcon(
-                            Icons.home_work_outlined,
-                            size: 16,
-                            color: scheme.primary,
-                          ),
-                          const SizedBox(width: AppSpacing.s4),
-                          Expanded(
-                            child: Text(
-                              item.propertyTitle!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: scheme.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    SizedBox(height: compact ? AppSpacing.s4 : AppSpacing.s6),
-                    Text(
-                      compact ? preview.replaceAll(_lineBreak, ' ').trim() : preview,
-                      maxLines: compact ? 1 : 2,
-                      softWrap: !compact,
-                      overflow: TextOverflow.ellipsis,
-                      style: (compact ? textTheme.bodySmall : textTheme.bodyMedium)?.copyWith(
-                            color: unread
-                                ? scheme.onSurface
-                                : scheme.onSurfaceVariant,
-                            fontWeight:
-                                unread ? FontWeight.w600 : FontWeight.normal,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              if (!compact) ...[
-                const SizedBox(width: AppSpacing.s8),
-                if (unread) _unreadBadge(scheme, textTheme)
-                else EbrokerIcon(Icons.chevron_left_rounded, color: scheme.onSurfaceVariant),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MessagesSkeleton extends StatelessWidget {
   const _MessagesSkeleton();
 
@@ -559,22 +333,12 @@ class _MessagesSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: const [
-        AppSkeleton(height: 112, radius: AppRadii.card),
+        AppSkeleton(height: 76, radius: AppRadii.card),
         SizedBox(height: AppSpacing.s10),
-        AppSkeleton(height: 112, radius: AppRadii.card),
+        AppSkeleton(height: 76, radius: AppRadii.card),
         SizedBox(height: AppSpacing.s10),
-        AppSkeleton(height: 112, radius: AppRadii.card),
+        AppSkeleton(height: 76, radius: AppRadii.card),
       ],
     );
   }
-}
-
-String _relativeTime(DateTime value) {
-  final difference = DateTime.now().difference(value.toLocal());
-  if (difference.inMinutes < 1) return 'الآن';
-  if (difference.inMinutes < 60) return 'منذ ${difference.inMinutes} د';
-  if (difference.inHours < 24) return 'منذ ${difference.inHours} س';
-  if (difference.inDays == 1) return 'أمس';
-  if (difference.inDays < 7) return 'منذ ${difference.inDays} أيام';
-  return '${value.toLocal().day}/${value.toLocal().month}';
 }

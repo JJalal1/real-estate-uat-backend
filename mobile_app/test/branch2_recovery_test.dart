@@ -54,6 +54,52 @@ void main() {
     await store.deleteSaved(1, key); expect(await store.saved(1), isEmpty);
     expect(await store.read(1, null), isNotNull);
   });
+  test('restart and seven-day expiry survive reopening the store', () async {
+    final root = await Directory.systemTemp.createTemp('draft-retention-');
+    addTearDown(() => root.delete(recursive: true));
+    var now = DateTime.utc(2026, 11, 1);
+    ListingRecoveryStore open() => ListingRecoveryStore(directory: () async => root, clock: () => now);
+    final manualKey = newListingDraftKey(), autoKey = newListingDraftKey();
+    final manual = {...recovery(kind: 'saved'), 'draft_key': manualKey};
+    final automatic = {...recovery(), 'draft_key': autoKey, 'first_saved_at': now.toIso8601String()};
+    await open().write(7, null, manual, []);
+    await open().pinExplicitSave(7);
+    await open().write(7, null, automatic, []);
+    now = now.add(const Duration(days: 5));
+    final revised = {...manual, 'first_saved_at': DateTime.utc(2026, 11, 1).toIso8601String()};
+    await open().write(7, null, revised, []);
+    expect((await open().read(7, null))!['draft_key'], autoKey);
+    final reset = now.toIso8601String();
+    await open().rememberRestart(7, reset);
+    expect(await open().pendingRestart(7), reset);
+    expect(await open().pendingRestart(8), isNull);
+    expect(await open().read(7, null), isNull);
+    expect((await open().saved(7)).single['draft_key'], manualKey);
+    await open().acknowledgeRestart(7, reset);
+    expect(await open().pendingRestart(7), isNull);
+    await expectLater(open().write(7, null, automatic, []), throwsStateError);
+    now = now.add(const Duration(days: 2));
+    expect(await open().saved(7), isEmpty);
+    await expectLater(open().write(7, null, revised, []), throwsStateError);
+  });
+  testWidgets('saved drafts show one resume card and a manual menu with no thumbnails', (tester) async {
+    final drafts = Drafts(), manual = newListingDraftKey(), latest = newListingDraftKey();
+    drafts.drafts[manual] = ListingAccountDraft(key: manual, revision: 1, payload: {
+      ...recovery(kind: 'saved'), 'fields': {'governorate': 'صنعاء', 'district': 'معين'}
+    }, title: 'شقة محفوظة');
+    drafts.drafts[latest] = ListingAccountDraft(key: latest, revision: 1, payload: recovery(),
+      title: 'إعلان تلقائي', progress: 65);
+    await pumpWave6(tester, const ListingDraftEntryScreen(showSavedDrafts: true), drafts: drafts);
+    expect(find.text('أكمل آخر إعلان'), findsOneWidget);
+    expect(find.text('اكتمال البيانات 65٪'), findsOneWidget);
+    expect(find.text('المسودات اليدوية'), findsOneWidget);
+    expect(find.text('صنعاء، معين'), findsOneWidget);
+    expect(find.byType(Image), findsNothing);
+    expect(find.byIcon(Icons.delete_outline), findsNothing);
+    await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
+    expect(find.text('حذف المسودة'), findsOneWidget);
+    await finishWave6(tester);
+  });
   testWidgets('A01 choosing creation method precedes any account-recovery request', (tester) async {
     final drafts = Drafts();
     await pumpWave6(tester, const AddPropertyWizardScreen(), drafts: drafts);

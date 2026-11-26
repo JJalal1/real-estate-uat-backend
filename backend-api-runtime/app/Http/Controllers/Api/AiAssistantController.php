@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Services\GeminiClient;
-use App\Services\ListingAccessService;
 use App\Services\ListingAiService;
 use App\Services\ListingDraftService;
 use App\Services\SmartSearchService;
@@ -78,7 +77,6 @@ class AiAssistantController extends Controller
     public function question(Request $request, Property $property, ListingAiService $service): JsonResponse
     {
         abort_unless($property->isPubliclyVisible(), 404);
-        abort_if(app(\App\Services\PropertyFinancialService::class)->hasOverdueReceivable((int) $property->user_id), 404);
         $v = $request->validate(['question' => ['required', 'string', 'max:800']]);
         return response()->json(['data' => $service->question($property, $v['question'])]);
     }
@@ -86,7 +84,7 @@ class AiAssistantController extends Controller
     private function advertiser(Request $request): void
     {
         $actor = $request->user();
-        abort_unless($actor && $actor->isActive() && $actor->hasApprovedVerificationProfile() && $actor->canCreateListings(), 403);
+        abort_unless($actor?->canCreateListings(), 403);
         $id = $request->input('property_id');
         if ($id !== null) {
             $request->validate(['property_id' => ['integer', 'min:1']]);
@@ -94,7 +92,6 @@ class AiAssistantController extends Controller
             abort_unless((int) $property->user_id === (int) $actor->id, 404);
             abort_unless(! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked'], true), 409);
         } else {
-            app(ListingAccessService::class)->assertCanCreate($actor,$request->input('editor_draft_key'));
             if ($request->input('editor_draft_key')) {
                 $request->validate(['editor_draft_key'=>['uuid']]);
                 $draft=app(\App\Services\ListingEditorDraftService::class)->owned($actor,$request->input('editor_draft_key'));

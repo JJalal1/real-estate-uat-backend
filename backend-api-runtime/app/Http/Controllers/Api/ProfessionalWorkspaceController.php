@@ -15,8 +15,12 @@ class ProfessionalWorkspaceController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $profile = $user->verificationProfile();
-        abort_unless($profile && $profile->isApproved() && in_array($profile->type, ['broker', 'office'], true), 403, 'يلزم اعتماد حساب دلال أو مكتب لفتح لوحة العمل.');
+        abort_unless($user->isActive() && $user->hasMarketplaceProfessionalProfile(), 403);
+        $type = $user->isOfficeVerified() || $user->marketplace_office_name ? 'office' : 'broker';
+        $label = $type === 'office' ? 'مكتب عقاري' : 'دلال';
+        if (($type === 'office' && $user->isOfficeVerified()) || ($type === 'broker' && $user->isBrokerVerified())) {
+            $label .= ' موثق';
+        }
 
         $listingIds = Property::query()->where('user_id', $user->id)->pluck('id');
         $publishedIds = Property::query()
@@ -98,13 +102,8 @@ class ProfessionalWorkspaceController extends Controller
             ])->values();
 
         return response()->json(['data' => [
-            'publisher_type' => $profile->type,
-            'publisher_label' => match ($profile->type) {
-                'owner' => 'مالك موثق',
-                'broker' => 'دلال موثق',
-                'office' => 'مكتب عقاري موثق',
-                default => 'معلن موثق',
-            },
+            'publisher_type' => $type,
+            'publisher_label' => $label,
             'listings' => [
                 'total' => (int) array_sum($listingCounts->all()),
                 'published' => (int) ($listingCounts['published'] ?? 0),

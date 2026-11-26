@@ -83,9 +83,9 @@ class BrokerRepository {
       lastPage: brokerInt(meta['last_page']) == 0 ? 1 : brokerInt(meta['last_page']),
       customerStageClassificationV2: meta['customer_stage_classification_v2'] == true);
   }
-  Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15, bool regionOnly = false, String? search, String? specialty, String? accountType, double? minRating}) async =>
+  Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15, bool regionOnly = false, String? search, String? accountType, double? minRating}) async =>
     _page(await _get('/brokers', public: true, query: {'page': page, 'per_page': perPage, if (governorate != null) 'governorate': governorate, if (regionOnly) 'region_only': 1,
-      if (search?.trim().isNotEmpty == true) 'search': search!.trim(), if (specialty?.isNotEmpty == true) 'specialty': specialty,
+      if (search?.trim().isNotEmpty == true) 'search': search!.trim(),
       if (accountType != null) 'account_type': accountType, if (minRating != null) 'min_rating': minRating}), BrokerProfile.fromJson);
   Future<BrokerProfile> profile(int id) async => BrokerProfile.fromJson(brokerMap((await _get('/advertisers/$id/profile', public: true))['data']));
   Future<Map<String, dynamic>> workspace() async => brokerMap((await _get('/broker/workspace'))['data']);
@@ -155,7 +155,17 @@ class BrokerRepository {
   }
   Future<BrokerDeal> decide(int id, bool confirmed) async => BrokerDeal.fromJson(brokerMap((await _post('/broker/deals/$id/decision', {'confirmed': confirmed}))['data']));
   Future<Map<String, dynamic>> finance() async => brokerMap((await _get('/broker/finance'))['data']);
-  Future<void> updateBio(String bio) async { await _dio.patch<void>('/broker/profile', data: {'bio': bio}, options: await _auth.requiredAuthOptions()); }
+  Future<void> updateProfile({required String bio, String? governorate, bool? isOffice, String? officeName}) async {
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _requestScope?.verify();
+    await _dio.patch<void>('/broker/profile', options: options, data: {
+      'bio': bio.trim(),
+      if (governorate != null) 'governorate': governorate,
+      if (isOffice != null) 'is_office': isOffice,
+      if (isOffice == true) 'office_name': officeName?.trim(),
+    });
+    _requestScope?.verify();
+  }
   Future<void> uploadPhoto(String path) async {
     await _dio.post<void>('/broker/profile/photo', data: FormData.fromMap({'photo': await MultipartFile.fromFile(path)}), options: await _auth.requiredAuthOptions());
   }

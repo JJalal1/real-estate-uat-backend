@@ -73,12 +73,6 @@ class _ServicesHub extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final professionalMessage = model.verifiedProfessional
-        ? 'حسابك موثق للنشر وإدارة العقارات.'
-        : model.accountType == 'basic'
-            ? 'تصفح العقارات والأدوات، وفعّل صفتك المهنية عندما تحتاج إلى النشر.'
-            : 'أكمل التحقق من صفتك المهنية لتفعيل نشر العقارات.';
-
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsetsDirectional.fromSTEB(
@@ -112,7 +106,7 @@ class _ServicesHub extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.s4),
                     Text(
-                      'الخدمات الحالية مجانية • ${model.accountTypeLabel} • $professionalMessage',
+                      'ابحث عن عقار، وانشر إعلاناتك وتابعها من هنا.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
@@ -218,7 +212,7 @@ class _ServicesHub extends StatelessWidget {
         const AppSectionHeader(
           title: 'أدوات المعلن',
           subtitle:
-              'النشر والإدارة والمتابعة حسب صلاحية حسابك وحالة التحقق.',
+              'أنشئ إعلاناتك وتابع حالتها.',
         ),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
@@ -245,26 +239,9 @@ class _ServicesHub extends StatelessWidget {
               ],
               AppListRow(
                 title: 'إضافة عقار',
-                subtitle: model.can('create_listing')
-                    ? 'أنشئ إعلاناً جديداً وأرسله للمراجعة.'
-                    : 'يتطلب حساب مالك أو دلال أو مكتب عقاري موثق.',
+                subtitle: 'أضف تفاصيل العقار وصوره ثم انشر إعلانك.',
                 leading: const EbrokerIcon(Icons.add_home_work_outlined),
-                trailing: AppStatusBadge(
-                  label: model.requiresVerification('create_listing')
-                      ? 'يتطلب التحقق'
-                      : 'متاح الآن',
-                  tone: model.requiresVerification('create_listing')
-                      ? AppStatusTone.warning
-                      : AppStatusTone.success,
-                ),
-                onTap: () {
-                  if (model.can('create_listing') &&
-                      model.isAvailable('create_listing')) {
-                    context.push('/add-property');
-                  } else {
-                    context.push('/account-verification');
-                  }
-                },
+                onTap: () => context.push('/add-property'),
               ),
               const Divider(height: 1),
               AppListRow(

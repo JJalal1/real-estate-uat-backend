@@ -5,12 +5,11 @@ use App\Http\Controllers\Controller;
 use App\Models\ListingEditorDraft;
 use App\Models\Property;
 use App\Models\User;
-use App\Services\CloudAssetStorageService;
-use App\Services\ListingAccessService;
 use App\Services\ListingEditorDraftService;
 use App\Services\ListingImageService;
 use App\Services\PropertyIdentityService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -20,19 +19,20 @@ class ListingEditorDraftController extends Controller
 
     public function index(Request $request)
     {
-        $rows=ListingEditorDraft::query()->where('user_id',$request->user()->id)
+        $this->drafts->consolidateLegacyRecoveries($request->user());
+        $rows=ListingEditorDraft::query()->where('user_id',$request->user()->id)->where('created_at','>',now()->subDays(7))
             ->where(fn($q)=>$q->whereNull('payload->draft_kind')->orWhere('payload->draft_kind','!=','retired'))
             ->where(function($q):void {$q->whereNull('property_id')->orWhereHas('property',fn($p)=>$p->where('status','draft')->whereNotIn('review_status',['submitted','under_review','rejected_blocked']));})
             ->orderByDesc('updated_at')->orderByDesc('id')->paginate(50);
         return response()->json(['data'=>$rows->getCollection()->map(fn($d)=>$this->drafts->present($d)),
-            'meta'=>['current_page'=>$rows->currentPage(),'last_page'=>$rows->lastPage(),'recovery_contract'=>1]]);
+            'meta'=>['current_page'=>$rows->currentPage(),'last_page'=>$rows->lastPage(),'recovery_contract'=>1,'restart_contract'=>1]]);
     }
     public function show(Request $request,string $key) { return response()->json(['data'=>$this->drafts->present($this->drafts->owned($request->user(),$key))]); }
 
     public function save(Request $request,string $key)
     {
         abort_unless(Str::isUuid($key),404);
-        $v=$request->validate(['payload'=>['required','array'],'expected_revision'=>['required','integer','min:0'],'property_id'=>['nullable','integer','min:1'],
+        $v=$request->validate(['payload'=>['required','array'],'first_saved_at'=>['nullable','date'],'expected_revision'=>['required','integer','min:0'],'property_id'=>['nullable','integer','min:1'],
             'payload.type'=>['nullable',\Illuminate\Validation\Rule::in(array_keys(app(\App\Services\DynamicPropertySchema::class)->definition()['types']))],
             'payload.purpose'=>['nullable','in:sale,rent'],'payload.step'=>['nullable','integer','between:0,3'],
             'payload.latitude'=>['nullable','numeric','between:-90,90'],'payload.longitude'=>['nullable','numeric','between:-180,180'],
@@ -65,10 +65,14 @@ class ListingEditorDraftController extends Controller
             $draft=ListingEditorDraft::query()->where('user_id',$actor->id)->where('client_key',$key)->lockForUpdate()->first();
             if (!$draft) {
                 abort_unless($v['expected_revision']===0,409);
-                if (!$property) app(ListingAccessService::class)->assertCanCreate($actor,$key);
+                $firstSaved = isset($v['first_saved_at']) ? Carbon::parse($v['first_saved_at'])->utc()->min(now()) : now();
+                abort_if($firstSaved->lte(now()->subDays(7)), 410, 'انتهت مدة حفظ المسودة.');
                 $draft=new ListingEditorDraft(['user_id'=>$actor->id,'client_key'=>$key,'revision'=>0,'images'=>[],'payload'=>[],'property_id'=>$property?->id]);
+                $draft->created_at = $firstSaved;
+                $draft->first_saved_us = (int)$firstSaved->format('Uu');
             } else {
                 abort_if(($draft->payload['draft_kind'] ?? null)==='retired',410,'ألغي هذا التقدم المؤقت ولا يمكن إعادته بطلب قديم.');
+                $this->drafts->assertNotExpired($draft);
                 if ($draft->property_id) $this->drafts->assertEditable($actor,Property::query()->findOrFail($draft->property_id));
                 abort_if($property && $draft->property_id !== null && (int)$property->id !== $draft->property_id,409);
                 $incoming=$this->drafts->clean($v['payload']);
@@ -89,11 +93,39 @@ class ListingEditorDraftController extends Controller
                 $propertyId=$property?->id ?? $draft->property_id;
                 abort_unless($propertyId && \App\Models\PropertyImage::query()->where('property_id',$propertyId)->whereKey((int)substr($token,9))->exists(),422,'الصورة لا تنتمي لهذا الإعلان.');
             }
+            if (($clean['draft_kind'] ?? null) === 'recovery' && (int)($clean['editor_version'] ?? 0) >= 10) {
+                abort_if($this->drafts->progress($clean) <= 50, 422, 'يبدأ الحفظ التلقائي بعد إكمال أكثر من نصف البيانات.');
+                $started = (int)$this->drafts->firstSavedAt($draft)->format('Uu');
+                abort_if($actor->draft_restart_us && $started <= $actor->draft_restart_us, 410, 'أُلغي هذا التقدم عند بدء إعلان جديد.');
+                foreach ($this->drafts->recoveries($actor)->where('client_key','!=',$key)->lockForUpdate()->get() as $other) {
+                    if (!$this->drafts->isRecovery($other)) continue;
+                    abort_if((int)$this->drafts->firstSavedAt($other)->format('Uu') > $started, 410, 'لديك تقدم تلقائي أحدث.');
+                    $this->drafts->retire($other);
+                }
+            }
             $draft->payload=$clean;
             if ($property) $draft->property_id=$property->id;
             $draft->revision++;$draft->save();return $draft;
         });
         return response()->json(['data'=>$this->drafts->present($result)]);
+    }
+
+    public function restart(Request $request)
+    {
+        $input = $request->validate(['started_at'=>['required','date']]);
+        $cutoff = (int)Carbon::parse($input['started_at'])->utc()->min(now())->format('Uu');
+        DB::transaction(function () use ($request, $cutoff): void {
+            $user = User::query()->lockForUpdate()->findOrFail($request->user()->id);
+            $this->drafts->assertEditable($user);
+            $cutoff = max((int)$user->draft_restart_us, $cutoff);
+            $user->forceFill(['draft_restart_us'=>$cutoff])->save();
+            foreach ($this->drafts->recoveries($user)->lockForUpdate()->get() as $draft) {
+                if ($this->drafts->isRecovery($draft) && (int)$this->drafts->firstSavedAt($draft)->format('Uu') <= $cutoff) {
+                    $this->drafts->retire($draft);
+                }
+            }
+        });
+        return response()->json(['message'=>'يمكنك بدء إعلان جديد.']);
     }
 
     public function upload(Request $request,string $key,string $imageKey,ListingImageService $storage)

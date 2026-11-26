@@ -8,11 +8,9 @@ import 'package:go_router/go_router.dart';
 import '../features/account/presentation/access_control_screen.dart';
 import '../features/account/presentation/account_safety_screen.dart';
 import '../features/account/presentation/account_verification_admin_screen.dart';
-import '../features/account/presentation/account_verification_screen.dart';
 import '../features/account/presentation/auth_gate.dart';
 import '../features/account/presentation/actor_scoped_page.dart';
 import '../features/account/presentation/auth_screen.dart';
-import '../features/account/presentation/broker_account_verification_screen.dart';
 import '../features/account/presentation/broker_verification_admin_screen.dart';
 import '../features/account/presentation/complete_profile_screen.dart';
 import '../features/account/presentation/forgot_password_screen.dart';
@@ -98,7 +96,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         child: BrokerCustomersScreen(propertyId: int.tryParse(state.uri.queryParameters['property'] ?? ''), initialFilter: state.uri.queryParameters['filter'] ?? 'all'))),
       GoRoute(path: '/broker/availability', builder: (context, state) => Stage6AuthGate(requireListingEligible: true, child: BrokerAvailabilityScreen(initiallyDue: state.uri.queryParameters['due'] == '1'))),
       GoRoute(path: '/broker/finance', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerFinanceScreen())),
-      GoRoute(path: '/broker/activity', builder: (_, __) => const Stage6AuthGate(requireProfessional: true, child: BrokerActivityScreen())),
+      GoRoute(path: '/broker/activity', builder: (_, __) => const Stage6AuthGate(child: BrokerActivityScreen())),
       GoRoute(path: '/broker/deals/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
         return id > 0 ? Stage6AuthGate(child: BrokerDealScreen(id: id)) : const _RouteErrorScreen();
@@ -122,9 +120,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/account-verification',
-        builder: (context, state) => Stage6AuthGate(
-          child: AccountVerificationScreen(initialType: state.uri.queryParameters['upgrade'] == 'broker' ? 'broker' : null),
-        ),
+        redirect: (_, __) => '/my-listings',
       ),
       GoRoute(
         path: '/forgot-password',
@@ -170,9 +166,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/broker/account-verification',
-        builder: (context, state) => const Stage6AuthGate(
-          child: BrokerAccountVerificationScreen(),
-        ),
+        redirect: (_, __) => '/my-listings',
       ),
       GoRoute(
         path: '/admin/broker-account-verifications',

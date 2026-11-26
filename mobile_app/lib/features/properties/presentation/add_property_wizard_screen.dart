@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../domain/property_details.dart';
 import 'listing_draft_entry_screen.dart';
-import 'personal_listing_creation_gate.dart';
 
 /// One entry for all existing Add Property actions. A previously chosen method
-/// enters recovery directly. Generic actions check eligibility before choosing a method.
+/// enters recovery directly. Other entries show the method chooser.
 class AddPropertyWizardScreen extends StatefulWidget {
   const AddPropertyWizardScreen({super.key, this.existingProperty, this.startWithAssistant,
     this.showSavedDrafts = false, this.resumeLatest = false});
@@ -26,9 +25,7 @@ class _AddPropertyWizardState extends State<AddPropertyWizardScreen> {
         startWithAssistant: _assistant!, showSavedDrafts: widget.showSavedDrafts,
         resumeLatest: widget.resumeLatest);
     }
-    return PersonalListingCreationGate(
-      allowDraftContinuation: true,
-      child: Directionality(
+    return Directionality(
         textDirection: TextDirection.rtl,
         child: Dialog(
           key: const ValueKey('listing-method-choice'),
@@ -60,7 +57,6 @@ class _AddPropertyWizardState extends State<AddPropertyWizardScreen> {
             ),
           ),
         ),
-      ),
     );
   }
 }

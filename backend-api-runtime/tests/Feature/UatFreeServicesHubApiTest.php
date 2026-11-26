@@ -73,9 +73,9 @@ class UatFreeServicesHubApiTest extends TestCase
             ->assertJsonPath('data.account_type', 'broker')
             ->assertJsonPath('data.verification_status', 'pending')
             ->assertJsonPath('data.verified_professional', false)
-            ->assertJsonPath('data.capabilities.create_listing', false)
+            ->assertJsonPath('data.capabilities.create_listing', true)
             ->assertJsonPath('data.capabilities.rental_contracts', false)
-            ->assertJsonPath('data.availability.create_listing', 'requires_verification');
+            ->assertJsonPath('data.availability.create_listing', 'available');
     }
 
     public function test_basic_account_keeps_non_professional_information_capabilities(): void
@@ -87,7 +87,7 @@ class UatFreeServicesHubApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.account_type', 'basic')
             ->assertJsonPath('data.pricing_model', 'free')
-            ->assertJsonPath('data.capabilities.create_listing', false)
+            ->assertJsonPath('data.capabilities.create_listing', true)
             ->assertJsonPath('data.capabilities.rental_contracts', false)
             ->assertJsonPath('data.capabilities.price_indicators', true)
             ->assertJsonPath('data.capabilities.property_valuation', true)

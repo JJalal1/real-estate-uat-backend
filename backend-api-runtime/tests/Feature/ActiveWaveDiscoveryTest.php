@@ -120,15 +120,17 @@ class ActiveWaveDiscoveryTest extends TestCase
         $this->assertDatabaseCount('viewing_bookings', 0);
     }
 
-    public function test_directory_filters_use_public_name_type_regions_and_declared_specialties_only(): void
+    public function test_directory_filters_use_public_name_type_and_single_governorate(): void
     {
         [$broker] = $this->actor('دلال شقق', 'broker', ['governorate' => 'صنعاء', 'specialties' => ['شقق']]);
         [$office] = $this->actor('مكتب أراضي', 'office', ['governorate' => 'عدن', 'office_name' => 'مكتب الأمانة', 'work_areas' => ['صنعاء'], 'specialties' => ['أراضٍ']]);
         $this->actor('بعيد', 'broker', ['governorate' => 'تعز', 'specialties' => ['شقق']]);
-        $q = http_build_query(['governorate' => 'صنعاء', 'region_only' => 1, 'specialty' => 'شقق', 'account_type' => 'broker']);
+        $q = http_build_query(['governorate' => 'صنعاء', 'region_only' => 1, 'account_type' => 'broker']);
         $r = $this->getJson('/api/brokers?'.$q)->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $broker->id);
         foreach (['phone','email','details','documents','identity_number','selfie'] as $private) $r->assertJsonMissingPath('data.0.'.$private);
         $this->getJson('/api/brokers?'.http_build_query(['search' => 'مكتب الأمانة', 'account_type' => 'office', 'region_only' => 1, 'governorate' => 'صنعاء']))
+            ->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/brokers?'.http_build_query(['search' => 'مكتب الأمانة', 'account_type' => 'office', 'region_only' => 1, 'governorate' => 'عدن']))
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $office->id);
         $this->getJson('/api/brokers?min_rating=4')->assertOk()->assertJsonCount(0, 'data');
     }
@@ -140,11 +142,44 @@ class ActiveWaveDiscoveryTest extends TestCase
             'details' => ['office_name' => 'اسم في مستند خاص', 'governorate' => 'عنوان خاص', 'work_areas' => ['عنوان خاص'], 'identity_number' => 'PRIVATE-FIXTURE']]);
         $listing = $this->listing($user);
         $r = $this->getJson('/api/advertisers/'.$user->id.'/profile')->assertOk()->assertJsonPath('data.account_type', 'individual')
-            ->assertJsonPath('data.verified', false)->assertJsonPath('data.name', 'معلن فردي')->assertJsonPath('data.work_areas', []);
+            ->assertJsonPath('data.verified', false)->assertJsonPath('data.name', 'معلن فردي')->assertJsonMissingPath('data.work_areas')->assertJsonMissingPath('data.specializations');
         $this->assertStringNotContainsString('PRIVATE-FIXTURE', $r->getContent());
         $this->assertStringNotContainsString('عنوان خاص', $r->getContent());
         $listing->forceFill(['availability_status' => 'paused'])->saveQuietly();
         $this->getJson('/api/advertisers/'.$user->id.'/profile')->assertNotFound();
+    }
+
+    public function test_enrolled_broker_edits_public_region_and_office_without_a_verification_badge(): void
+    {
+        [$broker, $headers] = $this->actor('دلال جديد');
+        $broker->forceFill(['broker_enrolled_at' => now()])->save();
+        $profile = '/api/advertisers/'.$broker->id.'/profile';
+        $this->getJson($profile)->assertOk()->assertJsonPath('data.account_type', 'broker')->assertJsonPath('data.verified', false);
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['is_office' => true])->assertUnprocessable();
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['governorate' => 'السبعين'])->assertUnprocessable();
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', [
+            'bio' => 'وساطة عقارية', 'governorate' => 'عدن', 'is_office' => true, 'office_name' => 'مكتب الميناء',
+            'verified' => true, 'work_areas' => ['تعز'], 'specializations' => ['شقق'],
+        ])->assertOk();
+        $this->getJson($profile)->assertOk()->assertJsonPath('data.name', 'مكتب الميناء')
+            ->assertJsonPath('data.account_type', 'office')->assertJsonPath('data.verified', false)
+            ->assertJsonPath('data.governorate', 'عدن')->assertJsonMissingPath('data.work_areas')->assertJsonMissingPath('data.specializations');
+        $query = '/api/brokers?'.http_build_query(['region_only' => 1, 'governorate' => 'عدن', 'account_type' => 'office', 'search' => 'الميناء']);
+        $this->getJson($query)->assertOk()->assertJsonPath('data.0.id', $broker->id);
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['is_office' => false])->assertOk();
+        $this->getJson($query)->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson($profile)->assertJsonPath('data.account_type', 'broker')->assertJsonPath('data.name', $broker->name)
+            ->assertJsonPath('data.office_name', null)->assertJsonPath('data.bio', 'وساطة عقارية');
+    }
+
+    public function test_approved_office_can_opt_out_of_its_historical_public_office_name(): void
+    {
+        [$office, $headers] = $this->actor('المعلن', 'office', ['office_name' => 'مكتب سابق', 'governorate' => 'تعز']);
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['is_office' => false, 'governorate' => 'إب'])->assertOk();
+        $this->getJson('/api/advertisers/'.$office->id.'/profile')->assertOk()->assertJsonPath('data.account_type', 'broker')
+            ->assertJsonPath('data.name', $office->name)->assertJsonPath('data.governorate', 'إب')->assertJsonPath('data.verified', false);
+        $this->getJson('/api/brokers?'.http_build_query(['search' => 'مكتب سابق']))->assertOk()->assertJsonCount(0, 'data');
+        $this->assertSame('مكتب سابق', $office->accountVerificationProfile->details['office_name']);
     }
 
     private function actor(string $name, ?string $type = null, array $details = []): array

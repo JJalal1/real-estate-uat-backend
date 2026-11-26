@@ -26,6 +26,18 @@ class Wave6Recovery extends ListingRecoveryStore {
   Future<List<Map<String,dynamic>>> saved(int userId) async => [];
   @override
   Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) async {}
+  String? restart;
+  @override
+  Future<String?> pendingRestart(int userId) async => restart;
+  @override
+  Future<void> rememberRestart(int userId, String startedAt) async {
+    restart = startedAt;
+    if (snapshot != null && isAutomaticListingRecovery(snapshot!)) snapshot = null;
+  }
+  @override
+  Future<void> acknowledgeRestart(int userId, String startedAt) async {
+    if (restart == startedAt) restart = null;
+  }
   @override
   Future<void> deleteSaved(int userId, String key) async {}
 
@@ -39,6 +51,18 @@ class Wave6Drafts implements ListingAccountDraftRepository {
     final draft = drafts[key];
     if (draft != null && (!draft.isRecovery || draft.revision != revision)) throw StateError('Protected or changed draft');
     drafts.remove(key);
+  }
+  @override
+  Future<void> restartAutomatic(String startedAt) async {
+    for (final draft in drafts.values.where((d) => d.isRecovery).toList()) {
+      await retireRecovery(draft.key, draft.revision);
+    }
+  }
+  @override
+  Future<void> syncRestart(int actor, ListingRecoveryStore store) async {
+    if (store is! Wave6Recovery || store.restart == null) return;
+    await restartAutomatic(store.restart!);
+    store.restart = null;
   }
   final drafts=<String,ListingAccountDraft>{};
   final saves=<Map<String,dynamic>>[];

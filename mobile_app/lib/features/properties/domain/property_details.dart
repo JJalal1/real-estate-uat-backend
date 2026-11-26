@@ -221,6 +221,7 @@ class PropertyDetails {
     this.availabilityConfirmedAt,
     this.availabilityDueAt,
     this.publishedAt,
+    this.createdAt, this.updatedAt,
     this.viewCount = 0,
     this.favoriteCount = 0,
     this.conversationCount = 0,
@@ -322,7 +323,7 @@ class PropertyDetails {
   final String? contactWhatsapp;
   final bool isOwner;
   final String availabilityStatus;
-  final DateTime? availabilityConfirmedAt, availabilityDueAt, publishedAt;
+  final DateTime? availabilityConfirmedAt, availabilityDueAt, publishedAt, createdAt, updatedAt;
   final int viewCount, favoriteCount, conversationCount, viewingCount;
   final String? ownershipDocumentType;
   final String? documentOwnerName;
@@ -377,6 +378,8 @@ class PropertyDetails {
       availabilityConfirmedAt: DateTime.tryParse('${json['availability_confirmed_at'] ?? ''}'),
       availabilityDueAt: DateTime.tryParse('${json['availability_due_at'] ?? ''}'),
       publishedAt: DateTime.tryParse(json['published_at']?.toString() ?? ''),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+      updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? ''),
       viewCount: _asInt(json['view_count']) ?? 0,
       favoriteCount: _asInt(json['favorite_count']) ?? 0,
       conversationCount: _asInt(json['conversation_count']) ?? 0,

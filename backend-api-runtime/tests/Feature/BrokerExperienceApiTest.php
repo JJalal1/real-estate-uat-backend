@@ -222,11 +222,12 @@ class BrokerExperienceApiTest extends TestCase
         $thread = $this->conversation($buyerHeaders, $property);
         $id = $this->withHeaders($brokerHeaders)->postJson('/api/broker/customers/'.$thread.'/completed-deal', [
             'basis_amount' => 82000,
-        ])->assertCreated()->assertJsonPath('data.price_confirmation_required', true)
-            ->assertJsonPath('data.status', 'pending_customer')->json('data.id');
+        ])->assertCreated()->assertJsonPath('data.price_confirmation_required', false)
+            ->assertJsonPath('data.status', 'confirmed')->json('data.id');
         $url = '/api/broker/deals/'.$id;
-        $this->flushHeaders()->getJson('/api/properties/'.$property->id)->assertOk();
-        $this->assertDatabaseCount('property_platform_receivables', 0);
+        $this->flushHeaders()->getJson('/api/properties/'.$property->id)->assertNotFound();
+        $this->assertDatabaseCount('property_platform_receivables', 1);
+        $this->assertDatabaseCount('support_cases', 0);
 
         // A later price edit must not change the original listing amount for this deal.
         $property->forceFill(['price' => 125000])->saveQuietly();
@@ -273,7 +274,7 @@ class BrokerExperienceApiTest extends TestCase
         $this->assertDatabaseCount('support_cases', 0);
     }
 
-    public function test_lower_price_has_one_support_task_contact_and_reminder_until_support_approves(): void
+    public function test_historical_pending_price_keeps_its_single_support_task_and_resolution(): void
     {
         [$broker, $brokerHeaders] = $this->actor('support-price-broker', true);
         [$customer, $customerHeaders] = $this->actor('support-price-buyer');
@@ -285,10 +286,9 @@ class BrokerExperienceApiTest extends TestCase
         $otherThread = $this->conversation($outsiderHeaders, $property);
         $input = ['basis_amount' => 80000];
         $reportUrl = "/api/broker/customers/{$thread}/completed-deal";
-        $response = $this->withHeaders($brokerHeaders)->postJson($reportUrl, $input)->assertCreated()
-            ->assertJsonPath('data.status', 'pending_customer')->assertJsonPath('data.price_confirmation_required', true);
-        $dealId = $response->json('data.id');
-        $caseId = $response->json('data.support_case_id');
+        $legacy = $this->legacyPendingPrice($thread, 80000);
+        $dealId = $legacy->id;
+        $caseId = $legacy->support_case_id;
         $this->withHeaders($brokerHeaders)->postJson($reportUrl, $input)->assertCreated()->assertJsonPath('data.id', $dealId);
         $this->withHeaders($brokerHeaders)->postJson("/api/broker/customers/{$otherThread}/completed-deal", $input)->assertConflict();
         $this->flushHeaders()->getJson('/api/properties/'.$property->id)->assertOk();
@@ -332,7 +332,7 @@ class BrokerExperienceApiTest extends TestCase
         $this->assertDatabaseCount('property_platform_receivables', 1);
     }
 
-    public function test_two_party_result_unlocks_rating_and_freezes_existing_sai_without_an_agreement(): void
+    public function test_reported_price_freezes_existing_sai_and_reminds_the_advertiser_every_24_hours(): void
     {
         [$broker,$brokerHeaders]=$this->actor('confirmed',true);
         [$customer,$customerHeaders]=$this->actor('buyer');
@@ -345,7 +345,7 @@ class BrokerExperienceApiTest extends TestCase
         $id=(int)$result->json('data.id');
         $this->withHeaders($outsiderHeaders)->getJson('/api/broker/deals/'.$id)->assertNotFound();
         $this->withHeaders($brokerHeaders)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>true])->assertForbidden();
-        $this->assertDatabaseCount('property_platform_receivables',0);
+        $this->assertDatabaseCount('property_platform_receivables',1);
         $this->withHeaders($customerHeaders)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>true])->assertOk()->assertJsonPath('data.status','confirmed');
         $this->withHeaders($customerHeaders)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>true])->assertOk();
         $this->assertDatabaseCount('broker_deal_outcomes',1);
@@ -354,20 +354,31 @@ class BrokerExperienceApiTest extends TestCase
         $due=PropertyPlatformReceivable::query()->firstOrFail();
         $this->assertSame(500.0,$due->amount_total);
         $this->assertTrue($due->due_at->equalTo(now()->addHours(24)));
-        config(['background.receivable_lead_minutes'=>1500]);
         $reminders = app(\App\Services\DeadlineReminderService::class);
+        $notices = UserNotification::query()->where('type', 'platform_receivable_reminder')->where('user_id', $broker->id);
+        $this->travel(23)->hours();
+        $reminders->receivables();
+        $this->assertSame(0, $notices->count());
+        $this->travel(1)->hours();
         $reminders->receivables();
         $reminders->receivables();
-        $notice = \App\Models\UserNotification::where('type', 'payment_due_reminder')->sole();
-        $this->assertTrue($reminders->stillDue($notice));
-        $due->update(['due_at'=>now()->addDays(2)]);
-        $this->assertFalse($reminders->stillDue($notice));
-        $due->update(['due_at'=>now()->addHours(24)]);
+        $this->assertSame(1, $notices->count());
+        $this->travel(24)->hours();
+        $reminders->receivables();
+        $this->assertSame(2, $notices->count());
+        $notice = $notices->firstOrFail();
+        $this->assertTrue(app(\App\Services\UserNotificationService::class)->mayDeliver($notice));
+        $this->assertDatabaseMissing('user_notifications', ['user_id'=>$customer->id, 'type'=>'platform_receivable_reminder']);
         $this->assertDatabaseHas('property_deal_financial_terms',['broker_deal_outcome_id'=>$id,'property_agreement_id'=>null,'buyer_user_id'=>$customer->id]);
         $this->withHeaders($customerHeaders)->putJson('/api/advertisers/'.$broker->id.'/rating',['rating'=>4])->assertCreated();
         $this->getJson('/api/advertisers/'.$broker->id.'/ratings/summary')->assertJsonPath('data.count',1)->assertJsonPath('data.average',4);
         $this->withHeaders($brokerHeaders)->getJson('/api/broker/finance')->assertOk()->assertJsonPath('data.balances.0.open',500);
-        $this->withHeaders($outsiderHeaders)->getJson('/api/broker/finance')->assertForbidden();
+        $due->update(['status'=>'paid','amount_paid'=>$due->amount_total,'paid_at'=>now()]);
+        $this->travel(24)->hours();
+        $reminders->receivables();
+        $this->assertSame(2, $notices->count());
+        $this->assertFalse(app(\App\Services\UserNotificationService::class)->mayDeliver($notice));
+        $this->withHeaders($outsiderHeaders)->getJson('/api/broker/finance')->assertOk()->assertJsonCount(0, 'data.receivables');
         $this->withHeaders($brokerHeaders)->getJson('/api/broker/customers')->assertJsonPath('data.0.stage','completed');
     }
 
@@ -377,7 +388,7 @@ class BrokerExperienceApiTest extends TestCase
         [$customer,$ch]=$this->actor('deny');
         $property=$this->listing($broker);
         $thread=$this->conversation($ch,$property);
-        $id=(int)$this->withHeaders($bh)->postJson('/api/broker/customers/'.$thread.'/completed-deal',['basis_amount'=>90000])->assertCreated()->json('data.id');
+        $id=$this->legacyPendingPrice($thread, 90000)->id;
         $this->withHeaders($ch)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>false])->assertOk()->assertJsonPath('data.status','disputed');
         $this->withHeaders($ch)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>true])->assertConflict();
         $this->withHeaders($ch)->putJson('/api/advertisers/'.$broker->id.'/rating',['rating'=>5])->assertUnprocessable();
@@ -509,7 +520,7 @@ class BrokerExperienceApiTest extends TestCase
         $permissions=DB::table('permissions')->where('key','support.handle_reports')->pluck('id');
         foreach ($permissions as $permission) DB::table('role_permission')->insertOrIgnore(['role_id'=>$role->id,'permission_id'=>$permission]);
         $thread=$this->conversation($ch,$this->listing($broker));
-        $id=(int)$this->withHeaders($bh)->postJson('/api/broker/customers/'.$thread.'/completed-deal',['basis_amount'=>95000])->assertCreated()->json('data.id');
+        $id=$this->legacyPendingPrice($thread, 95000)->id;
         $this->withHeaders($ch)->postJson('/api/broker/deals/'.$id.'/decision',['confirmed'=>false])->assertOk();
         $outcome=BrokerDealOutcome::query()->findOrFail($id);
         $task=SupportTask::query()->where('source_type','support_ticket')->where('source_id',$outcome->support_case_id)->firstOrFail();
@@ -549,7 +560,7 @@ class BrokerExperienceApiTest extends TestCase
         $this->assertDatabaseCount('property_agreements',0);
     }
 
-    public function test_sale_and_rent_dues_keep_receipts_pending_until_review_and_restore_only_financial_holds(): void
+    public function test_sale_and_rent_dues_keep_receipts_pending_until_review_without_hiding_other_listings(): void
     {
         config(['services.supabase_storage.enabled'=>false]);
         Storage::fake('local');
@@ -618,20 +629,13 @@ class BrokerExperienceApiTest extends TestCase
         $this->flushHeaders()->getJson("/api/properties/{$other->id}")->assertOk();
         $this->getJson($nearby)->assertOk()->assertJsonFragment(['id'=>$other->id]);
         $this->travelTo($saleDue->due_at);
-        $this->getJson("/api/properties/{$other->id}")->assertNotFound();
-        $this->getJson('/api/properties')->assertOk()->assertJsonMissing(['id'=>$other->id]);
-        $this->getJson($nearby)->assertOk()->assertJsonMissing(['id'=>$other->id]);
-        $this->getJson($narrowNearby)->assertOk()->assertJsonMissing(['id'=>$other->id]);
-        $this->getJson("/api/advertisers/{$broker->id}/profile")
-            ->assertOk()->assertJsonPath('data.active_listings', 0);
-        $this->withHeaders($customerHeaders)->getJson('/api/favorites')->assertOk()->assertJsonCount(0, 'data');
-        $this->withHeaders($customerHeaders)->getJson('/api/favorites/ids')->assertOk()
-            ->assertJsonPath('data.property_ids', []);
-        $this->withHeaders($customerHeaders)->getJson($favorite)->assertNotFound();
-        $this->withHeaders($customerHeaders)->putJson($favorite)->assertNotFound();
-        $this->withHeaders($brokerHeaders)->getJson('/api/support/cases/mine')->assertOk();
+        $this->getJson("/api/properties/{$other->id}")->assertOk();
+        $this->getJson('/api/properties')->assertOk()->assertJsonFragment(['id'=>$other->id]);
+        $this->getJson($nearby)->assertOk()->assertJsonFragment(['id'=>$other->id]);
+        $this->getJson($narrowNearby)->assertOk()->assertJsonFragment(['id'=>$other->id]);
+        $this->withHeaders($customerHeaders)->getJson($favorite)->assertOk()->assertJsonPath('data.is_favorited', true);
         $this->withHeaders($brokerHeaders)->getJson("/api/finance/receivables/{$rentDue->id}")->assertOk();
-        $this->withHeaders($brokerHeaders)->postJson('/api/properties')->assertConflict();
+        $this->withHeaders($brokerHeaders)->postJson('/api/properties')->assertUnprocessable();
 
         $reviewUrl = "/api/admin/finance/payments/$salePayment/review";
         $this->withHeaders($reviewerHeaders)->postJson($reviewUrl, ['decision'=>'confirm'])
@@ -647,24 +651,15 @@ class BrokerExperienceApiTest extends TestCase
             $this->assertSame('paid', $byId[$saleDeal]['platform_due_status']);
             $this->assertSame('pending_review', $byId[$rentDeal]['platform_due_status']);
         }
-        $this->assertDatabaseHas('property_financial_holds', ['source_id'=>$rentDue->id,'released_at'=>null]);
-        $this->flushHeaders()->getJson("/api/properties/{$other->id}")->assertNotFound();
-
+        $this->assertDatabaseCount('property_financial_holds', 0);
         $context = "/api/admin/support/users/{$broker->id}";
-        $restore = $context.'/financial-hold/restore';
-        $reason = ['reason'=>'استعادة صلاحية الإعلان أثناء متابعة الإيصال'];
-        $this->withHeaders($agentHeaders)->getJson($context)->assertOk()
-            ->assertJsonPath('data.user.financial_hold_active', true)
-            ->assertJsonPath('data.user.can_restore_financial_hold', false);
-        $this->withHeaders($agentHeaders)->postJson($restore, $reason)->assertForbidden();
-        $this->withHeaders($managerHeaders)->getJson($context)->assertOk()
-            ->assertJsonPath('data.user.can_restore_financial_hold', true);
-        $this->withHeaders($managerHeaders)->postJson($restore, $reason)->assertOk()
-            ->assertJsonPath('data.restored_receivable_ids', [$rentDue->id]);
-        $this->withHeaders($managerHeaders)->getJson($context)->assertOk()
-            ->assertJsonPath('data.user.financial_hold_active', false);
-        $this->assertDatabaseHas('audit_logs', ['action'=>'support.financial_hold_restored','actor_user_id'=>$manager->id,'target_user_id'=>$broker->id]);
-        $this->assertDatabaseHas('property_platform_receivables', ['id'=>$rentDue->id,'amount_paid'=>0,'status'=>'overdue']);
+        foreach ([$agentHeaders, $managerHeaders] as $headers) {
+            $this->withHeaders($headers)->getJson($context)->assertOk()
+                ->assertJsonPath('data.user.has_outstanding_dues', true)
+                ->assertJsonPath('data.user.financial_hold_active', false)
+                ->assertJsonPath('data.user.can_restore_financial_hold', false);
+        }
+        $this->assertDatabaseHas('property_platform_receivables', ['id'=>$rentDue->id,'amount_paid'=>0]);
         $this->assertSame('paused', $paused->fresh()->availability_status);
         $this->assertSame('separate_admin_hold', $paused->fresh()->financial_hold_reason);
         $this->withHeaders($brokerHeaders)->getJson('/api/broker/finance')->assertOk()
@@ -900,8 +895,7 @@ class BrokerExperienceApiTest extends TestCase
         [, $ch] = $this->actor('unseen-customer');
         [, $oh] = $this->actor('unseen-outsider', true);
         $thread = $this->conversation($ch, $this->listing($broker));
-        $dealId = $this->withHeaders($bh)->postJson('/api/broker/customers/'.$thread.'/completed-deal', ['basis_amount' => 90000])
-            ->assertCreated()->json('data.id');
+        $dealId = $this->legacyPendingPrice($thread, 90000)->id;
         $url = '/api/broker/deals/'.$dealId;
         $this->withHeaders($bh)->getJson('/api/broker/workspace')->assertOk()
             ->assertJsonPath('data.capabilities.broker_deal_view_tracking', true)
@@ -987,6 +981,28 @@ class BrokerExperienceApiTest extends TestCase
         $this->assertDatabaseCount('viewing_bookings',2);
         $this->assertDatabaseHas('viewing_bookings',['reference'=>'DAILY-today','status'=>'confirmed']);
         $this->assertDatabaseHas('viewing_bookings',['reference'=>'DAILY-next-day','status'=>'confirmed']);
+    }
+
+    private function legacyPendingPrice(int $threadId, float $amount): BrokerDealOutcome
+    {
+        $thread = MessageThread::query()->findOrFail($threadId);
+        $property = Property::query()->findOrFail($thread->property_id);
+        $customer = User::query()->findOrFail($thread->started_by_user_id);
+        $advertiser = $property->user()->firstOrFail();
+        $outcome = BrokerDealOutcome::query()->create([
+            'reference' => 'LEGACY-'.$threadId, 'message_thread_id' => $threadId, 'property_id' => $property->id,
+            'advertiser_user_id' => $advertiser->id, 'customer_user_id' => $customer->id,
+            'sai_term_id' => $thread->sai_term_id, 'status' => 'pending_customer', 'transaction_type' => $property->purpose,
+            'basis_amount' => $amount, 'currency' => $property->currency, 'advertiser_confirmed_at' => now(),
+            'advertiser_attention_revision'=>1, 'snapshot' => ['listing_price' => $property->price,
+                'property_title'=>$property->title, 'advertiser_name'=>$advertiser->name, 'customer_name'=>$customer->name,
+                'price_confirmation_required' => true, 'record_kind' => 'app_customer_transaction_result'],
+        ]);
+        $case = app(\App\Services\SupportCaseService::class)->create($customer, 'support_ticket', 'Historical price confirmation',
+            'Outstanding request from the previous release.', 'broker_deal_outcome', $outcome->id,
+            BrokerDealService::PRICE_CONFIRMATION_REASON, 'normal', request(), initiator: $advertiser);
+        $outcome->update(['support_case_id' => $case->id]);
+        return $outcome;
     }
 
     private function actor(string $key, bool $professional=false, string $governorate='صنعاء'): array

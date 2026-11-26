@@ -498,9 +498,16 @@ class PropertyRepository {
     return PropertyIdentityResult.fromJson(data);
   }
 
-  Future<PropertyDetails> submitListing(int propertyId) async {
+  Future<PropertyDetails> submitListing(int propertyId) =>
+      _publish(propertyId, upgradeToBroker: false);
+
+  Future<PropertyDetails> submitWithBrokerUpgrade(int propertyId) =>
+      _publish(propertyId, upgradeToBroker: true);
+
+  Future<PropertyDetails> _publish(int propertyId, {required bool upgradeToBroker}) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/properties/$propertyId/submit',
+      data: {'publish_now': true, if (upgradeToBroker) 'upgrade_to_broker': true},
       options: await _auth.requiredAuthOptions(),
     );
     _invalidatePublicDiscoveryCache();

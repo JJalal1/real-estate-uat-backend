@@ -16,7 +16,7 @@ class Branch2RecoveryTest extends TestCase
     private function payload(string $kind='recovery'): array
     {
         return ['editor_version'=>10,'draft_kind'=>$kind,'entry_method'=>'assistant','type'=>'apartment','purpose'=>'rent',
-            'step'=>1,'fields'=>['title'=>'إعلان صناعي للاسترداد','monthly_rent'=>'100000','phone'=>'771111111']];
+            'latitude'=>15.4,'longitude'=>44.2,'step'=>1,'fields'=>['title'=>'إعلان صناعي للاسترداد','monthly_rent'=>'100000','rental_term_months'=>'12','advance_months'=>'1','area'=>'90','bedrooms'=>'2','bathrooms'=>'1','floor_number'=>'1','description'=>'شقة في صنعاء','phone'=>'771111111']];
     }
     public function test_recovery_retirement_clears_private_work_and_fences_late_writes(): void
     {
@@ -87,6 +87,67 @@ class Branch2RecoveryTest extends TestCase
         $this->withHeaders($a)->deleteJson($url,['recovery_only'=>true,'expected_revision'=>1])->assertOk();
         $this->assertArrayNotHasKey('cleanup_paths',$draft->fresh()->payload);
     }
+    public function test_only_progress_above_half_replaces_automatic_work_and_restart_protects_manual_work(): void
+    {
+        [$actor, $headers] = $this->actor('marketplace-drafts', null);
+        $base = '/api/listing-editor-drafts';
+        $half = ['editor_version'=>11, 'draft_kind'=>'recovery', 'type'=>'land', 'purpose'=>'rent',
+            'latitude'=>15.4, 'fields'=>['title'=>'أرض للإيجار']];
+        $automatic = $base.'/'.Str::uuid();
+        $this->withHeaders($headers)->putJson($automatic, ['payload'=>$half, 'expected_revision'=>0])->assertUnprocessable();
+        $this->assertDatabaseCount('listing_editor_drafts', 0);
+        $manual = $base.'/'.Str::uuid();
+        $this->putJson($manual, ['payload'=>array_merge($half, ['draft_kind'=>'saved']), 'expected_revision'=>0])
+            ->assertOk()->assertJsonPath('data.progress', 50);
+        $payload = $half + ['longitude'=>44.2];
+        $this->putJson($automatic, ['payload'=>$payload, 'expected_revision'=>0])->assertOk()->assertJsonPath('data.progress', 75);
+        $next = $base.'/'.Str::uuid();
+        $this->putJson($next, ['payload'=>$payload, 'expected_revision'=>0])->assertOk();
+        $this->getJson($automatic)->assertGone();
+        $this->getJson($base)->assertOk()->assertJsonCount(2, 'data');
+
+        $reset = now()->utc();
+        $this->postJson($base.'/restart', ['started_at'=>$reset->toISOString()])->assertOk();
+        $this->getJson($next)->assertGone();
+        $this->getJson($manual)->assertOk();
+        $late = $base.'/'.Str::uuid();
+        $this->putJson($late, ['payload'=>$payload, 'expected_revision'=>0, 'first_saved_at'=>$reset->copy()->subSecond()->toISOString()])->assertGone();
+        $this->putJson($late, ['payload'=>$half, 'expected_revision'=>0])->assertUnprocessable();
+        $this->getJson($base)->assertJsonCount(1, 'data');
+        $this->putJson($late, ['payload'=>$payload, 'expected_revision'=>0])->assertOk();
+        $this->postJson($base.'/restart', ['started_at'=>$reset->toISOString()])->assertOk();
+        $this->getJson($late)->assertOk();
+        $this->assertSame(1, ListingEditorDraft::where('user_id',$actor->id)->where('payload->draft_kind','recovery')->count());
+    }
+
+    public function test_seven_day_lifetime_uses_first_save_and_leaves_listed_property_intact(): void
+    {
+        [$user, $headers] = $this->actor('marketplace-expiry', null);
+        $base = '/api/listing-editor-drafts';
+        $key = (string)Str::uuid();
+        $prior = now()->utc()->subDays(7)->addMinutes(5);
+        $payload = $this->payload('saved');
+        $this->withHeaders($headers)->putJson("$base/$key", ['payload'=>$payload, 'expected_revision'=>0, 'first_saved_at'=>$prior->toISOString()])
+            ->assertOk()->assertJsonPath('data.first_saved_at', $prior->toISOString());
+        $this->putJson("$base/$key", ['payload'=>$payload, 'expected_revision'=>1, 'first_saved_at'=>now()->toISOString()])
+            ->assertOk()->assertJsonPath('data.first_saved_at', $prior->toISOString());
+        $property = ['user_id'=>$user->id,'title'=>'مسودة اختبار','type'=>'land','purpose'=>'sale','price'=>1000,'latitude'=>15.4,'longitude'=>44.2];
+        $expired = \App\Models\Property::create($property + ['status'=>'draft', 'review_status'=>'draft']);
+        $expired->forceFill(['draft_expires_at'=>now()->addMinutes(5)])->save();
+        $published = \App\Models\Property::create($property + ['status'=>'published', 'review_status'=>'approved']);
+        $this->travel(6)->minutes();
+        $this->getJson("$base/$key")->assertGone();
+        $this->putJson("$base/$key", ['payload'=>$payload,'expected_revision'=>2])->assertGone();
+        $this->getJson($base)->assertJsonCount(0,'data');
+        $this->assertNull(\App\Models\Property::find($expired->id));
+        $this->artisan('listings:expire-drafts')->assertSuccessful();
+        $this->assertDatabaseMissing('properties', ['id'=>$expired->id]);
+        $this->assertDatabaseHas('properties', ['id'=>$published->id, 'status'=>'published']);
+        $retired = ListingEditorDraft::where('client_key', $key)->firstOrFail();
+        $this->assertSame('retired', $retired->payload['draft_kind']);
+        $this->assertSame([], $retired->payload['fields']);
+    }
+
     private function actor(string $name, ?string $type): array
     {
         $user = User::create(['name' => 'دلال اختباري', 'email' => $name.'@draft.example.test',

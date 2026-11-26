@@ -31,11 +31,11 @@ class FreeServicesHubController extends Controller
                 'ui_version' => 'free_services_v2',
                 'pricing_model' => 'free',
                 'paid_features_enabled' => false,
-                'account_type' => $profileType ?? 'basic',
+                'account_type' => $user->broker_enrolled_at ? 'broker' : ($profileType ?? 'basic'),
                 'verification_status' => $verificationStatus,
                 'verified_professional' => $verifiedProfessional,
                 'capabilities' => [
-                    'create_listing' => $verifiedProfessional,
+                    'create_listing' => $user->canCreateListings(),
                     'view_my_listings' => true,
                     'rental_contracts' => $verifiedProfessional,
                     'price_indicators' => true,
@@ -47,7 +47,7 @@ class FreeServicesHubController extends Controller
                 // available only after its persistence, API, authorization,
                 // Flutter flow, and regression coverage are complete.
                 'availability' => [
-                    'create_listing' => $verifiedProfessional ? 'available' : 'requires_verification',
+                    'create_listing' => $user->canCreateListings() ? 'available' : 'requires_profile',
                     'my_listings' => 'available',
                     'rental_contracts' => 'planned',
                     'price_indicators' => 'planned',

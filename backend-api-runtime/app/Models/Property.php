@@ -35,16 +35,18 @@ class Property extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope('financial_public_visibility', function (Builder $builder): void {
-            if (app()->runningInConsole()) return;
-            $request=request();
-            if (!$request->isMethod('GET')) return;
-            $path=$request->path();
-            if (! in_array($path, ['api/properties','api/properties/nearby','api/marketplace'], true)) return;
-            $builder->withoutOverdueListingRestriction();
+        static::addGlobalScope('unexpired_drafts', fn (Builder $query) => $query->where(fn ($q) =>
+            $q->whereNull($query->qualifyColumn('draft_expires_at'))->orWhere($query->qualifyColumn('draft_expires_at'), '>', now())));
+        static::creating(function (Property $property): void {
+            if ($property->status === 'draft' && ($property->review_status ?? 'draft') === 'draft'
+                && !$property->first_listed_at && !$property->published_at && !$property->submitted_at && !$property->reviewed_at) {
+                $property->draft_expires_at = now()->addDays(7);
+            }
         });
-
         static::saving(function (Property $property): void {
+            if ($property->status !== 'draft' || ($property->review_status ?? 'draft') !== 'draft' || $property->first_listed_at) {
+                $property->draft_expires_at = null;
+            }
             if (! $property->exists) return;
             $stateChanged = $property->isDirty('status') || $property->isDirty('review_status');
             if (! $stateChanged) return;
@@ -54,7 +56,8 @@ class Property extends Model
 
             /** @var User $advertiser */
             $advertiser = $property->user()->firstOrFail();
-            if (! $advertiser->verificationProfile()?->isApproved()) return;
+            if (! $advertiser->hasApprovedVerificationProfile() && $advertiser->broker_enrolled_at === null
+                && (int) $advertiser->identity_policy_version === 0) return;
 
             $policyProperty = Property::query()->findOrFail($property->getKey());
             $policyProperty->purpose = $property->purpose;
@@ -78,15 +81,7 @@ class Property extends Model
 
     public function scopePubliclyVisible(Builder $query): Builder
     {
-        return $query->publiclyAvailable()->withoutOverdueListingRestriction();
-    }
-
-    public function scopeWithoutOverdueListingRestriction(Builder $query): Builder
-    {
-        return $query->whereNotExists(PropertyPlatformReceivable::query()
-            ->selectRaw('1')
-            ->whereColumn('property_platform_receivables.advertiser_user_id', 'properties.user_id')
-            ->overdueListingRestriction()->toBase());
+        return $query->publiclyAvailable();
     }
 
     public function isPubliclyAvailable(): bool
@@ -97,7 +92,6 @@ class Property extends Model
     public function isPubliclyVisible(): bool
     {
         return $this->isPubliclyAvailable() && static::query()
-            ->withoutGlobalScope('financial_public_visibility')
             ->whereKey($this->getKey())
             ->publiclyVisible()
             ->exists();

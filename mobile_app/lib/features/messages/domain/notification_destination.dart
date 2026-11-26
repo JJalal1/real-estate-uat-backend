@@ -56,7 +56,7 @@ String? notificationDestination(AppNotificationItem item) {
   if (retiredViewing) return '/messages';
   if (item.entityType == 'account_verification_profile' ||
       item.entityType == 'account_verification') {
-    return '/account-verification';
+    return '/profile';
   }
   if (item.entityType == 'support_case' && item.entityId != null) {
     return '/support?case=${item.entityId}';

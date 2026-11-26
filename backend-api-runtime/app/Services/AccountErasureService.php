@@ -47,7 +47,10 @@ class AccountErasureService
             // its owned paths while holding that same lock, then remove the rows
             // before checking whether another draft or listing still uses a file.
             $draftPaths = [];
-            foreach (ListingEditorDraft::query()->where('user_id', $locked->id)->lockForUpdate()->get(['id', 'images']) as $draft) {
+            foreach (ListingEditorDraft::query()->where('user_id', $locked->id)->lockForUpdate()->get(['id', 'images', 'payload']) as $draft) {
+                if (($draft->payload['draft_kind'] ?? null) === 'retired') {
+                    app(ListingEditorDraftService::class)->cleanRetiredMedia($draft);
+                }
                 foreach ($draft->images ?? [] as $path) {
                     if (! is_string($path) || ! str_starts_with($path, 'editor-drafts/'.$locked->id.'/')) {
                         throw new RuntimeException('Draft image ownership is inconsistent; erasure was not confirmed.');
@@ -101,6 +104,11 @@ class AccountErasureService
                 'broker_verified_at' => null,
                 'broker_verified_by_user_id' => null,
                 'broker_verification_note' => null,
+                'broker_enrolled_at' => null,
+                'draft_restart_us' => null,
+                'marketplace_governorate' => null,
+                'marketplace_is_office' => null,
+                'marketplace_office_name' => null,
                 'public_professional_bio' => null,
                 'public_professional_photo_path' => null,
             ])->save();

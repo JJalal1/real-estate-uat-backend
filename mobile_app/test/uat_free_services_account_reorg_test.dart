@@ -22,7 +22,7 @@ void main() {
 
     expect(source, contains("context.push('/services')"));
     expect(source, isNot(contains("context.push('/bookings')")));
-    expect(source, contains('user.hasVerifiedPublishingProfile'));
+    expect(source, contains('user.hasMarketplaceProfessionalProfile'));
     expect(source, isNot(contains("'طلبات العقار'")));
     expect(source, isNot(contains("'طلبات الباحثين'")));
     expect(source, isNot(contains('المشاريع والتطويرات العقارية')));

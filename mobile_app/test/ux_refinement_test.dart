@@ -315,7 +315,7 @@ void main() {
     expect(find.text('4/4'), findsOneWidget);
     expect(repository.writes, isEmpty);
 
-    await tester.tap(find.text('إرسال للمراجعة'));
+    await tester.tap(find.text('نشر الإعلان'));
     await tester.pumpAndSettle();
     expect(find.text('القسم قبل الإرسال'), findsOneWidget);
     expect(find.textContaining('سواء من خلال الإعلان أو دون استخدامه'), findsOneWidget);
@@ -466,7 +466,7 @@ void main() {
       await _pump(tester, const NotificationsScreen(), scale: scale, boundary: key);
       await _capture(tester, key, 'notifications-$scale'); expect(tester.takeException(), isNull);
       await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(step: 3), scale: scale);
-      expect(find.text('إرسال للمراجعة').hitTestable(), findsOneWidget); expect(tester.takeException(), isNull);
+      expect(find.text('نشر الإعلان').hitTestable(), findsOneWidget); expect(tester.takeException(), isNull);
     });
   }
 }

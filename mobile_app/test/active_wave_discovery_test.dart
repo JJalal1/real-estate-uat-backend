@@ -85,13 +85,13 @@ class _Saved implements SavedSearchRepository {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 class _Directory extends BrokerTestRepository {
-  String? search, specialty, kind;
+  String? search, kind;
   double? rating;
   bool strictRegion = false;
   @override
   Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15,
-    bool regionOnly = false, String? search, String? specialty, String? accountType, double? minRating}) async {
-    this.search = search; this.specialty = specialty; kind = accountType; rating = minRating; strictRegion = regionOnly;
+    bool regionOnly = false, String? search, String? accountType, double? minRating}) async {
+    this.search = search; kind = accountType; rating = minRating; strictRegion = regionOnly;
     return BrokerPage(items: [exampleBroker], page: 1, lastPage: 1);
   }
 }

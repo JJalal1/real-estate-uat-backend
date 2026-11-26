@@ -251,13 +251,13 @@ class _FinancialAccountScreenState extends ConsumerState<_FinancialAccountPage> 
   }
 
   Widget _statusCard(FinancialAccountSummary summary) {
-    if (!summary.listingCreationBlocked && !summary.publishedListingsHidden) {
+    if (summary.openPlatformDue <= 0 && summary.overduePlatformDue <= 0) {
       return const Card(
         child: ListTile(
           leading: EbrokerIcon(Icons.verified_outlined),
           title: Text('الحساب المالي سليم',
               style: TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text('لا توجد مستحقات مالية تمنع إنشاء إعلان جديد.'),
+          subtitle: Text('لا توجد مستحقات مفتوحة للمنصة.'),
         ),
       );
     }
@@ -273,9 +273,7 @@ class _FinancialAccountScreenState extends ConsumerState<_FinancialAccountPage> 
                     style: TextStyle(fontWeight: FontWeight.w600)))
           ]),
           const SizedBox(height: 8),
-          Text(summary.publishedListingsHidden
-              ? 'انتهت مهلة 24 ساعة، لذلك أُخفيت إعلاناتك المنشورة مؤقتًا حتى تأكيد السداد.'
-              : 'إنشاء أو إرسال إعلان جديد متوقف مؤقتًا حتى تأكيد سداد المستحق.'),
+          const Text('يصلك تذكير كل ٢٤ ساعة حتى تأكيد السداد.'),
         ]),
       ),
     );

@@ -71,22 +71,39 @@ class ListingWorkflowService
 
     public function submit(User $actor, Property $listing, Request $request): Property
     {
-        $accepted = DB::transaction(function () use ($actor, $listing, $request) {
+        $request->validate(['publish_now' => ['sometimes', 'boolean'], 'upgrade_to_broker' => ['sometimes', 'boolean']]);
+        $direct = $request->boolean('publish_now');
+        $accepted = DB::transaction(function () use ($actor, $listing, $request, $direct) {
+            $actor = User::query()->lockForUpdate()->findOrFail($actor->id);
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
-            if (! in_array($locked->review_status, ['draft', 'returned_for_correction'], true)) {
+            abort_unless((int) $actor->id === (int) $locked->user_id && $actor->canCreateListings(), 403);
+            // A repeated submit after an interrupted mobile response returns the committed listing.
+            if ($direct && ($locked->status === 'published' || in_array($locked->review_status, ['submitted', 'under_review'], true))) {
+                return $locked;
+            }
+            if ($locked->status === 'archived' || ! in_array($locked->review_status, ['draft', 'returned_for_correction'], true)) {
                 throw new ConflictHttpException('This listing is not in a submittable state.');
             }
             if ($locked->images()->count() < 1) {
                 throw new ConflictHttpException('At least one listing image is required before submission.');
             }
 
-            $this->assertAdvertiserCanPublish($actor, $locked);
+            $from = $locked->review_status;
+            if ($direct) {
+                app(PropertySaiService::class)->assertReadyForSubmission($locked, $actor);
+            }
+            $this->assertAdvertiserCanPublish($actor, $locked, $direct);
+            app(ListingAccessService::class)->authorizePublication($actor, $locked, $request);
             $asset = PropertyAsset::query()->whereKey($locked->property_asset_id)->lockForUpdate()->firstOrFail();
             $this->assets->assertPurposeNotBlocked($asset, $locked->purpose);
             $this->regions->assertListingAllowed($actor, (float) $locked->latitude, (float) $locked->longitude);
 
-            $from = $locked->review_status;
+            if ($direct && $from === 'draft' && $this->publishIfDistinct($actor, $locked, $asset, $request)) {
+                return $locked;
+            }
+
             $locked->forceFill([
+                'first_listed_at' => $locked->first_listed_at ?? now(),
                 'status' => 'pending',
                 'review_status' => 'submitted',
                 'submitted_at' => now(),
@@ -100,7 +117,7 @@ class ListingWorkflowService
                 'duplicate_checked_at' => null,
             ])->save();
 
-            $this->review($actor, $locked, 'submitted', $from, 'submitted');
+            $this->review($actor, $locked, 'submitted', $from, 'submitted', metadata: ['marketplace_publish' => $direct]);
             $this->audit->record(
                 $actor,
                 'listing.submitted',
@@ -118,8 +135,46 @@ class ListingWorkflowService
 
         // The accepted request is committed before identity processing starts.
         // A failed or interrupted check remains retryable without a new submit.
-        $this->processSubmittedIdentity($actor, $accepted);
+        if (in_array($accepted->review_status, ['submitted', 'under_review'], true)) {
+            $this->processSubmittedIdentity($actor, $accepted);
+        }
         return $accepted->fresh(['images', 'documents', 'propertyAsset']);
+    }
+
+    private function publishIfDistinct(User $actor, Property $listing, PropertyAsset $asset, Request $request): bool
+    {
+        // Existing media findings and duplicate candidates keep their moderation workflow.
+        foreach ($this->mediaReviewStates($listing) as $review) {
+            if ($review['decision'] !== 'relevant') return false;
+        }
+        try {
+            $distinct = DB::transaction(function () use ($listing, $actor): bool {
+                $identity = $this->identity->evaluate($listing, $actor, true);
+                return $identity['decision'] === 'distinct' && $this->assets->likelyDuplicates($listing) === [];
+            });
+        } catch (\Throwable $error) {
+            Log::warning('Direct listing identity check needs review.', ['listing_id' => $listing->id, 'error_type' => $error::class]);
+            return false;
+        }
+        if (! $distinct) return false;
+
+        $this->assets->assertNotAlreadyPublished($asset, $listing->purpose, $listing->id);
+        $this->identity->ensureRepresentation($listing);
+        $listing->forceFill([
+            'status' => 'published',
+            'review_status' => 'approved',
+            'first_listed_at' => $listing->first_listed_at ?? now(),
+            'submitted_at' => now(),
+            'published_at' => now(),
+            'reviewed_at' => null,
+            'last_review_reason' => null,
+            'review_assigned_to_user_id' => null,
+            'review_assigned_at' => null,
+        ])->save();
+        $this->review($actor, $listing, 'published_by_advertiser', 'draft', 'approved');
+        $this->audit->record($actor, 'listing.published_by_advertiser', $listing,
+            ['property_identity_status' => 'distinct'], $request, $actor->id);
+        return true;
     }
 
     public function processSubmittedIdentity(User $actor, Property $listing): array
@@ -375,7 +430,9 @@ class ListingWorkflowService
             }
 
             $owner = $locked->user()->firstOrFail();
-            $this->assertAdvertiserCanPublish($owner, $locked);
+            $marketplacePublish = (bool) ($locked->reviews()->where('action', 'submitted')
+                ->reorder('id', 'desc')->first()?->metadata['marketplace_publish'] ?? false);
+            $this->assertAdvertiserCanPublish($owner, $locked, $marketplacePublish);
             $this->brokerVerification->assertApprovalAllowed($locked);
 
             $asset = PropertyAsset::query()->whereKey($locked->property_asset_id)->lockForUpdate()->firstOrFail();
@@ -674,67 +731,47 @@ class ListingWorkflowService
         });
     }
 
-    private function assertAdvertiserCanPublish(User $advertiser, Property $property): void
+    private function assertAdvertiserCanPublish(User $advertiser, Property $property, bool $direct): void
     {
+        abort_unless($advertiser->canCreateListings(), 403);
         $profile = $advertiser->verificationProfile();
-        if ($profile) {
-            if (! $profile->isApproved()) {
-                throw new ConflictHttpException('يجب اعتماد نوع الحساب من فريق التحقق قبل إرسال إعلان للمراجعة.');
-            }
-
-            if (in_array($profile->type, [
-                AccountVerificationProfile::TYPE_BROKER,
-                AccountVerificationProfile::TYPE_OFFICE,
-            ], true)) {
-                return;
-            }
-
-            if ($profile->type === AccountVerificationProfile::TYPE_OWNER) {
-                if (! $property->documents()->where('kind', 'ownership_proof')->exists()) {
-                    throw ValidationException::withMessages([
-                        'ownership_proof' => ['يجب إرفاق مستند يثبت الملكية أو العلاقة بهذا العقار قبل الإرسال للمراجعة.'],
-                    ]);
-                }
-                if (! $property->ownership_document_type
-                    || ! $property->document_owner_name
-                    || ! $property->owner_relationship_type) {
-                    throw ValidationException::withMessages([
-                        'ownership_relationship' => ['حدد نوع مستند الملكية واسم صاحب الحق وصفة علاقتك بالعقار.'],
-                    ]);
-                }
-                if ($property->owner_relationship_type === 'owner'
-                    && $this->normalizedName($property->document_owner_name) !== $this->normalizedName($advertiser->name)) {
-                    throw ValidationException::withMessages([
-                        'owner_relationship_type' => ['الاسم المدخل من مستند العقار لا يطابق اسم الحساب. اختر صفتك الصحيحة مثل وكيل أو وارث أو شريك.'],
-                    ]);
-                }
-                if ($property->owner_relationship_type === 'other'
-                    && trim((string) $property->owner_relationship_note) === '') {
-                    throw ValidationException::withMessages([
-                        'owner_relationship_note' => ['وضح صفتك أو علاقتك بالعقار.'],
-                    ]);
-                }
-                return;
-            }
-        }
-
-        // Compatibility with historical test/local identities that predate the
-        // unified owner/broker/office verification policy. Current UAT accounts
-        // use identity policy >= 1 and therefore must select a profile.
-        if ((int) $advertiser->identity_policy_version === 0) {
-            if (! $property->documents()->where('kind', 'ownership_or_authorization')->exists()) {
+        if ($direct && $property->review_status !== 'returned_for_correction') return;
+        if ($profile?->isApproved() && $profile->type === AccountVerificationProfile::TYPE_OWNER
+            && $advertiser->broker_enrolled_at === null) {
+            if (! $property->documents()->where('kind', 'ownership_proof')->exists()) {
                 throw ValidationException::withMessages([
-                    'proof_documents' => ['أرفق إثبات ملكية أو تفويض قبل إرسال الإعلان للمراجعة.'],
+                    'ownership_proof' => ['يجب إرفاق مستند يثبت الملكية أو العلاقة بهذا العقار قبل الإرسال للمراجعة.'],
+                ]);
+            }
+            if (! $property->ownership_document_type
+                || ! $property->document_owner_name
+                || ! $property->owner_relationship_type) {
+                throw ValidationException::withMessages([
+                    'ownership_relationship' => ['حدد نوع مستند الملكية واسم صاحب الحق وصفة علاقتك بالعقار.'],
+                ]);
+            }
+            if ($property->owner_relationship_type === 'owner'
+                && $this->normalizedName($property->document_owner_name) !== $this->normalizedName($advertiser->name)) {
+                throw ValidationException::withMessages([
+                    'owner_relationship_type' => ['الاسم المدخل من مستند العقار لا يطابق اسم الحساب. اختر صفتك الصحيحة مثل وكيل أو وارث أو شريك.'],
+                ]);
+            }
+            if ($property->owner_relationship_type === 'other'
+                && trim((string) $property->owner_relationship_note) === '') {
+                throw ValidationException::withMessages([
+                    'owner_relationship_note' => ['وضح صفتك أو علاقتك بالعقار.'],
                 ]);
             }
             return;
         }
-
-        if ($advertiser->isBrokerVerified()) {
-            return;
+        // Older clients still submitting a version-zero proof workflow keep its proof requirement.
+        if (! $direct && ! $profile && $advertiser->broker_enrolled_at === null
+            && (int) $advertiser->identity_policy_version === 0
+            && ! $property->documents()->where('kind', 'ownership_or_authorization')->exists()) {
+            throw ValidationException::withMessages([
+                'proof_documents' => ['أرفق إثبات ملكية أو تفويض قبل إرسال الإعلان للمراجعة.'],
+            ]);
         }
-
-        throw new ConflictHttpException('اختر نوع الحساب من حسابي وأكمل التحقق قبل إرسال إعلان للمراجعة.');
     }
 
     private function normalizedName(?string $value): string

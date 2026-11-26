@@ -368,8 +368,7 @@ void main() {
     expect(find.text('إدارة عملي'), findsNothing);
     router.push('/add-property');
     await tester.pumpAndSettle();
-    expect(find.text('توثيق نوع الحساب مطلوب'), findsOneWidget);
-    expect(find.text('listing destination'), findsNothing);
+    expect(find.text('listing destination'), findsOneWidget);
   });
 
   for (final size in [const Size(320, 640), const Size(412, 915), const Size(800, 1000)]) {

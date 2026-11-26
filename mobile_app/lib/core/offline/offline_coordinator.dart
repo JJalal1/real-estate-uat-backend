@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as maps;
 import '../local/stage6_secure_session_store.dart';
+import '../local/listing_recovery_store.dart';
+import '../../features/properties/data/listing_account_draft_repository.dart';
 import '../network/api_client.dart';
 import '../../features/account/data/auth_controller.dart';
 import '../../features/discovery/data/marketplace_repository.dart';
@@ -84,6 +86,9 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     if (actor != null &&
         ref.read(offlineConnectionProvider) == OfflineConnection.online) {
+      unawaited(ref.read(listingAccountDraftRepositoryProvider)
+          .syncRestart(actor, ref.read(listingRecoveryStoreProvider))
+          .catchError((Object _) {}));
       unawaited(ref
           .read(messageOutboxProvider(actor).notifier)
           .flush()

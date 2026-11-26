@@ -183,7 +183,7 @@ void main() {
     expect(find.text('تعديل الإعلان').hitTestable(), findsOneWidget);
     await tester.tap(find.byTooltip('خيارات البطاقة'));
     await uxFrames(tester);
-    expect(find.text('إرسال للمراجعة'), findsNothing);
+    expect(find.text('نشر الإعلان'), findsNothing);
     expect(find.text('إعادة الإرسال'), findsNothing);
     expect(find.text('عرض'), findsNothing);
     expect(find.text('حذف').hitTestable(), findsOneWidget);
@@ -200,7 +200,7 @@ void main() {
       ]);
       await pumpUx(tester, scope, const MyListingsScreen());
       expect(find.text('إعلان اختبار الصورة الخاصة').hitTestable(), findsOneWidget);
-      for (final label in ['إرسال للمراجعة', 'إعادة الإرسال', 'تعديل الإعلان', 'تعديل', 'حذف', 'عرض']) {
+      for (final label in ['نشر الإعلان', 'إعادة الإرسال', 'تعديل الإعلان', 'تعديل', 'حذف', 'عرض']) {
         expect(find.text(label), findsNothing);
       }
       expect(find.byTooltip('خيارات البطاقة'), findsNothing);

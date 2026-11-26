@@ -11,7 +11,8 @@ import '../data/listing_account_draft_repository.dart';
 import '../domain/listing_account_draft.dart';
 import '../domain/property_details.dart';
 import 'listing_editor_screen.dart';
-import 'personal_listing_creation_gate.dart';
+import '../domain/property_schema.dart';
+import 'package:dio/dio.dart';
 
 class ListingDraftEntryScreen extends ConsumerWidget {
   const ListingDraftEntryScreen({this.existingProperty, this.startWithAssistant = false,
@@ -100,13 +101,32 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
         if (_current) setState(() => _loading = false);
         return;
       }
+      await _repository.syncRestart(widget.actor, _store);
+      if (!_current || request != _request) return;
       final rows = await Future.wait<dynamic>([
         _repository.list().timeout(const Duration(seconds: 15)),
         ref.read(propertyRepositoryProvider).myListings().timeout(const Duration(seconds: 15)),
       ]);
       if (!_current || request != _request) return;
       _drafts = (rows[0] as List<ListingAccountDraft>).where((d) => !d.isRetired).toList();
-      _legacy = (rows[1] as List<PropertyDetails>).where((p) => p.status == 'draft').toList();
+      _legacy = (rows[1] as List<PropertyDetails>).where((p) =>
+          p.status == 'draft' && p.canEdit && (p.createdAt == null ||
+              DateTime.now().isBefore(p.createdAt!.add(const Duration(days: 7))))).toList();
+      final cached = _local;
+      if (cached != null && isAutomaticListingRecovery(cached) &&
+          ((cached['server_revision'] as num?) ?? 0) > 0 &&
+          !_drafts.any((draft) => draft.key == cached['draft_key'])) {
+        // A retired automatic draft from a different device cannot be resumed.
+        try {
+          await _repository.get(cached['draft_key'] as String);
+        } on DioException catch (error) {
+          if (![404, 410].contains(error.response?.statusCode)) rethrow;
+          if (!_current || request != _request) return;
+          await _store.clear(widget.actor, null);
+          _local = null;
+        }
+      }
+      if (!_current || request != _request) return;
       _sourcesComplete = true;
       if (_directResume) {
         setState(() => _loading = false);
@@ -164,7 +184,7 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
   }
 
   Future<void> _protectOtherDeviceDraft(Object? key) async {
-    if (_local != null && _local!['draft_key'] != key) {
+    if (_local != null && !_localAutomatic && _local!['draft_key'] != key) {
       await _store.pinExplicitSave(widget.actor, preserveUnclassified: true);
     }
   }
@@ -221,13 +241,12 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
           setState(() => _error = 'لم تعد هذه المسودة قابلة للتعديل.');
           return;
         }
-        final local = _directResume
-            ? (newestLocal != null && _localIsNewer(newestLocal, current) &&
-                    _canMergeLocal(newestLocal, current) ? newestLocal : null)
-            : _localFor(current.key);
+        final candidate = newestLocal ?? _localFor(current.key);
+        final local = candidate != null && _localIsNewer(candidate, current) &&
+            _canMergeLocal(candidate, current) ? candidate : null;
         setState(() {
           _selected = current; _property = property; _editorLocal = local;
-          final recovery = _directResume ? local ?? current.payload : current.payload;
+          final recovery = local ?? current.payload;
           _assistant = recovery['entry_method'] == 'assistant' && recovery['completion_only'] != true;
           _fresh = false; _open = true;
         });
@@ -263,34 +282,21 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     if (_working || _loading || (!_sourcesComplete && !offline) || !_current) return;
     setState(() { _working = true; _error = null; });
     try {
-      if (offline) {
-        // Never retire an unknown server recovery while disconnected. Preserve
-        // even legacy/unclassified device work before opening a separate UUID.
-        if (_local != null)
-          { await _store.pinExplicitSave(widget.actor,
-              preserveUnclassified: true); }
-        if (_current)
-          { setState(() {
-            _fresh = true;
-            _selected = null;
-            _editorLocal = null;
-            _property = null;
-            _assistant = false;
-            _open = true;
-          }); }
+      if ((_localAutomatic || _automatic != null) &&
+          !await _confirm('بدء إعلان جديد؟', 'سيُحذف التقدم التلقائي السابق. تبقى مسوداتك اليدوية محفوظة.')) {
         return;
       }
-      if ((_localAutomatic || _automatic != null) &&
-          !await _confirm('بدء إعلان جديد؟', 'سيُستبدل التقدم التلقائي المعروض فقط. تبقى المسودات التي حفظتها صراحة في «مسوداتي» دون حذف.')) { return; }
       if (!_current) return;
-      final remote = _automatic;
-      final local = _localAutomatic ? _local : null;
-      final key = local?['draft_key'] as String? ?? remote?.key;
-      final revision = local != null && remote?.key != key ? (local['server_revision'] as num? ?? 0).toInt() : remote?.revision ?? 0;
-      if (key != null) await _repository.retireRecovery(key, revision);
-      if (!_current) return;
-      if (local != null && local['draft_key'] == key) { await _store.clear(widget.actor, null); }
-      else { await _protectSavedLocal(); }
+      final startedAt = DateTime.now().toUtc().toIso8601String();
+      await _protectSavedLocal();
+      if (offline) {
+        await _store.rememberRestart(widget.actor, startedAt);
+      } else {
+        await _repository.restartAutomatic(startedAt);
+        if (!_current) return;
+        await _store.rememberRestart(widget.actor, startedAt);
+        await _store.acknowledgeRestart(widget.actor, startedAt);
+      }
       if (_current) setState(() { _fresh = true; _selected = null; _editorLocal = null; _property = null; _assistant = widget.startWithAssistant; _open = true; });
     } catch (_) { if (_current) setState(() => _error = 'لم يكتمل إلغاء التقدم المؤقت. بياناتك باقية؛ أعد المحاولة أو تابع الإعلان.'); }
     finally { if (_current) setState(() => _working = false); }
@@ -337,8 +343,8 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
             .contains(ref.watch(offlineConnectionProvider));
     if (_open) {
       final editor = ListingEditorScreen(existingProperty: _property, accountDraft: _selected, localRecovery: _editorLocal,
-        startFresh: _fresh, startWithAssistant: _assistant, resumeSavedProgress: widget.resumeLatest);
-      return _selected != null || _property != null || _editorLocal != null ? editor : PersonalListingCreationGate(child: editor);
+        startFresh: _fresh, startWithAssistant: _assistant, resumeSavedProgress: _selected != null || widget.resumeLatest);
+      return editor;
     }
     if (_showSaved) return _saved();
     if (_directResume) return _resumeStatus(offline);
@@ -402,17 +408,79 @@ class _ListingDraftEntryState extends ConsumerState<_ListingDraftEntryBody> {
     ),
   );
 
-  Widget _saved() => Directionality(textDirection: TextDirection.rtl, child: Scaffold(
-    appBar: AppBar(title: const Text('مسوداتي')), body: ListView(padding: const EdgeInsets.all(18), children: [
-      if (_loading || _working || _error != null) AppRefreshStatus(loading: _loading || _working && !_confirming, error: _error, onRetry: _load),
-      for (final draft in _drafts) ListTile(title: Text(draft.title), subtitle: Text(draft.isRecovery ? 'تقدم تلقائي' : 'مسودة محفوظة'),
-        onTap: _working ? null : () => _resume(draft), trailing: IconButton(tooltip: 'حذف المسودة', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _delete(draft))),
-      for (final data in _deviceDrafts.where((data) => !_drafts.any((d) => d.key == data['draft_key']))) ListTile(
-        title: Text((data['fields'] as Map?)?['title']?.toString().trim().isNotEmpty == true ? (data['fields'] as Map)['title'].toString() : 'مسودة محفوظة على الجهاز'),
-        subtitle: const Text('بيانات محلية محفوظة؛ قد تحتاج مزامنة الحساب'), onTap: _working ? null : () => _resumeLocal(data),
-        trailing: IconButton(tooltip: 'حذف المسودة المحلية', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _deleteLocal(data))),
-      for (final property in _legacy.where((p) => !_drafts.any((d) => d.propertyId == p.id))) ListTile(
-        title: Text(property.title), subtitle: const Text('إعلان محفوظ في المسودات'), onTap: _working ? null : () => _resumeProperty(property), trailing: IconButton(tooltip: 'حذف الإعلان المحفوظ', icon: const Icon(Icons.delete_outline), onPressed: _working ? null : () => _deleteLegacy(property))),
-      if (!_loading && _drafts.isEmpty && _legacy.isEmpty && _deviceDrafts.isEmpty) const Text('لا توجد مسودات محفوظة.'),
-    ])));
+  String _location(Map<String, dynamic> payload) {
+    final fields = payload['fields'] as Map? ?? const {};
+    return {
+      for (final key in ['governorate', 'district', 'neighborhood'])
+        if ((fields[key]?.toString().trim() ?? '').isNotEmpty) fields[key].toString().trim(),
+    }.join('، ');
+  }
+
+  String _localTitle(Map<String, dynamic> data) {
+    final title = (data['fields'] as Map?)?['title']?.toString().trim() ?? '';
+    return title.isEmpty ? 'إعلان غير مكتمل' : title;
+  }
+
+  Widget _saved() {
+    final theme = Theme.of(context);
+    final remote = _automatic;
+    final local = _localAutomatic && (remote == null || _localIsNewer(_local!, remote)) ? _local : null;
+    final progress = local != null ? DynamicPropertySchema.draftProgress(local) : remote?.progress ?? 0;
+    final hasAuto = local != null || remote != null;
+    final manualRows = <({String title, String place, DateTime? date, VoidCallback open, VoidCallback delete})>[
+      for (final draft in _drafts.where((d) => !d.isRecovery))
+        if (_localFor(draft.key) case final Map<String, dynamic> cached when
+            _localIsNewer(cached, draft) && _canMergeLocal(cached, draft))
+          (title: _localTitle(cached), place: _location(cached), date: _savedAt(cached),
+            open: () => _resume(draft, newestLocal: cached), delete: () => _delete(draft))
+        else
+          (title: draft.title, place: _location(draft.payload), date: draft.updatedAt,
+            open: () => _resume(draft), delete: () => _delete(draft)),
+      for (final data in _deviceDrafts.where((d) => !isAutomaticListingRecovery(d) &&
+          !_drafts.any((remote) => remote.key == d['draft_key'])))
+        (title: _localTitle(data), place: _location(data), date: _savedAt(data),
+          open: () => _resumeLocal(data), delete: () => _deleteLocal(data)),
+      for (final property in _legacy.where((p) => !_drafts.any((d) => d.propertyId == p.id) &&
+          !_deviceDrafts.any((d) => d['server_property_id'] == p.id)))
+        (title: property.title, place: property.address ?? '', date: property.updatedAt ?? property.createdAt,
+          open: () => _resumeProperty(property), delete: () => _deleteLegacy(property)),
+    ]..sort((a, b) => (b.date?.millisecondsSinceEpoch ?? 0).compareTo(a.date?.millisecondsSinceEpoch ?? 0));
+    return Directionality(textDirection: TextDirection.rtl, child: Scaffold(
+      appBar: const AppAppBar(title: 'مسوداتي'),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        if (_loading || _working || _error != null)
+          AppRefreshStatus(loading: _loading || _working && !_confirming, error: _error, onRetry: _load),
+        if (hasAuto)
+          Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('أكمل آخر إعلان', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text(local != null ? _localTitle(local) : remote!.title, style: theme.textTheme.titleMedium),
+              const SizedBox(height: 12),
+              Text('اكتمال البيانات ${progress.clamp(0, 100)}٪'),
+              const SizedBox(height: 6),
+              LinearProgressIndicator(value: progress.clamp(0, 100) / 100),
+              const SizedBox(height: 12),
+              AppButton(label: 'متابعة الإعلان', onPressed: _working ? null : () {
+                if (local != null) { _resumeLocal(local); } else { _resume(remote!); }
+              }),
+            ]))),
+        if (manualRows.isNotEmpty) ...[
+          Padding(padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+              child: Text('المسودات اليدوية', style: theme.textTheme.titleLarge)),
+          for (final draft in manualRows) Card(child: ListTile(
+            title: Text(draft.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: draft.place.isEmpty ? null : Text(draft.place),
+            onTap: _working ? null : draft.open,
+            trailing: PopupMenuButton<String>(
+              enabled: !_working, tooltip: 'خيارات المسودة',
+              onSelected: (_) => draft.delete(),
+              itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('حذف المسودة'))],
+            ),
+          )),
+        ],
+        if (!_loading && _error == null && !hasAuto && manualRows.isEmpty)
+          const AppEmptyState(title: 'لا توجد مسودات محفوظة', message: '', icon: Icons.drafts_outlined),
+      ])));
+  }
 }

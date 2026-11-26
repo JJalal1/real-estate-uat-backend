@@ -14,6 +14,7 @@ import 'broker_achievement_carousel.dart';
 import 'broker_activity.dart';
 import '../../account/data/auth_controller.dart';
 import '../../messages/data/message_repository.dart';
+import '../../messages/presentation/message_thread_card.dart';
 import '../../messages/presentation/unread_inbox_badge.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
@@ -620,7 +621,12 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           if (!widget.selectForDeal) ...[
-            _filters(context),
+            MessageInboxFilters(
+              key: const ValueKey('broker-message-status-filters'),
+              options: _statusChips,
+              selected: _stage,
+              onSelected: _selectStage,
+            ),
             const SizedBox(height: 8),
           ],
           if (_loading && _items.isEmpty)
@@ -641,7 +647,15 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
               padding: const EdgeInsets.only(bottom: 8),
               child: widget.selectForDeal
                   ? _dealCustomerCard(context, item)
-                  : _BrokerMessageCard(item: item, onTap: () => _openConversation(item)),
+                  : MessageThreadCard(
+                      threadId: item.threadId,
+                      otherUserName: item.customerName,
+                      lastMessagePreview: item.lastMessagePreview,
+                      lastMessageIsMine: item.lastMessageIsMine,
+                      lastMessageAt: item.lastMessageAt,
+                      unreadCount: item.unreadCount,
+                      onTap: () => _openConversation(item),
+                    ),
             ),
           if (_items.isNotEmpty && (_moreBusy || (_error != null && _failedMore)))
             AppRefreshStatus(
@@ -660,39 +674,6 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
       ),
     ),
   );
-
-  Widget _filters(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return SingleChildScrollView(
-      key: const ValueKey('broker-message-status-filters'),
-      scrollDirection: Axis.horizontal,
-      child: Row(children: [
-        for (final entry in _statusChips.entries)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(end: 6),
-            child: ChoiceChip(
-              key: ValueKey('broker-message-filter-${entry.key ?? 'all'}'),
-              label: Text(entry.value),
-              selected: _stage == entry.key,
-              onSelected: (_) => _selectStage(entry.key),
-              showCheckmark: false,
-              labelStyle: theme.textTheme.labelSmall?.copyWith(
-                color: _stage == entry.key ? scheme.onPrimaryContainer : scheme.onSurface,
-              ),
-              labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-              materialTapTargetSize: MaterialTapTargetSize.padded,
-              visualDensity: VisualDensity.compact,
-              shape: const StadiumBorder(),
-              side: BorderSide(
-                color: _stage == entry.key ? scheme.primary.withValues(alpha: .55) : scheme.outlineVariant,
-              ),
-              selectedColor: scheme.primaryContainer,
-            ),
-          ),
-      ]),
-    );
-  }
 
   Widget _dealCustomerCard(BuildContext context, BrokerCustomer item) {
     final textTheme = Theme.of(context).textTheme;
@@ -718,95 +699,6 @@ class _BrokerCustomersState extends ConsumerState<_BrokerCustomersBody> {
         ),
       ],
     ));
-  }
-}
-
-class _BrokerMessageCard extends StatelessWidget {
-  const _BrokerMessageCard({required this.item, required this.onTap});
-
-  final BrokerCustomer item;
-  final VoidCallback onTap;
-
-  static final _spaces = RegExp(r'\s+');
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final message = item.lastMessagePreview?.replaceAll(_spaces, ' ').trim() ?? '';
-    final preview = item.lastMessageIsMine && message.isNotEmpty ? 'أنت: $message' : message;
-    final lastMessage = item.lastMessageAt;
-    final secondary = theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
-    return Material(
-      color: theme.brightness == Brightness.dark ? scheme.surfaceContainerLow : scheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: scheme.outlineVariant),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 76),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(
-                    item.customerName,
-                    style: theme.textTheme.titleSmall?.copyWith(fontSize: 15),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  )),
-                  if (item.unreadCount > 0)
-                    Badge(
-                      key: ValueKey('broker-message-unread-${item.threadId}'),
-                      label: Text('${item.unreadCount}', semanticsLabel: '${item.unreadCount} رسالة غير مقروءة'),
-                      backgroundColor: const Color(0xffb91c1c),
-                      textColor: Colors.white,
-                    ),
-                ],
-              ),
-              if (preview.isNotEmpty || lastMessage != null) ...[
-                const SizedBox(height: 4),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(child: Text(
-                      preview,
-                      style: secondary,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    )),
-                    if (lastMessage != null) ...[
-                      const SizedBox(width: 10),
-                      Text(
-                        _messageDateLabel(lastMessage),
-                        style: secondary?.copyWith(fontSize: 11),
-                        textDirection: TextDirection.ltr,
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _messageDateLabel(DateTime sentAt) {
-    final local = sentAt.toLocal();
-    final now = DateTime.now();
-    final days = DateTime.utc(now.year, now.month, now.day)
-        .difference(DateTime.utc(local.year, local.month, local.day)).inDays;
-    if (days >= 0 && days <= 7) {
-      return const ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'][local.weekday - 1];
-    }
-    return '${local.year}/${local.month.toString().padLeft(2, '0')}/${local.day.toString().padLeft(2, '0')}';
   }
 }
 

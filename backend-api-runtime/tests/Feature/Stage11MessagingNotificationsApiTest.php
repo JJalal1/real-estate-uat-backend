@@ -26,6 +26,10 @@ class Stage11MessagingNotificationsApiTest extends TestCase
         $created=$this->withHeaders($buyerHeaders)->postJson("/api/properties/{$listing->id}/conversation")->assertCreated();
         $threadId=(int)$created->json('data.id');
         $this->withHeaders($buyerHeaders)->postJson("/api/messages/threads/$threadId/messages",['body'=>'Is this listing still available?'])->assertCreated();
+        $this->withHeaders($buyerHeaders)->getJson('/api/messages/threads')->assertOk()
+            ->assertJsonPath('data.0.last_message_is_mine', true);
+        $this->withHeaders($adHeaders)->getJson('/api/messages/threads')->assertOk()
+            ->assertJsonPath('data.0.last_message_is_mine', false);
         $this->withHeaders($outsiderHeaders)->getJson("/api/messages/threads/$threadId")->assertNotFound();
         $this->withHeaders($adHeaders)->getJson('/api/notifications/unread-count')->assertOk()->assertJsonPath('data.count',1);
         $this->withHeaders($adHeaders)->getJson("/api/messages/threads/$threadId")->assertOk()->assertJsonPath('data.messages.0.body','Is this listing still available?');

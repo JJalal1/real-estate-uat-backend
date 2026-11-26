@@ -103,7 +103,7 @@ class Branch2LocationTest extends TestCase
         \App\Models\AccountVerificationProfile::create(['user_id'=>$user->id,'type'=>'broker','status'=>'approved','submitted_at'=>now(),'reviewed_at'=>now()]);
         $token='synthetic-location-account';$user->apiTokens()->create(['name'=>'test','token_hash'=>hash('sha256',$token),'token_prefix'=>substr($token,0,12),'expires_at'=>now()->addHour()]);
         $headers=['Authorization'=>'Bearer '.$token];$url='/api/listing-editor-drafts/'.\Illuminate\Support\Str::uuid();
-        $payload=['editor_version'=>11,'draft_kind'=>'recovery','type'=>'apartment','purpose'=>'rent','location_method'=>'gps',
+        $payload=['editor_version'=>11,'draft_kind'=>'saved','type'=>'apartment','purpose'=>'rent','location_method'=>'gps',
             'location_accuracy_m'=>67.5,'location_reduced_accuracy'=>true,'location_context'=>['unapproved_private_key'=>'drop me'],
             'fields'=>['city'=>'مدينة اختبار','district'=>'مديرية اختبار','neighborhood'=>'حي اختبار']];
         $this->withHeaders($headers)->putJson($url,['payload'=>$payload,'expected_revision'=>0])->assertOk();

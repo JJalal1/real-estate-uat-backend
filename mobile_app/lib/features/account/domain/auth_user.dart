@@ -82,6 +82,7 @@ class AuthUser {
     required this.roles,
     required this.permissions,
     this.emailVerifiedAt,
+    this.brokerEnrolled = false,
   });
 
   final int id;
@@ -99,6 +100,7 @@ class AuthUser {
   final DateTime? brokerVerifiedAt;
   final String? brokerVerificationNote;
   final VerificationProfileSummary verificationProfile;
+  final bool brokerEnrolled;
   final bool isPlatformOwner;
   final List<String> roles;
   final List<String> permissions;
@@ -108,9 +110,9 @@ class AuthUser {
   bool get needsPhoneVerification =>
       accountStatus == 'pending_verification' || !isPhoneVerified;
   bool get needsProfileCompletion => profileCompletedAt == null;
-  bool get isOwner => verificationProfile.type == 'owner';
+  bool get isOwner => !brokerEnrolled && verificationProfile.type == 'owner';
   bool get isOffice => verificationProfile.type == 'office';
-  bool get isBroker => verificationProfile.type == 'broker' ||
+  bool get isBroker => brokerEnrolled || verificationProfile.type == 'broker' ||
       (verificationProfile.type == null && accountType == 'broker');
   bool get isRegular => !isBroker;
   bool get isBrokerVerified =>
@@ -124,9 +126,9 @@ class AuthUser {
       const {'owner', 'broker', 'office'}.contains(verificationProfile.type);
   bool get hasVerifiedProfessionalProfile => verificationProfile.isApproved &&
       const {'broker', 'office'}.contains(verificationProfile.type);
-  bool get canCreateListing =>
-      isActive && !needsProfileCompletion && hasVerifiedPublishingProfile;
-  String get accountTypeLabel => verificationProfile.typeLabel;
+  bool get hasMarketplaceProfessionalProfile => brokerEnrolled || hasVerifiedProfessionalProfile || isBrokerVerified;
+  bool get canCreateListing => isActive && !needsProfileCompletion;
+  String get accountTypeLabel => brokerEnrolled ? 'دلال' : verificationProfile.typeLabel;
 
   bool hasRole(String key) => roles.contains(key);
   bool hasPermission(String key) =>
@@ -170,6 +172,7 @@ class AuthUser {
         brokerVerificationNote: _nullable(json['broker_verification_note']),
         verificationProfile:
             VerificationProfileSummary.fromJson(json['verification_profile']),
+        brokerEnrolled: json['broker_enrolled'] == true,
         isPlatformOwner: json['is_platform_owner'] == true,
         roles: _strings(json['roles']),
         permissions: _strings(json['permissions']),
