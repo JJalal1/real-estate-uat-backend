@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Route;
 // authoritative for price display and overdue financial visibility.
 Route::get('/properties', [FinancialPropertyController::class, 'index']);
 Route::get('/properties/nearby', [FinancialPropertyController::class, 'nearby']);
-Route::get('/properties/{property}', [FinancialPropertyController::class, 'show']);
+Route::get('/properties/{property}', [FinancialPropertyController::class, 'show'])->whereNumber('property');
 
 Route::middleware(['auth.api', 'account.active'])->group(function (): void {
     Route::get('/properties/mine/list', [FinancialPropertyController::class, 'mine']);

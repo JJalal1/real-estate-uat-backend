@@ -104,4 +104,17 @@ if [ "${UAT_PHASE04_REGIONAL_FIXTURES_RUN:-}" = "20261117-regional-v1" ]; then
   (php artisan db:seed --class=UatPhase04RegionalSeeder --force || echo 'AQER_PHASE04_REGIONAL: failed; inspect sanitized fixture diagnostics.') &
 fi
 
+# Run only the in-app deal reminder during uptime. The request middleware
+# processes anything that became due while the free service was asleep.
+case "${APP_ENV:-production}" in
+  uat|staging)
+    (
+      while sleep 60; do
+        php artisan broker:remind-pending-deal-prices --quiet --no-interaction ||
+          echo 'The in-app deal reminder sweep failed.'
+      done
+    ) &
+    ;;
+esac
+
 exec apache2-foreground

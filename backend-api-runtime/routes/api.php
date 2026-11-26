@@ -8,7 +8,6 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\BrokerAccountVerificationController;
 use App\Http\Controllers\Api\CommunityController;
 use App\Http\Controllers\Api\DevelopmentController;
-use App\Http\Controllers\Api\DealConfirmationReminderController;
 use App\Http\Controllers\Api\FreeServicesHubController;
 use App\Http\Controllers\Api\ListingReviewController;
 use App\Http\Controllers\Api\MessagingController;
@@ -49,8 +48,6 @@ Route::get('/health', function () {
 });
 
 Route::get('/release', [ReleaseController::class, 'show']);
-Route::post('/internal/deal-confirmation-reminders', DealConfirmationReminderController::class)
-    ->middleware('throttle:15,1,deal-confirmation-reminders');
 
 Route::prefix('auth')->group(function () {
     Route::post('/whatsapp/start', [AuthController::class, 'startWhatsApp'])->middleware('throttle:6,1');
@@ -87,7 +84,7 @@ Route::get('/properties/nearby', [PropertyController::class, 'nearby']);
 Route::get('/properties/visible', [PropertyController::class, 'visible'])->middleware('throttle:60,1,public-property-visibility');
 Route::get('/properties/{property}/comments', [CommunityController::class, 'comments']);
 Route::get('/properties/{property}/sai', [PropertySaiController::class, 'show']);
-Route::get('/properties/{property}', [PropertyController::class, 'show']);
+Route::get('/properties/{property}', [PropertyController::class, 'show'])->whereNumber('property');
 Route::get('/property-media/{image}', [PropertyController::class, 'media']);
 Route::get('/advertisers/{advertiser}/ratings/summary', [CommunityController::class, 'ratingSummary']);
 Route::get('/regions/cells', [RegionsController::class, 'publicCells']);

@@ -63,7 +63,6 @@ jobs:
           tests/Feature/FinancialV1ApiTest.php
           tests/Feature/FinancialV1CompletionTest.php
           tests/Feature/BrokerExperienceApiTest.php
-          tests/Feature/DealConfirmationReminderEndpointTest.php
           tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
           tests/Feature/Stage5PropertyApiTest.php
           tests/Feature/BackgroundPreparationTest.php
@@ -89,7 +88,6 @@ jobs:
           tests/Feature/FinancialV1ApiTest.php
           tests/Feature/FinancialV1CompletionTest.php
           tests/Feature/BrokerExperienceApiTest.php
-          tests/Feature/DealConfirmationReminderEndpointTest.php
           tests/Feature/Phase3BuyerDiscoveryFavoritesApiTest.php
           tests/Feature/Stage5PropertyApiTest.php
           tests/Feature/BackgroundPreparationTest.php
