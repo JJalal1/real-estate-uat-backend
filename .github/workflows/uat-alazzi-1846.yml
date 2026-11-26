@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: aqer-alazzi-1846
+  group: aqer-alazzi-1846-delivery-runner-retry
   cancel-in-progress: true
 
 env:
@@ -119,6 +119,7 @@ jobs:
           key: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-${{ hashFiles('mobile_app/pubspec.lock', 'mobile_app/android/gradle/wrapper/gradle-wrapper.properties', 'mobile_app/android/settings.gradle*', 'mobile_app/android/build.gradle*', 'docs/ui-transplant-v3/pubspec_overrides.yaml') }}
           restore-keys: aqer-phase1-public-gradle-v1-${{ runner.os }}-jdk17-flutter3273-api36-ad06237b7aceaaba2ea4833b822d61753244af41-
       - name: Import the approved UAT signer
+        timeout-minutes: 3
         env:
           AQER_UAT_KEYSTORE_BASE64: ${{ secrets.AQER_UAT_KEYSTORE_BASE64 }}
           AQER_RELEASE_STORE_PASSWORD: ${{ secrets.AQER_RELEASE_STORE_PASSWORD }}
