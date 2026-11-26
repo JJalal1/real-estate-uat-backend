@@ -916,7 +916,7 @@ class _BrokerAvailabilityState extends ConsumerState<_BrokerAvailabilityBody> {
         ref.read(propertyDataRevisionProvider.notifier).state++;
       }
       final message = friendlyApiError(error);
-      _showMessage(confirmed == 0 ? message : 'تأكد توفر $confirmed إعلانًا. $message');
+      _showMessage(confirmed == 0 ? message : 'تم تحديث $confirmed إعلانًا. $message');
     } finally {
       if (current()) setState(() => _operation = null);
     }

@@ -881,7 +881,7 @@ String _statusLabel(PropertyDetails property) => switch ((property.status, prope
       (_, 'sold') => 'تم البيع',
       (_, 'rented') => 'تم التأجير',
       (_, 'paused') => 'متوقف مؤقتًا',
-      (_, 'confirmation_paused') => 'يحتاج تأكيد التوفر',
+      (_, 'confirmation_paused') => 'يحتاج تحديثًا',
       _ => 'الإعلان غير منشور',
     };
 

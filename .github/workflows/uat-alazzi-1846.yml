@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AQER_SOURCE_SHA: 55fc69f748aa18dd8f9341a428745a007ca08a2a
+  AQER_SOURCE_SHA: c5c9ec1a50ddd41fcc8c0d1f88a48dd66986d44a
 
 jobs:
   verify-and-build:
@@ -278,4 +278,3 @@ jobs:
             AQER-UAT-1846-Alazzi-ARM64.apk APK_VERIFICATION.json --repo "$GITHUB_REPOSITORY" \
             --draft --target "$AQER_SOURCE_SHA" --title 'AQER UAT 1846 — Alazzi unified listing updates and deals' \
             --notes "Signed UAT installer verified against source $AQER_SOURCE_SHA."
-
