@@ -15,14 +15,29 @@ $guard$;
 
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
-DO $install$
+CREATE SCHEMA IF NOT EXISTS aqer_dues_wake AUTHORIZATION postgres;
+
+DO $private$
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_extension WHERE extname = 'pg_net') THEN
-        CREATE EXTENSION pg_net WITH SCHEMA extensions;
-        REVOKE USAGE ON SCHEMA net FROM PUBLIC, anon, authenticated;
+    IF (SELECT pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = 'aqer_dues_wake') <> 'postgres' THEN
+        RAISE EXCEPTION 'Unexpected owner of UAT scheduler schema';
     END IF;
 END;
-$install$;
+$private$;
+
+REVOKE ALL ON SCHEMA aqer_dues_wake FROM PUBLIC, anon, authenticated;
+CREATE EXTENSION IF NOT EXISTS http WITH SCHEMA aqer_dues_wake;
+
+DO $access$
+BEGIN
+    IF NOT EXISTS (
+        SELECT FROM pg_extension WHERE extname = 'http' AND extnamespace = 'aqer_dues_wake'::regnamespace
+    ) OR has_schema_privilege('anon', 'aqer_dues_wake', 'USAGE')
+      OR has_schema_privilege('authenticated', 'aqer_dues_wake', 'USAGE') THEN
+        RAISE EXCEPTION 'The UAT HTTP extension must be isolated from client roles';
+    END IF;
+END;
+$access$;
 
 -- A scheduled GET only wakes the web process. Its boot loop owns notification creation,
 -- push preferences, balance rechecks, the receivable lock and the 24-hour checkpoint.
@@ -31,10 +46,10 @@ SELECT cron.schedule(
     'aqer-frankfurt-due-reminders',
     '* * * * *',
     $wake$
-    SELECT net.http_get(
-        url := 'https://real-estate-uat-api-frankfurt.onrender.com/up',
-        timeout_milliseconds := 55000
-    )
+    BEGIN;
+    SET LOCAL search_path TO pg_catalog, aqer_dues_wake, pg_temp;
+    SET LOCAL http.curlopt_timeout_ms TO '55000';
+    SELECT (aqer_dues_wake.http_get('https://real-estate-uat-api-frankfurt.onrender.com/up')).status
     WHERE EXISTS (
         SELECT FROM public.property_platform_receivables
         WHERE status IN ('open', 'under_review', 'overdue', 'disputed')
@@ -42,6 +57,7 @@ SELECT cron.schedule(
           AND due_at <= CURRENT_TIMESTAMP
           AND (last_reminded_at IS NULL OR last_reminded_at <= CURRENT_TIMESTAMP - INTERVAL '24 hours')
     );
+    COMMIT;
     $wake$
 );
 

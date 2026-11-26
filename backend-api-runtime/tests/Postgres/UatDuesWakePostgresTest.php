@@ -14,8 +14,11 @@ class UatDuesWakePostgresTest extends TestCase
         $this->assertSame('real_estate_audit', DB::connection()->getDatabaseName());
         $source = file_get_contents(dirname(__DIR__, 3).'/scripts/configure_frankfurt_dues_reminders.sql');
         $this->assertSame(1, preg_match('/\\$wake\\$(.*?)\\$wake\\$/s', $source, $matches));
-        $sql = str_replace(['net.http_get(', 'public.property_platform_receivables'],
-            ['pg_temp.record_wake(', 'pg_temp.dues'], $matches[1], $replacements);
+        $this->assertStringContainsString("SET LOCAL http.curlopt_timeout_ms TO '55000';", $matches[1]);
+        $this->assertStringContainsString('SET LOCAL search_path TO pg_catalog, aqer_dues_wake, pg_temp;', $matches[1]);
+        $this->assertSame(1, preg_match('/SELECT \(aqer_dues_wake\.http_get[^;]+;/s', $matches[1], $statement));
+        $sql = str_replace(['aqer_dues_wake.http_get(', 'public.property_platform_receivables'],
+            ['pg_temp.record_wake(', 'pg_temp.dues'], $statement[0], $replacements);
         $this->assertSame(2, $replacements);
 
         DB::beginTransaction();
@@ -23,10 +26,11 @@ class UatDuesWakePostgresTest extends TestCase
             DB::unprepared(<<<'SQL'
                 CREATE TEMP TABLE dues (status text, amount_paid numeric, amount_total numeric,
                     due_at timestamptz, last_reminded_at timestamptz);
-                CREATE TEMP TABLE observed_wakes (url text, timeout_ms integer);
-                CREATE FUNCTION pg_temp.record_wake(url text, timeout_milliseconds integer) RETURNS bigint
+                CREATE TEMP TABLE observed_wakes (url text);
+                CREATE TYPE pg_temp.response AS (status integer);
+                CREATE FUNCTION pg_temp.record_wake(url text) RETURNS pg_temp.response
                 LANGUAGE sql VOLATILE AS $function$
-                    INSERT INTO pg_temp.observed_wakes VALUES (url, timeout_milliseconds) RETURNING 1::bigint
+                    INSERT INTO pg_temp.observed_wakes VALUES (url) RETURNING ROW(200)::pg_temp.response
                 $function$;
                 SQL);
             $this->assertCount(0, DB::select($sql));
@@ -51,7 +55,6 @@ class UatDuesWakePostgresTest extends TestCase
             $wakes = DB::select('SELECT * FROM pg_temp.observed_wakes');
             $this->assertCount(2, $wakes);
             $this->assertSame('https://real-estate-uat-api-frankfurt.onrender.com/up', $wakes[0]->url);
-            $this->assertSame(55000, (int) $wakes[0]->timeout_ms);
         } finally {
             DB::rollBack();
         }
