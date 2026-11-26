@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\AccountVerificationProfile;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,6 +9,11 @@ use Illuminate\Support\Facades\DB;
 
 class BrokerRankingService
 {
+    // Joined columns below contain only formerly approved public information.
+    public const GOVERNORATE = "COALESCE(users.marketplace_governorate, CASE WHEN reviewed_profile.governorate = 'سقطرى' THEN 'أرخبيل سقطرى' ELSE reviewed_profile.governorate END)";
+    public const IS_OFFICE = "COALESCE(users.marketplace_is_office, CASE WHEN reviewed_profile.type = 'office' THEN TRUE ELSE FALSE END)";
+    public const OFFICE_NAME = "CASE WHEN users.marketplace_is_office IS NULL AND reviewed_profile.type = 'office' THEN reviewed_profile.office_name ELSE users.marketplace_office_name END";
+
     public function query(?string $governorate = null, bool $brokersOnly = true, bool $includePublicIndividuals = false): Builder
     {
         $ratings = DB::table('advertiser_ratings as rating')
@@ -25,17 +29,23 @@ class BrokerRankingService
             ->where('result.status','confirmed')->groupBy('result.advertiser_user_id')
             ->selectRaw('result.advertiser_user_id, COUNT(*) AS completed_deals')
             ->selectRaw('SUM(CASE WHEN result.confirmed_at >= ? THEN CASE WHEN due.id IS NULL OR due.status = ? THEN 1.0 ELSE 0.5 END ELSE 0 END) AS recent_deal_credit', [now()->subDays(90),'paid']);
-        $listings = Property::query()->withoutGlobalScope('financial_public_visibility')
-            ->publiclyVisible()
-            ->whereNull('financial_hold_at')->groupBy('user_id')->selectRaw('user_id, COUNT(*) AS active_listings')
+        $listings = Property::query()->publiclyVisible()
+            ->groupBy('user_id')->selectRaw('user_id, COUNT(*) AS active_listings')
             ->selectRaw('SUM(CASE WHEN (availability_notified_at IS NULL OR availability_notified_at > ?) '
                 .'AND (availability_confirmed_at >= ? OR published_at >= ?) THEN 1 ELSE 0 END) AS recent_activity',
                 [now()->subDays(2), now()->subDays(30), now()->subDays(30)]);
         $closed=DB::table('properties')->whereIn('availability_status',['sold','rented'])->groupBy('user_id')->selectRaw("user_id, SUM(CASE WHEN availability_status = 'sold' THEN 1 ELSE 0 END) AS sold_listings, SUM(CASE WHEN availability_status = 'rented' THEN 1 ELSE 0 END) AS rented_listings");
+        $reviewedProfiles = DB::table('account_verification_profiles')
+            ->where('status', 'approved')->whereNotNull('reviewed_at')
+            ->select(['user_id', 'type', 'details->governorate as governorate', 'details->office_name as office_name']);
         $query = User::query()->where('users.account_status','active')->whereNotNull('users.phone_verified_at')
+            ->leftJoinSub($reviewedProfiles, 'reviewed_profile', fn ($join) => $join->on('reviewed_profile.user_id', '=', 'users.id'))
             ->where(function ($eligible) use ($brokersOnly, $includePublicIndividuals): void {
-                $eligible->whereHas('accountVerificationProfile', fn ($q) => $q->where('status','approved')->whereNotNull('reviewed_at')
-                    ->whereIn('type', $brokersOnly ? [AccountVerificationProfile::TYPE_BROKER,AccountVerificationProfile::TYPE_OFFICE] : [AccountVerificationProfile::TYPE_OWNER,AccountVerificationProfile::TYPE_BROKER,AccountVerificationProfile::TYPE_OFFICE]));
+                $eligible->whereNotNull('users.broker_enrolled_at')
+                    ->orWhere(fn ($legacy) => $legacy->where('users.account_type', User::ACCOUNT_TYPE_BROKER)
+                        ->where('users.broker_verification_status', User::BROKER_VERIFICATION_APPROVED)
+                        ->whereNotNull('users.broker_verified_at')->whereDoesntHave('accountVerificationProfile'))
+                    ->orWhereIn('reviewed_profile.type', $brokersOnly ? ['broker', 'office'] : ['owner', 'broker', 'office']);
                 if ($includePublicIndividuals) $eligible->orWhereIn('users.id', app(PropertyDiscoveryFilterService::class)->publicQuery()->select('properties.user_id'));
             })
             ->leftJoinSub($closed,'closed_property',fn($join)=>$join->on('closed_property.user_id','=','users.id'))
@@ -53,25 +63,42 @@ class BrokerRankingService
         $score = "50.0 * $quality + 35.0 * (CASE WHEN $dealCredit >= 20 THEN 1.0 ELSE $dealCredit / 20.0 END) + 15.0 * (CASE WHEN $activity >= 20 THEN 1.0 ELSE $activity / 20.0 END)";
         $query->selectRaw("($score) AS ranking_score");
         if ($governorate !== null && $governorate !== '') {
-            $local = DB::table('account_verification_profiles')->select('user_id')->where('status','approved')
-                ->where('details->governorate',$governorate);
-            $query->leftJoinSub($local,'local_professional',fn ($join) => $join->on('local_professional.user_id','=','users.id'))
-                ->orderByRaw('CASE WHEN local_professional.user_id IS NULL THEN 1 ELSE 0 END');
+            $query->orderByRaw('CASE WHEN '.self::GOVERNORATE.' = ? THEN 0 ELSE 1 END', [$governorate]);
         }
         return $query->orderByDesc('ranking_score')->orderByDesc('rating_count')->orderBy('users.id');
     }
 
-    public function publicData(User $user): array
+    public function publicIdentity(User $user): array
     {
         $profile = $user->accountVerificationProfile;
-        $approved = $profile?->isApproved() && $profile?->reviewed_at !== null;
+        $approved = $profile?->isApproved() === true;
         $details = $approved ? ($profile->details ?? []) : [];
+        $type = $approved ? $profile->type : 'individual';
+        $officeName = null;
+        if ($user->hasMarketplaceProfessionalProfile()) {
+            $office = $user->marketplace_is_office === null ? $type === 'office' : (bool) $user->marketplace_is_office;
+            $type = $office ? 'office' : 'broker';
+            if ($office) {
+                $officeName = $user->marketplace_is_office === null ? ($details['office_name'] ?? null) : $user->marketplace_office_name;
+            }
+        }
+        $verified = $approved && $profile->type === $type;
+        if ($verified && $type === 'office' && $user->marketplace_is_office !== null) {
+            $verified = $officeName === ($details['office_name'] ?? null);
+        }
+        $region = $user->marketplace_governorate ?? ($details['governorate'] ?? null);
         return [
-            'id'=>(int)$user->id,'name'=>$approved && $profile?->type === 'office' ? ($details['office_name'] ?? $user->name) : $user->name,
-            'account_type'=>$approved ? $profile->type : 'individual','verified'=>(bool)$approved,
-            'governorate'=>$details['governorate'] ?? null,'work_areas'=>$details['work_areas'] ?? [],
-            'specializations'=>$details['specialties'] ?? [],'bio'=>$user->public_professional_bio,
-            'photo_url'=>$approved && $user->public_professional_photo_path ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16).'&format=jpeg-v1' : null,
+            'name' => $officeName ?: $user->name, 'account_type' => $type, 'office_name' => $officeName,
+            'governorate' => $region === 'سقطرى' ? 'أرخبيل سقطرى' : $region, 'verified' => $verified,
+        ];
+    }
+
+    public function publicData(User $user): array
+    {
+        $identity = $this->publicIdentity($user);
+        return $identity + [
+            'id' => (int) $user->id, 'bio' => $user->public_professional_bio,
+            'photo_url'=>$user->public_professional_photo_path && ($user->hasMarketplaceProfessionalProfile() || $user->accountVerificationProfile?->isApproved()) ? url('/api/advertisers/'.$user->id.'/photo').'?v='.substr(hash('sha256',$user->public_professional_photo_path),0,16).'&format=jpeg-v1' : null,
             'rating_average'=>round((float)($user->rating_average ?? 0),2),'rating_count'=>(int)($user->rating_count ?? 0),
             'completed_deals'=>(int)($user->completed_deals ?? 0),'active_listings'=>(int)($user->active_listings ?? 0),
             'sold_listings'=>(int)($user->sold_listings ?? 0),'rented_listings'=>(int)($user->rented_listings ?? 0),

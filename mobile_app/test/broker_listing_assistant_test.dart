@@ -431,7 +431,7 @@ void main() {
     await _tap(tester,'listing-ai-prepare');await _tap(tester,'listing-ai-apply-draft');
     expect(find.text('نقطة العقار مؤكدة'),findsOneWidget);
     expect(find.byKey(const ValueKey('listing-select-location')),findsNothing);
-    expect(find.text('إرسال للمراجعة'),findsNothing);expect(find.text('معاينة الإعلان'),findsOneWidget);
+    expect(find.text('نشر الإعلان'),findsNothing);expect(find.text('معاينة الإعلان'),findsOneWidget);
     await tester.pump(const Duration(seconds:1));await tester.pumpAndSettle();
     expect(recovery.snapshot!['latitude'],13.966);expect(recovery.snapshot!['longitude'],44.183);
     expect((recovery.snapshot!['fields'] as Map)['street'],'الروضة');

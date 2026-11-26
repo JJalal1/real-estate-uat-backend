@@ -75,30 +75,24 @@ class _Stage6AuthGateState extends ConsumerState<Stage6AuthGate> {
                 onPressed: () => context.push('/verify-phone'),
               );
             }
-            if (widget.requireListingEligible && user.needsProfileCompletion) {
+            if (widget.requireListingEligible && !user.canCreateListing) {
               return _GateMessage(
                 icon: Icons.edit_outlined,
                 title: 'أكمل الاسم الرباعي أولاً',
                 message:
-                    'أكمل بيانات الحساب الأساسية قبل اختيار نوع الحساب وبدء إجراءات النشر.',
+                    'أكمل بيانات حسابك الأساسية لنشر إعلانك.',
                 button: 'إكمال البيانات',
                 onPressed: () => context.push('/complete-profile'),
               );
             }
-            if (widget.requireListingEligible && !user.hasVerifiedPublishingProfile) {
+            if (widget.requireProfessional && !user.hasMarketplaceProfessionalProfile) {
               return _GateMessage(
-                icon: Icons.badge_outlined,
-                title: 'توثيق نوع الحساب مطلوب',
-                message:
-                    'للنشر اختر من حسابي نوع الحساب: مالك أو دلال أو مكتب عقارات، ثم أرسل مستندات التحقق وانتظر اعتماد فريق التحقق.',
-                button: 'اختيار نوع الحساب والتحقق',
-                onPressed: () => context.push('/account-verification'),
+                icon: Icons.work_outline,
+                title: 'أدوات الدلال',
+                message: 'يمكنك ترقية حسابك عند نشر إعلانك الثاني لإدارة عقاراتك وعملائك.',
+                button: 'إعلاناتي',
+                onPressed: () => context.push('/my-listings'),
               );
-            }
-            if (widget.requireProfessional && !user.hasVerifiedProfessionalProfile) {
-              return _GateMessage(icon: Icons.work_outline, title: 'أدوات الدلال بعد اعتماد التوثيق',
-                message: 'فعّل حساب دلال أو مكتب عقارات ليظهر لك العمل والعملاء والإحصائيات.',
-                button: 'فعّل حساب دلال', onPressed: () => context.push('/account-verification?upgrade=broker'));
             }
             return KeyedSubtree(key: ValueKey((user.id,user.isActive,user.roles.toString(),user.permissions.toString())), child: widget.child);
           },

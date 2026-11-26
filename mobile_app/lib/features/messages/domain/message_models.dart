@@ -30,6 +30,7 @@ class MessageThreadSummary {
     this.propertyTitle,
     this.propertyStatus,
     this.lastMessagePreview,
+    this.lastMessageIsMine = false,
     this.lastMessageAt,
   });
 
@@ -47,6 +48,7 @@ class MessageThreadSummary {
   final String? propertyTitle;
   final String? propertyStatus;
   final String? lastMessagePreview;
+  final bool lastMessageIsMine;
   final DateTime? lastMessageAt;
 
   bool get isPropertyUnavailable =>
@@ -71,6 +73,7 @@ class MessageThreadSummary {
       propertyTitle: _nullable(json['property_title']),
       propertyStatus: _nullable(json['property_status']),
       lastMessagePreview: _nullable(json['last_message_preview']),
+      lastMessageIsMine: json['last_message_is_mine'] == true,
       lastMessageAt: _date(json['last_message_at']),
     );
   }

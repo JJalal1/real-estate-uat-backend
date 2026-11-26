@@ -81,7 +81,7 @@ void main() {
     expect(textField('المساحة بالمتر المربع'), findsNothing);
     expect(textField('سعر البيع بالريال اليمني'), findsNothing);
     expect(find.text('تأكيد الموقع على الخريطة'), findsNothing);
-    expect(find.text('إرسال للمراجعة'), findsNothing);
+    expect(find.text('نشر الإعلان'), findsNothing);
     await finishWave6(tester);
   });
 }

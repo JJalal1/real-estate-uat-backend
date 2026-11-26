@@ -222,8 +222,8 @@ void main() {
         await _open(tester);
         await tester.tap(find.byKey(ValueKey(assisted ? 'create-listing-ai' : 'create-listing-manual')));
         await tester.pumpAndSettle();
-        expect(find.text(regular ? 'توثيق نوع الحساب مطلوب' : 'سجّل الدخول أولاً'), findsOneWidget);
-        expect(find.textContaining('editor-assistant='), findsNothing);
+        expect(find.text('سجّل الدخول أولاً'), regular ? findsNothing : findsOneWidget);
+        expect(find.textContaining('editor-assistant='), regular ? findsOneWidget : findsNothing);
         expect(tester.takeException(), isNull);
       });
     }

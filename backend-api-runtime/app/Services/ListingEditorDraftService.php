@@ -7,6 +7,7 @@ use App\Models\PropertyImage;
 use App\Models\User;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -19,6 +20,14 @@ class ListingEditorDraftService
         $query = ListingEditorDraft::query()->where('user_id',$actor->id)->where('client_key',$key);
         $draft = ($lock ? $query->lockForUpdate() : $query)->firstOrFail();
         abort_if(!$includeRetired && ($draft->payload['draft_kind'] ?? null) === 'retired',410,'ألغي هذا التقدم المؤقت. ابدأ إعلانًا جديدًا.');
+        if (!$includeRetired) {
+            $this->assertNotExpired($draft);
+            if (!$draft->first_saved_us && $this->isRecovery($draft)) {
+                $this->consolidateLegacyRecoveries($actor);
+                $draft->refresh();
+                abort_if(($draft->payload['draft_kind'] ?? null) === 'retired', 410, 'أُلغي هذا التقدم المؤقت.');
+            }
+        }
         return $draft;
     }
 
@@ -30,7 +39,7 @@ class ListingEditorDraftService
 
     public function assertEditable(User $actor, ?Property $property = null): void
     {
-        abort_unless($actor->isActive() && $actor->hasApprovedVerificationProfile() && $actor->canCreateListings(),403);
+        abort_unless($actor->isActive() && $actor->canCreateListings(),403);
         if ($property) {
             abort_unless((int)$property->user_id === (int)$actor->id,404);
             abort_if($property->status === 'archived' || in_array($property->review_status,['submitted','under_review','rejected_blocked'],true),409);
@@ -95,6 +104,81 @@ class ListingEditorDraftService
         return $payload;
     }
 
+    public function progress(array $payload): int
+    {
+        $fields = $payload['fields'] ?? [];
+        $facts=$payload+$fields;
+        $facts['area_value']=$fields['area'] ?? null; $facts['has_parking']=$payload['parking'] ?? null; $facts['building_facade']=$payload['facade'] ?? null;
+        $required=array_unique(array_merge(['title','latitude','longitude'],app(DynamicPropertySchema::class)->required($facts)));
+        $complete=0;
+        foreach ($required as $key) if (isset($facts[$key]) && $facts[$key] !== '' && (! in_array($key,['area_value','bedrooms','bathrooms'],true) || (float)$facts[$key]>0)) $complete++;
+        return (int)round(100*$complete/max(1,count($required)));
+    }
+
+    public function assertNotExpired(ListingEditorDraft $draft): void
+    {
+        abort_if($draft->created_at && $draft->created_at->lte(now()->subDays(7)), 410, 'انتهت مدة حفظ المسودة.');
+    }
+
+    public function firstSavedAt(ListingEditorDraft $draft): Carbon
+    {
+        return $draft->first_saved_us
+            ? Carbon::createFromTimestampUTC(sprintf('%d.%06d', intdiv((int)$draft->first_saved_us, 1000000), (int)$draft->first_saved_us % 1000000))
+            : Carbon::parse($draft->created_at);
+    }
+
+    public function retire(ListingEditorDraft $draft, array $images = [], array $documents = []): void
+    {
+        $images = array_values(array_unique(array_merge($images, $draft->images ?? [], $draft->payload['cleanup_paths'] ?? [])));
+        $documents = array_values(array_unique(array_merge($documents, $draft->payload['cleanup_documents'] ?? [])));
+        $draft->forceFill([
+            'images'=>[], 'property_id'=>null, 'revision'=>$draft->revision + 1,
+            'payload'=>['editor_version'=>11, 'draft_kind'=>'retired', 'image_order'=>[], 'fields'=>[]]
+                + ($images ? ['cleanup_paths'=>$images] : []) + ($documents ? ['cleanup_documents'=>$documents] : []),
+        ])->save();
+    }
+
+    public function cleanRetiredMedia(ListingEditorDraft $draft): void
+    {
+        foreach ($draft->payload['cleanup_paths'] ?? [] as $path) app(ListingImageService::class)->removeIfUnused($path, true);
+        foreach ($draft->payload['cleanup_documents'] ?? [] as $path) {
+            if (!\App\Models\ListingDocument::where('path', $path)->exists()) app(CloudAssetStorageService::class)->deletePrivate($path);
+        }
+        if (isset($draft->payload['cleanup_paths']) || isset($draft->payload['cleanup_documents'])) {
+            $payload = $draft->payload;
+            unset($payload['cleanup_paths'], $payload['cleanup_documents']);
+            $draft->forceFill(['payload'=>$payload])->save();
+        }
+    }
+
+    public function recoveries(User $user)
+    {
+        return ListingEditorDraft::query()->where('user_id', $user->id)->whereNull('property_id')
+            ->where('payload->draft_kind', 'recovery');
+    }
+
+    public function consolidateLegacyRecoveries(User $user): void
+    {
+        if (!$this->recoveries($user)->whereNull('first_saved_us')->exists()) return;
+        DB::transaction(function () use ($user): void {
+            User::query()->lockForUpdate()->findOrFail($user->id);
+            $kept = false;
+            foreach ($this->recoveries($user)->orderByDesc('updated_at')->orderByDesc('id')->lockForUpdate()->get() as $draft) {
+                if (!$this->isRecovery($draft)) continue;
+                if (!$kept && $draft->created_at->gt(now()->subDays(7)) && $this->progress($draft->payload) > 50) {
+                    $kept = true;
+                    if (!$draft->first_saved_us) {
+                        $draft->first_saved_us = (int)$draft->created_at->format('Uu');
+                        $draft->timestamps = false;
+                        $draft->save();
+                    }
+                    continue;
+                }
+                $this->retire($draft);
+            }
+        });
+    }
+
     public function present(ListingEditorDraft $draft): array
     {
         $payload = $draft->payload; $fields = $payload['fields'] ?? [];
@@ -106,18 +190,13 @@ class ListingEditorDraftService
             $place=trim((string)($fields['district'] ?? $fields['governorate'] ?? ''));
             if ($place!=='') $title.=' - '.$place;
         }
-        $facts=$payload+$fields;
-        $facts['area_value']=$fields['area'] ?? null; $facts['has_parking']=$payload['parking'] ?? null; $facts['building_facade']=$payload['facade'] ?? null;
-        $required=array_merge(['title','latitude','longitude'],app(DynamicPropertySchema::class)->required($facts));
-        $complete=0;
-        foreach ($required as $key) if (isset($facts[$key]) && $facts[$key] !== '' && (! in_array($key,['area_value','bedrooms','bathrooms'],true) || (float)$facts[$key]>0)) $complete++;
         $images=[];
         foreach ($draft->images as $key=>$_) {
             $url=url('/api/listing-editor-drafts/'.$draft->client_key.'/images/'.$key);
             $images[]=['key'=>$key,'url'=>$url,'status'=>'complete','variants'=>array_combine(array_keys(config('listing_media.variants')),array_map(fn($v)=>$url.'?variant='.$v,array_keys(config('listing_media.variants'))))];
         }
         return ['key'=>$draft->client_key,'property_id'=>$draft->property_id,'revision'=>$draft->revision,'payload'=>$payload,'images'=>$images,
-            'title'=>$title,'progress'=>(int)round(100*$complete/max(1,count($required))),'updated_at'=>$draft->updated_at?->toIso8601String()];
+            'title'=>$title,'progress'=>$this->progress($payload),'first_saved_at'=>$this->firstSavedAt($draft)->toISOString(),'updated_at'=>$draft->updated_at?->toIso8601String()];
     }
 
     /** Called inside the Property transaction, after the account row is locked. */
@@ -173,6 +252,10 @@ class ListingEditorDraftService
             // Server-written aliases let a client recover a lost Property response without uploading successful files again.
             $payload['image_order']=$committedOrder;
             $payload['promoted_image_keys']=$promoted;
+        }
+        if ($property->draft_expires_at) {
+            $expiry = $this->firstSavedAt($draft)->addDays(7);
+            if ($expiry->lt(Carbon::parse($property->draft_expires_at))) $property->forceFill(['draft_expires_at'=>$expiry])->save();
         }
         $draft->forceFill(['property_id'=>$property->id,'payload'=>$payload,'images'=>[],'revision'=>$draft->revision+1])->save();
         if ($removed) DB::afterCommit(fn()=>$this->removeFiles($removed));

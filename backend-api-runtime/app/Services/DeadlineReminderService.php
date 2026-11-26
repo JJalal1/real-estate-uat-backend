@@ -38,13 +38,27 @@ class DeadlineReminderService
 
     public function receivables(): void
     {
-        $lead = (int) config('background.receivable_lead_minutes');
-        if ($lead <= 0) return;
-        $query = PropertyPlatformReceivable::query()->where('status', 'open')
-            ->whereColumn('amount_paid', '<', 'amount_total')->where('due_at', '>', now())
-            ->where('due_at', '<=', now()->addMinutes($lead));
-        $this->notify($query, 'payment_due_reminder', 'property_platform_receivable', 'advertiser_user_id',
-            'due_at', 'اقترب موعد سداد مستحق المنصة');
+        $now = now();
+        $due = PropertyPlatformReceivable::query()->outstanding()->where('due_at', '<=', $now)
+            ->where(fn ($q) => $q->whereNull('last_reminded_at')->orWhere('last_reminded_at', '<=', $now->copy()->subDay()));
+        $ids = (clone $due)->orderBy('id')->limit(250)->pluck('id');
+        foreach ($ids as $id) {
+            DB::transaction(function () use ($due, $id, $now): void {
+                $row = (clone $due)->whereKey($id)->lockForUpdate()->first();
+                if (! $row) return;
+                $amount = round($row->amount_total - $row->amount_paid, 2);
+                $receiptPending = $row->status === 'under_review' || \App\Models\PropertyPayment::query()
+                    ->where('deal_financial_term_id', $row->deal_financial_term_id)->where('mode', 'platform_receivable')
+                    ->whereIn('status', ['proof_submitted', 'under_review'])->exists();
+                $text = $receiptPending
+                    ? 'إثبات سداد المستحق قيد المراجعة.'
+                    : "عليك مستحق للمنصة قدره {$amount} {$row->currency}. يرجى السداد.";
+                $this->notices->create($row->advertiser_user_id, 'platform_receivable_reminder',
+                    'تذكير بمستحق المنصة', $text, 'property_platform_receivable', $row->id,
+                    ['receivable_id' => $row->id]);
+                $row->forceFill(['last_reminded_at' => $now])->save();
+            }, 3);
+        }
     }
 
     public function entitlements(): void

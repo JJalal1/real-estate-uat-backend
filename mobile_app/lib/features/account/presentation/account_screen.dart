@@ -117,8 +117,7 @@ class AccountScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      if (!administrativeRole &&
-                          (!user.hasVerifiedPublishingProfile || (user.isBroker && user.isActive)))
+                      if (!administrativeRole)
                         _AccountRow(
                           'الخدمات والأدوات',
                           Icons.apps_outlined,
@@ -144,38 +143,16 @@ class AccountScreen extends ConsumerWidget {
                       tone: AppStatusTone.info,
                     )
                   else ...[
-                    AppSurface(
-                      onTap: () => context.push('/account-verification'),
-                      child: AppListRow(
-                        title: 'نوع الحساب: ${user.accountTypeLabel}',
-                        subtitle: user.verificationProfile.status == 'approved'
-                            ? user.isOwner ? 'هوية المالك معتمدة لعرض عقار شخصي.' : 'تم التحقق من صفتك المهنية.'
-                            : user.verificationProfile.status == 'pending'
-                                ? 'طلب التحقق قيد المراجعة من فريق الدعم.'
-                                : 'تحقق كمالك أو دلال أو مكتب عقارات عندما تحتاج إلى النشر.',
-                        leading: EbrokerIcon(
-                          user.isOwner
-                              ? Icons.home_work_outlined
-                              : user.isBroker
-                                  ? Icons.real_estate_agent_outlined
-                                  : user.isOffice
-                                      ? Icons.apartment_outlined
-                                      : Icons.verified_user_outlined,
-                        ),
-                      ),
-                    ),
-                    if (user.isOwner && user.hasVerifiedPublishingProfile) ...[
-                      const SizedBox(height: AppSpacing.s20),
-                      const AppSectionHeader(title: 'عقاري الشخصي'),
+                    if (!user.hasMarketplaceProfessionalProfile) ...[
+                      const AppSectionHeader(title: 'عقاراتي'),
                       const SizedBox(height: AppSpacing.s8),
                       _AccountGroup(rows: [
-                        _AccountRow('عقاري', Icons.home_outlined, () => context.push('/my-listings')),
-                        _AccountRow('إضافة عقار شخصي', Icons.add_home_outlined, () => context.push('/add-property')),
+                        _AccountRow('إعلاناتي', Icons.home_outlined, () => context.push('/my-listings')),
+                        _AccountRow('إضافة عقار', Icons.add_home_outlined, () => context.push('/add-property')),
                         _AccountRow('مستحقات المنصة', Icons.account_balance_wallet_outlined, () => context.push('/broker/finance')),
-                        _AccountRow('فعّل حساب دلال', Icons.work_outline, () => context.push('/account-verification?upgrade=broker')),
                       ]),
                     ],
-                    if (user.hasVerifiedProfessionalProfile) ...[
+                    if (user.hasMarketplaceProfessionalProfile) ...[
                       const SizedBox(height: AppSpacing.s24),
                       const AppSectionHeader(title: 'إدارة عقاراتي'),
                       const SizedBox(height: AppSpacing.s8),
@@ -207,7 +184,7 @@ class AccountScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.s8),
                     _AccountGroup(
                       rows: [
-                        if (user.hasVerifiedProfessionalProfile) _AccountRow(
+                        _AccountRow(
                           'نتائج الصفقات',
                           Icons.check_circle_outline,
                           () => context.push('/broker/activity'),
@@ -251,7 +228,7 @@ class _ProfileHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final photo = user?.hasVerifiedPublishingProfile == true ? ref.watch(brokerProfileProvider(user.id as int)).asData?.value.photoUrl : null;
+    final photo = user?.canEditPublicProfile == true ? ref.watch(brokerProfileProvider(user.id as int)).asData?.value.photoUrl : null;
     return Container(
       padding: const EdgeInsetsDirectional.all(12),
       decoration: BoxDecoration(

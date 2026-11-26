@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/local/listing_recovery_store.dart';
 import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../domain/listing_account_draft.dart';
@@ -32,9 +33,26 @@ class ListingAccountDraftRepository {
     return rows;
   }
   Future<ListingAccountDraft> get(String key) async => _draft(await _dio.get<dynamic>('$_base/$key', options: await _options));
-  Future<ListingAccountDraft> save(String key, Map<String, dynamic> payload, int revision, {int? propertyId}) async =>
-    _draft(await _dio.put<dynamic>('$_base/$key', data: {'payload': payload, 'expected_revision': revision,
-      if (propertyId != null) 'property_id': propertyId}, options: await _options));
+  Future<ListingAccountDraft> save(String key, Map<String, dynamic> payload, int revision, {int? propertyId}) async {
+    final checkpoint = Map<String, dynamic>.of(payload);
+    final firstSaved = checkpoint.remove('first_saved_at');
+    return _draft(await _dio.put<dynamic>('$_base/$key', data: {
+      'payload': checkpoint, 'expected_revision': revision,
+      if (firstSaved != null) 'first_saved_at': firstSaved,
+      if (propertyId != null) 'property_id': propertyId,
+    }, options: await _options));
+  }
+
+  Future<void> restartAutomatic(String startedAt) async {
+    await _dio.post<dynamic>('$_base/restart', data: {'started_at': startedAt}, options: await _options);
+  }
+
+  Future<void> syncRestart(int actor, ListingRecoveryStore store) async {
+    final pending = await store.pendingRestart(actor);
+    if (pending == null) return;
+    await restartAutomatic(pending);
+    await store.acknowledgeRestart(actor, pending);
+  }
   Future<ListingAccountDraft> upload(String key, String imageKey, String path, int revision,
       {CancelToken? cancelToken, ProgressCallback? onSendProgress}) async {
     final token = cancelToken ?? CancelToken();

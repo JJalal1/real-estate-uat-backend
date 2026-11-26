@@ -30,9 +30,9 @@ void main() {
       expect(editor, contains("value: 'waqf'"));
       expect(editor, contains("label: 'حفظ مسودة'"));
       expect(editor, contains("label: 'معاينة'"));
-      expect(editor, contains("label: 'إرسال للمراجعة'"));
+      expect(editor, contains("label: 'نشر الإعلان'"));
       expect(editor, contains('submitForReview: false'));
-      expect(editor, contains('submitListing(draft.id)'));
+      expect(editor, contains('publishListing(context, ref, draft.id)'));
       expect(editor, isNot(contains('submitForReview: true')));
       expect(editor, contains('هذه المعاينة لا تحفظ ولا تغيّر حالة الإعلان'));
     });

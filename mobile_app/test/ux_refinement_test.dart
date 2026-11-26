@@ -315,7 +315,7 @@ void main() {
     expect(find.text('4/4'), findsOneWidget);
     expect(repository.writes, isEmpty);
 
-    await tester.tap(find.text('إرسال للمراجعة'));
+    await tester.tap(find.text('نشر الإعلان'));
     await tester.pumpAndSettle();
     expect(find.text('القسم قبل الإرسال'), findsOneWidget);
     expect(find.textContaining('سواء من خلال الإعلان أو دون استخدامه'), findsOneWidget);
@@ -450,12 +450,12 @@ void main() {
       GoRoute(path: '/broker/availability', builder: (_, state) => Scaffold(body: Text('due:${state.uri.queryParameters['due']}')))]);
     addTearDown(router.dispose);
     await _pump(tester, const SizedBox(), messages: messages, router: router);
-    await tester.tap(find.text('أكد توفر إعلاناتك')); await tester.pumpAndSettle();
+    await tester.tap(find.text('حدّث إعلاناتك')); await tester.pumpAndSettle();
     expect(messages.read, isTrue); expect(find.text('due:1'), findsOneWidget);
-    router.pop(); await tester.pumpAndSettle(); expect(find.text('أكد توفر إعلاناتك'), findsOneWidget);
+    router.pop(); await tester.pumpAndSettle(); expect(find.text('حدّث إعلاناتك'), findsOneWidget);
     expect(find.byKey(const ValueKey('notification-unread-dot')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('notification-filter-unread'))); await tester.pumpAndSettle();
-    expect(find.text('أكد توفر إعلاناتك'), findsNothing);
+    expect(find.text('حدّث إعلاناتك'), findsNothing);
     expect(notificationDestination(AppNotificationItem.fromJson({'id': 1, 'title': 'توفر', 'type': 'broker_availability_due'})), '/broker/availability?due=1');
     expect(tester.takeException(), isNull);
   });
@@ -466,7 +466,7 @@ void main() {
       await _pump(tester, const NotificationsScreen(), scale: scale, boundary: key);
       await _capture(tester, key, 'notifications-$scale'); expect(tester.takeException(), isNull);
       await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(step: 3), scale: scale);
-      expect(find.text('إرسال للمراجعة').hitTestable(), findsOneWidget); expect(tester.takeException(), isNull);
+      expect(find.text('نشر الإعلان').hitTestable(), findsOneWidget); expect(tester.takeException(), isNull);
     });
   }
 }

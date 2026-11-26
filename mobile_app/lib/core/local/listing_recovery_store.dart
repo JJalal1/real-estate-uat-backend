@@ -2,14 +2,68 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../features/properties/domain/listing_account_draft.dart';
+import '../../features/properties/domain/property_schema.dart';
 
 final listingRecoveryStoreProvider = Provider<ListingRecoveryStore>((ref) => ListingRecoveryStore());
 
 /// Private device recovery, separate from an explicitly saved server draft.
 class ListingRecoveryStore {
-  ListingRecoveryStore({Future<Directory> Function()? directory}) : _directory = directory;
+  ListingRecoveryStore({Future<Directory> Function()? directory, DateTime Function()? clock})
+      : _directory = directory, _clock = clock ?? DateTime.now;
+  final DateTime Function() _clock;
   final Future<Directory> Function()? _directory;
   Future<void> _queue = Future<void>.value();
+
+  Future<T> _serial<T>(Future<T> Function() operation) {
+    final result = _queue.then((_) => operation());
+    _queue = result.then<void>((_) {}, onError: (_, __) {});
+    return result;
+  }
+
+  Future<File> _restartFile(int userId) async =>
+      File('${(await _scope(userId, null)).parent.path}/restart.json');
+
+  Future<Map<String, dynamic>> _restartState(int userId) async {
+    final file = await _restartFile(userId);
+    return await file.exists()
+        ? jsonDecode(await file.readAsString()) as Map<String, dynamic>
+        : const {};
+  }
+
+  Future<void> _writeRestart(int userId, String time, {required bool pending}) async {
+    final file = await _restartFile(userId);
+    await file.parent.create(recursive: true);
+    final next = File('${file.path}.pending');
+    await next.writeAsString(jsonEncode({'time': time, 'pending': pending}), flush: true);
+    await next.rename(file.path);
+  }
+
+  Future<String?> pendingRestart(int userId) => _serial(() async {
+    final state = await _restartState(userId);
+    return state['pending'] == true ? state['time'] as String : null;
+  });
+
+  Future<void> rememberRestart(int userId, String startedAt) => _serial(() async {
+    final prior = (await _restartState(userId))['time'] as String?;
+    if (prior != null && DateTime.parse(prior).isAfter(DateTime.parse(startedAt))) return;
+    await _writeRestart(userId, startedAt, pending: true);
+    final scope = await _scope(userId, null);
+    final current = await _readScope(scope, userId, null);
+    if (current != null && isAutomaticListingRecovery(current)) {
+      final first = DateTime.tryParse(current['first_saved_at'].toString());
+      if (first == null || !first.isAfter(DateTime.parse(startedAt))) {
+        await scope.delete(recursive: true);
+      }
+    }
+  });
+
+  Future<void> acknowledgeRestart(int userId, String startedAt) => _serial(() async {
+    final state = await _restartState(userId);
+    if (state['time'] == startedAt && state['pending'] == true) {
+      await _writeRestart(userId, startedAt, pending: false);
+    }
+  });
 
   Future<Directory> _scope(int userId, int? listingId) async {
     if (userId <= 0 || (listingId != null && listingId <= 0)) throw ArgumentError('Invalid recovery scope');
@@ -27,10 +81,8 @@ class ListingRecoveryStore {
     return Directory('${(await _scope(userId, null)).parent.path}/saved/$key');
   }
 
-  Future<Map<String, dynamic>?> read(int userId, int? listingId) async {
-    await _queue;
-    return _readScope(await _scope(userId, listingId), userId, listingId);
-  }
+  Future<Map<String, dynamic>?> read(int userId, int? listingId) => _serial(() async =>
+      _readScope(await _scope(userId, listingId), userId, listingId));
 
   Future<Map<String, dynamic>?> _readScope(Directory scope, int userId, int? listingId) async {
     try {
@@ -40,7 +92,27 @@ class ListingRecoveryStore {
       if (decoded is! Map<String, dynamic> || decoded['version'] != 1 || decoded['user_id'] != userId || decoded['listing_id'] != (listingId ?? 0)) return null;
       final raw = decoded['data'];
       if (raw is! Map<String, dynamic>) return null;
+      if (isAutomaticListingRecovery(raw) &&
+          !DynamicPropertySchema.canBeginAutomaticSave(DynamicPropertySchema.draftProgress(raw))) {
+        await scope.delete(recursive: true);
+        return null;
+      }
+      final firstSaved = DateTime.tryParse((decoded['first_saved_at'] ?? decoded['saved_at']).toString());
+      if (firstSaved != null && !_clock().isBefore(firstSaved.add(const Duration(days: 7)))) {
+        await scope.delete(recursive: true);
+        return null;
+      }
+      if (listingId == null && (raw['draft_key'] is! String || !_key.hasMatch(raw['draft_key'] as String))) {
+        // Older device checkpoints predate UUIDs. Assign one once, including
+        // when the first destination opened after an upgrade is My Drafts.
+        final folder = scope.uri.pathSegments.where((part) => part.isNotEmpty).last;
+        raw['draft_key'] = _key.hasMatch(folder) ? folder : newListingDraftKey();
+        final pending = File('${scope.path}/state.pending');
+        await pending.writeAsString(jsonEncode(decoded), flush: true);
+        await pending.rename(file.path);
+      }
       final data = Map<String, dynamic>.from(raw);
+      if (firstSaved != null) data['first_saved_at'] = firstSaved.toUtc().toIso8601String();
       if (decoded['saved_at'] is String) data['saved_at'] = decoded['saved_at'];
       final images = <String>[];
       final tokens = <String,String>{};
@@ -69,8 +141,7 @@ class ListingRecoveryStore {
     } catch (_) { return null; }
   }
 
-  Future<List<Map<String, dynamic>>> saved(int userId) async {
-    await _queue;
+  Future<List<Map<String, dynamic>>> saved(int userId) => _serial(() async {
     final directory = Directory('${(await _scope(userId, null)).parent.path}/saved');
     if (!await directory.exists()) return const [];
     final rows = <Map<String, dynamic>>[];
@@ -81,7 +152,7 @@ class ListingRecoveryStore {
       if (row != null) rows.add(row);
     }
     return rows;
-  }
+  });
 
   Future<void> pinExplicitSave(int userId, {bool preserveUnclassified = false}) {
     final operation = _queue.then<void>((_) async {
@@ -91,9 +162,9 @@ class ListingRecoveryStore {
         if (await File('${source.path}/state.json').exists()) throw const FileSystemException('Cannot protect the saved draft');
         return;
       }
+      if (isAutomaticListingRecovery(data)) return;
       if (!preserveUnclassified && data['draft_kind'] != 'saved' && data['server_property_id'] == null) return;
-      final key = data['draft_key'];
-      if (key is! String || !_key.hasMatch(key)) throw const FileSystemException('Cannot protect a draft without its identifier');
+      final key = data['draft_key'] as String;
       final destination = await _savedScope(userId, key);
       final media = Directory('${destination.path}/media'); await media.create(recursive: true);
       final state = Map<String, dynamic>.from(jsonDecode(await File('${source.path}/state.json').readAsString()) as Map);
@@ -127,11 +198,42 @@ class ListingRecoveryStore {
     final encoded = jsonEncode(snapshot);
     final paths = List<String>.of(imagePaths.take(12));
     final operation = _queue.then<void>((_) async {
-      final scope = await _scope(userId, listingId);
+      var scope = await _scope(userId, listingId);
+      final data = Map<String,dynamic>.from(jsonDecode(encoded) as Map);
+      final key = data['draft_key'];
+      if (isAutomaticListingRecovery(data) &&
+          !DynamicPropertySchema.canBeginAutomaticSave(DynamicPropertySchema.draftProgress(data))) {
+        throw StateError('الحفظ التلقائي يبدأ بعد اكتمال أكثر من نصف البيانات.');
+      }
+      var previous = await _readScope(scope, userId, listingId);
+      if (listingId == null && data['draft_kind'] == 'saved' && key is String &&
+          previous != null && isAutomaticListingRecovery(previous) && previous['draft_key'] != key) {
+        // Editing a manual draft leaves the separate automatic slot available.
+        scope = await _savedScope(userId, key);
+        previous = await _readScope(scope, userId, listingId);
+      }
+      final now = _clock().toUtc();
+      final priorDate = previous == null || previous['draft_key'] != key ? null : previous['first_saved_at'];
+      final firstSaved = [
+        now, for (final value in [priorDate, data['first_saved_at']])
+          if (DateTime.tryParse(value.toString()) case final DateTime time) time,
+      ].reduce((a, b) => a.isBefore(b) ? a : b);
+      if (listingId == null && isAutomaticListingRecovery(data)) {
+        final reset = DateTime.tryParse((await _restartState(userId))['time'].toString());
+        final previousStart = previous != null && isAutomaticListingRecovery(previous) &&
+                previous['draft_key'] != key
+            ? DateTime.tryParse(previous['first_saved_at'].toString()) : null;
+        if ((reset != null && !firstSaved.isAfter(reset)) ||
+            (previousStart != null && firstSaved.isBefore(previousStart))) {
+          throw StateError('بدأ إعلان أحدث. افتح المسودة الحالية للمتابعة.');
+        }
+      }
+      if (!now.isBefore(firstSaved.add(const Duration(days: 7)))) {
+        throw StateError('انتهت مدة حفظ هذه المسودة. ابدأ إعلانًا جديدًا.');
+      }
       final media = Directory('${scope.path}/media');
       await media.create(recursive: true);
       final names = <String>[], keys = <String>[];
-      final data = Map<String,dynamic>.from(jsonDecode(encoded) as Map);
       final originalTokens = (data['image_tokens'] as Map? ?? const {});
       final tokens = <String,String>{};
       for (final path in paths) {
@@ -168,7 +270,7 @@ class ListingRecoveryStore {
       }
       data['image_tokens']=tokens;
       final state = {'version': 1, 'user_id': userId, 'listing_id': listingId ?? 0,
-        'saved_at': DateTime.now().toUtc().toIso8601String(), 'data': data, 'image_files': names,
+        'first_saved_at': firstSaved.toUtc().toIso8601String(), 'saved_at': now.toIso8601String(), 'data': data, 'image_files': names,
         'image_keys': keys, if (proofName != null) 'proof_file':proofName};
       final pending = File('${scope.path}/state.pending');
       await pending.writeAsString(jsonEncode(state), flush: true);

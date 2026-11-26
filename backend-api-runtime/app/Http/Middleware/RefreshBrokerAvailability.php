@@ -20,6 +20,7 @@ class RefreshBrokerAvailability
                 try {
                     if (! Cache::has('broker-availability-swept')) {
                         app(BrokerAvailabilityService::class)->sweep();
+                        app(\App\Services\DeadlineReminderService::class)->receivables();
                         app(\App\Services\BrokerCustomerFollowupService::class)->sweep();
                         app(BrokerDealService::class)->remindSupportOfPendingPrices();
                         Cache::put('broker-availability-swept', true, 60);

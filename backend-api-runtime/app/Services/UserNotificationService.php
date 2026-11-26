@@ -63,6 +63,10 @@ class UserNotificationService
     {
         if (in_array($notification->type, UserNotification::RETIRED_VIEWING_TYPES, true) || $notification->entity_type === 'viewing_booking') return false;
         if (! \App\Models\User::query()->whereKey($notification->user_id)->where('account_status', \App\Models\User::STATUS_ACTIVE)->exists()) return false;
+        if ($notification->type === 'platform_receivable_reminder') {
+            return \App\Models\PropertyPlatformReceivable::query()->whereKey($notification->entity_id)
+                ->where('advertiser_user_id', $notification->user_id)->outstanding()->exists();
+        }
         if ($notification->type === 'broker_customer_followup_due') {
             if ($notification->read_at !== null) return false;
             $time = $notification->data['remind_at'] ?? null;

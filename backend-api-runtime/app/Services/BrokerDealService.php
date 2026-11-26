@@ -32,7 +32,7 @@ class BrokerDealService
 
     public function report(User $actor, MessageThread $thread, ?float $amount, Request $request): BrokerDealOutcome
     {
-        abort_unless($actor->hasApprovedVerificationProfile(), 403);
+        abort_unless($actor->canCreateListings(), 403);
         return DB::transaction(function () use ($actor, $thread, $amount, $request): BrokerDealOutcome {
             $property = Property::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($thread->property_id);
             $thread = MessageThread::query()->lockForUpdate()->findOrFail($thread->id);
@@ -63,11 +63,6 @@ class BrokerDealService
             $basis = round($amount ?? $listingPrice, 2);
             abort_unless($listingPrice > 0, 422, 'أضف سعر الإعلان قبل تسجيل نتيجة الصفقة.');
             abort_unless($basis > 0, 422, 'أدخل مبلغ صفقة صحيحًا.');
-            $requiresConfirmation = $basis < $listingPrice;
-            if ($requiresConfirmation) {
-                abort_unless($property->isPubliclyVisible() && $property->review_status === 'approved',
-                    409, 'تأكيد سعر أقل متاح للإعلانات المنشورة والمعتمدة.');
-            }
             $customer = User::query()->findOrFail($customerId);
             $outcome = BrokerDealOutcome::query()->create([
                 'reference'=>'DEAL-'.strtoupper(Str::random(12)), 'property_id'=>$property->id,
@@ -79,26 +74,15 @@ class BrokerDealService
                     'listing_price'=>$listingPrice > 0 ? $listingPrice : null,
                     'listing_currency'=>$listingPrice > 0 ? $property->currency : null,
                     'record_kind'=>'app_customer_transaction_result','basis'=>$property->purpose === 'rent' ? 'monthly_rent' : 'sale_price',
-                    'price_confirmation_required'=>$requiresConfirmation],
+                    'price_confirmation_required'=>false],
                 'advertiser_confirmed_at'=>now(),
                 'advertiser_attention_revision'=>1,
             ]);
-            if ($requiresConfirmation) {
-                $case = $this->support->create($customer, 'support_ticket', 'تأكيد سعر الصفقة',
-                    'أبلغ المعلن عن صفقة بسعر أقل من سعر الإعلان. يرجى تأكيد مبلغ الصفقة أو إبلاغ الدعم إن لم تتم.',
-                    'broker_deal_outcome', $outcome->id, self::PRICE_CONFIRMATION_REASON, 'normal', $request,
-                    initiator: $actor);
-                $outcome->forceFill(['support_case_id' => $case->id])->save();
-            } else {
-                $this->closeListing($actor, $property, $outcome, $request);
-                $this->confirmOutcome($outcome, $request);
-            }
+            $this->closeListing($actor, $property, $outcome, $request);
+            $this->confirmOutcome($outcome, $request);
             $this->notifications->create(
-                $customerId,
-                $requiresConfirmation ? 'broker_deal_confirmation' : 'broker_deal_result',
-                $requiresConfirmation ? 'أكّد سعر صفقة العقار' : 'تم تسجيل صفقة العقار',
-                $requiresConfirmation ? 'أبلغ المعلن عن سعر أقل من سعر الإعلان. راجع المبلغ وأكّد الصفقة أو ارفضها.'
-                    : 'سُجلت صفقة العقار المرتبطة بمحادثتك ويمكنك مراجعة تفاصيلها.',
+                $customerId, 'broker_deal_result', 'تم تسجيل صفقة العقار',
+                'سُجلت صفقة العقار المرتبطة بمحادثتك ويمكنك مراجعة تفاصيلها.',
                 'broker_deal_outcome', $outcome->id, $this->notificationData($outcome),
             );
             $this->audit->record($actor,'broker.deal_reported',$outcome,
@@ -296,10 +280,6 @@ class BrokerDealService
             'reference'=>'DUE-'.strtoupper(Str::random(12)),'deal_financial_term_id'=>$term->id,'property_id'=>$outcome->property_id,
             'advertiser_user_id'=>$outcome->advertiser_user_id,'amount_total'=>$amounts['platform_share'],'amount_paid'=>0,
             'currency'=>$outcome->currency,'status'=>'open','confirmed_direct_at'=>now(),'due_at'=>now()->addHours(24),
-        ]);
-        DB::table('property_financial_holds')->insert([
-            'user_id'=>$outcome->advertiser_user_id,'reason'=>'platform_receivable_open','source_type'=>'property_platform_receivable',
-            'source_id'=>$due->id,'started_at'=>now(),'created_at'=>now(),'updated_at'=>now(),
         ]);
         $this->finance->postLedger('platform_receivable_created','property_platform_receivable',$due->id,null,'مستحق المنصة من صفقة مؤكدة',[
             ['account_code'=>'advertiser_receivable','user_id'=>$outcome->advertiser_user_id,'direction'=>'debit','amount'=>$amounts['platform_share'],'currency'=>$outcome->currency],

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Property;
-use App\Models\User;
 use App\Services\ApiTokenService;
 use App\Services\AuditLogService;
 use App\Services\CloudAssetStorageService;
@@ -35,15 +34,15 @@ class FinancialPropertyController extends PropertyController
         parent::__construct($financialTokens,$audit,$storage,$regions,$assets,$identity,$workflow);
     }
 
-    public function index(Request $request): JsonResponse { return $this->enrich(parent::index($request),$request,true); }
-    public function nearby(Request $request): JsonResponse { return $this->enrich(parent::nearby($request),$request,true); }
+    public function index(Request $request): JsonResponse { return $this->enrich(parent::index($request)); }
+    public function nearby(Request $request): JsonResponse { return $this->enrich(parent::nearby($request)); }
     public function marketplace(Request $request): JsonResponse
     {
         $response = parent::marketplace($request);
         $body = $response->getData(true);
         $unique = [];
         foreach ($body['data']['sections'] as $rows) foreach ($rows as $row) $unique[$row['id']] = $row;
-        $enriched = $this->enrichRows(array_values($unique), true);
+        $enriched = $this->enrichRows(array_values($unique));
         $byId = array_column($enriched, null, 'id');
         foreach ($body['data']['sections'] as $key => $rows) {
             $body['data']['sections'][$key] = array_values(array_filter(array_map(fn ($row) => $byId[$row['id']] ?? null, $rows)));
@@ -51,41 +50,33 @@ class FinancialPropertyController extends PropertyController
         $response->setData($body);
         return $response;
     }
-    public function mine(Request $request): JsonResponse { return $this->enrich(parent::mine($request),$request,false); }
+    public function mine(Request $request): JsonResponse { return $this->enrich(parent::mine($request)); }
 
     public function show(Request $request, Property $property): JsonResponse
     {
-        return $this->enrich(parent::show($request,$property),$request,false);
+        return $this->enrich(parent::show($request,$property));
     }
 
     public function store(Request $request): JsonResponse
     {
-        /** @var User $user */$user=$request->user();$this->assertFinancialListingAllowed($user);
         $this->prepareFinancialListingInput($request,null);
         $response=parent::store($request);
         $this->persistFinancialFieldsFromResponse($request,$response);
-        return $this->enrich($response,$request,false);
+        return $this->enrich($response);
     }
 
     public function update(Request $request, Property $property): JsonResponse
     {
-        /** @var User $user */$user=$request->user();$this->assertFinancialListingAllowed($user);
         $this->prepareFinancialListingInput($request,$property);
         $response=parent::update($request,$property);
         $this->persistFinancialFieldsFromResponse($request,$response);
-        return $this->enrich($response,$request,false);
+        return $this->enrich($response);
     }
 
     public function submit(Request $request, Property $property): JsonResponse
     {
-        /** @var User $user */$user=$request->user();$this->assertFinancialListingAllowed($user);
         $this->assertFinancialListingComplete($property);
-        return $this->enrich(parent::submit($request,$property),$request,false);
-    }
-
-    private function assertFinancialListingAllowed(User $user): void
-    {
-        if($this->finance->hasOpenReceivable((int)$user->id)) throw new ConflictHttpException('لديك مستحقات للمنصة. سدّد المستحقات الحالية قبل إنشاء أو إرسال إعلان جديد.');
+        return $this->enrich(parent::submit($request,$property));
     }
 
     private function prepareFinancialListingInput(Request $request, ?Property $existing): void
@@ -173,50 +164,37 @@ class FinancialPropertyController extends PropertyController
         }
     }
 
-    private function enrich(JsonResponse $response, Request $request, bool $hideOverduePublicRows): JsonResponse
+    private function enrich(JsonResponse $response): JsonResponse
     {
         if($response->getStatusCode()>=400)return $response;
         $body=$response->getData(true);if(!isset($body['data']))return $response;
-        if(array_is_list($body['data']))$body['data']=$this->enrichRows($body['data'],$hideOverduePublicRows);
-        elseif(is_array($body['data'])&&isset($body['data']['id']))$body['data']=$this->enrichRows([$body['data']], false)[0];
+        if(array_is_list($body['data']))$body['data']=$this->enrichRows($body['data']);
+        elseif(is_array($body['data'])&&isset($body['data']['id']))$body['data']=$this->enrichRows([$body['data']])[0];
         $response->setData($body);return $response;
     }
 
-    private function enrichRows(array $rows, bool $hideOverduePublicRows): array
+    private function enrichRows(array $rows): array
     {
         if ($rows === []) return [];
         // One request-local snapshot for the bounded page. No cross-user or
         // cross-request cache of financial state, terms or authorization.
         $ids = array_values(array_filter(array_map(fn (array $row) => (int) ($row['id'] ?? 0), $rows)));
         $properties = Property::query()->withoutGlobalScopes()->whereIn('id', $ids)->get()->keyBy('id');
-        if ($hideOverduePublicRows) {
-            $overdue = \App\Models\PropertyPlatformReceivable::query()
-                ->whereIn('advertiser_user_id', $properties->pluck('user_id')->unique())
-                ->overdueListingRestriction()
-                ->pluck('advertiser_user_id')->map(fn ($id) => (int) $id)->flip();
-            $rows = array_values(array_filter($rows, function (array $row) use ($properties, $overdue): bool {
-                $owner = (int) ($properties->get((int) ($row['id'] ?? 0))?->user_id ?? 0);
-                return $owner === 0 || ! $overdue->has($owner);
-            }));
-        }
         $terms = DB::table('property_sai_terms')->whereIn('id', $properties->pluck('current_sai_term_id')->filter()->unique())
             ->get()->keyBy('id');
         $attested = DB::table('property_sai_attestations')->whereIn('property_id', $ids)
             ->get(['property_id', 'sai_term_id'])->mapWithKeys(fn ($row) => [$row->property_id.':'.$row->sai_term_id => true]);
-        $owners=array_map(fn (array $row)=>(int)($properties->get((int)($row['id'] ?? 0))?->user_id ?? 0),$rows);
-        $holds = $this->finance->overdueReceivablesFor($owners);
-        return array_map(function (array $row) use ($properties, $terms, $attested, $holds): array {
+        return array_map(function (array $row) use ($properties, $terms, $attested): array {
             $property = $properties->get((int) ($row['id'] ?? 0));
             if (! $property) return $row;
-            $owner = (int) $property->user_id;
             $term = $terms->get($property->current_sai_term_id);
             $pending = $property->status === 'published' && $property->current_sai_term_id
                 && ! $attested->has($property->id.':'.$property->current_sai_term_id);
-            return $this->enrichLoadedRow($row, $property, $term, (bool) $pending, $holds[$owner] ?? false);
+            return $this->enrichLoadedRow($row, $property, $term, (bool) $pending);
         }, $rows);
     }
 
-    private function enrichLoadedRow(array $row, Property $property, ?object $term, bool $pending, bool $overdue): array
+    private function enrichLoadedRow(array $row, Property $property, ?object $term, bool $pending): array
     {
         $saiAmount=0.0;$sai=null;$note=null;$displayPrice=(float)$property->price;
         if($term){
@@ -242,7 +220,7 @@ class FinancialPropertyController extends PropertyController
             'base_price'=>(float)$property->price,'display_price'=>$displayPrice,'price_display_mode'=>$property->price_display_mode ?: (($term&&in_array($term->payer,['buyer','tenant'],true))?'excludes_sai':null),
             'price_display_note'=>$note,'monthly_rent'=>$property->monthly_rent!==null?(float)$property->monthly_rent:null,
             'rental_term_months'=>$property->rental_term_months,'advance_months'=>$property->advance_months,'sai'=>$sai,
-            'financial_hold'=>$overdue,
+            'financial_hold'=>false,
             'sai_attestation_required'=>$pending,
             'sai_attestation_text'=>(int)(request()->user()?->id ?? 0) === (int)$property->user_id ? ($term ? $this->finance->attestationText($property, $term) : PropertyFinancialService::SAI_ATTESTATION_TEXT) : null,
         ]);

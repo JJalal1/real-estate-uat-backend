@@ -451,7 +451,8 @@ class MessagingController extends Controller
             'lead_stage'=>$canManageCustomer ? $thread->lead_stage : 'new',
             'other_user'=>['id'=>$other?->user_id,'name'=>$other?->user_name_snapshot??'مستخدم'],
             'can_call_advertiser'=>$canSend && ($thread->property?->isPubliclyAvailable() ?? false) && (int)($thread->property?->user_id??0)!==(int)$user->id,
-            'unread_count'=>(int)($unread??0),'last_message_preview'=>$latest?->body?mb_substr($latest->body,0,120):null,
+            'unread_count'=>(int)($unread??0),'last_message_preview'=>$latest ? mb_substr($latest->body,0,120) : null,
+            'last_message_is_mine'=>$latest !== null && (int)$latest->sender_user_id === (int)$user->id,
             'last_message_at'=>$thread->last_message_at?->toIso8601String(),'created_at'=>$thread->created_at?->toIso8601String(),
         ];
     }

@@ -133,7 +133,7 @@ class PropertyFinancialController extends Controller
     public function financialAccount(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        abort_unless($user->hasApprovedVerificationProfile(),403);
+        abort_unless($user->canCreateListings(),403);
         $receivables=PropertyPlatformReceivable::query()->where('advertiser_user_id',$user->id)->latest('id')->limit(250)->get();
         $payouts=DB::table('property_payouts')->where('advertiser_user_id',$user->id)->latest('id')->limit(250)->get();
         $deals=PropertyDealFinancialTerm::query()->with('property')->where('advertiser_user_id',$user->id)->latest('id')->limit(250)->get();

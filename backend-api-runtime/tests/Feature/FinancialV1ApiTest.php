@@ -96,7 +96,7 @@ class FinancialV1ApiTest extends TestCase
             ->assertJsonMissingPath('data.advertiser_sai_share_amount');
     }
 
-    public function test_direct_deal_creates_24_hour_receivable_blocks_new_listing_and_hides_after_deadline(): void
+    public function test_direct_deal_creates_24_hour_receivable_and_keeps_listings_available_after_deadline(): void
     {
         [$agreementId, $property, $advertiser, , $advertiserHeaders, $buyerHeaders] = $this->acceptedSaleDeal('seller');
 
@@ -113,7 +113,7 @@ class FinancialV1ApiTest extends TestCase
         $this->assertSame('open', $receivable->status);
         $this->assertEquals(900000.0, (float) $receivable->amount_total);
         $this->assertTrue(now()->diffInMinutes(\Carbon\Carbon::parse($receivable->due_at), false) >= 1439);
-        $this->assertDatabaseHas('property_financial_holds', [
+        $this->assertDatabaseMissing('property_financial_holds', [
             'user_id'=>$advertiser->id,
             'reason'=>'platform_receivable_open',
             'source_id'=>$receivable->id,
@@ -126,8 +126,7 @@ class FinancialV1ApiTest extends TestCase
 
         $this->withHeaders($advertiserHeaders)
             ->postJson('/api/properties', [])
-            ->assertStatus(409)
-            ->assertJsonFragment(['message'=>'لديك مستحقات للمنصة. سدّد المستحقات الحالية قبل إنشاء أو إرسال إعلان جديد.']);
+            ->assertUnprocessable();
 
         $this->flushHeaders();
         $this->getJson("/api/properties/{$property->id}")->assertOk();
@@ -136,10 +135,10 @@ class FinancialV1ApiTest extends TestCase
             'due_at'=>now()->subMinute(),
             'updated_at'=>now(),
         ]);
-        $this->getJson("/api/properties/{$property->id}")->assertNotFound();
+        $this->getJson("/api/properties/{$property->id}")->assertOk();
         $this->getJson('/api/properties')
             ->assertOk()
-            ->assertJsonMissing(['id'=>$property->id]);
+            ->assertJsonFragment(['id'=>$property->id]);
 
         $this->withHeaders($advertiserHeaders)
             ->getJson('/api/properties/mine/list')
@@ -309,7 +308,7 @@ class FinancialV1ApiTest extends TestCase
         $this->assertDatabaseHas('support_tasks',['id'=>$taskId,'source_type'=>'payment_review','status'=>'waiting_user','assigned_to_user_id'=>$agent->id]);
     }
 
-    public function test_batched_overdue_checks_preserve_hold_notifications_and_financial_amounts(): void
+    public function test_batched_overdue_checks_preserve_visibility_and_financial_amounts(): void
     {
         [$agreementId,$property,$advertiser,$buyer,$advertiserHeaders,$buyerHeaders]=$this->acceptedSaleDeal('seller');
         $this->withHeaders($buyerHeaders)->postJson("/api/finance/agreements/$agreementId/direct-confirmation",['decision'=>'confirmed'])->assertOk();
@@ -321,12 +320,12 @@ class FinancialV1ApiTest extends TestCase
         $service=app(PropertyFinancialService::class);
         $result=$service->overdueReceivablesFor([$advertiser->id,$buyer->id,$advertiser->id]);
         $this->assertTrue($result[$advertiser->id]);$this->assertFalse($result[$buyer->id]);
-        $this->assertDatabaseHas('property_platform_receivables',['id'=>$receivable->id,'status'=>'overdue',
+        $this->assertDatabaseHas('property_platform_receivables',['id'=>$receivable->id,'status'=>'open',
             'amount_total'=>$receivable->amount_total,'amount_paid'=>$receivable->amount_paid,'currency'=>$receivable->currency]);
-        $this->assertNotNull($property->fresh()->financial_hold_at);
+        $this->assertNull($property->fresh()->financial_hold_at);
         $this->assertSame($ledgerCount,DB::table('property_financial_ledger_entries')->count());
         $count=DB::table('user_notifications')->where('user_id',$advertiser->id)->where('type','financial_hold_started')->count();
-        $this->assertSame(1,$count);
+        $this->assertSame(0,$count);
         $service->overdueReceivablesFor([$advertiser->id,$buyer->id]);
         $this->assertSame($count,DB::table('user_notifications')->where('user_id',$advertiser->id)->where('type','financial_hold_started')->count());
         // Preserve disputed status and the exact paid/due predicates too.

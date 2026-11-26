@@ -129,6 +129,7 @@ Artisan::command('uat:cloud-check {--skip-storage-probe}', function (CloudAssetS
 })->purpose('Verify Cloud UAT environment without printing secrets.');
 
 Schedule::command('support:escalate-overdue')->hourly();
+Schedule::command('listings:expire-drafts')->hourly()->withoutOverlapping();
 Artisan::command('uat:ai-check', function (\App\Services\GeminiClient $client): int {
     if (! app()->environment('uat', 'staging')) { $this->error('AI connectivity probe is UAT-only.'); return 1; }
     if (! $client->available()) { $this->warn('Gemini server configuration is unavailable; manual workflows remain available.'); return 1; }
@@ -159,6 +160,10 @@ Artisan::command('broker:remind-pending-deal-prices', function (): void {
     $this->info("Pending deal confirmations reminded: {$sent}.");
 });
 Schedule::command('broker:remind-pending-deal-prices')->everyMinute()->withoutOverlapping();
+Artisan::command('finance:remind-outstanding', function (): void {
+    app(\App\Services\DeadlineReminderService::class)->receivables();
+});
+Schedule::command('finance:remind-outstanding')->everyMinute()->withoutOverlapping();
 
 Artisan::command('uat:signed-tus-storage-probe', function (CloudAssetStorageService $storage): int {
     if (! app()->environment('staging') || ! $storage->cloudEnabled()) {

@@ -33,12 +33,6 @@ class Stage6IdentityApiTest extends TestCase
         $this->withHeaders($headers)->postJson('/api/auth/phone/verify',['code'=>$code])
             ->assertOk()->assertJsonPath('data.user.account_status','active');
 
-        $this->withHeaders($headers)->postJson('/api/properties',$this->listingPayload())
-            ->assertStatus(409);
-        $this->approvePublishingProfile(
-            User::query()->where('email', 'stage6@example.test')->firstOrFail(),
-        );
-
         $created=$this->withHeaders($headers)->postJson('/api/properties',$this->listingPayload());
         $created->assertCreated()->assertJsonPath('data.status','draft')->assertJsonPath('data.review_status','draft');
         $id=(int)$created->json('data.id');

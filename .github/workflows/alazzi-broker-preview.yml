@@ -2,7 +2,7 @@ name: Alazzi broker preview
 
 on:
   push:
-    branches: ['العزي']
+    branches: ['العزي', 'work/alazzi-marketplace-1847']
     paths:
       - 'mobile_app/**'
       - 'backend-api-runtime/**'
@@ -56,6 +56,9 @@ jobs:
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php
           tests/Feature/Stage11MessagingNotificationsApiTest.php
+          tests/Feature/Branch2RecoveryTest.php
+          tests/Feature/ActiveWaveDiscoveryTest.php
+          tests/Feature/Wave3MarketplaceApiTest.php
           tests/Feature/FinancialV1ApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky
       - name: Exercise the broker API on PostgreSQL and PostGIS
@@ -71,6 +74,9 @@ jobs:
           DB_SEARCH_PATH: public,extensions
         run: >-
           php artisan test tests/Feature/BrokerExperienceApiTest.php
+          tests/Feature/Branch2RecoveryTest.php
+          tests/Feature/ActiveWaveDiscoveryTest.php
+          tests/Feature/Wave3MarketplaceApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky
 
   broker-ui:
@@ -103,6 +109,11 @@ jobs:
           flutter test --no-pub --reporter expanded
           test/broker_experience_ui_test.dart
           test/broker_convenience_test.dart
+          test/platform_dues_payment_test.dart
+          test/wave3_personal_listing_test.dart
+          test/branch2_recovery_test.dart
+          test/wave02_autosave_test.dart
+          test/active_wave_discovery_test.dart
           test/listing_direct_resume_test.dart
           test/message_inbox_pagination_test.dart
           test/my_listings_pagination_test.dart

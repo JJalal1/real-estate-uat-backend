@@ -82,6 +82,8 @@ class AuthUser {
     required this.roles,
     required this.permissions,
     this.emailVerifiedAt,
+    this.brokerEnrolled = false,
+    this.listingEligible,
   });
 
   final int id;
@@ -99,6 +101,8 @@ class AuthUser {
   final DateTime? brokerVerifiedAt;
   final String? brokerVerificationNote;
   final VerificationProfileSummary verificationProfile;
+  final bool brokerEnrolled;
+  final bool? listingEligible;
   final bool isPlatformOwner;
   final List<String> roles;
   final List<String> permissions;
@@ -107,10 +111,11 @@ class AuthUser {
   bool get isActive => accountStatus == 'active' && isPhoneVerified;
   bool get needsPhoneVerification =>
       accountStatus == 'pending_verification' || !isPhoneVerified;
-  bool get needsProfileCompletion => profileCompletedAt == null;
-  bool get isOwner => verificationProfile.type == 'owner';
-  bool get isOffice => verificationProfile.type == 'office';
-  bool get isBroker => verificationProfile.type == 'broker' ||
+  bool get needsProfileCompletion => profileCompletedAt == null &&
+      listingEligible != true && !hasVerifiedPublishingProfile;
+  bool get isOwner => !brokerEnrolled && verificationProfile.type == 'owner';
+  bool get isOffice => !brokerEnrolled && verificationProfile.type == 'office';
+  bool get isBroker => brokerEnrolled || verificationProfile.type == 'broker' ||
       (verificationProfile.type == null && accountType == 'broker');
   bool get isRegular => !isBroker;
   bool get isBrokerVerified =>
@@ -124,9 +129,10 @@ class AuthUser {
       const {'owner', 'broker', 'office'}.contains(verificationProfile.type);
   bool get hasVerifiedProfessionalProfile => verificationProfile.isApproved &&
       const {'broker', 'office'}.contains(verificationProfile.type);
-  bool get canCreateListing =>
-      isActive && !needsProfileCompletion && hasVerifiedPublishingProfile;
-  String get accountTypeLabel => verificationProfile.typeLabel;
+  bool get hasMarketplaceProfessionalProfile => brokerEnrolled || hasVerifiedProfessionalProfile || isBrokerVerified;
+  bool get canEditPublicProfile => hasMarketplaceProfessionalProfile || hasVerifiedPublishingProfile;
+  bool get canCreateListing => isActive && (listingEligible ?? !needsProfileCompletion);
+  String get accountTypeLabel => brokerEnrolled ? 'دلال' : verificationProfile.typeLabel;
 
   bool hasRole(String key) => roles.contains(key);
   bool hasPermission(String key) =>
@@ -170,6 +176,10 @@ class AuthUser {
         brokerVerificationNote: _nullable(json['broker_verification_note']),
         verificationProfile:
             VerificationProfileSummary.fromJson(json['verification_profile']),
+        brokerEnrolled: json['broker_enrolled'] == true,
+        listingEligible: json['can_create_listing'] is bool
+            ? json['can_create_listing'] as bool
+            : null,
         isPlatformOwner: json['is_platform_owner'] == true,
         roles: _strings(json['roles']),
         permissions: _strings(json['permissions']),

@@ -166,7 +166,7 @@ class Wave3AiAssistantTest extends TestCase
         $property = $this->listing($owner, ['status' => 'draft', 'review_status' => 'draft']);
         $this->model(['fields' => ['title' => 'شقة مضاءة في صنعاء', 'bedrooms' => 3]]);
         $this->withHeaders($headers)->postJson('/api/ai/listing-fields', ['message' => 'شقة مضاءة في صنعاء ثلاث غرف', 'facts' => ['type' => 'apartment']])
-            ->assertConflict();
+            ->assertOk();
         $this->withHeaders($headers)->postJson('/api/ai/listing-fields', ['message' => 'شقة مضاءة في صنعاء ثلاث غرف',
             'property_id' => $property->id, 'facts' => ['type' => 'apartment']])->assertOk()->assertJsonPath('data.requires_review', true);
         $this->assertDatabaseHas('properties', ['id' => $property->id, 'title' => 'شقة في صنعاء', 'status' => 'draft']);

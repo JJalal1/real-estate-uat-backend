@@ -40,8 +40,7 @@ void main(){
     'guest':(null,false,false,'سجّل الدخول أولاً'),
     'phone':(_user(1,changes:{'account_status':'pending_verification','phone_verified_at':null}),false,false,'تحقق من رقم واتساب'),
     'profile':(_user(1,changes:{'name':'مستخدم جديد','profile_completed_at':null}),true,false,'أكمل الاسم الرباعي أولاً'),
-    'publishing':(_user(1),true,false,'توثيق نوع الحساب مطلوب'),
-    'professional':(_user(1),false,true,'أدوات الدلال بعد اعتماد التوثيق'),
+    'professional':(_user(1),false,true,'أدوات الدلال'),
   };
   for(final e in cases.entries){for(final large in [false,true]){
     testWidgets('auth gate ${e.key} remains readable on small RTL phone large=$large',(t) async{
@@ -52,6 +51,11 @@ void main(){
       expect(find.byType(Scrollable),findsWidgets);expect(t.takeException(),isNull);
     });
   }}
+  testWidgets('active regular account enters the listing editor', (t) async {
+    await _mount(t, _Auth(_user(1)), const Stage6AuthGate(
+      requireListingEligible: true, child: Scaffold(body: Text('Listing editor'))));
+    expect(find.text('Listing editor'), findsOneWidget);
+  });
   for(final same in [false,true]){
     testWidgets('protected route cannot reuse preloaded private child after logout and login same=$same',(t) async{
       final auth=_Auth(_user(1));

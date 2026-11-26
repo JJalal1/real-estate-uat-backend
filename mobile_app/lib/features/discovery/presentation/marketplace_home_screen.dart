@@ -162,7 +162,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     final background = theme.colorScheme.surfaceContainerLow;
     final selectedTypes = ref.watch(marketplaceSearchControllerProvider).criteria.selectedTypes;
     final professional = ref.watch(authControllerProvider.select((state) =>
-      state.asData?.value?.hasVerifiedProfessionalProfile == true));
+      state.asData?.value?.hasMarketplaceProfessionalProfile == true));
     final query = _query;
     final criteria = query.effectiveFilters;
     final locationKnown = !location.needsConfirmation && (location.governorate != null || location.governorateCode != null);

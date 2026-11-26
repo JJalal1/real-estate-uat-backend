@@ -38,6 +38,8 @@ PropertyDetails _property(int id) => PropertyDetails.fromJson({
   'price': 300000, 'monthly_rent': 100000, 'currency': 'YER', 'status': 'published',
   'address': 'صنعاء، حدة', 'latitude': 15.3694, 'longitude': 44.191,
   if (id == 13) 'availability_status': 'sold',
+  // Older cached responses may carry a dues flag for an available listing.
+  if (id == 11) 'financial_hold': true,
   if (id == 11) ...{'bedrooms': 3, 'bathrooms': 2, 'floor_number': '2', 'has_parking': false},
   'advertiser': {'id': 1, 'name': exampleBroker.name, 'verification_status': 'approved',
     'verification_type': 'broker', 'rating_average': 4.6, 'rating_count': 7},
@@ -85,13 +87,13 @@ class _Saved implements SavedSearchRepository {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 class _Directory extends BrokerTestRepository {
-  String? search, specialty, kind;
+  String? search, kind;
   double? rating;
   bool strictRegion = false;
   @override
   Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15,
-    bool regionOnly = false, String? search, String? specialty, String? accountType, double? minRating}) async {
-    this.search = search; this.specialty = specialty; kind = accountType; rating = minRating; strictRegion = regionOnly;
+    bool regionOnly = false, String? search, String? accountType, double? minRating}) async {
+    this.search = search; kind = accountType; rating = minRating; strictRegion = regionOnly;
     return BrokerPage(items: [exampleBroker], page: 1, lastPage: 1);
   }
 }

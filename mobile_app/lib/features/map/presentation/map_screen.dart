@@ -1558,7 +1558,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
 
   void _openAddProperty() {
-    if (ref.read(authControllerProvider).asData?.value?.isBroker != true) return;
+    if (ref.read(authControllerProvider).asData?.value?.canCreateListing != true) return;
     context.push('/add-property');
   }
 
@@ -1975,7 +1975,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             child: SizedBox(height: sheetHeight, child: PropertyMapResultsSheet(
             items: rows, total: state.total, selectedId: _selected?.id, markerSelection: _markerSelection, loading: state.loading,
             hasDrawnArea: _selectedAreaGeometry != null, onMarkerDetails: _openDetails, onDismissMarker: _dismissMarker,
-            onAdd: user?.isBroker == true ? _openAddProperty : null,
+            onAdd: user?.canCreateListing == true ? _openAddProperty : null,
             staleResults: state.resultsError != null && rows.isNotEmpty,
             maxExtent: sheetMaximum, collapsed: widget.collapseResults,
             filterPanel: widget.toolbarAboveMap ? null : toolbar,

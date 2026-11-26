@@ -674,6 +674,8 @@ class AuthController extends Controller
             'broker_verification_status'=>$user->broker_verification_status ?? User::BROKER_VERIFICATION_NOT_REQUIRED,
             'broker_verification_submitted_at'=>$user->broker_verification_submitted_at?->toIso8601String(),
             'broker_verified_at'=>$user->broker_verified_at?->toIso8601String(),
+            'broker_enrolled'=>$user->broker_enrolled_at !== null,
+            'can_create_listing'=>$user->canCreateListings(),
             'broker_verification_note'=>$user->broker_verification_note,
             'last_login_at'=>$user->last_login_at?->toIso8601String(),
             'created_at'=>$user->created_at?->toIso8601String(),

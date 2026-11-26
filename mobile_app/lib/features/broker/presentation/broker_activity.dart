@@ -104,8 +104,6 @@ class _BrokerDealAmountDialogState extends State<_BrokerDealAmountDialog> {
       final amount = _brokerAmount(_raw);
       final amountValid = amount != null &&
           amount > 0 && amount <= 9999999999999 && (amount * 100).round() > 0;
-      final requiresConfirmation = enteringAmount && amountValid && advertised != null &&
-          (amount * 100).round() < (advertised * 100).round();
       final canSubmit = _choice == _DealPriceChoice.advertised ||
           (enteringAmount && advertised != null && advertised > 0 && amountValid);
       final priceLabel = property?.purpose == 'sale' && property?.editablePrice != property?.price
@@ -162,7 +160,7 @@ class _BrokerDealAmountDialogState extends State<_BrokerDealAmountDialog> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
           AppButton(
-            label: requiresConfirmation ? 'طلب تأكيد المبلغ' : 'تسجيل الصفقة',
+            label: 'تسجيل الصفقة',
             onPressed: canSubmit
                 ? () => Navigator.pop(context, _DealAmount(enteringAmount ? amount : null))
                 : null,
@@ -614,16 +612,17 @@ class BrokerConversationTools extends ConsumerWidget {
           if (!thread.isPropertyUnavailable) ...[
             action('هذا الإعلان', 'conversation-property',
                 () => context.push('/properties/${thread.propertyId}')),
-            const SizedBox(width: 6),
+            if (thread.canManageCustomer) const SizedBox(width: 6),
           ],
-          action('تصنيف العميل', 'conversation-classification',
-              thread.canManageCustomer && stage != 'completed'
-                  ? () => _openClassification(context, ref, stage) : null,
-              icon: Icons.expand_more),
-          const SizedBox(width: 6),
-          action('ملاحظة وتذكير', 'conversation-followup',
-              thread.canManageCustomer ? () => editCustomerFollowup(context, ref, thread.id) : null,
-              icon: Icons.event_note_outlined, tonal: true),
+          if (thread.canManageCustomer) ...[
+            action('تصنيف العميل', 'conversation-classification',
+                stage == 'completed' ? null : () => _openClassification(context, ref, stage),
+                icon: Icons.expand_more),
+            const SizedBox(width: 6),
+            action('ملاحظة وتذكير', 'conversation-followup',
+                () => editCustomerFollowup(context, ref, thread.id),
+                icon: Icons.event_note_outlined, tonal: true),
+          ],
         ]),
       ),
     );
@@ -701,7 +700,9 @@ class BrokerConversationTools extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (thread.propertyId == null) return const SizedBox.shrink();
+    if (thread.propertyId == null || (!thread.canManageCustomer && compact && thread.isPropertyUnavailable)) {
+      return const SizedBox.shrink();
+    }
     final dealData = ref.watch(brokerThreadDealProvider(thread.id)).asData;
     final deal = dealData?.value;
     final stage = deal?.status == 'confirmed' ? 'completed' : thread.leadStage;
@@ -776,7 +777,7 @@ class BrokerFinanceScreen extends ConsumerWidget {
                       Icon(Icons.info_outline, size: 16, color: theme.colorScheme.error),
                       const SizedBox(width: 6),
                       Expanded(child: Text(
-                        'إذا لم يتم السداد خلال ٢٤ ساعة من بيع العقار أو تأجيره، سيتم إيقاف الحساب.',
+                        'يصلك تذكير كل ٢٤ ساعة حتى تأكيد سداد المستحق.',
                         style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
                       )),
                     ]),
@@ -828,7 +829,7 @@ class _BrokerReceivableCard extends ConsumerWidget {
         if (status == 'under_review') const Text('إثبات السداد قيد التحقق'),
         if (status == 'disputed') const Text('قيد مراجعة الدعم'),
         if (deadline != null)
-          Text('آخر مهلة للسداد: ${localizations.formatCompactDate(deadline)} · '
+          Text('موعد السداد: ${localizations.formatCompactDate(deadline)} · '
               '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(deadline))}'),
         if (status == 'open' || status == 'overdue')
           AppButton(label: 'سداد مستحقات المنصة', onPressed: () async {

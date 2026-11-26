@@ -162,7 +162,9 @@ class Stage9ListingReviewApiTest extends TestCase
 
         UserNotificationPreference::query()->create(['user_id' => $advertiser->id, 'listing_activity' => false]);
         $duplicate = $this->createReady($advertiserHeaders, 'New duplicate');
-        $this->withHeaders($advertiserHeaders)->postJson("/api/properties/$duplicate/submit")
+        $this->withHeaders($advertiserHeaders)->putJson("/api/properties/$duplicate/sai", ['sai_payer' => 'buyer'])->assertOk();
+        $this->withHeaders($advertiserHeaders)->postJson("/api/properties/$duplicate/submit",
+            ['publish_now' => true, 'upgrade_to_broker' => $sameOwner])
             ->assertOk()->assertJsonPath('data.review_status', 'submitted');
 
         $review = "/api/admin/listing-review/listings/$duplicate";

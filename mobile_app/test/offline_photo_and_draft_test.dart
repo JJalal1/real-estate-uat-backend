@@ -158,6 +158,20 @@ void main() {
     expect(find.byType(PageView), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+  testWidgets('disconnecting and typing below the threshold do not create an automatic draft', (tester) async {
+    final drafts = Wave6Drafts(), device = Wave6Recovery();
+    final connection = OfflineConnectionController()..online();
+    await pumpWave6(tester, ProviderScope(overrides: [
+      offlineConnectionProvider.overrideWith((ref) => connection),
+    ], child: const ListingEditorScreen()), drafts: drafts, recovery: device);
+    await tester.enterText(find.byType(TextField).first, 'شقة غير مكتملة');
+    connection.offline();
+    await tester.pump(const Duration(seconds: 2));
+    expect(device.snapshot, isNull);
+    expect(drafts.drafts, isEmpty);
+    await finishWave6(tester);
+    expect(device.snapshot, isNull);
+  });
   for (final initial in [
     OfflineConnection.offline,
     OfflineConnection.unavailable
@@ -173,12 +187,16 @@ void main() {
             // Establish the latch from current connectivity, not a prior flag.
             'offline_prepared': false
           });
+      final health = Dio(BaseOptions(baseUrl: 'https://fixture.invalid'))
+        ..interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
+          handler.resolve(Response<dynamic>(requestOptions: request, statusCode: 503));
+        }));
       final connection = OfflineConnectionController(
-          networkSnapshot: () async => {'networkAvailable': true});
+          probe: health, networkSnapshot: () async => {'networkAvailable': true});
       if (initial == OfflineConnection.offline) {
         connection.offline();
       } else {
-        connection.transportFailure(connection.revision);
+        await tester.runAsync(() => connection.check(force: true));
       }
       expect(connection.current, initial);
       Widget editor() => ProviderScope(overrides: [

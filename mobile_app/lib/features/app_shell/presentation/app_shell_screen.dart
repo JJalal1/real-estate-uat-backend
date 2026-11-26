@@ -66,14 +66,10 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     if (shouldExit == true && mounted) await SystemNavigator.pop();
   }
 
-  Future<void> _createListing({required bool checkOwnerLimit}) async {
+  void _createListing() {
     if (_openingEditor) return;
     FocusManager.instance.primaryFocus?.unfocus();
     ref.read(brokerAssistantMenuProvider.notifier).state = false;
-    if (checkOwnerLimit) {
-      await _openListingEditor('/add-property');
-      return;
-    }
     setState(() => _createMenuOpen = !_createMenuOpen);
   }
 
@@ -111,7 +107,6 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     final user = ref.watch(authControllerProvider).asData?.value;
     final mode = _modeFor(user);
     final shell = _shellFor(mode);
-    final checkOwnerLimit = user != null && user.isOwner && user.hasVerifiedPublishingProfile;
     final unreadCount = shell.items.any((item) => item.showsUnreadMessages)
         ? ref.watch(messageUnreadCountProvider)
         : 0;
@@ -160,7 +155,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           }
         },
         child: MessagingSystemNavigation(
-          enabled: mode == 'broker' && shell.items[_index].showsUnreadMessages,
+          enabled: shell.items[_index].showsUnreadMessages,
           child: Scaffold(
             body: Stack(children: [
               ExcludeSemantics(excluding: _createMenuOpen,
@@ -183,7 +178,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
               selectedIndex: _index,
               onSelected: _selectTab,
               onCreate: const ['anonymous', 'regular', 'advertiser', 'broker'].contains(mode)
-                  ? () => _createListing(checkOwnerLimit: checkOwnerLimit)
+                  ? _createListing
                   : null,
               createExpanded: _createMenuOpen,
             ),
@@ -201,8 +196,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     }
     if (roles.contains('support_manager')) return 'manager';
     if (roles.contains('support_agent')) return 'agent';
-    if (user.isBroker == true) return 'broker';
-    if (user.hasVerifiedProfessionalProfile == true) return 'advertiser';
+    if (user.hasMarketplaceProfessionalProfile == true) {
+      return user.isBroker == true ? 'broker' : 'advertiser';
+    }
     return 'regular';
   }
 

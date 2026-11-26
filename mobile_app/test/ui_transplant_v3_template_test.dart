@@ -399,20 +399,19 @@ void main() {
       expect(find.byKey(const ValueKey('create-listing-ai')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('create-listing-manual'))); await tester.pumpAndSettle();
       expect(router.state.uri.path, '/add-property');
-      expect(find.text(verified ? 'listing destination' : 'توثيق نوع الحساب مطلوب'), findsOneWidget);
+      expect(find.text('listing destination'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('consumer categories replace the old listing tab and personal listings remain protected', (tester) async {
+  testWidgets('consumer categories and personal listings are available to regular accounts', (tester) async {
     final router = await _pump(tester, user: _user());
     expect(find.byType(MarketplaceHomeScreen), findsOneWidget);
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
     expect(nav.destinations.map((d) => d.label), ['العقارات', 'الأقسام', 'الرسائل', 'حسابي']);
     router.push<void>('/my-listings');
     await tester.pumpAndSettle();
-    expect(find.text('توثيق نوع الحساب مطلوب'), findsOneWidget);
-    expect(find.byType(MyListingsScreen), findsNothing);
+    expect(find.byType(MyListingsScreen), findsOneWidget);
   });
 
   testWidgets('conversation keeps existing repository send and thread identity', (tester) async {
@@ -420,7 +419,7 @@ void main() {
     await _pump(tester, user: _user(), initial: '/messages/19', messages: messages);
     expect(find.text('مرحباً، كيف أستطيع مساعدتك؟'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'هل العقار متاح؟');
-    await tester.tap(find.byWidgetPredicate((w) => w is EbrokerIcon && w.icon == Icons.send));
+    await tester.tap(find.byTooltip('إرسال الرسالة'));
     await tester.pumpAndSettle();
     expect(messages.sent, ['هل العقار متاح؟']);
     expect(messages.sentThreadIds, [19]);

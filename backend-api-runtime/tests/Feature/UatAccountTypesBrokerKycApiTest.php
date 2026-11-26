@@ -59,12 +59,12 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         $this->assertNotNull(User::query()->where('phone', '+967711111101')->value('profile_completed_at'));
     }
 
-    public function test_base_account_cannot_create_listing_until_public_account_type_is_verified(): void
+    public function test_base_account_can_draft_without_a_verified_account_type(): void
     {
         [, $headers] = $this->unifiedUser('+967711111102', 'أمين أحمد محمد علي');
 
-        $this->withHeaders($headers)->post('/api/properties', $this->listingPayload('Blocked base account'))
-            ->assertStatus(409);
+        $this->withHeaders($headers)->post('/api/properties', $this->listingPayload('First personal draft'))
+            ->assertCreated();
     }
 
     public function test_owner_identity_is_verified_once_and_property_relationship_is_verified_per_listing(): void
@@ -82,7 +82,7 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertJsonPath('data.status', 'pending');
 
         $this->withHeaders($ownerHeaders)->post('/api/properties', $this->listingPayload('Owner before approval'))
-            ->assertStatus(409);
+            ->assertCreated();
 
         [, $supportHeaders] = $this->supportUser();
         $this->withHeaders($supportHeaders)->getJson('/api/admin/account-verifications?status=pending&type=owner')

@@ -25,24 +25,18 @@ import '../domain/message_models.dart';
 import 'conversation_typing_session.dart';
 
 class ConversationScreen extends ConsumerWidget {
-  const ConversationScreen({required this.threadId, this.compactPropertyContext = false, super.key});
+  const ConversationScreen({required this.threadId, super.key});
   final int threadId;
-  final bool compactPropertyContext;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).asData?.value;
     return ActorBoundPage(title: 'المحادثة', builder: (_) =>
-      _ConversationBody(key: ValueKey('${user?.id}:$threadId'), threadId: threadId,
-        compactPropertyContext: compactPropertyContext,
-        brokerLayout: user?.hasVerifiedProfessionalProfile == true || user?.isBrokerVerified == true));
+      _ConversationBody(key: ValueKey('${user?.id}:$threadId'), threadId: threadId));
   }
 }
 class _ConversationBody extends ConsumerStatefulWidget {
-  const _ConversationBody({required this.threadId, required this.compactPropertyContext,
-    required this.brokerLayout, super.key});
+  const _ConversationBody({required this.threadId, super.key});
   final int threadId;
-  final bool compactPropertyContext;
-  final bool brokerLayout;
   @override
   ConsumerState<_ConversationBody> createState() => _ConversationScreenState();
 }
@@ -286,28 +280,6 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
     } finally { if (mounted && _scope.isCurrent) setState(() => _blocking = false); }
   }
 
-  Widget _propertyContext(MessageThreadSummary thread) {
-    final theme = Theme.of(context);
-    return ColoredBox(
-      color: theme.colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(16, 4, 16, 8),
-        child: Row(
-          children: [
-            EbrokerIcon(Icons.home_work_outlined, size: 16, color: theme.colorScheme.primary),
-            const SizedBox(width: 6),
-            Expanded(child: Text(
-              thread.propertyTitle ?? 'العقار',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            )),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _report() async {
     if (!mounted || !_scope.isCurrent) return;
     const reasons = <String, String>{
@@ -385,10 +357,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
   @override
   Widget build(BuildContext context) {
     final thread = _details?.thread;
-    final brokerLayout = widget.brokerLayout || thread?.canManageCustomer == true;
-    final showPropertyContext = thread?.propertyId != null &&
-        widget.compactPropertyContext && !brokerLayout;
-    final dealData = brokerLayout && thread?.propertyId != null
+    final dealData = thread?.propertyId != null
         ? ref.watch(brokerThreadDealProvider(thread!.id)).asData : null;
     final deal = dealData?.value;
     final mayRecordDeal = dealData != null && deal == null &&
@@ -402,7 +371,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
         appBar: AppBar(
             title: Text(thread?.otherUserName ?? 'محادثة', maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: brokerLayout ? theme.textTheme.titleSmall : null),
+              style: theme.textTheme.titleSmall),
             actions: [
               if (thread?.canCallAdvertiser == true)
                 IconButton(
@@ -439,23 +408,18 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
                 ]),
             ]),
         body: Column(children: [
-          if (brokerLayout && thread != null) BrokerConversationTools(thread: thread, compact: true),
+          if (thread != null) BrokerConversationTools(thread: thread, compact: true),
           if (_details != null && (_loading || _error != null)) AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
           if (!_loading && thread?.canSend == false) Padding(padding: const EdgeInsets.all(12), child: Text(thread!.blockedByMe
             ? 'هذا الحساب محظور لديك. تبقى المحادثة السابقة محفوظة.' : 'الرسائل الجديدة غير متاحة حاليًا. يبقى تاريخ المحادثة والبلاغ متاحين.')),
           if (_blocking) const LinearProgressIndicator(),
-          if (showPropertyContext && !thread!.isPropertyUnavailable) _propertyContext(thread),
-          if (!brokerLayout && !_loading && thread != null) BrokerConversationTools(thread: thread),
           Expanded(
-              child: Container(
-                decoration: brokerLayout ? null : const BoxDecoration(image: DecorationImage(
-                  image: AssetImage('assets/ebroker/chat_background/doodle.png'),
-                  repeat: ImageRepeat.repeat, opacity: 0.08)),
-                child: _loading && _details == null
-                  ? const AppLoadingState(label: 'جارٍ تحميل المحادثة…')
-                  : _error != null && _details == null
-                      ? AppErrorState(message: _error!, onRetry: _load)
-                      : _messageList(brokerLayout: brokerLayout))),
+            child: _loading && _details == null
+                ? const AppLoadingState(label: 'جارٍ تحميل المحادثة…')
+                : _error != null && _details == null
+                    ? AppErrorState(message: _error!, onRetry: _load)
+                    : _messageList(),
+          ),
           if (_peerTyping && thread?.canSend == true)
             const Align(alignment: Alignment.centerRight, child: _TypingIndicator()),
           SafeArea(
@@ -486,13 +450,12 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
                             onSubmitted: (_) => _send())),
                     const SizedBox(width: 8),
                     IconButton.filled(
-                        key: brokerLayout ? const ValueKey('broker-conversation-send') : null,
-                        tooltip: brokerLayout ? 'إرسال الرسالة' : null,
+                        key: const ValueKey('broker-conversation-send'),
+                        tooltip: 'إرسال الرسالة',
                         style: IconButton.styleFrom(fixedSize: const Size(46, 46),
-                          backgroundColor: brokerLayout ? scheme.primary : null,
-                          foregroundColor: brokerLayout ? scheme.onPrimary : null,
-                          shape: brokerLayout ? const CircleBorder() :
-                            RoundedRectangleBorder(borderRadius: BorderRadius.circular(4))),
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
+                          shape: const CircleBorder()),
                         onPressed: _sending || _blocking || _error != null || thread?.canSend != true ? null : _send,
                         icon: _sending
                             ? const SizedBox(
@@ -500,20 +463,18 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
                                 height: 20,
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2))
-                            : brokerLayout
-                                ? const Icon(Icons.send_rounded, textDirection: TextDirection.rtl)
-                                : const EbrokerIcon(Icons.send)),
+                            : const Icon(Icons.send_rounded, textDirection: TextDirection.rtl)),
                   ]))),
         ]),
       ),
     );
-    return brokerLayout ? MessagingSystemNavigation(child: page) : page;
+    return MessagingSystemNavigation(child: page);
   }
 
-  Widget _messageList({required bool brokerLayout}) {
+  Widget _messageList() {
     final details = _details;
     final scheme = Theme.of(context).colorScheme;
-    final darkBrokerBubble = brokerLayout && scheme.brightness == Brightness.dark;
+    final darkMode = scheme.brightness == Brightness.dark;
     final messages = details?.messages ?? const <PrivateMessageItem>[];
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     final pending = actor == null
@@ -576,7 +537,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
                     child: Text(
                       item.isMine
                           ? 'بدأت اتصالاً بالمعلن'
-                          : brokerLayout ? 'بدأ الطرف الآخر اتصالاً هاتفياً' : '${item.senderName} بدأ اتصالاً هاتفياً',
+                          : 'بدأ الطرف الآخر اتصالاً هاتفياً',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -590,10 +551,10 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
           );
         }
         final fill = item.isMine
-            ? darkBrokerBubble ? scheme.primaryContainer : scheme.primary
+            ? darkMode ? scheme.primaryContainer : scheme.primary
             : scheme.surface;
         final textColor = item.isMine
-            ? darkBrokerBubble ? scheme.onPrimaryContainer : scheme.onPrimary
+            ? darkMode ? scheme.onPrimaryContainer : scheme.onPrimary
             : scheme.onSurface;
         return Align(
           alignment: item.isMine
@@ -605,14 +566,10 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
                 color: fill,
-                border: Border.all(color: scheme.outlineVariant, width: brokerLayout ? .5 : 1.5),
+                border: Border.all(color: scheme.outlineVariant, width: .5),
                 borderRadius: BorderRadius.circular(8)),
             child:
                 Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (!brokerLayout) ...[
-                Text(item.senderName, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: textColor)),
-                const SizedBox(height: 4),
-              ],
               Text(item.body, style: TextStyle(fontSize: 14, height: 1.3, color: textColor)),
               if (time != null) ...[
                 const SizedBox(height: 4),

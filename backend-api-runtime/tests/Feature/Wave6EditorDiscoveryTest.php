@@ -52,16 +52,17 @@ class Wave6EditorDiscoveryTest extends TestCase
         $this->assertCount(0,Storage::disk('local')->allFiles('editor-drafts'));
     }
 
-    public function test_multiple_drafts_keep_previous_progress_and_personal_slot_is_server_enforced(): void
+    public function test_multiple_drafts_keep_previous_progress_for_brokers_and_personal_accounts(): void
     {
         [, $broker]=$this->actor('multi','broker');[, $owner]=$this->actor('personal','owner');
         $first=(string)Str::uuid();$second=(string)Str::uuid();
         foreach([$first,$second] as $key) $this->withHeaders($broker)->putJson('/api/listing-editor-drafts/'.$key,['payload'=>['step'=>1,'fields'=>[]],'expected_revision'=>0])->assertOk();
         $this->withHeaders($broker)->getJson('/api/listing-editor-drafts')->assertJsonCount(2,'data');
         $this->withHeaders($owner)->putJson('/api/listing-editor-drafts/'.$first,['payload'=>['fields'=>[]],'expected_revision'=>0])->assertOk();
-        $this->withHeaders($owner)->putJson('/api/listing-editor-drafts/'.$second,['payload'=>['fields'=>[]],'expected_revision'=>0])->assertConflict();
+        $this->withHeaders($owner)->putJson('/api/listing-editor-drafts/'.$second,['payload'=>['fields'=>[]],'expected_revision'=>0])->assertOk();
         $this->withHeaders($owner)->postJson('/api/ai/listing-draft',['mode'=>'copy','facts'=>['type'=>'shop'],'editor_draft_key'=>$first])->assertOk();
-        $this->withHeaders($owner)->postJson('/api/ai/listing-draft',['mode'=>'copy','facts'=>['type'=>'shop'],'editor_draft_key'=>$second])->assertConflict();
+        $this->withHeaders($owner)->postJson('/api/ai/listing-draft',['mode'=>'copy','facts'=>['type'=>'shop'],'editor_draft_key'=>$second])->assertOk();
+        $this->withHeaders($owner)->getJson('/api/listing-editor-drafts')->assertJsonCount(2,'data');
         $this->assertDatabaseCount('properties',0);
     }
 
@@ -74,17 +75,17 @@ class Wave6EditorDiscoveryTest extends TestCase
         \Illuminate\Support\Facades\Http::fake(['generativelanguage.googleapis.com/*'=>\Illuminate\Support\Facades\Http::response(
             ['candidates'=>[['content'=>['parts'=>[['text'=>json_encode(['order'=>[0]])]]]]]],200)]);
         $input=['rental_conditions'=>[['kind'=>'advance','months'=>3]]];
-        $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input)->assertConflict();
+        $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input)->assertStatus(410)->assertJsonPath('code','RENTAL_CONDITIONS_AI_RETIRED');
         $this->withHeaders($headers)->postJson('/api/ai/rental-conditions',$input+['editor_draft_key'=>$key])
             ->assertStatus(410)->assertJsonPath('code','RENTAL_CONDITIONS_AI_RETIRED');
         \Illuminate\Support\Facades\Http::assertNothingSent();
         $this->assertDatabaseCount('properties',0);$this->assertDatabaseCount('property_sai_terms',0);
     }
 
-    public function test_unverified_and_suspended_accounts_cannot_save_or_upload(): void
+    public function test_active_ordinary_account_can_save_while_suspended_account_cannot(): void
     {
-        [$u,$a]=$this->actor('ordinary',null);$key=(string)Str::uuid();
-        $this->withHeaders($a)->putJson('/api/listing-editor-drafts/'.$key,['payload'=>['fields'=>[]],'expected_revision'=>0])->assertForbidden();
+        [, $a]=$this->actor('ordinary',null);$key=(string)Str::uuid();
+        $this->withHeaders($a)->putJson('/api/listing-editor-drafts/'.$key,['payload'=>['fields'=>[]],'expected_revision'=>0])->assertOk();
         [$u,$a]=$this->actor('suspended','broker');$u->update(['account_status'=>'suspended']);
         $this->withHeaders($a)->putJson('/api/listing-editor-drafts/'.$key,['payload'=>['fields'=>[]],'expected_revision'=>0])->assertForbidden();
     }

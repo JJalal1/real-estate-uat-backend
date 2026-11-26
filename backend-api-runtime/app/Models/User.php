@@ -52,6 +52,7 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'broker_verification_submitted_at' => 'datetime',
             'broker_verified_at' => 'datetime',
+            'broker_enrolled_at' => 'datetime',
             'is_platform_owner' => 'boolean',
             'identity_policy_version' => 'integer',
             'password' => 'hashed',
@@ -112,6 +113,7 @@ class User extends Authenticatable
 
     public function isBrokerAccount(): bool
     {
+        if ($this->broker_enrolled_at !== null) return true;
         $profile = $this->verificationProfile();
         if ($profile) return $profile->type === AccountVerificationProfile::TYPE_BROKER;
         return $this->account_type === self::ACCOUNT_TYPE_BROKER;
@@ -143,16 +145,16 @@ class User extends Authenticatable
         return $this->hasApprovedVerificationProfile(AccountVerificationProfile::TYPE_OFFICE);
     }
 
+    public function hasMarketplaceProfessionalProfile(): bool
+    {
+        return $this->broker_enrolled_at !== null || $this->isBrokerVerified() || $this->isOfficeVerified();
+    }
+
     public function canCreateListings(): bool
     {
-        if (! $this->isActive()) return false;
-        if ($this->profile_completed_at === null) return false;
-        if ($this->hasApprovedVerificationProfile()) return true;
-
-        // Compatibility for historical local/test accounts that predate the
-        // account-verification profile policy. UAT WhatsApp accounts use policy >= 1.
-        if ((int) $this->identity_policy_version === 0) return true;
-        return $this->isBrokerVerified();
+        // Earlier registration stored the account name without a completion timestamp.
+        return $this->isActive() && ((int) $this->identity_policy_version < 2
+            || $this->profile_completed_at !== null || $this->hasApprovedVerificationProfile());
     }
 
     public function hasRole(string $key): bool

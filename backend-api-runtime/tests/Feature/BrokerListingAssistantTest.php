@@ -41,10 +41,10 @@ class BrokerListingAssistantTest extends TestCase
         $input = ['mode' => 'copy', 'facts' => ['type' => 'apartment']];
         $this->postJson('/api/ai/listing-draft', $input)->assertUnauthorized();
         [, $ordinary] = $this->actor('ordinary', null);
-        $this->withHeaders($ordinary)->postJson('/api/ai/listing-draft', $input)->assertForbidden();
+        $this->withHeaders($ordinary)->postJson('/api/ai/listing-draft', $input)->assertOk();
         [$owner, $ownerHeaders] = $this->actor('owner', 'owner');
         $property = $this->listing($owner);
-        $this->withHeaders($ownerHeaders)->postJson('/api/ai/listing-draft', $input)->assertConflict();
+        $this->withHeaders($ownerHeaders)->postJson('/api/ai/listing-draft', $input)->assertOk();
         $this->withHeaders($ownerHeaders)->postJson('/api/ai/listing-draft', $input + ['property_id' => $property->id])->assertOk();
         [, $other] = $this->actor('other', 'broker');
         $this->withHeaders($other)->postJson('/api/ai/listing-draft', $input + ['property_id' => $property->id])->assertNotFound();

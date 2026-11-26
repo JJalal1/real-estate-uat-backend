@@ -21,7 +21,6 @@ import 'features/discovery/domain/smart_search_filters.dart';
 import 'features/properties/data/property_repository.dart';
 import 'features/properties/domain/property_details.dart';
 import 'features/properties/presentation/listing_editor_screen.dart';
-import 'features/properties/presentation/personal_listing_creation_gate.dart';
 import 'features/properties/presentation/property_location_picker_screen.dart';
 import 'router/app_router.dart';
 
@@ -263,8 +262,8 @@ class _CallbackPanelState extends ConsumerState<CallbackPanel> {
     final nav = ref.read(appRouterProvider).routerDelegate.navigatorKey.currentState;
     if (nav == null) throw StateError('Normal navigator required');
     setState(() => expanded = false);
-    unawaited(nav.push<void>(MaterialPageRoute<void>(builder: (_) => PersonalListingCreationGate(
-      child: ListingEditorScreen(key:key, localRecovery:snapshot, startFresh:true)))));
+    unawaited(nav.push<void>(MaterialPageRoute<void>(builder: (_) =>
+      ListingEditorScreen(key:key, localRecovery:snapshot, startFresh:true))));
   }
   void closeFixture({required bool done}) {
     final g=widget.gate;

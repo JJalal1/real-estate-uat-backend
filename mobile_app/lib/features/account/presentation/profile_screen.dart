@@ -56,7 +56,7 @@ class _ProfileScreenState extends ConsumerState<_ProfileScreenBody> {
             : ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  if (user.hasVerifiedPublishingProfile) TextButton.icon(onPressed: () => context.push('/advertisers/${user.id}'), icon: const EbrokerIcon(Icons.add_a_photo_outlined, size: 20), label: const Text('تعديل الصورة والنبذة العامة')),
+                  if (user.canEditPublicProfile) TextButton.icon(onPressed: () => context.push('/advertisers/${user.id}'), icon: const EbrokerIcon(Icons.add_a_photo_outlined, size: 20), label: const Text('تعديل ملفي العام')),
                   TextField(
                     controller: _name,
                     enabled: !_nameLocked(user),

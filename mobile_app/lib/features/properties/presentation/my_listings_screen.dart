@@ -21,6 +21,7 @@ import '../domain/property_field_options.dart';
 import '../domain/property_schema.dart';
 import 'add_property_wizard_screen.dart';
 import 'property_sai_configuration_sheet.dart';
+import 'publish_listing.dart';
 import 'property_summary_card.dart';
 
 export '../data/my_listings_pages.dart';
@@ -113,7 +114,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     if (items.isEmpty && !hasMore) {
       return AppEmptyState(
         title: 'لا توجد إعلانات بعد',
-        message: 'ابدأ بإضافة عقار، احفظه كمسودة، ثم أرسله للمراجعة عندما يكتمل.',
+        message: 'أضف عقارك واحفظه كمسودة أو انشره عندما تكتمل تفاصيله.',
         icon: Icons.inventory_2_outlined,
         actionLabel: 'إضافة عقار',
         onAction: () => _create(context, ref),
@@ -244,11 +245,11 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
           context,
           title: item.reviewStatus == 'returned_for_correction'
               ? 'إعادة إرسال الإعلان؟'
-              : 'إرسال الإعلان للمراجعة؟',
+              : 'نشر الإعلان؟',
           content: Text(
             item.reviewStatus == 'returned_for_correction'
                 ? 'تأكد أنك عالجت ملاحظة فريق الدعم. قبل إعادة الإرسال ستؤكد شروط السعي الإلزامية.'
-                : 'قبل الإرسال ستؤكد شروط السعي والطرف الذي يتحمله. بعد الإرسال لن تستطيع تعديل الإعلان أثناء المراجعة.',
+                : 'راجع شروط السعي والطرف الذي يتحمله قبل نشر الإعلان.',
           ),
           actions: [
             TextButton(
@@ -285,14 +286,17 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         return;
       }
 
-      await repository.submitListing(item.id);
+      final published = await publishListing(context, ref, item.id);
+      if (!context.mounted) return;
+      if (published == null) {
+        await _edit(context, ref, item);
+        return;
+      }
       ref.read(propertyDataRevisionProvider.notifier).state++;
       _reloadListings(ref);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم تأكيد السعي وإرسال الإعلان لفريق المراجعة.'),
-          ),
+          SnackBar(content: Text(publicationMessage(published))),
         );
       }
     } catch (error) {
@@ -541,7 +545,7 @@ class _ListingCard extends StatelessWidget {
     return [
       if (onSubmit != null)
         EbrokerCardAction(
-          _needsCorrection(property) ? 'إعادة الإرسال' : 'إرسال للمراجعة',
+          _needsCorrection(property) ? 'إعادة الإرسال' : 'نشر الإعلان',
           onSubmit,
           icon: Icons.send_outlined,
         ),

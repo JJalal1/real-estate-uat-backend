@@ -50,26 +50,21 @@ class BrokerExperienceController extends Controller
     {
         $v = $request->validate([
             'governorate' => ['nullable', 'string', 'max:120'], 'region_only' => ['nullable', 'boolean'],
-            'search' => ['nullable', 'string', 'max:120'], 'specialty' => ['nullable', 'string', 'max:120'],
+            'search' => ['nullable', 'string', 'max:120'],
             'account_type' => ['nullable', Rule::in(['broker', 'office'])], 'min_rating' => ['nullable', 'numeric', 'between:0,5'],
             'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'between:1,30'],
         ]);
         $query = $this->ranking->query($v['governorate'] ?? null);
         if (! empty($v['governorate']) && ($v['region_only'] ?? false)) {
-            $aliases = in_array($v['governorate'], ['صنعاء', 'أمانة العاصمة'], true) ? ['صنعاء', 'أمانة العاصمة'] : [$v['governorate']];
-            $query->whereHas('accountVerificationProfile', function ($profile) use ($aliases): void {
-                $profile->where(function ($region) use ($aliases): void {
-                    foreach ($aliases as $name) $region->orWhere('details->governorate', $name)->orWhereJsonContains('details->work_areas', $name);
-                });
-            });
+            $query->whereRaw(BrokerRankingService::GOVERNORATE.' = ?', [$v['governorate']]);
         }
-        if (! empty($v['account_type'])) $query->whereHas('accountVerificationProfile', fn ($profile) => $profile->where('type', $v['account_type']));
-        if (! empty($v['specialty'])) $query->whereHas('accountVerificationProfile', fn ($profile) => $profile->whereJsonContains('details->specialties', trim($v['specialty'])));
+        if (! empty($v['account_type'])) {
+            $query->whereRaw(BrokerRankingService::IS_OFFICE.($v['account_type'] === 'office' ? ' = TRUE' : ' = FALSE'));
+        }
         if (! empty($v['search'])) {
             $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], trim($v['search'])).'%';
             $query->where(function ($name) use ($term): void {
-                $name->where('users.name', 'like', $term)->orWhereHas('accountVerificationProfile', fn ($profile) =>
-                    $profile->where('type', 'office')->where('details->office_name', 'like', $term));
+                $name->where('users.name', 'like', $term)->orWhereRaw(BrokerRankingService::OFFICE_NAME.' LIKE ?', [$term]);
             });
         }
         if (($v['min_rating'] ?? 0) > 0) $query->where('customer_rating.rating_average', '>=', (float) $v['min_rating']);
@@ -86,15 +81,31 @@ class BrokerExperienceController extends Controller
 
     public function updateProfile(Request $request): JsonResponse
     {
-        $actor=$this->advertiser($request);
-        $v=$request->validate(['bio'=>['nullable','string','max:900']]);
-        $actor->forceFill(['public_professional_bio'=>trim((string)($v['bio'] ?? '')) ?: null])->save();
-        return response()->json(['data'=>['bio'=>$actor->public_professional_bio]]);
+        $actor = $this->advertiser($request);
+        abort_unless($actor->hasMarketplaceProfessionalProfile() || $actor->hasApprovedVerificationProfile(), 403);
+        $rules = ['bio' => ['sometimes', 'nullable', 'string', 'max:900']];
+        if ($actor->hasMarketplaceProfessionalProfile()) {
+            $rules += [
+                'governorate' => ['sometimes', 'required', 'string', Rule::exists('governorates', 'name_ar')->where('is_active', true)],
+                'is_office' => ['sometimes', 'boolean'], 'office_name' => [Rule::requiredIf($request->boolean('is_office')), 'nullable', 'string', 'max:140'],
+            ];
+        }
+        $values = $request->validate($rules);
+        $changes = [];
+        if (array_key_exists('bio', $values)) $changes['public_professional_bio'] = $values['bio'];
+        if (isset($values['governorate'])) $changes['marketplace_governorate'] = $values['governorate'];
+        if (array_key_exists('is_office', $values)) {
+            $changes['marketplace_is_office'] = $request->boolean('is_office');
+            $changes['marketplace_office_name'] = $changes['marketplace_is_office'] ? $values['office_name'] : null;
+        }
+        $actor->forceFill($changes)->save();
+        return response()->json(['data' => $this->ranking->publicIdentity($actor) + ['bio' => $actor->public_professional_bio]]);
     }
 
     public function uploadPhoto(Request $request, \App\Services\ProfessionalPhotoService $photos): JsonResponse
     {
         $actor=$this->advertiser($request);
+        abort_unless($actor->hasMarketplaceProfessionalProfile() || $actor->hasApprovedVerificationProfile(), 403);
         $request->validate(['photo'=>['required','file','image','mimes:jpg,jpeg,png,webp','max:5120']]);
         // A separate, explicitly uploaded public photo; verification evidence is never reused.
         $path=$photos->store($request->file('photo'), (int)$actor->id);
@@ -116,7 +127,7 @@ class BrokerExperienceController extends Controller
 
     public function photo(User $advertiser, \App\Services\ProfessionalPhotoService $photos)
     {
-        abort_unless($advertiser->isActive() && $advertiser->hasApprovedVerificationProfile() && $advertiser->public_professional_photo_path,404);
+        abort_unless($advertiser->isActive() && ($advertiser->hasMarketplaceProfessionalProfile() || $advertiser->hasApprovedVerificationProfile()) && $advertiser->public_professional_photo_path,404);
         return $photos->response($advertiser->public_professional_photo_path);
     }
 
@@ -480,7 +491,6 @@ class BrokerExperienceController extends Controller
     public function recordView(Request $request, Property $property): JsonResponse
     {
         abort_unless($property->isPubliclyAvailable(),404);
-        abort_if($this->finance->hasOverdueReceivable((int)$property->user_id),404);
         $v=$request->validate(['viewer_key'=>['required','string','min:16','max:128']]);
         $viewer=$this->tokens->authenticate($request,false);
         if ($viewer && (int)$viewer->id === (int)$property->user_id) return response()->json(['data'=>['recorded'=>false]]);
@@ -503,7 +513,7 @@ class BrokerExperienceController extends Controller
     private function advertiser(Request $request): User
     {
         $actor=$request->user();
-        abort_unless($actor && $actor->hasApprovedVerificationProfile(),403);
+        abort_unless($actor && $actor->canCreateListings(),403);
         return $actor;
     }
 

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Property;
-use App\Models\PropertyPlatformReceivable;
 use App\Models\PropertyPublicationBlock;
 use App\Models\User;
 use App\Models\UserNotification;
@@ -24,7 +23,6 @@ class BrokerAvailabilityService
     public function updateCandidates(User $actor, bool $onlyDue): Builder
     {
         return Property::query()
-            ->withoutGlobalScope('financial_public_visibility')
             ->where('user_id', $actor->id)
             ->publiclyVisible()
             ->when($onlyDue, fn (Builder $query) => $query->where('availability_due_at', '<=', now()));
@@ -32,7 +30,7 @@ class BrokerAvailabilityService
 
     public function change(User $actor, array $ids, string $state, Request $request, ?User $auditActor = null): array
     {
-        abort_unless($actor->hasApprovedVerificationProfile(), 403);
+        abort_unless($actor->canCreateListings(), 403);
         return DB::transaction(function () use ($actor, $ids, $state, $request, $auditActor): array {
             $rows = Property::query()->withoutGlobalScopes()->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
             abort_unless($rows->count() === count(array_unique($ids)), 404);
@@ -80,10 +78,7 @@ class BrokerAvailabilityService
         $publicationBlocked = $property->property_asset_id !== null
             && PropertyPublicationBlock::query()->where('property_asset_id', $property->property_asset_id)
                 ->where('purpose', $property->purpose)->where('is_active', true)->exists();
-        $overdue = PropertyPlatformReceivable::query()->where('advertiser_user_id', $property->user_id)
-            ->overdueListingRestriction()->exists();
-
-        if ($publicationBlocked || $overdue || $property->financial_hold_at !== null) {
+        if ($publicationBlocked || ($property->financial_hold_at !== null && $property->financial_hold_reason !== 'platform_receivable_overdue')) {
             throw new ConflictHttpException('راجع سبب قيد النشر قبل إعادة عرض الإعلان.');
         }
     }
@@ -145,9 +140,6 @@ class BrokerAvailabilityService
                         ->whereColumn('property_publication_blocks.purpose', 'properties.purpose')
                         ->where('property_publication_blocks.is_active', true);
                 })
-                ->whereNotExists(PropertyPlatformReceivable::query()->selectRaw('1')
-                    ->whereColumn('property_platform_receivables.advertiser_user_id', 'properties.user_id')
-                    ->overdueListingRestriction()->toBase())
                 ->orderBy('id')->limit($limit)->lockForUpdate()->pluck('id');
 
             if ($ids->isNotEmpty()) {

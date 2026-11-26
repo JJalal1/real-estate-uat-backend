@@ -27,7 +27,6 @@ class _SupportUsersBody extends ConsumerStatefulWidget {
 class _SupportUsersScreenState extends ConsumerState<_SupportUsersBody> {
   final _search = TextEditingController();
   bool _loading = false;
-  bool _restoring = false;
   String? _error;
   List<AccessUserSummary> _users = const [];
 
@@ -73,69 +72,17 @@ class _SupportUsersScreenState extends ConsumerState<_SupportUsersBody> {
       if (!mounted) {
         return;
       }
-      final action = await showActorDialog<({int? caseId, bool restoreHold})>(
+      final caseId = await showActorDialog<int>(
         context: context, ref: ref,
         builder: (_) => _UserContextDialog(contextData: data),
       );
-      if (!mounted || action == null) return;
-      final caseId = action.caseId;
-      if (caseId != null) {
-        context.push('/admin/support?case=$caseId');
-      } else if (action.restoreHold) {
-        await _restoreFinancialHold(user);
-      }
+      if (mounted && caseId != null) context.push('/admin/support?case=$caseId');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(e))),
         );
       }
-    }
-  }
-
-  Future<void> _restoreFinancialHold(AccessUserSummary user) async {
-    if (_restoring) return;
-    final form = GlobalKey<FormState>();
-    var reason = '';
-    final note = await showActorDialog<String>(
-      context: context,
-      ref: ref,
-      builder: (dialog) => AlertDialog(
-        title: const Text('إعادة تفعيل النشر'),
-        scrollable: true,
-        content: Form(
-          key: form,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('إعادة تفعيل النشر وإظهار الإعلانات الموقوفة ماليًا للحساب «${user.name}». يبقى المستحق ظاهرًا حتى اعتماد السداد.'),
-            TextFormField(
-              maxLength: 500,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'سبب إعادة التفعيل'),
-              onChanged: (value) => reason = value.trim(),
-              validator: (_) => reason.length < 3 ? 'اكتب سبب إعادة التفعيل' : null,
-            ),
-          ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('إلغاء')),
-          EbrokerFilledButton(
-            onPressed: () {
-              if (form.currentState!.validate()) Navigator.pop(dialog, reason);
-            },
-            child: const Text('إعادة التفعيل'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || note == null) return;
-    setState(() => _restoring = true);
-    try {
-      await ref.read(supportRepositoryProvider).restoreFinancialHold(user.id, note);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم رفع القيد المالي على النشر.')));
-      await _load();
-    } finally {
-      if (mounted) setState(() => _restoring = false);
     }
   }
 
@@ -183,7 +130,7 @@ class _SupportUsersScreenState extends ConsumerState<_SupportUsersBody> {
                               'الحالة: ${user.accountStatus}'
                             ].join('\n')),
                             trailing: const EbrokerIcon(Icons.chevron_left),
-                            onTap: _restoring ? null : () => _open(user),
+                            onTap: () => _open(user),
                           ));
                         },
                       )),
@@ -216,8 +163,8 @@ class _UserContextDialog extends StatelessWidget {
                 Text('البريد: ${user['email'] ?? '-'}'),
                 Text('الحالة: ${user['account_status'] ?? '-'}'),
                 Text('نوع الحساب: ${user['account_type'] ?? '-'}'),
-                if (user['financial_hold_active'] == true)
-                  const Text('إيقاف مؤقت للنشر بسبب مستحقات المنصة'),
+                if (user['has_outstanding_dues'] == true)
+                  const Text('على الحساب مستحقات للمنصة'),
                 const Divider(height: 24),
                 Text(
                     'تذاكر: ${contextData.counts['tickets'] ?? 0} • بلاغات: ${contextData.counts['reports'] ?? 0} • مفتوحة: ${contextData.counts['open'] ?? 0}',
@@ -232,14 +179,9 @@ class _UserContextDialog extends StatelessWidget {
                     title: Text(item.subject),
                     subtitle: Text('${item.reference} • ${item.status}'),
                     trailing: const EbrokerIcon(Icons.chevron_left),
-                    onTap: () => Navigator.pop(context, (caseId: item.id, restoreHold: false)))),
+                    onTap: () => Navigator.pop(context, item.id))),
               ]))),
       actions: [
-        if (user['can_restore_financial_hold'] == true)
-          EbrokerFilledButton(
-            onPressed: () => Navigator.pop(context, (caseId: null, restoreHold: true)),
-            child: const Text('إعادة تفعيل النشر'),
-          ),
         EbrokerFilledButton(
             onPressed: () => Navigator.pop(context), child: const Text('إغلاق'))
       ],

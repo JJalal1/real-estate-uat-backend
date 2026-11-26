@@ -69,7 +69,7 @@ class Wave5ListingRefinementTest extends TestCase
         $this->assertDatabaseCount('property_sai_attestations', 0);
     }
 
-    public function test_frozen_fixed_fee_survives_new_listing_terms_and_requires_customer_confirmation(): void
+    public function test_frozen_fixed_fee_survives_new_listing_terms_and_is_charged_on_report(): void
     {
         [$broker, $headers] = $this->actor('frozen');
         [, $customerHeaders] = $this->actor('customer', null);
@@ -93,8 +93,8 @@ class Wave5ListingRefinementTest extends TestCase
         $this->withHeaders($headers)->postJson("/api/properties/$id/sai-attestation", ['accepted'=>true, 'sai_term_id'=>$old->id])->assertOk();
         $deal = (int) $this->withHeaders($headers)->postJson("/api/broker/customers/$thread/completed-deal", ['basis_amount'=>110000])
             ->assertCreated()->json('data.id');
-        $this->assertDatabaseCount('property_deal_financial_terms', 0);
-        $this->withHeaders($customerHeaders)->postJson("/api/broker/deals/$deal/decision", ['confirmed'=>true])->assertOk();
+        $this->assertDatabaseCount('property_deal_financial_terms', 1);
+        $this->assertDatabaseMissing('broker_deal_outcomes', ['id'=>$deal, 'status'=>'pending_customer']);
         $this->assertDatabaseHas('property_deal_financial_terms', ['broker_deal_outcome_id'=>$deal,
             'sai_total_amount'=>40000, 'platform_share_amount'=>8000, 'advertiser_sai_share_amount'=>32000]);
         $this->assertDatabaseHas('properties', ['id'=>$id, 'current_sai_term_id'=>$currentId]);

@@ -301,10 +301,6 @@ class PropertyFinancialService
                     'advertiser_user_id'=>$term->advertiser_user_id,'amount_total'=>$term->platform_share_amount,'amount_paid'=>0,
                     'currency'=>$term->currency,'status'=>'open','confirmed_direct_at'=>$confirmedAt,'due_at'=>$confirmedAt->copy()->addHours(24),
                 ]);
-                DB::table('property_financial_holds')->insert([
-                    'user_id'=>$term->advertiser_user_id,'reason'=>'platform_receivable_open','source_type'=>'property_platform_receivable',
-                    'source_id'=>$receivable->id,'started_at'=>now(),'created_at'=>now(),'updated_at'=>now(),
-                ]);
                 $this->postLedger('platform_receivable_created','property_platform_receivable',$receivable->id,null,'استحقاق حصة المنصة من صفقة مباشرة',[
                     ['account_code'=>'advertiser_receivable','user_id'=>$term->advertiser_user_id,'direction'=>'debit','amount'=>(float) $term->platform_share_amount,'currency'=>$term->currency],
                     ['account_code'=>'platform_revenue','user_id'=>null,'direction'=>'credit','amount'=>(float) $term->platform_share_amount,'currency'=>$term->currency],
@@ -318,13 +314,13 @@ class PropertyFinancialService
     public function hasOpenReceivable(int $advertiserUserId): bool
     {
         return PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiserUserId)
-            ->restrictsListings()->exists();
+            ->outstanding()->exists();
     }
 
     public function hasOverdueReceivable(int $advertiserUserId): bool
     {
         return PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiserUserId)
-            ->overdueListingRestriction()->exists();
+            ->outstanding()->where('due_at', '<=', now())->exists();
     }
 
     /** Request-local batch with exactly the same overdue predicate as the single-owner lookup. */
@@ -333,54 +329,10 @@ class PropertyFinancialService
         $ids=array_values(array_unique(array_filter(array_map('intval',$advertiserUserIds),fn ($id)=>$id>0)));
         if($ids===[]) return [];
         $overdue=PropertyPlatformReceivable::query()->whereIn('advertiser_user_id',$ids)
-            ->overdueListingRestriction()
+            ->outstanding()->where('due_at', '<=', now())
             ->pluck('advertiser_user_id')->map(fn ($id)=>(int)$id)->flip();
         return array_replace(array_fill_keys($ids,false),
             $overdue->map(fn () => true)->all());
-    }
-
-    public function restoreOverdueListingRestrictions(User $advertiser, User $operator, string $reason, Request $request): array
-    {
-        return DB::transaction(function () use ($advertiser, $operator, $reason, $request): array {
-            User::query()->whereKey($advertiser->id)->lockForUpdate()->firstOrFail();
-            $receivables = PropertyPlatformReceivable::query()
-                ->where('advertiser_user_id', $advertiser->id)
-                ->overdueListingRestriction()->lockForUpdate()->pluck('id');
-            if ($receivables->isEmpty()) {
-                throw new ConflictHttpException('لا يوجد قيد مستحقات متأخر لاستعادة صلاحيات الإعلان.');
-            }
-
-            $now = now();
-            $release = [
-                'released_at'=>$now,'released_by_user_id'=>$operator->id,
-                'release_reason'=>PropertyPlatformReceivable::SUPPORT_RESTORE_REASON,'updated_at'=>$now,
-            ];
-            foreach ($receivables as $id) {
-                $identity = ['user_id'=>$advertiser->id,'source_type'=>'property_platform_receivable','source_id'=>$id];
-                $changed = DB::table('property_financial_holds')->where($identity)->whereNull('released_at')->update($release);
-                if ($changed === 0) {
-                    DB::table('property_financial_holds')->insert($identity + $release + [
-                        'reason'=>'platform_receivable_open','started_at'=>$now,'created_at'=>$now,
-                    ]);
-                }
-            }
-            if (! PropertyPlatformReceivable::query()->where('advertiser_user_id', $advertiser->id)->overdueListingRestriction()->exists()) {
-                $this->clearOverdueListingMarkers((int) $advertiser->id);
-                PropertyDiscoveryFilterService::refreshNearbyVisibilityAfterCommit();
-            }
-            $ids = $receivables->map(fn ($id): int => (int) $id)->all();
-            $this->audit->record($operator, 'support.financial_hold_restored', $advertiser, [
-                'receivable_ids'=>$ids,'reason'=>$reason,
-            ], $request, $advertiser->id);
-            return $ids;
-        });
-    }
-
-    protected function clearOverdueListingMarkers(int $advertiserUserId): void
-    {
-        Property::query()->withoutGlobalScopes()->where('user_id', $advertiserUserId)
-            ->where('financial_hold_reason', 'platform_receivable_overdue')
-            ->update(['financial_hold_at'=>null,'financial_hold_reason'=>null]);
     }
 
     public function financialSummaryFor(User $user): array
@@ -392,8 +344,8 @@ class PropertyFinancialService
             'overdue_platform_due'=>round((float) $receivables->filter(fn($r)=>in_array($r->status,['open','under_review','overdue','disputed'],true) && $r->due_at && now()->gte($r->due_at))->sum(fn($r)=>max(0,(float)$r->amount_total-(float)$r->amount_paid)),2),
             'pending_payouts'=>round((float) $payouts->where('status','pending')->sum('amount'),2),
             'paid_payouts'=>round((float) $payouts->where('status','paid')->sum('amount'),2),
-            'listing_creation_blocked'=>$this->hasOpenReceivable((int) $user->id),
-            'published_listings_hidden'=>$this->hasOverdueReceivable((int) $user->id),
+            'listing_creation_blocked'=>false,
+            'published_listings_hidden'=>false,
         ];
     }
 
@@ -478,13 +430,9 @@ class PropertyFinancialService
                 DB::table('property_financial_holds')->where('user_id',$term->advertiser_user_id)
                     ->where('source_type','property_platform_receivable')->where('source_id',$receivable->id)->whereNull('released_at')
                     ->update(['released_at'=>now(),'released_by_user_id'=>$reviewer->id,'release_reason'=>'platform_receivable_paid','updated_at'=>now()]);
-                $restrictionsRemain = PropertyPlatformReceivable::query()
-                    ->where('advertiser_user_id', $term->advertiser_user_id)->overdueListingRestriction()->exists();
-                if (! $restrictionsRemain) {
-                    $this->clearOverdueListingMarkers((int) $term->advertiser_user_id);
-                    PropertyDiscoveryFilterService::refreshNearbyVisibilityAfterCommit();
-                    $this->notifications->create((int)$term->advertiser_user_id,'financial_hold_released','تمت تسوية مستحقات المنصة','تم تأكيد السداد ورفع القيد المالي عن الإعلانات.','property_platform_receivable',$receivable->id,['receivable_id'=>$receivable->id]);
-                }
+                $this->notifications->create((int) $term->advertiser_user_id, 'platform_receivable_paid',
+                    'تم سداد مستحق المنصة', 'تم تأكيد سداد مستحق المنصة.', 'property_platform_receivable',
+                    $receivable->id, ['receivable_id' => $receivable->id]);
             }
         }
 

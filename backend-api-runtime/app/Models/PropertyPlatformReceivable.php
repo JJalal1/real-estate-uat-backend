@@ -30,21 +30,4 @@ class PropertyPlatformReceivable extends Model
         return $query->whereIn('status', ['open', 'under_review', 'overdue', 'disputed'])
             ->whereColumn('amount_paid', '<', 'amount_total');
     }
-
-    public function scopeRestrictsListings(Builder $query): Builder
-    {
-        return $query->outstanding()->whereNotExists(function ($release): void {
-            $release->selectRaw('1')->from('property_financial_holds')
-                ->whereColumn('user_id', 'property_platform_receivables.advertiser_user_id')
-                ->whereColumn('source_id', 'property_platform_receivables.id')
-                ->where('source_type', 'property_platform_receivable')
-                ->where('release_reason', self::SUPPORT_RESTORE_REASON)
-                ->whereNotNull('released_at');
-        });
-    }
-
-    public function scopeOverdueListingRestriction(Builder $query): Builder
-    {
-        return $query->restrictsListings()->where('due_at', '<=', now());
-    }
 }

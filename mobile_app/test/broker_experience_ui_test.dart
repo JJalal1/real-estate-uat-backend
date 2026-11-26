@@ -51,6 +51,11 @@ class BrokerTestRepository implements BrokerRepository {
   BrokerTestRepository({this.viewerId = 1, this.rentDue = false});
   final int viewerId;
   final bool rentDue;
+  Map<String, dynamic>? savedPublicProfile;
+  @override
+  Future<void> updateProfile({required String bio, String? governorate, bool? isOffice, String? officeName}) async {
+    savedPublicProfile = {'governorate': governorate, 'is_office': isOffice, 'office_name': officeName};
+  }
   final availabilityChanges = <(List<int>, String)>[];
   final reportedDeals = <(int, double?)>[];
   final decisions = <(int, bool)>[];
@@ -64,7 +69,7 @@ class BrokerTestRepository implements BrokerRepository {
   @override
   Future<BrokerProfile> profile(int id) async => exampleBroker;
   @override
-  Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15, bool regionOnly = false, String? search, String? specialty, String? accountType, double? minRating}) async => BrokerPage(items: [exampleBroker], page: 1, lastPage: 1);
+  Future<BrokerPage<BrokerProfile>> directory({String? governorate, int page = 1, int perPage = 15, bool regionOnly = false, String? search, String? accountType, double? minRating}) async => BrokerPage(items: [exampleBroker], page: 1, lastPage: 1);
   @override
   Future<List<BrokerAvailability>> availability() async => [
     BrokerAvailability(id: 11, title: 'شقة حدة', purpose: 'sale', status: 'available', needsConfirmation: true),
@@ -163,6 +168,26 @@ void main() {
       await font.load();
     }
   });
+  testWidgets('a broker edits one governorate and an optional office from the public profile', (tester) async {
+    final repo = BrokerTestRepository();
+    await _pump(tester, const BrokerPublicProfileScreen(id: 1), repo);
+    await tester.tap(find.text('تعديل الملف العام'));
+    await tester.pumpAndSettle();
+    expect(find.text('المحافظة'), findsOneWidget);
+    expect(find.textContaining('مناطق العمل'), findsNothing);
+    expect(find.textContaining('التخصصات'), findsNothing);
+    await tester.tap(find.text('أعمل باسم مكتب عقاري'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('public-office-name')), findsOneWidget);
+    await tester.tap(find.text('حفظ'));
+    await tester.pumpAndSettle();
+    expect(find.text('أدخل اسم المكتب'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('public-office-name')), 'مكتب الأمانة');
+    await tester.tap(find.text('حفظ'));
+    await tester.pumpAndSettle();
+    expect(repo.savedPublicProfile, {'governorate': 'أمانة العاصمة', 'is_office': true, 'office_name': 'مكتب الأمانة'});
+  });
+
   testWidgets('verified broker opens work and the unified message list from the marketplace', (tester) async {
     await _pump(tester, const AppShellScreen(), BrokerTestRepository());
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
@@ -273,7 +298,7 @@ void main() {
   });
 
   for (final (amount, action, status) in [
-    (90000000.0, 'طلب تأكيد المبلغ', 'pending_customer'),
+    (90000000.0, 'تسجيل الصفقة', 'confirmed'),
     (110000000.0, 'تسجيل الصفقة', 'confirmed'),
   ]) {
     testWidgets('updates send manual amount with action $action', (tester) async {

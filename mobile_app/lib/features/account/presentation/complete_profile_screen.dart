@@ -49,7 +49,7 @@ class _CompleteProfileScreenState extends ConsumerState<_CompleteProfileScreenBo
             ),
             const SizedBox(height: 8),
             const Text(
-              'اكتب الاسم الرباعي كما هو في وثيقة الهوية. بعد ذلك يصبح حسابك حسابًا أساسيًا للتصفح والبحث والشراء، ويمكنك لاحقًا اختيار نوع حساب موثق من صفحة «حسابي».',
+              'أدخل اسمك الرباعي لإكمال حسابك ونشر إعلانك الأول.',
             ),
             const SizedBox(height: 20),
             TextField(

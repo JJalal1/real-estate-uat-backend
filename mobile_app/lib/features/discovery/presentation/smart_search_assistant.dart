@@ -30,7 +30,7 @@ class AssistantHintStore {
 }
 
 final brokerAssistantMenuProvider = StateProvider<bool>((ref) {
-  ref.watch(authControllerProvider.select((state) => (state.asData?.value?.id, state.asData?.value?.hasVerifiedProfessionalProfile)));
+  ref.watch(authControllerProvider.select((state) => (state.asData?.value?.id, state.asData?.value?.hasMarketplaceProfessionalProfile)));
   return false;
 });
 
@@ -113,7 +113,7 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final broker = ref.watch(authControllerProvider).asData?.value?.hasVerifiedProfessionalProfile == true;
+    final broker = ref.watch(authControllerProvider).asData?.value?.hasMarketplaceProfessionalProfile == true;
     final menuOpen = broker && ref.watch(brokerAssistantMenuProvider);
     return Stack(fit: StackFit.expand, children: [
       ExcludeSemantics(excluding: menuOpen, child: widget.child),

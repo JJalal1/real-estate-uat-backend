@@ -43,6 +43,7 @@ import 'location_landmark_review_sheet.dart';
 import '../domain/property_coordinates.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
 import 'listing_sai_section.dart';
+import 'publish_listing.dart';
 import 'listing_ai_sheet.dart';
 import 'rental_conditions_editor.dart';
 
@@ -180,6 +181,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   late ListingAccountDraftRepository _accountRepository;
   late String _draftKey;
   int _draftRevision = 0;
+  String? _firstSavedAt;
   bool _draftSavedExplicitly = false, _offlinePrepared = false;
   // Both a lost route and unavailable service require local preparation.
   // This does not change the application's distinct connectivity banners.
@@ -214,7 +216,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   static const _previewNavigation = MethodChannel('real_estate/listing_preview_navigation');
 
   String get _editSignature {
-    final data = _serverSnapshot(_recoverySnapshot())..remove('step')..remove('server_property_id');
+    final data = _serverSnapshot(_recoverySnapshot())..remove('step')..remove('server_property_id')..remove('first_saved_at');
     if (!_saiTouched) {
       final fields=Map<String,dynamic>.from(data['fields'] as Map);
       fields.remove('broker_sai_rate_percent');fields.remove('fixed_sai_amount');data['fields']=fields;
@@ -235,6 +237,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   void _adoptAccountDraft(ListingAccountDraft draft) {
     _draftRevision = draft.revision;
+    _firstSavedAt = draft.firstSavedAt?.toUtc().toIso8601String() ?? _firstSavedAt;
     if (!draft.isRecovery) _draftSavedExplicitly = true;
     _remotePhotos..clear()..addAll(draft.images);
     for (final key in draft.images.keys) { if (!_removedPhotoKeys.contains(key)) { _photoStates[key]='complete';_photoErrors.remove(key); } }
@@ -271,7 +274,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _pendingAccount = null;
       return _accountTail;
     }
-    if (_accountConflict || !_sessionValid || _disposed || (!manual && !_autoSaveEligible())) return _accountTail;
+    if (_accountConflict || !_sessionValid || _disposed || (!(manual && _draftSavedExplicitly) && !_autoSaveEligible())) return _accountTail;
     if (_accountSyncing && !manual && _pendingAccount?.$3 == true) return _accountTail;
     _pendingAccount = (_serverSnapshot(snapshot), Map.of(photos), manual);
     _accountSaved = false;
@@ -279,6 +282,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _accountSyncing = true;
     _accountTail = () async {
       try {
+        await _accountRepository.syncRestart(_recoveryUserId!, _recoveryStore);
         accountLoop: while (_pendingAccount != null) {
           var pending = _pendingAccount!; _pendingAccount = null;
           if (_localOnly) return;
@@ -652,6 +656,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Map<String, dynamic> _recoverySnapshot() => {
     'offline_prepared': _offlinePrepared,
+    if (_firstSavedAt != null) 'first_saved_at': _firstSavedAt,
         'editor_version': 11, 'draft_kind': _draftSavedExplicitly ? 'saved' : 'recovery',
     'entry_method': widget.startWithAssistant ? 'assistant' : 'manual',
     'media_version':1, 'units_per_floor': _unitsPerFloor, 'same_floor_units': _sameFloorUnits, 'sai_amount_type': _saiAmountType, 'rental_conditions': _rentalConditions, 'unit_occupies_entire_floor': _wholeFloor, 'sai_touched': _saiTouched, 'sai_terms_accepted': _saiAccepted,
@@ -706,7 +711,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   Future<bool> _writeLocalRecovery({bool manual = false}) async {
     if (_offline) _offlinePrepared = true;
     final userId = _recoveryUserId;
-    if (userId == null || !_recoveryReady || _recoveryFinished || _disposed || (!manual && !_autoSaveEligible())) return false;
+    if (userId == null || !_recoveryReady || _recoveryFinished || _disposed || (!(manual && _draftSavedExplicitly) && !_autoSaveEligible())) return false;
+    _firstSavedAt ??= DateTime.now().toUtc().toIso8601String();
     final data = _recoverySnapshot(), images = List<String>.of(_imagePaths);
     final signature = jsonEncode([data, images]);
     try {
@@ -734,14 +740,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     await _saveAccount(data,{for (final path in List<String>.of(_imagePaths)) _localPhotoKeys[path]!:path},manual:manual);
   }
 
-  bool _autoSaveEligible() => (_localOnly &&
-          (_imagePaths.isNotEmpty ||
-              _typeConfirmed ||
-              _purposeConfirmed ||
-              _recoveryFields.values
-                  .any((field) => field.text.trim().isNotEmpty))) ||
-      DynamicPropertySchema.canBeginAutomaticSave(
+  bool _autoSaveEligible() => DynamicPropertySchema.canBeginAutomaticSave(
       DynamicPropertySchema.draftProgress(_recoverySnapshot()));
+
+  Future<void> _clearCurrentRecovery() async {
+    final actor = _recoveryUserId;
+    if (actor == null) return;
+    final id = widget.existingProperty?.id;
+    final current = await _recoveryStore.read(actor, id);
+    if (current != null && (current['draft_key'] == _draftKey || id != null)) {
+      await _recoveryStore.clear(actor, id);
+    }
+  }
 
   Future<void> _requestExit() async {
     if (_exitDialogOpen || _disposed) return;
@@ -762,7 +772,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (choice=='discard') {
         _recoveryTimer?.cancel();_pendingAccount=null;_recoveryFinished=true;
         for (final cancel in _photoCancels.values) { cancel.cancel('Discarded unsaved changes'); }
-        if (_recoveryUserId!=null) await _recoveryStore.clear(_recoveryUserId!,widget.existingProperty?.id);
+        await _clearCurrentRecovery();
         if (mounted) _leaveEditor();
       } else if (choice=='save') {
         _draftSavedExplicitly = true;
@@ -799,8 +809,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final userId = _recoveryUserId;
     if (userId == null) { _recoveryReady = true; super.setState(() {}); return; }
     Map<String,dynamic>? local = widget.localRecovery;
-    if (local == null && !widget.startFresh &&
-        !(widget.resumeSavedProgress && widget.accountDraft != null)) {
+    // Account entry already reconciled the local checkpoint against its revision.
+    if (local == null && !widget.startFresh && widget.accountDraft == null) {
       try { local=await _recoveryStore.read(userId, widget.existingProperty?.id).timeout(const Duration(seconds:8)); }
       catch (_) { _recoveryFailed=true; }
     }
@@ -808,6 +818,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     final data = useLocal ? local : widget.accountDraft?.payload;
     if (!mounted) return;
     if (data != null) {
+      _firstSavedAt ??= data['first_saved_at'] as String? ?? data['saved_at'] as String?;
       _offlinePrepared = _offlinePrepared || data['offline_prepared'] == true || _offline;
       _draftSavedExplicitly = _draftSavedExplicitly || !isAutomaticListingRecovery(data) || widget.accountDraft?.propertyId != null;
       if (widget.accountDraft == null && data['draft_key'] is String) _draftKey = data['draft_key'] as String;
@@ -1042,7 +1053,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         for (final cancel in _photoCancels.values) {
           cancel.cancel('Connectivity lost; retained locally');
         }
-        if (_recoveryReady) unawaited(_writeLocalRecovery(manual: true));
+        if (_recoveryReady) unawaited(_writeLocalRecovery());
         super.setState(() {});
       }
     });
@@ -1766,7 +1777,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Widget _ownershipEvidence() {
     final user = ref.watch(authControllerProvider).asData?.value;
-    final isOwner = user?.isOwner == true;
+    final isOwner = user?.isOwner == true && user?.hasVerifiedPublishingProfile == true &&
+        _existing?.reviewStatus == 'returned_for_correction';
     final existingOwnershipProof = _existing?.ownershipProofPresent == true;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (isOwner) ...[
@@ -1990,14 +2002,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
     final effectiveImageCount = _effectiveImageCount;
     if (effectiveImageCount < 1) {
-      return 'أضف صورة واحدة على الأقل قبل إرسال الإعلان للمراجعة.';
+      return 'أضف صورة واحدة على الأقل للعقار قبل النشر.';
     }
     return _ownershipValidation();
   }
 
   String? _ownershipValidation() {
     final user = ref.read(authControllerProvider).asData?.value;
-    if (user?.isOwner == true) {
+    if (user?.isOwner == true && user?.hasVerifiedPublishingProfile == true &&
+        _existing?.reviewStatus == 'returned_for_correction') {
       if (_ownershipDocumentType == null) {
         return 'اختر نوع مستند ملكية أو علاقة العقار.';
       }
@@ -2062,7 +2075,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         child: ListView(padding: const EdgeInsets.all(18), children: [
           Text('أكمل إعلانك بسرعة', style: Theme.of(sheet).textTheme.titleLarge),
           const SizedBox(height: 8),
-          const Text('انتقل لما يحتاج إكمالًا. يبقى اعتماد الإعلان بعد إرساله لمراجعة المنصة.'),
+          const Text('أكمل الحقول المتبقية وراجع إعلانك قبل نشره.'),
           const SizedBox(height: 16),
           if (gaps.isEmpty) const AppInlineMessage(message: 'متطلبات النموذج مكتملة. راجع النص والصور قبل الإرسال.', tone: AppStatusTone.info),
           for (var i = 0; i < gaps.length; i++) ListTile(
@@ -2269,7 +2282,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final saved = await _writeLocalRecovery(manual: true);
       if (mounted && _sessionValid)
         { _message(saved
-            ? 'حُفظت البيانات والصور على الجهاز. عند توفر الخدمة اضغط الحفظ أو الإرسال للمراجعة لرفعها.'
+            ? 'حُفظت البيانات والصور على الجهاز. عند توفر الخدمة اضغط الحفظ أو النشر لرفعها.'
             : 'تعذر الحفظ على الجهاز. بياناتك باقية هنا؛ أعد المحاولة.'); }
       return;
     }
@@ -2306,6 +2319,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         ],
       );
       if (confirmed != true || !mounted || !_sessionValid) return;
+      _draftSavedExplicitly = true;
     }
 
     setState(() => _savingListing = true);
@@ -2369,13 +2383,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
       if (submit) {
         try {
-          draft = await repository.submitListing(draft.id);
+          final result = await publishListing(context, ref, draft.id);
+          if (result == null) return;
+          draft = result;
           if (!mounted || !_sessionValid) return;
           ref.read(propertyDataRevisionProvider.notifier).state++;
         } catch (error) {
           if (mounted) {
             final message = friendlyApiError(error);
-            setState(() => _stepError = 'تم حفظ الإعلان كمسودة، لكن تعذر إرساله للمراجعة: $message');
+            setState(() => _stepError = 'حُفظ الإعلان كمسودة، لكن تعذر نشره: $message');
             if (message.contains('السعي')) {
               await _refreshSai(draft.id);
             }
@@ -2387,9 +2403,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       if (!mounted) return;
       _recoveryFinished = true;
       _recoveryTimer?.cancel();
-      if (_recoveryUserId != null) await _recoveryStore.clear(_recoveryUserId!, widget.existingProperty?.id);
+      await _clearCurrentRecovery();
+      if (submit && _recoveryUserId != null) await _recoveryStore.deleteSaved(_recoveryUserId!, _draftKey);
       _message(submit
-          ? 'تم حفظ الإعلان وإرساله للمراجعة.'
+          ? publicationMessage(draft)
           : 'تم حفظ الإعلان كمسودة. يمكنك إكماله وإرساله لاحقاً.');
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (mounted) _finish(draft);
@@ -2556,7 +2573,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     ],
     const SizedBox(height: AppSpacing.s20),
     if (_validateForSubmit() == null) ...[
-      AppButton(key: const ValueKey('listing-preview-submit'), label: 'إرسال للمراجعة',
+      AppButton(key: const ValueKey('listing-preview-submit'), label: 'نشر الإعلان',
         onPressed: () => Navigator.pop(sheetContext, true), expand: true),
       const SizedBox(height: 8),
     ],
@@ -2961,7 +2978,7 @@ class _BottomBar extends StatelessWidget {
 
 class _FinalActionsBar extends StatelessWidget {
   const _FinalActionsBar({required this.busy, required this.onPrevious,
-    required this.onPreview, required this.onSaveDraft, required this.onSubmit, this.primaryLabel = 'إرسال للمراجعة'});
+    required this.onPreview, required this.onSaveDraft, required this.onSubmit, this.primaryLabel = 'نشر الإعلان'});
   final bool busy;
   final String primaryLabel;
   final VoidCallback onPrevious, onPreview, onSaveDraft, onSubmit;
@@ -2973,7 +2990,7 @@ class _FinalActionsBar extends StatelessWidget {
         Expanded(child: EbrokerStepButton(label: 'السابق', style: AppButtonStyle.outlined,
           onPressed: busy ? null : onPrevious, expand: true)),
         const SizedBox(width: 8),
-        Expanded(flex: 2, child: EbrokerStepButton(label: primaryLabel, icon: primaryLabel == 'إرسال للمراجعة' ? Icons.send_outlined : Icons.visibility_outlined,
+        Expanded(flex: 2, child: EbrokerStepButton(label: primaryLabel, icon: primaryLabel == 'نشر الإعلان' ? Icons.send_outlined : Icons.visibility_outlined,
           loading: busy, onPressed: busy ? null : onSubmit, expand: true)),
         const SizedBox(width: 8),
         PopupMenuButton<String>(tooltip: 'خيارات المسودة', enabled: !busy,

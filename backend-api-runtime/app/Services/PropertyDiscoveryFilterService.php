@@ -22,7 +22,7 @@ class PropertyDiscoveryFilterService
 
     public function publicQuery(): Builder
     {
-        return Property::query()->withoutGlobalScope('financial_public_visibility')
+        return Property::query()
             ->publiclyVisible();
     }
 

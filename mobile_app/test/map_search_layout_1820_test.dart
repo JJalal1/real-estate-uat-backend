@@ -542,7 +542,7 @@ void main() {
     await closeUx(tester);
   });
 
-  testWidgets('the map add action follows the broker role and respects RTL order', (tester) async {
+  testWidgets('the map add action follows publishing eligibility and respects RTL order', (tester) async {
     final auth = UxAuth(uxUser(type: 'broker'));
     final scope = uxContainer(auth: auth, extra: [
       propertyRepositoryProvider.overrideWithValue(Listings()),
@@ -556,6 +556,9 @@ void main() {
     expect(tester.getCenter(add).dx, lessThan(tester.getCenter(count).dx));
     expect(tester.getCenter(count).dx, lessThan(tester.getCenter(list).dx));
     auth.change(uxUser(type: 'owner'));
+    await tester.pumpAndSettle();
+    expect(add, findsOneWidget);
+    auth.change(null);
     await tester.pumpAndSettle();
     expect(add, findsNothing);
     await closeUx(tester);

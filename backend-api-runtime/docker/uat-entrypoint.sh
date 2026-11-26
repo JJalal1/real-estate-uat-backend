@@ -104,14 +104,24 @@ if [ "${UAT_PHASE04_REGIONAL_FIXTURES_RUN:-}" = "20261117-regional-v1" ]; then
   (php artisan db:seed --class=UatPhase04RegionalSeeder --force || echo 'AQER_PHASE04_REGIONAL: failed; inspect sanitized fixture diagnostics.') &
 fi
 
-# Run only the in-app deal reminder during uptime. The request middleware
+# Run the in-app deal and receivable reminders during uptime. The request middleware
 # processes anything that became due while the free service was asleep.
 case "${APP_ENV:-production}" in
   uat|staging)
     (
-      while sleep 60; do
+      next_draft_cleanup=0
+      while :; do
+        current_time=$(date +%s)
+        if [ "$current_time" -ge "$next_draft_cleanup" ]; then
+          php artisan listings:expire-drafts --quiet --no-interaction ||
+            echo 'Expired draft cleanup will retry.'
+          next_draft_cleanup=$((current_time + 3600))
+        fi
         php artisan broker:remind-pending-deal-prices --quiet --no-interaction ||
           echo 'The in-app deal reminder sweep failed.'
+        php artisan finance:remind-outstanding --quiet --no-interaction ||
+          echo 'The in-app receivable reminder sweep failed.'
+        sleep 60
       done
     ) &
     ;;

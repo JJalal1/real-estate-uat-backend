@@ -10,6 +10,7 @@ use App\Models\AdvertiserRating;
 use App\Models\ListingComment;
 use App\Models\User;
 use App\Services\ApiTokenService;
+use App\Services\BrokerRankingService;
 use App\Services\AuditLogService;
 use App\Services\CloudAssetStorageService;
 use App\Services\RegionService;
@@ -318,13 +319,10 @@ class PropertyController extends Controller
 
         $purposeOrder=count($sections['rent'])>count($sections['sale'])?['rent','sale']:['sale','rent'];
         $sectionOrder=array_values(array_filter(array_merge(['nearby','spotlight','latest'],$purposeOrder),fn($key)=>!empty($sections[$key])));
-        $ranking = app(\App\Services\BrokerRankingService::class);
-        $localNames = [$context['governorate']];
+        $ranking = app(BrokerRankingService::class);
         $localOwnerIds = (clone $base)->select('properties.user_id');
-        $brokers = $ranking->query($context['governorate'])->when($context['governorate'] === null, fn ($q) => $q->whereRaw('1=0'))->where(function ($q) use ($context, $localNames, $localOwnerIds): void {
-            $q->whereHas('accountVerificationProfile', fn ($profile) => $profile
-                ->whereIn('details->governorate', $localNames)
-                ->orWhereJsonContains('details->work_areas', $context['governorate']))
+        $brokers = $ranking->query($context['governorate'])->when($context['governorate'] === null, fn ($q) => $q->whereRaw('1=0'))->where(function ($q) use ($context, $localOwnerIds): void {
+            $q->whereRaw(BrokerRankingService::GOVERNORATE.' = ?', [$context['governorate']])
                 ->orWhereIn('users.id', $localOwnerIds);
         })->limit(5)->get()->map(fn ($u) => $ranking->publicData($u))->values();
         return response()->json(['data' => ['context' => $context, 'sections' => $sections, 'section_order'=>$sectionOrder, 'brokers' => $brokers]])
@@ -435,7 +433,7 @@ class PropertyController extends Controller
             $draft=app(\App\Services\ListingEditorDraftService::class)->owned($user,$request->input('editor_draft_key'));
             if ($draft->property_id) return $this->update($request,Property::query()->findOrFail($draft->property_id));
         }
-        app(\App\Services\ListingAccessService::class)->assertCanCreate($user,$request->input('editor_draft_key'));$validated=$request->validate($this->listingRules(false));
+        $validated=$request->validate($this->listingRules(false));
         $validated=$this->normalizeListingFields($validated,null,false);
         $this->assertV2ListingCompleteness($validated);
         $cell=$this->regions->assertListingAllowed($user,(float)$validated['latitude'],(float)$validated['longitude']);
@@ -450,7 +448,6 @@ class PropertyController extends Controller
                     // The initial lookup happens before this account lock. Recheck after waiting for a concurrent create.
                     abort_if($lockedDraft->property_id !== null,409,'أُنشئ الإعلان بالفعل. أعد فتح المسودة الحالية.');
                 }
-                app(\App\Services\ListingAccessService::class)->assertCanCreate($lockedUser,$request->input('editor_draft_key'));
                 $property=Property::query()->create(array_merge($this->listingPayload($validated,false),['user_id'=>$user->id,'property_asset_id'=>$asset->id,'geo_cell_id'=>$cell?->id,'owner_key'=>null,'status'=>'draft','review_status'=>'draft']));
                 $this->syncLocation($property);$this->storeImages($request,$property,0,$storedPublic);app(\App\Services\ListingEditorDraftService::class)->attach($request,$property);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
                 $this->audit->record($user,'listing.created',$property,['purpose'=>$property->purpose,'status'=>'draft','property_asset_id'=>$asset->id],$request,$user->id);
@@ -459,9 +456,9 @@ class PropertyController extends Controller
         }catch(Throwable $e){$this->deletePaths($storedPublic);$this->deletePrivatePaths($storedPrivate);throw $e;}
         if ($request->boolean('submit_for_review')) {
             $property = $this->workflow->submit($user, $property, $request);
-            return response()->json(['message'=>'Listing submitted for support review.','data'=>$this->detailData($property,$request)],201);
+            return response()->json(['message'=>$property->status === 'published' ? 'تم نشر الإعلان.' : 'تم إرسال الإعلان للمراجعة.','data'=>$this->detailData($property,$request)],201);
         }
-        return response()->json(['message'=>'Draft listing created. Submit it for support review when ready.','data'=>$this->detailData($property,$request)],201);
+        return response()->json(['message'=>'تم حفظ الإعلان كمسودة.','data'=>$this->detailData($property,$request)],201);
     }
 
     public function update(Request $request, Property $property): JsonResponse
@@ -488,9 +485,9 @@ class PropertyController extends Controller
         if($replaceImages)$this->deleteImageFiles($oldImages);
         if ($request->boolean('submit_for_review')) {
             $property = $this->workflow->submit($user, $property, $request);
-            return response()->json(['message'=>'Listing updates submitted for support review.','data'=>$this->detailData($property,$request)]);
+            return response()->json(['message'=>$property->status === 'published' ? 'تم نشر التعديلات.' : 'تم إرسال الإعلان للمراجعة.','data'=>$this->detailData($property,$request)]);
         }
-        return response()->json(['message'=>'Listing saved as draft and requires review before publication.','data'=>$this->detailData($property,$request)]);
+        return response()->json(['message'=>'تم حفظ الإعلان كمسودة.','data'=>$this->detailData($property,$request)]);
     }
 
     public function destroy(Request $request, Property $property): JsonResponse
@@ -504,7 +501,7 @@ class PropertyController extends Controller
 
     public function submit(Request $request, Property $property): JsonResponse
     {
-        /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);$property=$this->workflow->submit($user,$property,$request);return response()->json(['message'=>'Listing submitted for support review.','data'=>$this->detailData($property,$request)]);
+        /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);$property=$this->workflow->submit($user,$property,$request);return response()->json(['message'=>$property->status === 'published' ? 'تم نشر الإعلان.' : 'تم إرسال الإعلان للمراجعة.','data'=>$this->detailData($property,$request)]);
     }
 
     public function uploadProofDocuments(Request $request, Property $property): JsonResponse
@@ -962,25 +959,7 @@ class PropertyController extends Controller
 
     private function assertAdvertiserCanCreateDraft(User $user): void
     {
-        $profile = $user->verificationProfile();
-        if ($profile) {
-            if (! $profile->isApproved()) {
-                throw new ConflictHttpException('طلب نوع الحساب ما زال غير معتمد. أكمل التحقق قبل إنشاء إعلان جديد.');
-            }
-            return;
-        }
-
-        // Current WhatsApp UAT accounts must choose and verify a publishing
-        // identity (owner/broker/office). A base researcher/browser/buyer account
-        // can browse and buy, but cannot bypass verification by calling the API.
-        if ((int) $user->identity_policy_version >= 1) {
-            throw new ConflictHttpException('اختر نوع الحساب من حسابي وأكمل التحقق قبل إنشاء إعلان جديد.');
-        }
-
-        // Historical local/test compatibility only.
-        if ($user->isBrokerAccount() && ! $user->isBrokerVerified()) {
-            throw new ConflictHttpException('يجب توثيق حساب الدلال من فريق الدعم قبل رفع إعلان.');
-        }
+        abort_unless($user->canCreateListings(), 403);
     }
 
     private function deleteProofFiles(iterable $documents): void { foreach($documents as $document){if($document->path)$this->storage->deletePrivate($document->path);} }
@@ -1092,6 +1071,8 @@ class PropertyController extends Controller
             'can_edit' => ! in_array($property->review_status, ['submitted', 'under_review', 'rejected_blocked', 'rejected_duplicate'], true),
             'is_owner' => true,
             'status' => $property->status,
+            'created_at' => $property->created_at?->toIso8601String(),
+            'updated_at' => $property->updated_at?->toIso8601String(),
             'favorite_count' => (int) $property->favorite_count,
             'conversation_count' => (int) $property->conversation_count,
             'viewing_count' => (int) $property->viewing_count,
@@ -1180,22 +1161,19 @@ class PropertyController extends Controller
     private function advertiserDisplayName(?User $user): string
     {
         if (! $user) return 'Advertiser';
-        $profile = $user->accountVerificationProfile;
-        if ($profile?->isApproved() && $profile->type === 'office') {
-            $officeName = trim((string) (($profile->details ?? [])['office_name'] ?? ''));
-            if ($officeName !== '') return $officeName;
-        }
-        return $user->name;
+        return app(BrokerRankingService::class)->publicIdentity($user)['name'];
     }
 
     private function advertiserVerificationData(Property $property): array
     {
         $profile = $property->user?->accountVerificationProfile;
-        if (! $profile || ! $profile->isApproved()) {
+        $identity = $property->user ? app(BrokerRankingService::class)->publicIdentity($property->user) : null;
+        if (! $identity || ! $identity['verified']) {
+            $type = $identity['account_type'] ?? 'individual';
             return [
                 'verification_type' => null,
-                'verification_label' => 'معلن',
-                'verification_status' => $profile?->status ?? 'not_submitted',
+                'verification_label' => match ($type) { 'office' => 'مكتب عقاري', 'broker' => 'دلال', default => 'معلن' },
+                'verification_status' => $profile?->isApproved() ? 'not_submitted' : ($profile?->status ?? 'not_submitted'),
                 'verification_flags' => [
                     'identity_reviewed' => false,
                     'relationship_document_reviewed' => false,
