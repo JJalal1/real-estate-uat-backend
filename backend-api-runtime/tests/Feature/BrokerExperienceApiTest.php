@@ -10,6 +10,7 @@ use App\Models\Property;
 use App\Models\PropertyPlatformReceivable;
 use App\Models\PropertySaiTerm;
 use App\Models\Role;
+use App\Models\SupportCase;
 use App\Models\User;
 use App\Models\SupportTask;
 use App\Models\UserNotification;
@@ -386,6 +387,31 @@ class BrokerExperienceApiTest extends TestCase
         $this->getJson('/api/advertisers/'.$broker->id.'/profile')->assertJsonPath('data.completed_deals',0);
         $this->withHeaders($bh)->postJson('/api/broker/customers/'.$thread.'/completed-deal',[])->assertCreated()->assertJsonPath('data.id',$id);
         $this->assertDatabaseCount('broker_deal_outcomes',1);
+    }
+
+    public function test_external_closure_creates_only_a_linked_customer_contact_for_support(): void
+    {
+        [$broker, $brokerHeaders] = $this->actor('external-close-broker', true);
+        [$customer, $customerHeaders] = $this->actor('external-close-customer');
+        $linked = $this->listing($broker);
+        $unlinked = $this->listing($broker, 'rent');
+        $thread = $this->conversation($customerHeaders, $linked);
+
+        $this->withHeaders($brokerHeaders)->postJson('/api/broker/listings/availability', [
+            'property_ids' => [$linked->id], 'state' => 'sold',
+        ])->assertOk();
+        $this->withHeaders($brokerHeaders)->postJson('/api/broker/listings/availability', [
+            'property_ids' => [$unlinked->id], 'state' => 'rented',
+        ])->assertOk();
+
+        $case = SupportCase::query()->where('reason_code', 'external_listing_closure')->sole();
+        $this->assertSame((int) $customer->id, (int) $case->requester_user_id);
+        $this->assertSame((int) $linked->id, (int) $case->target_id);
+        $this->assertDatabaseHas('support_tasks', ['source_type' => 'support_ticket', 'source_id' => $case->id]);
+        $this->assertDatabaseHas('message_threads', ['id' => $thread, 'property_id' => $linked->id]);
+        $this->assertDatabaseCount('broker_deal_outcomes', 0);
+        $this->assertDatabaseCount('property_platform_receivables', 0);
+        $this->flushHeaders()->getJson('/api/properties/'.$linked->id)->assertNotFound();
     }
 
     public function test_an_existing_closed_listing_can_complete_its_legacy_pending_deal(): void
