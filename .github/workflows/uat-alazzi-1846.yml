@@ -1,8 +1,8 @@
-name: Alazzi signed UAT installer
+name: Private chat delivery of signed UAT 1847
 
 on:
   push:
-    branches: [work/alazzi-unify-1846, work/alazzi-marketplace-1847]
+    branches: [delivery/alazzi-1847-session-f7b5fd83]
 
 permissions:
   contents: read
@@ -12,13 +12,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AQER_BUILD: ${{ github.ref_name == 'work/alazzi-marketplace-1847' && '1847' || '1846' }}
-  AQER_SOURCE_SHA: ${{ github.sha }}
+  AQER_BUILD: '1847'
+  AQER_SOURCE_SHA: '8f31b6823b9d8f28d795d7818de1426ce79a569d'
 
 jobs:
   verify-api:
     name: Test listing availability, deal confirmation and dues APIs
-    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
+    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && github.ref_name == 'delivery/alazzi-1847-session-f7b5fd83' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner }}
     runs-on: ubuntu-latest
     timeout-minutes: 27
     services:
@@ -99,7 +99,7 @@ jobs:
 
   verify-flutter:
     name: Analyze Flutter and exercise listing, finance, and support journeys
-    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
+    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && github.ref_name == 'delivery/alazzi-1847-session-f7b5fd83' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner }}
     runs-on: ubuntu-latest
     timeout-minutes: 28
     steps:
@@ -183,8 +183,8 @@ jobs:
     name: Build and verify the signed UAT installer
     needs: [verify-api, verify-flutter]
     permissions:
-      contents: write
-    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
+      contents: read
+    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && github.ref_name == 'delivery/alazzi-1847-session-f7b5fd83' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -474,26 +474,38 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
-      - name: Upload the verified APK and receipt
-        if: github.event.repository.private == true
+      - name: Seal the verified installer for the owner-approved one-time delivery
+        env:
+          CHAT_CERT_B64: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVQVENDQXFXZ0F3SUJBZ0lVWEFGWENPZ0Ixc2hGUFVYK2pCUG9uQzBTU1N3d0RRWUpLb1pJaHZjTkFRRUwKQlFBd0xqRXNNQ29HQTFVRUF3d2pRVkZGVWlCVlFWUWdNVGcwTnlCd2NtbDJZWFJsSUdOb1lYUWdaR1ZzYVhabApjbmt3SGhjTk1qWXhNVEkyTWpNMU16SXpXaGNOTWpZeE1USTRNak0xTXpJeldqQXVNU3d3S2dZRFZRUUREQ05CClVVVlNJRlZCVkNBeE9EUTNJSEJ5YVhaaGRHVWdZMmhoZENCa1pXeHBkbVZ5ZVRDQ0FhSXdEUVlKS29aSWh2Y04KQVFFQkJRQURnZ0dQQURDQ0FZb0NnZ0dCQU4waEZLdWdkRUJqMEZwUWs0VHlrNW9OZVZ6WUoxWE02VytzaFdEUgpTMndzY0oyWlI4YmR6bnhwZlJWMWk1QjhXdEY5aDRINWxtVW5UNEJHajhySTRwZUtnZExzREVUSmlubDVsSVJOCnBjMDlCck0xZkdsV2VxbDRicWc3TzZlY2tsbzJURnV0Zk14SGFucXFpUnc3SGNjSHpHbFVjQ1dSVGtCNlNwUysKM3R4VkJEYkU0NkU0cExIeFBEaXFnOXlmN3ZNTVB1c0NCTGM5LzBmRnJYOWpnZTFmcTFZT2F3dDNPSklWNmRobwpzcnF3TFdmMVN6Q1EzWHBNeENMa204MU1neHdlRzdWaUljeEZuOGVXMmpPampuQWdjeEZQS2JwT0o5Ny85OXFoClI4SmR3eVNxcHQzTnlPM21ja0hrM1J1dis1SkJGam9YclBEbUV2TzdFWHBXUUJxc3lyNUlDZHhDRU16WHcyc1EKaHdkU0hSTXByQzE3ekk5cWYzUnhremMyN011dHdSOTlPQnQ3QzdxMjQ0WElEUjJCcWlyR1JwKytEc3F3MEJibQpoV1lPY1diamtyY05QVHRTdUpjVjdEYi96alRYSkxmY1RCTlhVZFFaZzR1blNOSHJOeE1xY3JxNXFwWHRqb1BjCjdhd3QyQTk1YnFQRUQyRmNaTm4yMnhIQmdRSURBUUFCbzFNd1VUQWRCZ05WSFE0RUZnUVV2YjNHUzZCbXhwMHIKaXNDMVJFdlgwUGRyaXB3d0h3WURWUjBqQkJnd0ZvQVV2YjNHUzZCbXhwMHJpc0MxUkV2WDBQZHJpcHd3RHdZRApWUjBUQVFIL0JBVXdBd0VCL3pBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVlFQW1DV2cwUEVWUDFhSnpMMDJNOExhClIycDRsbEI1dzdtYWtuQTNmZktHMkl2a2JCUmtlUTRPVGs0aEpYaEUwYWd1OHRCQWlKd29UNk9TUEk4WTFyOUYKc3YwNlVjeFV2Q09VSmo4YkF4bnNqUWYyL0M5Sy85R2xsTG9yUnArMlcwSk5zTDdoUnBPdVRxQzZSWElDUU1xZgpSdGMvM1k2QkdEK3hJZTNIL0RTeS9vTnNMbmRuV2Iya0d3cXNMdDB5OWkwMWphYTFDb2lOVThrYzlsQm9KeWhSCno5UmdldThNV0lkcERocEdORndBYXpPKzd4RlNKZldKRDIvWFJ2YktQNWZLZ0hSTzFkdEdQeU13Z24zRmFDdmsKNU4zZ2FKV0h2cVBxQXA3ME1KcE5qVkNKK3ZiL29yckpWUk5VUm5KdUFMcG5iUGcvL2hRWWF4MllvZk4zZ1RGcQpkcWcwRk5SbVdHeW1BZEw3aU43UGdheW5FdTNvcC9IdVRzWXN4UjdWT2d3dFUycHpXTi9raTlTd3UyWVBvS25aClk3ZW9UenNNNmwyY3BuSHNIU09FekNXMEJ6YWlndmFOQ0grS0xFUm00NFNtajJ1N2V5UUJvYmJoaTloT2VLMTgKWktkSFg1Qk1yQy82cTQ3YWt0NzNIQ0dmQ3lEOVB2WHRGbGdmVU9QQmZ1UnYKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+          CHAT_CERT_SHA256: e7e2ad95bc3bba596bc0fd565b1cb99b6357bdf573a77346894009c9d332cc0c
+        run: |
+          python3 -B - <<'PYTHON'
+          import base64, hashlib, json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          from prepare_phase1_close import encrypt
+
+          cert = Path(os.environ["RUNNER_TEMP"]) / "delivery-recipient.pem"
+          cert.write_bytes(base64.b64decode(os.environ["CHAT_CERT_B64"], validate=True))
+          assert hashlib.sha256(cert.read_bytes()).hexdigest() == os.environ["CHAT_CERT_SHA256"]
+          input_dir = Path("uat-installer")
+          receipt = json.loads((input_dir / "APK_VERIFICATION.json").read_text())
+          assert receipt["build"] == 1847 and receipt["source"] == os.environ["AQER_SOURCE_SHA"]
+          apk = input_dir / "AQER-UAT-1847-Alazzi-ARM64.apk"
+          assert apk.stat().st_size == receipt["bytes"] and hashlib.sha256(apk.read_bytes()).hexdigest() == receipt["sha256"]
+          output = Path("chat-sealed")
+          output.mkdir(mode=0o700)
+          receipt["encrypted_installer"] = encrypt(apk, output / "installer.cms", cert)
+          receipt["recipient_sha256"] = os.environ["CHAT_CERT_SHA256"]
+          (output / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2))
+          PYTHON
+      - name: Upload the temporary encrypted delivery
         uses: actions/upload-artifact@v4
         with:
-          name: AQER-UAT-${{ env.AQER_BUILD }}-Alazzi-ARM64-${{ github.run_attempt }}
+          name: AQER-UAT-1847-private-chat
           path: |
-            uat-installer/AQER-UAT-${{ env.AQER_BUILD }}-Alazzi-ARM64.apk
-            uat-installer/APK_VERIFICATION.json
+            chat-sealed/installer.cms
+            chat-sealed/APK_VERIFICATION.json
           if-no-files-found: error
           compression-level: 0
-          retention-days: 30
-      - name: Attach the verified installer to a private draft
-        if: github.event.repository.private == true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REPOSITORY" = JJalal1/real-estate-uat-backend
-          cd uat-installer
-          gh release create "uat-alazzi-$AQER_BUILD-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
-            "AQER-UAT-$AQER_BUILD-Alazzi-ARM64.apk" APK_VERIFICATION.json --repo "$GITHUB_REPOSITORY" \
-            --draft --target "$AQER_SOURCE_SHA" --title "AQER UAT $AQER_BUILD — Alazzi" \
-            --notes "Signed UAT installer verified against source $AQER_SOURCE_SHA."
+          retention-days: 1
