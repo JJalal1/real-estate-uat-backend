@@ -57,13 +57,7 @@ class SupportWorkspaceRepository {
     }
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
-    void verifySession() {
-      _requestScope?.verify();
-      if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
-        throw StateError('ACCOUNT_CHANGED');
-      }
-    }
-    verifySession();
+    _verifyTaskSession(epoch);
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/workspace/tasks',
       queryParameters: {
@@ -82,7 +76,7 @@ class SupportWorkspaceRepository {
       },
       options: options,
     );
-    verifySession();
+    _verifyTaskSession(epoch);
     final rows = response.data?['data'];
     final meta = response.data?['meta'];
     if (rows is! List || meta is! Map ||
@@ -105,28 +99,37 @@ class SupportWorkspaceRepository {
   }
 
   Future<SupportTaskItem> claim(int taskId, {bool actingAsAgent = false}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifyTaskSession(epoch);
     final response = await _dio.post<Map<String, dynamic>>(
       '/admin/workspace/tasks/$taskId/claim',
       data: {if (actingAsAgent) 'acting_as_agent': true},
-      options: await _auth.requiredAuthOptions(),
+      options: options,
     );
+    _verifyTaskSession(epoch);
     return _task(response.data);
   }
 
   Future<SupportTaskItem> task(int taskId) async {
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifyTaskSession(epoch);
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/workspace/tasks/$taskId',
       options: options,
     );
+    _verifyTaskSession(epoch);
+    final item = _task(response.data);
+    if (item.id != taskId) throw StateError('Invalid support task response.');
+    return item;
+  }
+
+  void _verifyTaskSession(int epoch) {
     _requestScope?.verify();
     if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
       throw StateError('ACCOUNT_CHANGED');
     }
-    final item = _task(response.data);
-    if (item.id != taskId) throw StateError('Invalid support task response.');
-    return item;
   }
 
   Future<SupportTaskItem> release(int taskId) =>

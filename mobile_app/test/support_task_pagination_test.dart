@@ -243,6 +243,19 @@ void main() {
     expect(wire.requests, isEmpty);
   });
 
+  test('focused task lookup cannot send after a same-account session change', () async {
+    final credentials = _Credentials()..pending = Completer<void>();
+    final wire = _Wire((_) async => {'data': _task(9)});
+    final container = await _container(wire, credentials: credentials);
+    final request = container.read(supportWorkspaceRepositoryProvider).task(9);
+    final rejected = expectLater(request, throwsStateError);
+    Stage6SecureSessionStore.instance.beginSessionChange();
+    credentials.pending!.complete();
+
+    await rejected;
+    expect(wire.requests, isEmpty);
+  });
+
   test('completed page is rejected when the secure session changes before delivery', () async {
     final pending = Completer<Map<String, dynamic>>();
     final requested = Completer<void>();

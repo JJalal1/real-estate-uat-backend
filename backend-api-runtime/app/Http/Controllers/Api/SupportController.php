@@ -10,10 +10,13 @@ use App\Models\Property;
 use App\Models\SupportCase;
 use App\Models\SupportCaseMessage;
 use App\Models\SupportCaseEvent;
+use App\Models\SupportTask;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\BrokerDealService;
 use App\Services\PlatformSettingsService;
 use App\Services\SupportCaseService;
+use App\Services\SupportTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -28,6 +31,7 @@ class SupportController extends Controller
         private readonly SupportCaseService $support,
         private readonly AuditLogService $audit,
         private readonly PlatformSettingsService $settings,
+        private readonly SupportTaskService $tasks,
     ) {}
 
     public function mine(Request $request): JsonResponse
@@ -123,6 +127,7 @@ class SupportController extends Controller
     public function showAdmin(Request $request, SupportCase $case): JsonResponse
     {
         /** @var User $actor */ $actor=$request->user();
+        $this->assertLinkedCaseAccess($actor, $case);
         $this->audit->record($actor,'support.private_case_opened',$case,['reference'=>$case->reference,'kind'=>$case->kind],$request,$case->requester_user_id);
         return response()->json(['data'=>$this->detail($case,true)]);
     }
@@ -130,6 +135,7 @@ class SupportController extends Controller
     public function start(Request $request, SupportCase $case): JsonResponse
     {
         /** @var User $actor */ $actor=$request->user();
+        $this->assertLinkedCaseAccess($actor, $case);
         $case=$this->support->start($actor,$case,$request);
         return response()->json(['message'=>'Support case started.','data'=>$this->detail($case,true)]);
     }
@@ -137,6 +143,7 @@ class SupportController extends Controller
     public function replyAdmin(Request $request, SupportCase $case): JsonResponse
     {
         /** @var User $actor */ $actor=$request->user();
+        $this->assertLinkedCaseAccess($actor, $case);
         $validated=$request->validate(['body'=>['required','string','min:2','max:5000']]);
         $case=$this->support->staffReply($actor,$case,trim($validated['body']),$request);
         return response()->json(['message'=>'Support reply sent.','data'=>$this->detail($case,true)]);
@@ -145,6 +152,7 @@ class SupportController extends Controller
     public function note(Request $request, SupportCase $case): JsonResponse
     {
         /** @var User $actor */ $actor=$request->user();
+        $this->assertLinkedCaseAccess($actor, $case);
         $validated=$request->validate(['body'=>['required','string','min:2','max:5000']]);
         $case=$this->support->internalNote($actor,$case,trim($validated['body']),$request);
         return response()->json(['message'=>'Internal note added.','data'=>$this->detail($case,true)]);
@@ -153,6 +161,7 @@ class SupportController extends Controller
     public function updateStatus(Request $request, SupportCase $case): JsonResponse
     {
         /** @var User $actor */ $actor=$request->user();
+        $this->assertLinkedCaseAccess($actor, $case);
         $validated=$request->validate(['status'=>['required',Rule::in(['open','in_progress','waiting_requester','resolved','dismissed'])]]);
         $case=$this->support->setStatus($actor,$case,$validated['status'],$request);
         return response()->json(['message'=>'Support status updated.','data'=>$this->detail($case,true)]);
@@ -338,7 +347,8 @@ class SupportController extends Controller
 
     private function targetPreview(SupportCase $case): ?array
     {
-        if ($case->target_type === 'broker_deal_outcome' && $case->target_id) {
+        if ($case->reason_code === BrokerDealService::PRICE_CONFIRMATION_REASON
+            && $case->target_type === 'broker_deal_outcome' && $case->target_id) {
             $deal = BrokerDealOutcome::query()->find($case->target_id);
             if (!$deal) {
                 return null;
@@ -373,5 +383,20 @@ class SupportController extends Controller
             'advertiser'=>($item=User::query()->find($case->target_id))?['type'=>'advertiser','id'=>$item->id,'name'=>$item->name,'account_status'=>$item->account_status]:null,
             default=>null,
         };
+    }
+
+    private function assertLinkedCaseAccess(User $actor, SupportCase $case): void
+    {
+        if (!in_array($case->reason_code, [BrokerDealService::PRICE_CONFIRMATION_REASON, 'external_listing_closure'], true)) {
+            return;
+        }
+        $taskId = SupportTask::query()
+            ->where('source_type', 'support_ticket')
+            ->where('source_id', $case->id)
+            ->value('id');
+        abort_unless($taskId, 404);
+
+        $task = $this->tasks->taskFor($actor, (int) $taskId, false);
+        $this->tasks->assertTaskOwnership($actor, $task);
     }
 }
