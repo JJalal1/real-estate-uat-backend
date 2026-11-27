@@ -2,6 +2,7 @@ import 'property_schema.dart';
 import 'property_coordinates.dart';
 import 'dart:convert';
 import 'discovery_match.dart';
+import 'category_property_facts.dart';
 
 class PropertyImageItem {
   const PropertyImageItem({
@@ -281,6 +282,7 @@ class PropertyDetails {
     this.commentsCount = 0,
     this.similar = const <PropertySummary>[],
     this.isSpotlight = false,
+    this.categoryFacts = const CategoryPropertyFacts(),
   });
 
   final int id;
@@ -314,6 +316,7 @@ class PropertyDetails {
   final List<int> unitsPerFloor;
   final int? shopOpenings;
   final String? buildingFacade;
+  final CategoryPropertyFacts categoryFacts;
   final String? address;
   final String? buildingReference;
   final String? unitNumber;
@@ -414,6 +417,7 @@ class PropertyDetails {
       unitsPerFloor: (json['units_per_floor'] as List? ?? const []).whereType<num>().map((e) => e.toInt()).toList(),
       shopOpenings: _asInt(json['shop_openings']),
       buildingFacade: _nullableString(json['building_facade']),
+      categoryFacts: CategoryPropertyFacts.fromJson(json),
       address: _nullableString(json['address']),
       buildingReference: _nullableString(json['building_reference']),
       unitNumber: _nullableString(json['unit_number']),
@@ -545,6 +549,8 @@ class PropertyListingInput {
     this.documentOwnerName,
     this.ownerRelationshipType,
     this.ownerRelationshipNote,
+    this.categoryFacts,
+    this.clearUnsetCategoryFacts = false,
   });
 
   final int inputVersion;
@@ -585,6 +591,8 @@ class PropertyListingInput {
   final String? documentOwnerName;
   final String? ownerRelationshipType;
   final String? ownerRelationshipNote;
+  final CategoryPropertyFacts? categoryFacts;
+  final bool clearUnsetCategoryFacts;
 
   Map<String, dynamic> toMap() {
     return DynamicPropertySchema.sanitize(<String, dynamic>{
@@ -605,6 +613,7 @@ class PropertyListingInput {
       if (purpose == 'rent' && advanceMonths != null)
         'advance_months': advanceMonths,
       'listing_input_version': inputVersion,
+      ...?categoryFacts?.toMap(includeCleared: clearUnsetCategoryFacts),
       if (inputVersion >= 6) 'rental_conditions': jsonEncode(purpose == 'rent' ? rentalConditions : []),
       if (inputVersion >= 6 && areaValue == null && areaM2 == null) ...{'area_value': null, 'area_unit': null},
       'unit_occupies_entire_floor': type == 'apartment' && unitOccupiesEntireFloor,

@@ -78,7 +78,7 @@ void main() {
 
     expect(shell, isNot(contains('ProjectsScreen')));
     expect(shell, isNot(contains("label: 'المشاريع'")));
-    expect(shell, contains("label: 'العقارات'"));
+    expect(shell, contains("label: 'الرئيسية'"));
     expect(shell, contains("label: 'الرسائل'"));
     expect(shell, contains("label: 'إعلاناتي'"));
     final addRoute = router.substring(router.indexOf("path: '/add-property'"), router.indexOf("path: '/my-listings'"));

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../../core/widgets/property_type_icon.dart';
-import '../domain/smart_search_filters.dart';
+import '../../../core/widgets/ebroker_widgets.dart';
+import 'marketplace_category_filter_sheet.dart';
+import 'marketplace_section_screen.dart';
 
-const _purposeLabels = {'rent': 'الإيجارات', 'sale': 'البيع'};
+const _purposeLabels = {'rent': 'للإيجار', 'sale': 'للبيع'};
 const _categoryLabels = {
   'apartment': 'شقق',
   'house': 'منازل',
@@ -17,112 +18,219 @@ const _categoryLabels = {
   'office': 'مكاتب',
 };
 
-class MarketplaceCategoriesScreen extends StatelessWidget {
-  const MarketplaceCategoriesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) => _CategoryMenu(
-    title: 'الأقسام',
-    choices: [
-      for (final entry in _purposeLabels.entries)
-        _CategoryTile(
-          label: entry.value,
-          icon: entry.key == 'rent' ? Icons.key_outlined : Icons.sell_outlined,
-          onTap: () => context.push('/marketplace-categories/${entry.key}'),
-        ),
-    ],
-  );
-}
-
-class MarketplaceCategoryTypesScreen extends StatelessWidget {
-  const MarketplaceCategoryTypesScreen({required this.purpose, super.key});
-
-  final String purpose;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = _purposeLabels[purpose];
-    if (title == null) {
-      return const Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(
-          appBar: AppAppBar(title: 'الأقسام'),
-          body: AppEmptyState(
-            title: 'هذا القسم غير متاح',
-            message: 'ارجع لاختيار الإيجارات أو البيع.',
-          ),
-        ),
-      );
-    }
-    return _CategoryMenu(
-      title: title,
-      choices: [
-        for (final entry in SmartSearchFilters.types.entries)
-          _CategoryTile(
-            label: _categoryLabels[entry.key] ?? entry.value,
-            icon: propertyTypeIcon(entry.key),
-            onTap: () => context.push(Uri(
-              path: '/marketplace-section',
-              queryParameters: {
-                'section': purpose,
-                'purpose': purpose,
-                'type': entry.key,
-              },
-            ).toString()),
-          ),
-      ],
-    );
-  }
-}
-
-class _CategoryMenu extends StatelessWidget {
-  const _CategoryMenu({required this.title, required this.choices});
-
-  final String title;
-  final List<Widget> choices;
-
-  @override
-  Widget build(BuildContext context) => Directionality(
-    textDirection: TextDirection.rtl,
-    child: Scaffold(
-      appBar: AppAppBar(title: title),
-      body: SafeArea(
-        top: false,
-        child: ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: choices.length,
-          itemBuilder: (_, index) => choices[index],
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-        ),
-      ),
-    ),
-  );
-}
-
-class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({
-    required this.label,
-    required this.icon,
-    required this.onTap,
+class MarketplaceCategoriesScreen extends StatefulWidget {
+  const MarketplaceCategoriesScreen({
+    this.initialPurpose = 'rent',
+    this.initialType,
+    super.key,
   });
 
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
+  final String initialPurpose;
+  final String? initialType;
+
+  @override
+  State<MarketplaceCategoriesScreen> createState() =>
+      _MarketplaceCategoriesScreenState();
+}
+
+class _MarketplaceCategoriesScreenState
+    extends State<MarketplaceCategoriesScreen> {
+  final _savedFilters = <(String, String?), Map<String, Object>>{};
+  late String _purpose;
+  String? _type;
+
+  @override
+  void initState() {
+    super.initState();
+    _purpose = _purposeLabels.containsKey(widget.initialPurpose)
+        ? widget.initialPurpose
+        : 'rent';
+    _type = _categoryLabels.containsKey(widget.initialType)
+        ? widget.initialType
+        : null;
+  }
+
+  Map<String, Object> get _filters =>
+      _savedFilters[(_purpose, _type)] ?? const {};
+
+  Future<void> _editFilters() async {
+    final selection = (_purpose, _type);
+    final filters = await showMarketplaceCategoryFilters(
+      context,
+      purpose: _purpose,
+      type: _type,
+      typeLabel: _categoryLabels[_type],
+      initial: _filters,
+    );
+    if (!mounted || filters == null) return;
+    setState(() => _savedFilters[selection] = filters);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AppSurface(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, color: theme.colorScheme.primary),
-          const SizedBox(width: 12),
-          Expanded(child: Text(label, style: theme.textTheme.titleMedium)),
-          Icon(Icons.chevron_left, color: theme.colorScheme.onSurfaceVariant),
-        ],
+    final scheme = theme.colorScheme;
+    final filters = _filters;
+    final query = <String, Object>{
+      ...filters,
+      'ranked_search': 0,
+      'purpose': _purpose,
+      if (_type case final type?) 'type': type,
+    };
+    final resultsTitle =
+        '${_categoryLabels[_type] ?? 'عقارات'} ${_purposeLabels[_purpose]}';
+    final scaledLabelSize = MediaQuery.textScalerOf(context).scale(13);
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: const AppAppBar(title: 'الأقسام'),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppLayout.compactPageGutter,
+                  12,
+                  AppLayout.compactPageGutter,
+                  12,
+                ),
+                child: Row(
+                  children: [
+                    for (final entry in _purposeLabels.entries) ...[
+                      if (entry.key == 'sale') const SizedBox(width: 6),
+                      Expanded(
+                        child: Semantics(
+                          selected: _purpose == entry.key,
+                          child: OutlinedButton(
+                            key: ValueKey(
+                                'marketplace-category-purpose-${entry.key}'),
+                            onPressed: () =>
+                                setState(() => _purpose = entry.key),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 48),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 10),
+                              foregroundColor: _purpose == entry.key
+                                  ? scheme.primary
+                                  : scheme.onSurface,
+                              backgroundColor: _purpose == entry.key
+                                  ? scheme.primaryContainer
+                                  : scheme.surface,
+                              shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.control),
+                              ),
+                              side: BorderSide(
+                                color: _purpose == entry.key
+                                    ? scheme.primary
+                                    : scheme.outlineVariant,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  entry.key == 'rent'
+                                      ? Icons.key_outlined
+                                      : Icons.sell_outlined,
+                                  color: scheme.primary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                    child: Text(entry.value,
+                                        textAlign: TextAlign.center)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: (48 + (scaledLabelSize - 13) * 2)
+                    .clamp(48.0, double.infinity)
+                    .toDouble(),
+                child: ListView(
+                  key: const PageStorageKey('marketplace-category-types'),
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppLayout.compactPageGutter),
+                  children: [
+                    for (final (type, label) in <(String?, String)>[
+                      (null, 'الكل'),
+                      for (final entry in _categoryLabels.entries)
+                        (entry.key, entry.value),
+                    ])
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 6),
+                        child: EbrokerCategoryCard(
+                          key: ValueKey(
+                              'marketplace-category-type-${type ?? 'all'}'),
+                          label: label,
+                          icon: type == null ? '' : ebrokerCategoryIcon(type),
+                          iconOverride:
+                              type == null ? Icons.grid_view_outlined : null,
+                          tonalSelection: true,
+                          selected: _type == type,
+                          onTap: () => setState(() => _type = type),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppLayout.compactPageGutter,
+                  10,
+                  AppLayout.compactPageGutter,
+                  0,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child:
+                          Text(resultsTitle, style: theme.textTheme.titleLarge),
+                    ),
+                    if (_type != null) ...[
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        key: const ValueKey('marketplace-category-filters'),
+                        onPressed: _editFilters,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          foregroundColor: scheme.primary,
+                          backgroundColor: filters.isEmpty
+                              ? scheme.surface
+                              : scheme.primaryContainer,
+                          side: BorderSide(color: scheme.primary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(AppRadii.control),
+                          ),
+                        ),
+                        icon: const Icon(Icons.tune_rounded, size: 19),
+                        label: const Text('تصفية'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: MarketplaceListingResults(
+                  query: query,
+                  compactCards: true,
+                  bottomPadding: 16,
+                  emptyMessage: 'جرّب تغيير النوع أو شروط التصفية.',
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

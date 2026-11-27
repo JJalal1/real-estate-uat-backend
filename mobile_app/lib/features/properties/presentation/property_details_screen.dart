@@ -35,6 +35,7 @@ import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_schema.dart';
+import '../domain/category_property_facts.dart';
 import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
 import 'property_sai_public_line.dart';
@@ -195,6 +196,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     final schemaContext={'type':property.type,'purpose':property.purpose,'unit_occupies_entire_floor':property.unitOccupiesEntireFloor};
     bool applies(String key)=>DynamicPropertySchema.applies(key,schemaContext);
     final residential=applies('bedrooms'),unit=applies('floor_number');
+    final category = property.categoryFacts;
     final facts = <AppPropertyFact>[
       if (applies('area_value') && property.areaValue != null)
         AppPropertyFact(
@@ -208,7 +210,28 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         AppPropertyFact(icon: Icons.bed_outlined, label: '${property.bedrooms} غرف'),
       if (residential && property.bathrooms != null)
         AppPropertyFact(icon: Icons.bathtub_outlined, label: '${property.bathrooms} حمام'),
-      if (property.hasParking != null && applies('has_parking')) AppPropertyFact(icon: Icons.local_parking_outlined, label: property.hasParking! ? 'موقف سيارة' : 'بدون موقف'),
+      if ((category.parkingSpaces ?? 0) > 1)
+        AppPropertyFact(icon: Icons.local_parking_outlined, label: '${category.parkingSpaces} مواقف سيارات')
+      else if (property.hasParking != null && applies('has_parking'))
+        AppPropertyFact(icon: Icons.local_parking_outlined, label: property.hasParking! ? 'موقف سيارة' : 'بدون موقف'),
+      if (category.hasSeparateMajlis == true)
+        const AppPropertyFact(icon: Icons.event_seat_outlined, label: 'مجلس مستقل'),
+      if (category.hasMajlisBathroom == true)
+        const AppPropertyFact(icon: Icons.bathtub_outlined, label: 'حمام خاص بالمجلس'),
+      if (category.hasYard == true)
+        const AppPropertyFact(icon: Icons.yard_outlined, label: 'حوش'),
+      if (category.sectionElevator == true)
+        const AppPropertyFact(icon: Icons.elevator_outlined, label: 'مصعد'),
+      if (landUseOptions[category.landUse] case final landUse?)
+        AppPropertyFact(icon: Icons.terrain_outlined, label: 'أرض $landUse'),
+      if (category.streetWidth case final width?)
+        AppPropertyFact(icon: Icons.straighten_outlined, label: 'شارع بعرض ${formatPropertyAreaValue(width)} م'),
+      if (category.officeRooms case final rooms?)
+        AppPropertyFact(icon: Icons.meeting_room_outlined, label: '$rooms غرف'),
+      if (farmWaterSourceOptions[category.farmWaterSource] case final source?)
+        AppPropertyFact(icon: Icons.water_drop_outlined, label: source),
+      if (farmCropTypeOptions[category.farmCropType] case final crops?)
+        AppPropertyFact(icon: Icons.agriculture_outlined, label: crops),
       if (unit && property.floorNumber?.isNotEmpty == true) AppPropertyFact(icon: Icons.layers_outlined, label: DynamicPropertySchema.floorLabel(property.floorNumber)),
       if (property.unitOccupiesEntireFloor) const AppPropertyFact(icon: Icons.apartment, label: 'الوحدة تشغل الدور كاملًا'),
       if (applies('floors_count') && property.floorsCount != null) AppPropertyFact(icon: Icons.layers_outlined, label: '${property.floorsCount} أدوار'),

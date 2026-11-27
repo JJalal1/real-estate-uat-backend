@@ -7,6 +7,7 @@ import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_repository.dart';
 import '../domain/my_listings_page.dart';
+import '../domain/category_property_facts.dart';
 import '../domain/property_details.dart';
 import '../domain/property_identity.dart';
 import '../domain/property_marker.dart';
@@ -26,6 +27,13 @@ final propertyRepositoryProvider = Provider<PropertyRepository>((ref) {
 /// Incremented after a successful listing mutation so every dependent screen
 /// refreshes without retaining stale family-provider results.
 final propertyDataRevisionProvider = StateProvider<int>((ref) => 0);
+
+const _categorySpecificFilters = {
+  'min_parking_spaces', 'has_separate_majlis', 'has_majlis_bathroom',
+  'land_use', 'min_street_width', 'has_yard', 'min_office_rooms',
+  'farm_water_source', 'farm_crop_type', 'has_section_elevator',
+  'min_floors', 'min_total_units', 'min_shop_openings',
+};
 
 /// An older server may silently ignore an unknown array filter. Never present
 /// its unscoped response as a successful multi-type search, including no rows.
@@ -240,13 +248,19 @@ class PropertyRepository {
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     if (cancelToken?.isCancelled == true) throw cancelToken!.cancelError!;
     // The polygon endpoint applies ST_Covers before counting and paginating.
-    final ranked = rankedDiscovery && !filters.containsKey('area_polygon');
+    // Sections also require exact matches for filters the user picks manually.
+    final ranked = rankedDiscovery && !filters.containsKey('area_polygon') &&
+        filters['ranked_search'] != 0;
+    final hasCategoryFilters = filters.keys.any(_categorySpecificFilters.contains);
     final params = <String, dynamic>{...filters, 'page': page, 'per_page': 20, 'sort': 'latest',
       if (ranked) ...{'ranked_search': 1, 'ranking_version': 2}};
     return _cachedPublic<(List<PropertySummary>, bool)>('/properties', params, () async {
       final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: params, cancelToken: cancelToken,
         options: Options(listFormat: ListFormat.multiCompatible));
       ensurePropertyFilterContract(response, params, requireAcknowledgement: filters.containsKey('area_polygon'));
+      if (hasCategoryFilters && response.headers.value('x-aqer-category-filters') != '1') {
+        throw StateError('تعذّر تطبيق شروط التصفية لهذا النوع من العقارات. أعد المحاولة لاحقًا.');
+      }
       if (ranked && !const ['1', '2'].contains(response.headers.value('x-aqer-ranked-contract'))) {
         throw StateError('تعذّر تطبيق ترتيب البحث حاليًا. أعد المحاولة لاحقًا.');
       }
@@ -563,12 +577,6 @@ class PropertyRepository {
   }) async {
     final fields = Map<String, dynamic>.from(input.toMap());
     if (editorDraftKey != null) { fields['editor_draft_key'] = editorDraftKey; fields['editor_draft_revision'] = editorDraftRevision; }
-    final parking = fields['has_parking'];
-    if (parking is bool) {
-      // Multipart form fields are text. Send an explicit 1/0 so a selected
-      // "لا يوجد" can never be lost or interpreted as an empty value.
-      fields['has_parking'] = parking ? 1 : 0;
-    }
     if (submitForReview) {
       fields['submit_for_review'] = 1;
     }
@@ -576,10 +584,18 @@ class PropertyRepository {
       fields['replace_images'] = 1;
     }
 
-    final elevator = fields['has_elevator'];
-    if (elevator is bool) fields['has_elevator'] = elevator ? 1 : 0;
-    final wholeFloor = fields['unit_occupies_entire_floor'];
-    if (wholeFloor is bool) fields['unit_occupies_entire_floor'] = wholeFloor ? 1 : 0;
+    // The validator expects multipart booleans as 1 or 0. An empty value
+    // explicitly clears a nullable fact on a listing that is being edited.
+    for (final key in const {
+      'has_parking', 'has_elevator', 'unit_occupies_entire_floor',
+      ...CategoryPropertyFacts.booleanKeys,
+    }) {
+      final value = fields[key];
+      if (value is bool) fields[key] = value ? 1 : 0;
+    }
+    for (final key in CategoryPropertyFacts.keys) {
+      if (fields.containsKey(key) && fields[key] == null) fields[key] = '';
+    }
     final form = FormData.fromMap(fields);
     for (final path in imagePaths.take(12)) {
       form.files.add(

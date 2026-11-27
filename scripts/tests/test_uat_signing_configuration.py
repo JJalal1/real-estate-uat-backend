@@ -123,6 +123,7 @@ class SigningConfigurationTests(unittest.TestCase):
         for release, work, build in (
             (signing.ALAZZI_PARITY_RELEASE_BRANCH, 'work/alazzi-ui-parity-1849', '1849'),
             (signing.ALAZZI_SUPPORT_RELEASE_BRANCH, 'work/alazzi-support-1850', '1850'),
+            (signing.ALAZZI_CATEGORY_RELEASE_BRANCH, 'work/alazzi-category-filters-1851', '1851'),
         ):
             env = dict(self.env, GITHUB_REF=release, AQER_BUILD=build,
                        GITHUB_ACTOR='JJalal1', GITHUB_REPOSITORY_OWNER='JJalal1')

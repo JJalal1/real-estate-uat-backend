@@ -196,7 +196,7 @@ void main() {
     expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing);
     expect(find.text('الخروج من التطبيق؟'), findsNothing);
     await _open(tester);
-    await tester.tap(find.byTooltip('العقارات'));
+    await tester.tap(find.byTooltip('الرئيسية'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('create-listing-ai')), findsNothing);
     expect(tester.takeException(), isNull);

@@ -308,7 +308,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         return _ShellData(pages: [
           const MarketplaceHomeScreen(), const MarketplaceSearchMapScreen(embedded: true), const Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()), account,
         ], items: const [
-          _NavItemData(label: 'العقارات', icon: Icons.home_outlined),
+          _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
           _NavItemData(label: 'الخريطة', icon: Icons.map_outlined),
           _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
           _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
@@ -323,7 +323,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             account,
           ],
           items: const [
-            _NavItemData(label: 'العقارات', icon: Icons.travel_explore_outlined),
+            _NavItemData(label: 'الرئيسية', icon: Icons.travel_explore_outlined),
             _NavItemData(label: 'الأقسام', icon: Icons.grid_view_outlined),
             _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),

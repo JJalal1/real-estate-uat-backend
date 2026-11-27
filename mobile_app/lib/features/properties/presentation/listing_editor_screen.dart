@@ -32,6 +32,7 @@ import '../../../core/widgets/ebroker_step_button.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/property_repository.dart';
 import '../domain/arabic_price_words.dart';
+import '../domain/category_property_facts.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_location_address.dart';
@@ -101,6 +102,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _buildingReference = TextEditingController();
   final _unitNumber = TextEditingController();
   final _floorNumber = TextEditingController();
+  final _categoryNumbers = {
+    'parking_spaces': TextEditingController(),
+    'street_width_m': TextEditingController(),
+    'office_rooms': TextEditingController(),
+  };
+  final _categoryChoices = <String, String>{};
+  final _editedCategoryFields = <String>{};
   ListingContactPolicy _contactPolicy = const ListingContactPolicy();
   bool _validateContacts = false;
   final _phone = TextEditingController();
@@ -393,6 +401,16 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   void _clearHiddenFields() {
+    for (final entry in _categoryNumbers.entries) {
+      if (!_applies(entry.key)) entry.value.clear();
+    }
+    _categoryChoices.removeWhere((key, _) => !_applies(key));
+    if (_parkingChoice != 'yes' && _categoryNumbers['parking_spaces']!.text.isNotEmpty) {
+      _categoryNumbers['parking_spaces']!.clear();
+    }
+    if (_categoryChoices['has_separate_majlis'] != 'yes') {
+      _categoryChoices.remove('has_majlis_bathroom');
+    }
     if (!_applies('floors_count')) { _floorsCount.clear(); _unitsPerFloor = []; _sameFloorUnits = false; }
     if (!_applies('shop_openings')) _shopOpenings.clear();
     if (!_applies('tenure_type')) _tenureType = null;
@@ -629,6 +647,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'floors_count': _floorsCount, 'shop_openings': _shopOpenings, 'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'city': _city, 'district': _district, 'neighborhood': _neighborhood,
     'street': _street, 'building_reference': _buildingReference, 'unit_number': _unitNumber,
     'floor_number': _floorNumber, 'phone': _phone, 'whatsapp': _whatsapp,
+    ..._categoryNumbers,
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
@@ -648,7 +667,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'latitude': _latitude, 'longitude': _longitude, 'land_boundary': _landBoundaryGeoJson,
     'replace_images': _replaceImages, 'price_display_mode': _priceDisplayMode,
     'server_property_id': _existing?.id ?? _recoveredServerId,
-    'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.key == 'description' && (_descriptionCapture.active || _unconfirmedVoiceDescription != null) ? _descriptionVoiceBase : entry.value.text},
+    'fields': {
+      for (final entry in _recoveryFields.entries) entry.key: entry.key == 'description' && (_descriptionCapture.active || _unconfirmedVoiceDescription != null) ? _descriptionVoiceBase : entry.value.text,
+      for (final key in CategoryPropertyFacts.choiceKeys) key: _categoryChoices[key] ?? '',
+    },
   };
 
   @override
@@ -853,6 +875,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           if (const ['broker_sai_rate_percent', 'fixed_sai_amount'].contains(entry.key) && data['sai_touched'] != true) continue;
           final text = fields[entry.key]; if (text is String) entry.value.text = text;
         }
+        _readCategoryChoices(fields);
+        _editedCategoryFields.addAll(CategoryPropertyFacts.keys.where(fields.containsKey));
       }
       if ((data['editor_version'] as num? ?? 0) < 11 && _neighborhood.text.isEmpty && _district.text.isNotEmpty) {
         _neighborhood.text = _district.text; _district.clear();
@@ -881,7 +905,10 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     try {
       final existing = await ref.read(propertyRepositoryProvider).details(_recoveredServerId!);
       if (!mounted) return false;
-      setState(() => _workingDraft = existing);
+      setState(() {
+        _workingDraft = existing;
+        _loadCategoryFacts(existing.categoryFacts, preserve: _editedCategoryFields);
+      });
       await _refreshSai(existing.id);
       return true;
     } catch (error) { if (mounted) _message(friendlyApiError(error)); return false; }
@@ -1093,6 +1120,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             : 'no';
     _facade = property.buildingFacade;
     _elevatorChoice = property.hasElevator == null ? null : property.hasElevator! ? 'yes' : 'no';
+    _loadCategoryFacts(property.categoryFacts);
     final address = PropertyLocationAddress.fromStoredAddress(property.address);
     _governorate.text = address.governorate ?? '';
     _city.text = address.city ?? '';
@@ -1153,6 +1181,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _buildingReference,
       _unitNumber,
       _floorNumber,
+      ..._categoryNumbers.values,
       _phone,
       _whatsapp,
     ]) {
@@ -1484,6 +1513,138 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     );
   }
 
+  void _readCategoryChoices(Map<dynamic, dynamic> fields) {
+    final choices = <String, dynamic>{
+      for (final key in CategoryPropertyFacts.choiceKeys) key: fields[key],
+    };
+    _loadCategoryFacts(
+      CategoryPropertyFacts.fromJson(choices),
+      preserve: {
+        ..._categoryNumbers.keys,
+        for (final key in CategoryPropertyFacts.choiceKeys)
+          if (!fields.containsKey(key)) key,
+      },
+    );
+  }
+
+  void _loadCategoryFacts(CategoryPropertyFacts facts, {Set<String> preserve = const {}}) {
+    for (final entry in facts.toMap(includeCleared: true).entries) {
+      if (preserve.contains(entry.key)) continue;
+      final value = entry.value;
+      if (_categoryNumbers[entry.key] case final controller?) {
+        controller.text = value?.toString() ?? '';
+      } else if (value == null) {
+        _categoryChoices.remove(entry.key);
+      } else {
+        _categoryChoices[entry.key] = value is bool
+            ? (value ? 'yes' : 'no')
+            : value.toString();
+      }
+    }
+  }
+
+  String _categoryNumber(String key) {
+    var text = _categoryNumbers[key]!.text.trim().replaceAll('٫', '.');
+    const arabic = '٠١٢٣٤٥٦٧٨٩', persian = '۰۱۲۳۴۵۶۷۸۹';
+    for (var i = 0; i < 10; i++) {
+      text = text.replaceAll(arabic[i], '$i').replaceAll(persian[i], '$i');
+    }
+    return text;
+  }
+
+  CategoryPropertyFacts get _categoryFacts => CategoryPropertyFacts.fromJson({
+    ..._categoryChoices,
+    for (final key in _categoryNumbers.keys) key: _categoryNumber(key),
+    if (_applies('parking_spaces') && _parkingChoice == 'no') 'parking_spaces': 0,
+  });
+
+  String? _categorySpecificationError() {
+    for (final key in _categoryNumbers.keys) {
+      if (!_applies(key)) continue;
+      final text = _categoryNumber(key);
+      if (text.isEmpty) continue;
+      if (key == 'street_width_m') {
+        final width = double.tryParse(text);
+        if (width == null || !RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(text) ||
+            width <= 0 || width > 1000) {
+          return 'أدخل عرض الشارع بالمتر من ٠٫٠١ إلى ١٠٠٠، بمنزلتين عشريتين على الأكثر.';
+        }
+      } else {
+        final count = int.tryParse(text);
+        if (count == null || count < 1 || count > 100) {
+          return key == 'parking_spaces'
+              ? 'أدخل عدد مواقف السيارات من ١ إلى ١٠٠.'
+              : 'أدخل عدد غرف المكتب من ١ إلى ١٠٠.';
+        }
+      }
+    }
+    return null;
+  }
+
+  Widget _categorySpecifications() {
+    Widget number(String key, String label, {bool decimal = false}) => Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.s12),
+      child: AppTextField(
+        key: ValueKey('listing-category-$key'),
+        controller: _categoryNumbers[key],
+        label: label,
+        keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+        enabled: !_busy,
+        onChanged: (_) => _editedCategoryFields.add(key),
+      ),
+    );
+    Widget choice(
+      String key,
+      String label, [
+      Map<String, String> options = const {'yes': 'يوجد', 'no': 'لا يوجد'},
+    ]) => Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.s12),
+      child: AppSelectField<String>(
+        key: ValueKey('listing-category-$key'),
+        value: _categoryChoices[key] ?? '',
+        decoration: InputDecoration(labelText: label),
+        items: [
+          const DropdownMenuItem(value: '', child: Text('غير مذكور')),
+          for (final entry in options.entries)
+            DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+        ],
+        onChanged: _busy ? null : (value) => setState(() {
+          _editedCategoryFields.add(key);
+          if (value == null || value.isEmpty) {
+            _categoryChoices.remove(key);
+          } else {
+            _categoryChoices[key] = value;
+          }
+        }),
+      ),
+    );
+    final fields = [
+      if (_applies('parking_spaces') && _parkingChoice == 'yes')
+        number('parking_spaces', 'عدد مواقف السيارات'),
+      if (_applies('has_separate_majlis')) choice('has_separate_majlis', 'مجلس مستقل'),
+      if (_applies('has_majlis_bathroom') && _categoryChoices['has_separate_majlis'] == 'yes')
+        choice('has_majlis_bathroom', 'حمام خاص بالمجلس'),
+      if (_applies('has_yard')) choice('has_yard', 'حوش'),
+      if (_applies('land_use')) choice('land_use', 'نوع الأرض', landUseOptions),
+      if (_applies('street_width_m'))
+        number('street_width_m', 'عرض الشارع بالمتر', decimal: true),
+      if (_applies('office_rooms')) number('office_rooms', 'عدد غرف المكتب'),
+      if (_applies('farm_water_source'))
+        choice('farm_water_source', 'مصدر المياه', farmWaterSourceOptions),
+      if (_applies('farm_crop_type'))
+        choice('farm_crop_type', 'نوع الزراعة', farmCropTypeOptions),
+      if (_applies('section_elevator')) choice('section_elevator', 'المصعد'),
+    ];
+    if (fields.isEmpty) return const SizedBox.shrink();
+    return ExpansionTile(
+      key: const ValueKey('listing-category-facts'),
+      tilePadding: EdgeInsets.zero,
+      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+      title: const Text('مواصفات البحث (اختياري)'),
+      children: fields,
+    );
+  }
+
   Widget _specificationsStep() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1589,6 +1750,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_type == 'land') ...[const SizedBox(height: 12), AppSelectField<String>(value: _facade, isExpanded: true,
           decoration: const InputDecoration(labelText: 'واجهة الأرض (اختياري)'), items: propertyFacadeLabels.entries.map((entry) => DropdownMenuItem(value: entry.key, child: Text(entry.value))).toList(),
           onChanged: _busy ? null : (value) => setState(() => _facade = value))],
+        const SizedBox(height: AppSpacing.s12),
+        _categorySpecifications(),
         const SizedBox(height: 24),
         _listingPhotos(),
         const SizedBox(height: 8),
@@ -1828,6 +1991,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       }
     }
     if (step == 2) {
+      final categoryError = _categorySpecificationError();
+      if (categoryError != null) return categoryError;
       if (_applies('floors_count')) {
         final count = _optionalInt(_floorsCount) ?? 0;
         if (count < 1 || count > 50) return 'أدخل عدد الأدوار من 1 إلى 50.';
@@ -2107,6 +2272,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       bathrooms: _requiresResidential ? _optionalInt(_bathrooms) : null,
       hasParking: _requiresStructure ? _parkingValue : null,
       hasElevator: _isRentalApartment ? null : _supportsElevator && _elevatorChoice != null ? _elevatorChoice == 'yes' : null,
+      categoryFacts: _categoryFacts,
+      clearUnsetCategoryFacts: _isEditing,
       buildingFacade: _supportsFacade ? _facade : null,
       address: _composedAddress,
       buildingReference: _isUnitType ? _buildingReference.text.trim() : null,

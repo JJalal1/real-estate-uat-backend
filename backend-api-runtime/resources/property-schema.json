@@ -201,13 +201,105 @@
         }
       ]
     },
+    "parking_spaces": {
+      "types": [
+        "apartment",
+        "building",
+        "house",
+        "villa",
+        "office"
+      ],
+      "filters": [
+        "min_parking_spaces"
+      ]
+    },
+    "has_separate_majlis": {
+      "types": [
+        "house",
+        "villa"
+      ],
+      "filters": [
+        "has_separate_majlis"
+      ]
+    },
+    "has_majlis_bathroom": {
+      "types": [
+        "house",
+        "villa"
+      ],
+      "filters": [
+        "has_majlis_bathroom"
+      ]
+    },
+    "land_use": {
+      "types": [
+        "land"
+      ],
+      "filters": [
+        "land_use"
+      ]
+    },
+    "street_width_m": {
+      "types": [
+        "land",
+        "shop"
+      ],
+      "filters": [
+        "min_street_width"
+      ]
+    },
+    "has_yard": {
+      "types": [
+        "villa"
+      ],
+      "filters": [
+        "has_yard"
+      ]
+    },
+    "office_rooms": {
+      "types": [
+        "office"
+      ],
+      "filters": [
+        "min_office_rooms"
+      ]
+    },
+    "farm_water_source": {
+      "types": [
+        "farm"
+      ],
+      "filters": [
+        "farm_water_source"
+      ]
+    },
+    "farm_crop_type": {
+      "types": [
+        "farm"
+      ],
+      "filters": [
+        "farm_crop_type"
+      ]
+    },
+    "section_elevator": {
+      "types": [
+        "apartment",
+        "building",
+        "office"
+      ],
+      "filters": [
+        "has_section_elevator"
+      ]
+    },
     "floors_count": {
       "types": [
         "building",
         "house"
       ],
       "required": true,
-      "required_since": 9
+      "required_since": 9,
+      "filters": [
+        "min_floors"
+      ]
     },
     "units_per_floor": {
       "types": [
@@ -215,14 +307,20 @@
         "house"
       ],
       "required": true,
-      "required_since": 9
+      "required_since": 9,
+      "filters": [
+        "min_total_units"
+      ]
     },
     "shop_openings": {
       "types": [
         "shop"
       ],
       "required": true,
-      "required_since": 9
+      "required_since": 9,
+      "filters": [
+        "min_shop_openings"
+      ]
     }
   },
   "floors": [

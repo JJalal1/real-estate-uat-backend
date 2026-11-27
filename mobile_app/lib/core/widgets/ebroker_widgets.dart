@@ -397,24 +397,30 @@ class EbrokerTitleHeader extends StatelessWidget {
 
 // home/widgets/category_card.dart. Values come from our discovery taxonomy.
 class EbrokerCategoryCard extends StatelessWidget {
-  const EbrokerCategoryCard({required this.label, required this.icon, required this.onTap, this.selected = false, super.key});
+  const EbrokerCategoryCard({required this.label, required this.icon, required this.onTap,
+    this.selected = false, this.tonalSelection = false, this.iconOverride, super.key});
   final String label, icon;
   final VoidCallback onTap;
-  final bool selected;
+  final bool selected, tonalSelection;
+  final IconData? iconOverride;
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final useGradient = selected && !tonalSelection;
+    final iconColor = useGradient ? Colors.white : scheme.primary;
     return Semantics(button: true, selected: selected, child: Material(color: Colors.transparent,
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(AppRadii.control),
         child: AnimatedContainer(duration: MediaQuery.disableAnimationsOf(context) ? Duration.zero : const Duration(milliseconds: 180),
           constraints: const BoxConstraints(minHeight: 48), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(color: selected ? null : scheme.surface,
-            gradient: selected ? EbrokerDesign.propertyTypeSelectionGradient : null,
-            border: Border.all(color: selected ? Colors.transparent : scheme.outlineVariant),
+          decoration: BoxDecoration(color: useGradient ? null : selected ? scheme.primaryContainer : scheme.surface,
+            gradient: useGradient ? EbrokerDesign.propertyTypeSelectionGradient : null,
+            border: Border.all(color: useGradient ? Colors.transparent : selected ? scheme.primary : scheme.outlineVariant),
             borderRadius: BorderRadius.circular(AppRadii.control)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            PropertyTypeIcon(label: label, size: 18, color: selected ? Colors.white : scheme.primary), const SizedBox(width: 8),
-            EbrokerText(label, size: 13, weight: FontWeight.w600, color: selected ? Colors.white : scheme.onSurface, maxLines: 1),
+            if (iconOverride case final icon?) Icon(icon, size: 18, color: iconColor)
+            else PropertyTypeIcon(label: label, size: 18, color: iconColor),
+            const SizedBox(width: 8),
+            EbrokerText(label, size: 13, weight: FontWeight.w600, color: useGradient ? Colors.white : scheme.onSurface, maxLines: 1),
           ])))));
   }
 }

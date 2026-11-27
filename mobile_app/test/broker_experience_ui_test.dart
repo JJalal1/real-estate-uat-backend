@@ -352,7 +352,7 @@ void main() {
   testWidgets('regular account opens categories from the old messages slot', (tester) async {
     await _pump(tester, const AppShellScreen(), BrokerTestRepository(viewerId: 2), userId: 2);
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
-    expect(nav.destinations.map((destination) => destination.label), ['العقارات', 'الأقسام', 'الرسائل', 'حسابي']);
+    expect(nav.destinations.map((destination) => destination.label), ['الرئيسية', 'الأقسام', 'الرسائل', 'حسابي']);
     nav.onSelected(1);
     await tester.pumpAndSettle();
     expect(find.byType(MarketplaceCategoriesScreen), findsOneWidget);

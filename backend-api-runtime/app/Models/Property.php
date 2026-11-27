@@ -18,6 +18,8 @@ class Property extends Model
         'user_id', 'property_asset_id', 'current_sai_term_id', 'geo_cell_id', 'owner_key', 'title', 'description', 'purpose', 'type', 'tenure_type', 'price', 'currency',
         'listing_input_version', 'rental_conditions', 'price_display_mode', 'monthly_rent', 'rental_term_months', 'advance_months', 'financial_hold_at', 'financial_hold_reason',
         'floors_count', 'units_per_floor', 'shop_openings', 'area_m2', 'area_value', 'area_unit', 'bedrooms', 'bathrooms', 'has_parking', 'has_elevator', 'building_facade', 'address', 'latitude', 'longitude', 'status',
+        'parking_spaces', 'has_separate_majlis', 'has_majlis_bathroom', 'land_use', 'street_width_m', 'has_yard',
+        'office_rooms', 'farm_water_source', 'farm_crop_type', 'section_elevator',
         'building_reference', 'unit_number', 'floor_number', 'unit_occupies_entire_floor', 'land_boundary_geojson',
         'duplicate_check_status', 'duplicate_check_score', 'duplicate_check_metadata', 'duplicate_self_verification', 'duplicate_checked_at',
         'contact_phone', 'contact_whatsapp', 'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note', 'review_status', 'submitted_at', 'published_at', 'reviewed_at', 'last_review_reason',
@@ -25,6 +27,8 @@ class Property extends Model
 
     protected $casts = [
         'floors_count'=>'integer', 'units_per_floor'=>'array', 'shop_openings'=>'integer',
+        'parking_spaces' => 'integer', 'has_separate_majlis' => 'boolean', 'has_majlis_bathroom' => 'boolean',
+        'street_width_m' => 'float', 'has_yard' => 'boolean', 'office_rooms' => 'integer', 'section_elevator' => 'boolean',
         'listing_input_version' => 'integer', 'rental_conditions' => 'array',
         'has_elevator' => 'boolean', 'spotlight_until' => 'datetime',
         'price' => 'float', 'monthly_rent'=>'float', 'rental_term_months'=>'integer', 'advance_months'=>'integer',

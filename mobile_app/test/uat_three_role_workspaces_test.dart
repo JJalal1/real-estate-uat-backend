@@ -64,7 +64,7 @@ void main() {
 
   test('template consumer navigation preserves gated listings and messaging access', () {
     final shell = read('lib/features/app_shell/presentation/app_shell_screen.dart');
-    expect(shell, contains("label: 'العقارات'"));
+    expect(shell, contains("label: 'الرئيسية'"));
     expect(shell, contains("label: 'الرسائل'"));
     expect(shell, contains("label: 'إعلاناتي'"));
     final router = read('lib/router/app_router.dart');

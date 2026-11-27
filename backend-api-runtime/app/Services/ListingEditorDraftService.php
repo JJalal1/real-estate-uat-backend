@@ -64,7 +64,8 @@ class ListingEditorDraftService
         $fields = array_intersect_key((array)($payload['fields'] ?? []),array_flip([
             'title','description','ai_listing_brief','price','monthly_rent','rental_term_months','advance_months','area',
             'floors_count','shop_openings','bedrooms','bathrooms','governorate','city','district','neighborhood','street','building_reference','unit_number','floor_number','phone','whatsapp',
-            'document_owner_name','relationship_note','broker_sai_rate_percent','fixed_sai_amount']));
+            'document_owner_name','relationship_note','broker_sai_rate_percent','fixed_sai_amount',
+            ...array_keys(CategoryListingFeatures::listingRules())]));
         foreach ($fields as $key=>$value) { abort_unless(is_scalar($value) || $value === null,422); $fields[$key] = mb_substr((string)$value,0,$key === 'ai_listing_brief' ? 10000 : ($key === 'description' ? 5000 : 1500)); }
         if (isset($payload['location_context'])) {
             $context=(array)$payload['location_context'];$safe=[];

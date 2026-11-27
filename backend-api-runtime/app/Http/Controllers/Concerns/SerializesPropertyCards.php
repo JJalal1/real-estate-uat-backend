@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Models\Property;
 use App\Models\PropertyImage;
+use App\Services\CategoryListingFeatures;
 use Illuminate\Http\Request;
 
 trait SerializesPropertyCards
@@ -47,6 +48,7 @@ trait SerializesPropertyCards
             'image_count' => $property->images->count(),
             'floor_number' => in_array($property->type, ['apartment', 'floor', 'office', 'shop'], true) ? $property->floor_number : null,
             'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
+            ...CategoryListingFeatures::facts($property),
         ];
         return array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true),$data);
     }

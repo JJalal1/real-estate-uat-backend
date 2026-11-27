@@ -76,7 +76,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/marketplace-search', builder: (context, state) => MarketplaceSearchScreen(
         openFilters: state.uri.queryParameters['filters'] == '1')),
       GoRoute(path: '/marketplace-categories/:purpose', builder: (context, state) =>
-        MarketplaceCategoryTypesScreen(purpose: state.pathParameters['purpose'] ?? '')),
+        MarketplaceCategoriesScreen(
+          key: ValueKey(state.uri.toString()),
+          initialPurpose: state.pathParameters['purpose'] ?? 'rent',
+          initialType: state.uri.queryParameters['type'],
+        )),
       GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(
         section: state.uri.queryParameters['section'] ?? 'latest',
         governorate: state.uri.queryParameters['governorate'], type: state.uri.queryParameters['type'],
