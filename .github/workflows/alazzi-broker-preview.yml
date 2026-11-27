@@ -150,6 +150,7 @@ jobs:
           test/phase3_favorites_screen_test.dart
           test/wave3_search_only_1393_test.dart
       - name: Test existing listing-card navigation and monthly-price journeys
+        if: ${{ !cancelled() && steps.analyze.outcome == 'success' }}
         run: >-
           flutter test --no-pub --reporter expanded
           --name 'favorites share photo|favorite source card opens|smart search opens its map and shows'

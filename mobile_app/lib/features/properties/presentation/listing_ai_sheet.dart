@@ -311,11 +311,18 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
               onStart: _voice,
               onCancelPreparing: _cancelVoice,
             ),
-            if (!_voiceBusy)
-              Flexible(child: ExcludeSemantics(child: TextButton(
-                onPressed: _sessionValid && !_busy ? _voice : null,
+            // Large text can make this label taller than the mic. Keep its space
+            // while recording so the scroll position stays valid near the end.
+            Flexible(child: Visibility(
+              visible: !_voiceBusy,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: ExcludeSemantics(child: TextButton(
+                onPressed: _sessionValid && !_busy && !_voiceBusy ? _voice : null,
                 child: Text(_capture.error == null ? 'أمْلِ تفاصيل العقار' : 'إعادة الإملاء'),
-              ))),
+              )),
+            )),
           ]),
           DictationFeedback(
             capture: _capture,

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
-import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
+import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
+import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/assisted_search_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/favorites_repository.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
@@ -64,8 +65,13 @@ void main() {
         };
         final listing = PropertyDetails.fromJson(json);
         final summary = PropertySummary.fromJson(json);
+        final ai = Wave3AiFake()..onRefine = (_, __, revision) async => {
+          'revision': revision,
+          'filters': {'purpose': 'sale', 'type': example.type, 'governorate': 'صنعاء'},
+        };
         final properties = Wave3PropertiesFake()..onSearch = (_, __) async => ([summary], false);
         final scope = uxContainer(user: uxUser(), extra: [
+          aiRepositoryProvider.overrideWithValue(ai),
           propertyRepositoryProvider.overrideWithValue(properties),
           myListingsPagesProvider.overrideWith((_) => fixedMyListings([listing])),
           recentPropertiesProvider.overrideWith((_) async => [summary]),
@@ -79,12 +85,21 @@ void main() {
         expect(expected['facts']!.right, lessThan(expected['photo']!.left));
         await closeUx(tester);
 
-        for (final screen in [
-          AssistedSearchScreen(entryFilters: SmartSearchFilters.fromMap({'purpose': 'sale'})),
-          const FavoritesScreen(),
-          const RecentPropertiesScreen(),
+        for (final screen in const [
+          AssistedSearchScreen(),
+          FavoritesScreen(),
+          RecentPropertiesScreen(),
         ]) {
           await pumpUx(tester, scope, screen, scale: scale, size: size);
+          if (screen is AssistedSearchScreen) {
+            final field = find.byKey(const ValueKey('smart-search-description'));
+            await tester.enterText(field, 'عقار للبيع في صنعاء');
+            await tester.testTextInput.receiveAction(TextInputAction.search);
+            await tester.pumpAndSettle();
+            expect(properties.queries, hasLength(1));
+            expect(scope.read(smartSearchSessionProvider).rows.map((p) => p.id), [42]);
+          }
+          expect(find.text(example.title), findsOneWidget, reason: '${screen.runtimeType} loaded the sample');
           await tester.ensureVisible(find.text(example.title));
           final actual = _measureCard(tester, example.title, example.factCount);
           expect(actual.keys, unorderedEquals(expected.keys));
