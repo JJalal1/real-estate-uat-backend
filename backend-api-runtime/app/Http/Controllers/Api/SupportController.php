@@ -386,13 +386,14 @@ class SupportController extends Controller
         if (!in_array($case->reason_code, [BrokerDealService::PRICE_CONFIRMATION_REASON, 'external_listing_closure'], true)) {
             return;
         }
-        $taskId = SupportTask::query()
+        $task = SupportTask::query()
             ->where('source_type', 'support_ticket')
             ->where('source_id', $case->id)
-            ->value('id');
-        abort_unless($taskId, 404);
+            ->firstOrFail();
 
-        $task = $this->tasks->taskFor($actor, (int) $taskId, false);
-        $this->tasks->assertTaskOwnership($actor, $task);
+        $actingAsAgent = (int)$task->assigned_to_user_id === (int)$actor->id
+            && !empty($task->metadata['manager_agent_mode']);
+        $visible = $this->tasks->taskFor($actor, (int)$task->id, $actingAsAgent);
+        $this->tasks->assertTaskOwnership($actor, $visible);
     }
 }

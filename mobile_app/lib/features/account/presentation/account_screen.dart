@@ -15,7 +15,16 @@ import '../../../core/branding/aqer_brand.dart';
 import '../../broker/data/broker_repository.dart';
 
 class AccountScreen extends ConsumerWidget {
-  const AccountScreen({super.key});
+  const AccountScreen({
+    this.personalWorkspace = false,
+    this.workspaceActionLabel,
+    this.onWorkspaceAction,
+    super.key,
+  });
+
+  final bool personalWorkspace;
+  final String? workspaceActionLabel;
+  final VoidCallback? onWorkspaceAction;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,7 +40,7 @@ class AccountScreen extends ConsumerWidget {
             onRetry: () => ref.read(authControllerProvider.notifier).refresh(),
           ),
           data: (user) {
-            final administrativeRole = user != null &&
+            final administrativeRole = user != null && !personalWorkspace &&
                 (user.isPlatformOwner ||
                     user.roles.contains('super_admin') ||
                     user.roles.contains('support_manager') ||
@@ -51,6 +60,18 @@ class AccountScreen extends ConsumerWidget {
               SliverPersistentHeader(pinned: true, delegate: _AccountHeaderDelegate(user: user, scale: MediaQuery.textScalerOf(context).scale(14) / 14)),
               SliverPadding(padding: const EdgeInsetsDirectional.fromSTEB(AppLayout.compactPageGutter, 12, AppLayout.compactPageGutter, AppSpacing.s32),
                 sliver: SliverList.list(children: [
+                if (user != null && workspaceActionLabel != null &&
+                    onWorkspaceAction != null) ...[
+                  AppButton(
+                    label: workspaceActionLabel!,
+                    icon: personalWorkspace
+                        ? Icons.support_agent_outlined
+                        : Icons.person_outline,
+                    onPressed: onWorkspaceAction,
+                    expand: true,
+                  ),
+                  const SizedBox(height: AppSpacing.s12),
+                ],
                 const AppSectionHeader(title: 'تصفّح العقارات'),
                 const SizedBox(height: AppSpacing.s8),
                 _AccountGroup(key: const ValueKey('account-preferences-group'), rows: [
@@ -161,7 +182,7 @@ class AccountScreen extends ConsumerWidget {
                           ? 'وظائف الإدارة موجودة في «لوحة الإدارة».'
                           : user.roles.contains('support_manager')
                               ? 'وظائف الإشراف موجودة في «لوحة الدعم» و«الأعمال» و«الفريق».'
-                              : 'وظائف الدعم موجودة في «لوحة الدعم» و«الوارد» و«مهامي».',
+                              : 'تابع الطلبات من «لوحة الدعم» و«الوارد».',
                       tone: AppStatusTone.info,
                     ),
                   ] else if (!hasBrokerTab) ...[

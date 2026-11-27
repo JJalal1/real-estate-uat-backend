@@ -14,8 +14,8 @@ void main() {
     expect(shell, contains("roles.contains('support_agent')"));
     expect(shell, contains("label: 'لوحة الدعم'"));
     expect(shell, contains("label: 'الوارد'"));
-    expect(tasks, contains("_setType('listing_review')"));
-    expect(tasks, contains('تحقيق إعلانات'));
+    expect(tasks, contains('_setCategory(category)'));
+    expect(tasks, contains('تحقق إعلان'));
   });
 
   test('Phase 2 listing review requires claim and exposes duplicate evidence',
@@ -26,12 +26,16 @@ void main() {
     final screen = await File(
       'lib/features/reviews/presentation/listing_review_workspace_screen.dart',
     ).readAsString();
+    final comparison = await File(
+      'lib/features/reviews/presentation/listing_review_comparison_screen.dart',
+    ).readAsString();
 
     expect(entry, contains('ListingReviewWorkspaceScreen'));
     expect(screen, contains('استلام الطلب'));
-    expect(screen, contains('تم الاستلام - قيد التحقيق'));
+    expect(screen, contains('قيد التحقيق'));
     expect(screen, contains('اشتباه تكرار'));
-    expect(screen, contains('ربط الإعلان بهوية هذا العقار'));
+    expect(screen, contains('قارن الإعلانين'));
+    expect(comparison, contains('ربط الإعلان بهوية العقار المشابه'));
     expect(screen, contains('سبب اعتبار الإعلان غير مكرر'));
     expect(screen, contains('ref.invalidate(reviewQueueProvider);'));
   });

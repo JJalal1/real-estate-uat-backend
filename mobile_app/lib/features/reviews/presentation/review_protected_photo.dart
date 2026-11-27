@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/presentation/listing_draft_photo.dart';
 import '../data/listing_review_repository.dart';
+import '../domain/listing_review_models.dart';
 
 // Staff evidence remains separate from public media. No disk cache; both
 // account/permission changes clear it; leaving the viewport cancels unfinished transfers.
@@ -62,5 +63,63 @@ class _VisibleEvidenceState extends ConsumerState<_VisibleEvidence> {
       return ClipRRect(borderRadius: BorderRadius.circular(AppRadii.control), child: Image.memory(snapshot.data!,
         fit: BoxFit.contain, cacheWidth: 1200, errorBuilder: (_, __, ___) => retry()));
     });
+  }
+}
+
+class ReviewPhotoPreview extends StatelessWidget {
+  const ReviewPhotoPreview({
+    super.key,
+    required this.photo,
+    required this.height,
+    required this.onOpen,
+    this.showExpand = true,
+  });
+
+  final ReviewMediaItem photo;
+  final double height;
+  final VoidCallback onOpen;
+  final bool showExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    final rejected = photo.relevance == 'unrelated';
+    final surface = Theme.of(context).colorScheme.surface;
+    return Semantics(
+      button: true,
+      label: rejected ? 'عرض الصورة المرفوضة' : 'عرض الصورة',
+      child: Material(
+        color: surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onOpen,
+          child: SizedBox(
+            height: height,
+            width: double.infinity,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ReviewProtectedPhoto(url: photo.url),
+                if (showExpand || rejected)
+                  PositionedDirectional(
+                    end: 8,
+                    top: 8,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: surface,
+                        borderRadius: BorderRadius.circular(AppRadii.control),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: Icon(rejected ? Icons.report_outlined : Icons.fullscreen, size: 20),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

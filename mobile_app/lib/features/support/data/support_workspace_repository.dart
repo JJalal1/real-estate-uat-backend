@@ -5,6 +5,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_repository.dart';
+import '../../regions/domain/region_models.dart';
 import '../domain/support_workspace_models.dart';
 
 final supportWorkspaceRepositoryProvider =
@@ -16,6 +17,8 @@ final supportWorkspaceRepositoryProvider =
   );
 });
 
+final supportWorkspaceRevisionProvider = StateProvider<int>((_) => 0);
+
 class SupportWorkspaceRepository {
   SupportWorkspaceRepository(this._dio, this._auth,
       {AccountRequestScope? requestScope}) : _requestScope = requestScope;
@@ -25,10 +28,25 @@ class SupportWorkspaceRepository {
   final AccountRequestScope? _requestScope;
 
   Future<SupportWorkspaceDashboard> dashboard() async {
+    return _dashboard();
+  }
+
+  Future<SupportWorkspaceDashboard> agentDashboard() =>
+      _dashboard(actingAsAgent: true);
+
+  Future<SupportWorkspaceDashboard> _dashboard({bool actingAsAgent = false}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifyTaskSession(epoch);
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/workspace/dashboard',
-      options: await _auth.requiredAuthOptions(),
+      queryParameters: {
+        'workspace_v2': 1,
+        if (actingAsAgent) 'acting_as_agent': 1,
+      },
+      options: options,
     );
+    _verifyTaskSession(epoch);
     final data = response.data?['data'];
     if (data is! Map) {
       throw StateError('Invalid workspace dashboard response.');
@@ -43,6 +61,7 @@ class SupportWorkspaceRepository {
     int perPage = 40,
     String scope = 'inbox',
     String? type,
+    String? category,
     String? status,
     String? priority,
     String? severity,
@@ -62,7 +81,9 @@ class SupportWorkspaceRepository {
       '/admin/workspace/tasks',
       queryParameters: {
         'scope': scope,
+        if (type != 'account_verification') 'workspace_v2': 1,
         if (type != null && type.isNotEmpty) 'type': type,
+        if (category != null && category.isNotEmpty) 'category': category,
         if (status != null && status.isNotEmpty) 'status': status,
         if (priority != null && priority.isNotEmpty) 'priority': priority,
         if (severity != null && severity.isNotEmpty) 'severity': severity,
@@ -77,8 +98,12 @@ class SupportWorkspaceRepository {
       options: options,
     );
     _verifyTaskSession(epoch);
-    final rows = response.data?['data'];
-    final meta = response.data?['meta'];
+    return _page(response.data, page);
+  }
+
+  SupportTaskPage _page(Map<String, dynamic>? body, int page) {
+    final rows = body?['data'];
+    final meta = body?['meta'];
     if (rows is! List || meta is! Map ||
         meta['current_page'] is! int || meta['current_page'] != page ||
         meta['last_page'] is! int || (meta['last_page'] as int) < 1 ||
@@ -112,11 +137,19 @@ class SupportWorkspaceRepository {
   }
 
   Future<SupportTaskItem> task(int taskId) async {
+    return _loadTask(taskId);
+  }
+
+  Future<SupportTaskItem> agentTask(int taskId) =>
+      _loadTask(taskId, actingAsAgent: true);
+
+  Future<SupportTaskItem> _loadTask(int taskId, {bool actingAsAgent = false}) async {
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
     _verifyTaskSession(epoch);
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/workspace/tasks/$taskId',
+      queryParameters: {if (actingAsAgent) 'acting_as_agent': 1},
       options: options,
     );
     _verifyTaskSession(epoch);
@@ -148,16 +181,101 @@ class SupportWorkspaceRepository {
     int taskId, {
     required String priority,
     String? severity,
+    String? category,
+    bool actingAsAgent = false,
   }) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifyTaskSession(epoch);
     final response = await _dio.patch<Map<String, dynamic>>(
       '/admin/workspace/tasks/$taskId/classification',
       data: {
         'priority': priority,
         if (severity != null) 'severity': severity,
+        if (category != null) 'category': category,
+        if (actingAsAgent) 'acting_as_agent': true,
       },
-      options: await _auth.requiredAuthOptions(),
+      options: options,
     );
+    _verifyTaskSession(epoch);
     return _task(response.data);
+  }
+
+  Future<SupportTaskPage> messages({required int page, bool actingAsAgent = false}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifyTaskSession(epoch);
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/admin/workspace/support-messages',
+      queryParameters: {'page': page, if (actingAsAgent) 'acting_as_agent': 1},
+      options: options,
+    );
+    _verifyTaskSession(epoch);
+    return _page(response.data, page);
+  }
+
+  Future<List<SupportTeamCandidate>> teamCandidates(String query) async {
+    final data = await _workspaceData(
+      'GET', '/admin/workspace/teams/candidates', query: {'q': query},
+    );
+    return _rows(data).map(SupportTeamCandidate.fromJson).toList(growable: false);
+  }
+
+  Future<List<GovernorateModel>> teamGovernorates() async {
+    final data = await _workspaceData('GET', '/admin/workspace/teams/governorates');
+    return _rows(data).map(GovernorateModel.fromJson).toList(growable: false);
+  }
+
+  Future<List<SupportTeamMembership>> teamMemberships(int teamId) async {
+    final data = await _workspaceData('GET', '/admin/workspace/teams/$teamId/members');
+    return _rows(data).map(SupportTeamMembership.fromJson).toList(growable: false);
+  }
+
+  Future<void> createTeam({required int governorateId, required String name}) async {
+    await _workspaceData('POST', '/admin/workspace/teams', body: {
+      'governorate_id': governorateId,
+      'name': name,
+    });
+  }
+
+  Future<void> setTeamMembership(int teamId, int userId, {
+    required bool agent,
+    required bool manager,
+    required bool reviewPayments,
+    required bool reviewListings,
+  }) async {
+    await _workspaceData('PUT', '/admin/workspace/teams/$teamId/membership/$userId', body: {
+      'agent': agent,
+      'manager': manager,
+      if (agent) 'review_payments': reviewPayments,
+      if (agent) 'review_listings': reviewListings,
+    });
+  }
+
+  Future<dynamic> _workspaceData(
+    String method,
+    String path, {
+    Map<String, dynamic>? query,
+    Map<String, dynamic>? body,
+  }) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    _verifyTaskSession(epoch);
+    final response = await _dio.request<Map<String, dynamic>>(
+      path,
+      options: options.copyWith(method: method),
+      queryParameters: query,
+      data: body,
+    );
+    _verifyTaskSession(epoch);
+    return response.data?['data'];
+  }
+
+  Iterable<Map<String, dynamic>> _rows(dynamic data) {
+    if (data is! List) throw StateError('Invalid support workspace response.');
+    return data.whereType<Map>().map(
+      (row) => row.map((key, value) => MapEntry(key.toString(), value)),
+    );
   }
 
   Future<SupportTaskItem> setOperationalStatus(

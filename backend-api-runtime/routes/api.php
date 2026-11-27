@@ -276,6 +276,8 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::prefix('admin/listing-review')->group(function () {
         Route::get('/queue', [ListingReviewController::class, 'queue'])->middleware('permission:listings.moderate');
         Route::get('/listings/{property}', [ListingReviewController::class, 'show'])->middleware('permission:listings.moderate');
+        Route::get('/listings/{property}/duplicates/{candidate}/images/{image}', [ListingReviewController::class, 'duplicateMedia'])
+            ->whereNumber(['candidate', 'image'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/media-review', [ListingReviewController::class, 'reviewMedia'])->middleware(['permission:listings.moderate','throttle:60,1,media-review']);
         Route::post('/listings/{property}/start', [ListingReviewController::class, 'start'])->middleware('permission:listings.moderate');
         Route::post('/listings/{property}/return', [ListingReviewController::class, 'returnForCorrection'])->middleware('permission:listings.moderate');

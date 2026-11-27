@@ -219,7 +219,12 @@ class PropertyFinancialController extends Controller
     {
         /** @var User $actor */ $actor=$request->user();
         $this->assertAssignedPaymentReviewer($request,$payment,$actor);
-        return response()->json(['data'=>$this->paymentData($payment,$actor)]);
+        $data = $this->paymentData($payment, $actor);
+        $data['receivable_reference'] = $payment->mode === 'platform_receivable'
+            ? PropertyPlatformReceivable::query()->where('deal_financial_term_id', $payment->deal_financial_term_id)->value('reference')
+            : null;
+
+        return response()->json(['data' => $data]);
     }
 
     public function review(Request $request, PropertyPayment $payment): JsonResponse
@@ -230,13 +235,15 @@ class PropertyFinancialController extends Controller
         if(in_array($validated['decision'],['correction','reject'],true)&&mb_strlen(trim((string)($validated['note']??'')))<3){
             throw ValidationException::withMessages(['note'=>['اكتب سببًا واضحًا عند طلب التصحيح أو رفض الإثبات.']]);
         }
-        if ($actor->hasRole('support_manager') && !$actor->is_platform_owner && !$actor->hasRole('super_admin') && !$request->boolean('acting_as_agent')) {
-            throw new ConflictHttpException('فعّل وضع «العمل كموظف دعم» قبل مراجعة إثبات الدفع بنفسك.');
-        }
-        $task=SupportTask::query()->where('source_type','payment_review')->where('source_id',$payment->id)->firstOrFail();
-        abort_unless((int)$task->assigned_to_user_id===(int)$actor->id || $actor->is_platform_owner || $actor->hasRole('super_admin'),403,'يجب استلام مهمة التحقق أو إسنادها لك أولاً.');
-        $updated=$this->finance->reviewPayment($payment,$actor,$validated['decision'],$validated['note']??null,$request);
-        $this->supportTasks->projectPayment($updated);
+        $updated = DB::transaction(function () use ($request, $payment, $actor, $validated): PropertyPayment {
+            $task = SupportTask::query()->where('source_type', 'payment_review')->where('source_id', $payment->id)
+                ->lockForUpdate()->firstOrFail();
+            $this->assertAssignedPaymentReviewer($request, $payment, $actor, $task);
+            $updated = $this->finance->reviewPayment($payment, $actor, $validated['decision'], $validated['note'] ?? null, $request);
+            $this->supportTasks->projectPayment($updated);
+
+            return $updated;
+        }, 3);
         return response()->json(['message'=>'تم تحديث مراجعة الدفع.','data'=>$this->paymentData($updated,$actor)]);
     }
 
@@ -358,15 +365,16 @@ class PropertyFinancialController extends Controller
         $this->assertAssignedPaymentReviewer($request,$payment,$actor);
     }
 
-    private function assertAssignedPaymentReviewer(Request $request, PropertyPayment $payment, User $actor): void
+    private function assertAssignedPaymentReviewer(Request $request, PropertyPayment $payment, User $actor, ?SupportTask $task = null): void
     {
         abort_unless($actor->hasPermission('payments.review'),403);
         if($actor->hasRole('support_manager')&&!$actor->is_platform_owner&&!$actor->hasRole('super_admin')&&!$request->boolean('acting_as_agent')){
             throw new ConflictHttpException('فعّل وضع «العمل كموظف دعم» قبل مراجعة إثبات الدفع بنفسك.');
         }
         if($actor->is_platform_owner||$actor->hasRole('super_admin'))return;
-        $task=SupportTask::query()->where('source_type','payment_review')->where('source_id',$payment->id)->first();
-        abort_unless($task&&(int)$task->assigned_to_user_id===(int)$actor->id,403,'يجب استلام مهمة التحقق أو إسنادها لك أولاً.');
+        $task ??= SupportTask::query()->where('source_type', 'payment_review')->where('source_id', $payment->id)->first();
+        abort_unless($task && (int) $task->assigned_to_user_id === (int) $actor->id && $task->claimed_at, 403, 'يجب استلام مهمة التحقق أولاً.');
+        $this->supportTasks->assertTaskExecution($actor, $task, $request->boolean('acting_as_agent'));
     }
 
     private function receivableData(PropertyPlatformReceivable $r): array

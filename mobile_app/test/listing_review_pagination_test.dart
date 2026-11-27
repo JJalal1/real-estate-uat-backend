@@ -153,15 +153,18 @@ void main() {
     await tester.pumpAndSettle();
     final reviewPage = find.byType(ListingReviewCaseScreen);
     expect(reviewPage, findsOneWidget);
-    final reject = find.text('رفض الإعلان الجديد كمكرر');
     final caseList = find.descendant(of: reviewPage, matching: _verticalList);
-    for (var swipe = 0; swipe < 10 && !tester.any(reject.hitTestable()); swipe++) {
-      await tester.drag(caseList, const Offset(0, -220));
-      await tester.pumpAndSettle();
-    }
+    final compare = find.text('قارن الإعلانين');
+    await tester.scrollUntilVisible(compare, 180, scrollable: caseList);
     final aiBadge = find.widgetWithText(AppStatusBadge, 'تشابه رصده المساعد');
     expect(tester.widget<AppStatusBadge>(aiBadge).tone, AppStatusTone.info);
     expect(find.text('تتشابه صور الغرف ومواصفاتها'), findsOneWidget);
+    await tester.tap(compare.hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.text('مقارنة الإعلانين'), findsOneWidget);
+    final reject = find.widgetWithText(AppButton, 'رفض الإعلان الجديد كمكرر');
+    await tester.scrollUntilVisible(reject, 180, scrollable: _verticalList.first);
+    await tester.pumpAndSettle();
 
     expect(reject.hitTestable(), findsOneWidget);
     await tester.tap(reject.hitTestable());

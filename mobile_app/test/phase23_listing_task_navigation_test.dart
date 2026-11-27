@@ -47,6 +47,7 @@ class _Tasks implements SupportWorkspaceRepository {
     int perPage = 40,
     String scope = 'inbox',
     String? type,
+    String? category,
     String? status,
     String? priority,
     String? severity,
@@ -200,11 +201,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(reviews.requestedIds, [106]);
     expect(find.text('Private case for listing 106'), findsOneWidget);
+    final list = find.byType(Scrollable).first;
+    final details = find.text('تفاصيل الإعلان');
+    await tester.scrollUntilVisible(details, 220, scrollable: list);
+    await tester.pumpAndSettle();
+    await tester.tap(details);
+    await tester.pumpAndSettle();
     expect(find.text('شقة'), findsOneWidget);
     expect(find.text('apartment'), findsNothing);
     expect(find.text('طلبات التحقيق'), findsNothing);
-    await tester.scrollUntilVisible(find.text('أُرسل للمراجعة'), 300,
-        scrollable: find.byType(Scrollable).first);
+    final history = find.textContaining('سجل المراجعة');
+    await tester.scrollUntilVisible(history, 220, scrollable: list);
+    await tester.pumpAndSettle();
+    await tester.tap(history);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('أُرسل للمراجعة'), 220,
+        scrollable: list);
     await tester.pumpAndSettle();
     expect(find.text('أُرسل للمراجعة'), findsOneWidget);
     expect(find.text('submitted'), findsNothing);

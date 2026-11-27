@@ -7,6 +7,7 @@ use App\Models\SupportTaskEvent;
 use App\Models\User;
 use App\Services\SupportTaskService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -14,19 +15,44 @@ use Illuminate\Validation\Rule;
 class SupportWorkspaceController extends Controller
 {
     public function __construct(private readonly SupportTaskService $tasks) {}
-    public function dashboard(Request $request): JsonResponse { return response()->json(['data'=>$this->tasks->dashboard($request->user())]); }
+    public function dashboard(Request $request): JsonResponse
+    {
+        $request->validate(['acting_as_agent' => ['nullable', 'boolean'], 'workspace_v2' => ['nullable', 'boolean']]);
+        return response()->json(['data' => $this->tasks->dashboard(
+            $request->user(), $request->boolean('acting_as_agent'), $request->boolean('workspace_v2'),
+        )]);
+    }
 
     public function index(Request $request): JsonResponse
     {
         $actor=$request->user();$v=$request->validate([
-            'scope'=>['nullable',Rule::in(['inbox','mine','completed','all'])],
+            'scope'=>['nullable',Rule::in(['inbox','mine','all',...SupportTaskService::WORKSPACE_BUCKETS])],
             'type'=>['nullable',Rule::in(['account_verification','listing_review','support_ticket','report','payment_review','contact_followup'])],
+            'category'=>['nullable',Rule::in(SupportTaskService::WORK_CATEGORIES)],
             'status'=>['nullable',Rule::in(['new','in_progress','waiting_user','waiting_internal','needs_followup','escalated','completed','rejected'])],
             'priority'=>['nullable',Rule::in(['urgent','normal','low'])],'severity'=>['nullable',Rule::in(['low','medium','high','critical'])],
             'assignee_id'=>['nullable','integer','exists:users,id'],'created_from'=>['nullable','date'],'created_to'=>['nullable','date','after_or_equal:created_from'],
-            'overdue'=>['nullable','boolean'],'acting_as_agent'=>['nullable','boolean'],'per_page'=>['nullable','integer','min:1','max:100'],
+            'overdue'=>['nullable','boolean'],'acting_as_agent'=>['nullable','boolean'],
+            'workspace_v2'=>['nullable','boolean'],'per_page'=>['nullable','integer','min:1','max:100'],
         ]);
-        $page=$this->tasks->queryFor($actor,[...$v,'overdue'=>$request->boolean('overdue'),'acting_as_agent'=>$request->boolean('acting_as_agent')])->paginate((int)($v['per_page']??40));
+        $query=$this->tasks->queryFor($actor,[...$v,'overdue'=>$request->boolean('overdue'),'acting_as_agent'=>$request->boolean('acting_as_agent')]);
+        return $this->taskPage($query, $actor, (int)($v['per_page']??40));
+    }
+
+    public function messages(Request $request): JsonResponse
+    {
+        $v = $request->validate([
+            'acting_as_agent' => ['nullable', 'boolean'], 'per_page' => ['nullable','integer','min:1','max:100'],
+        ]);
+        $actor = $request->user();
+        return $this->taskPage(
+            $this->tasks->messagesFor($actor, $request->boolean('acting_as_agent')), $actor, (int)($v['per_page'] ?? 40),
+        );
+    }
+
+    private function taskPage(Builder $query, User $actor, int $perPage): JsonResponse
+    {
+        $page = $query->paginate($perPage);
         return response()->json(['data'=>collect($page->items())->map(fn(SupportTask $task)=>$this->tasks->taskData($task,$actor))->values(),'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),'total'=>$page->total()]]);
     }
 
@@ -42,7 +68,20 @@ class SupportWorkspaceController extends Controller
     public function claim(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['acting_as_agent'=>['nullable','boolean']]);$task=$this->tasks->claim($request->user(),$task,$request,(bool)($v['acting_as_agent']??false));return response()->json(['message'=>'تم استلام المهمة.','data'=>$this->tasks->taskData($task,$request->user())]); }
     public function assign(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['user_id'=>['required','integer','exists:users,id']]);$task=$this->tasks->assign($request->user(),$task,User::query()->findOrFail((int)$v['user_id']),$request);return response()->json(['message'=>'تم إسناد المهمة.','data'=>$this->tasks->taskData($task,$request->user())]); }
     public function release(Request $request, SupportTask $task): JsonResponse { $task=$this->tasks->releaseTask($request->user(),$task,$request);return response()->json(['message'=>'تمت إعادة المهمة إلى الوارد.','data'=>$this->tasks->taskData($task,$request->user())]); }
-    public function classify(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['priority'=>['required',Rule::in(['urgent','normal','low'])],'severity'=>['nullable',Rule::in(['low','medium','high','critical'])]]);$task=$this->tasks->classify($request->user(),$task,$v['priority'],$v['severity']??null,$request);return response()->json(['data'=>$this->tasks->taskData($task,$request->user())]); }
+    public function classify(Request $request, SupportTask $task): JsonResponse
+    {
+        $v = $request->validate([
+            'priority' => ['required_without:category', Rule::in(['urgent','normal','low'])],
+            'severity' => ['nullable', Rule::in(['low','medium','high','critical'])],
+            'category' => ['nullable', Rule::in(SupportTaskService::CASE_CATEGORIES)],
+            'acting_as_agent' => ['nullable', 'boolean'],
+        ]);
+        $task = $this->tasks->classify(
+            $request->user(), $task, $v['priority'] ?? null, $v['severity'] ?? null,
+            $request, $v['category'] ?? null, $request->boolean('acting_as_agent'),
+        );
+        return response()->json(['data' => $this->tasks->taskData($task, $request->user())]);
+    }
     public function operationalStatus(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['status'=>['required',Rule::in(['in_progress','waiting_internal'])],'acting_as_agent'=>['nullable','boolean']]);$task=$this->tasks->setOperationalStatus($request->user(),$task,$v['status'],$request,(bool)($v['acting_as_agent']??false));return response()->json(['data'=>$this->tasks->taskData($task,$request->user())]); }
     public function escalate(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['reason'=>['required','string','min:3','max:1200'],'acting_as_agent'=>['nullable','boolean']]);$task=$this->tasks->escalate($request->user(),$task,trim($v['reason']),$request,(bool)($v['acting_as_agent']??false));return response()->json(['data'=>$this->tasks->taskData($task,$request->user())]); }
     public function resolveEscalation(Request $request, SupportTask $task): JsonResponse { $v=$request->validate(['note'=>['required','string','min:3','max:1200']]);$task=$this->tasks->resolveEscalation($request->user(),$task,trim($v['note']),$request);return response()->json(['data'=>$this->tasks->taskData($task,$request->user())]); }

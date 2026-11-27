@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/messaging_system_navigation.dart';
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/domain/auth_user.dart';
 import '../../account/presentation/account_screen.dart';
 import '../../account/presentation/auth_gate.dart';
 import '../../admin/presentation/general_manager_finance_hubs.dart';
@@ -22,6 +24,7 @@ import '../../discovery/presentation/marketplace_search_panel.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
 import 'listing_creation_menu.dart';
 import '../../support/presentation/support_tasks_screen.dart';
+import '../../support/presentation/support_map_screen.dart';
 import '../../support/presentation/support_workspace_pages.dart';
 
 class AppShellScreen extends ConsumerStatefulWidget {
@@ -35,6 +38,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   int _index = 0;
   bool _exitDialogOpen = false, _createMenuOpen = false, _openingEditor = false;
   String? _lastMode;
+  String? _workspaceActor;
+  bool _personalWorkspace = false;
+  bool _actingAsAgent = false;
   final Set<int> _visitedIndices = <int>{0};
 
   Future<void> _confirmExit() async {
@@ -105,13 +111,35 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
+    final actorKey = '${user?.id ?? 'guest'}:${Stage6SecureSessionStore.instance.sessionEpoch}';
+    if (_workspaceActor != actorKey) {
+      _workspaceActor = actorKey;
+      _personalWorkspace = false;
+      _actingAsAgent = false;
+    }
     final mode = _modeFor(user);
-    final shell = _shellFor(mode);
+    final supportAccount = user != null &&
+        !user.isPlatformOwner && !user.hasRole('super_admin') &&
+        (user.hasRole('support_manager') || user.hasRole('support_agent'));
+    final actingAsAgent =
+        mode == 'agent' && user != null && user.hasRole('support_manager');
+    final account = supportAccount
+        ? AccountScreen(
+            personalWorkspace: _personalWorkspace,
+            workspaceActionLabel: _personalWorkspace
+                ? 'العودة إلى الدعم'
+                : 'الدخول كمستخدم',
+            onWorkspaceAction: () => setState(() {
+              _personalWorkspace = !_personalWorkspace;
+            }),
+          )
+        : const AccountScreen();
+    final shell = _shellFor(mode, account, actingAsAgent: actingAsAgent);
     final unreadCount = shell.items.any((item) => item.showsUnreadMessages)
         ? ref.watch(messageUnreadCountProvider)
         : 0;
 
-    final accountScope = '$mode:${user?.id ?? 'guest'}';
+    final accountScope = '$mode:$actorKey:$_personalWorkspace:$_actingAsAgent';
     if (_lastMode != accountScope) {
       _lastMode = accountScope;
       _index = 0;
@@ -188,28 +216,32 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     );
   }
 
-  String _modeFor(dynamic user) {
+  String _modeFor(AuthUser? user) {
     if (user == null) return 'anonymous';
-    final roles = user.roles as List<String>;
+    final roles = user.roles;
     if (user.isPlatformOwner == true || roles.contains('super_admin')) {
       return 'platform';
     }
-    if (roles.contains('support_manager')) return 'manager';
-    if (roles.contains('support_agent')) return 'agent';
+    if (!_personalWorkspace) {
+      if (roles.contains('support_manager')) {
+        return _actingAsAgent ? 'agent' : 'manager';
+      }
+      if (roles.contains('support_agent')) return 'agent';
+    }
     if (user.hasMarketplaceProfessionalProfile == true) {
       return user.isBroker == true ? 'broker' : 'advertiser';
     }
     return 'regular';
   }
 
-  _ShellData _shellFor(String mode) {
+  _ShellData _shellFor(String mode, AccountScreen account, {required bool actingAsAgent}) {
     switch (mode) {
       case 'broker':
         return _ShellData(pages: [
           const MarketplaceHomeScreen(),
           const Stage6AuthGate(requireProfessional: true, child: BrokerDashboardScreen()),
           const Stage6AuthGate(requireProfessional: true, child: BrokerConnectionsScreen()),
-          const AccountScreen(),
+          account,
         ], items: const [
           _NavItemData(label: 'الرئيسية', icon: Icons.home_outlined),
           _NavItemData(label: 'إعلاناتي', icon: Icons.inventory_2_outlined),
@@ -217,36 +249,41 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
         ]);
       case 'agent':
-        return const _ShellData(
+        return _ShellData(
           pages: [
-            SupportAgentHomeScreen(),
-            SupportTasksScreen(initialScope: 'inbox', title: 'الوارد'),
-            SupportTasksScreen(initialScope: 'mine', title: 'مهامي'),
-            Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
-            AccountScreen(),
+            SupportAgentHomeScreen(
+              actingAsAgent: actingAsAgent,
+              returnToManager: actingAsAgent
+                  ? () => setState(() => _actingAsAgent = false)
+                  : null,
+            ),
+            SupportTasksScreen(initialScope: 'inbox', title: 'الوارد', actingAsAgent: actingAsAgent),
+            SupportMapScreen(actingAsAgent: actingAsAgent),
+            SupportTasksScreen(messagesOnly: true, title: 'الرسائل', actingAsAgent: actingAsAgent),
+            account,
           ],
-          items: [
+          items: const [
             _NavItemData(label: 'لوحة الدعم', icon: Icons.dashboard_outlined),
             _NavItemData(label: 'الوارد', icon: Icons.inbox_outlined),
-            _NavItemData(label: 'مهامي', icon: Icons.assignment_ind_outlined),
-            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
+            _NavItemData(label: 'الخريطة', icon: Icons.map_outlined),
+            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
           ],
         );
       case 'manager':
-        return const _ShellData(
+        return _ShellData(
           pages: [
-            SupportManagerHomeScreen(),
-            SupportTasksScreen(initialScope: 'all', title: 'الأعمال'),
-            SupportTeamScreen(),
-            Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
-            AccountScreen(),
+            SupportManagerHomeScreen(onWorkAsAgent: () => setState(() => _actingAsAgent = true)),
+            const SupportTasksScreen(initialScope: 'all', title: 'الأعمال'),
+            const SupportTeamScreen(),
+            const SupportTasksScreen(messagesOnly: true, title: 'الرسائل'),
+            account,
           ],
-          items: [
+          items: const [
             _NavItemData(label: 'لوحة الفريق', icon: Icons.space_dashboard_outlined),
             _NavItemData(label: 'الأعمال', icon: Icons.view_list_outlined),
             _NavItemData(label: 'الفريق', icon: Icons.groups_2_outlined),
-            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
+            _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline),
             _NavItemData(label: 'حسابي', icon: Icons.account_circle_outlined),
           ],
         );
@@ -268,9 +305,9 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           ],
         );
       case 'advertiser':
-        return const _ShellData(pages: [
-          MarketplaceHomeScreen(), MarketplaceSearchMapScreen(embedded: true), Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()), AccountScreen(),
-        ], items: [
+        return _ShellData(pages: [
+          const MarketplaceHomeScreen(), const MarketplaceSearchMapScreen(embedded: true), const Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()), account,
+        ], items: const [
           _NavItemData(label: 'العقارات', icon: Icons.home_outlined),
           _NavItemData(label: 'الخريطة', icon: Icons.map_outlined),
           _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),
@@ -278,14 +315,14 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         ]);
       case 'regular':
       default:
-        return const _ShellData(
+        return _ShellData(
           pages: [
-            MarketplaceHomeScreen(),
-            MarketplaceCategoriesScreen(),
-            Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
-            AccountScreen(),
+            const MarketplaceHomeScreen(),
+            const MarketplaceCategoriesScreen(),
+            const Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen()),
+            account,
           ],
-          items: [
+          items: const [
             _NavItemData(label: 'العقارات', icon: Icons.travel_explore_outlined),
             _NavItemData(label: 'الأقسام', icon: Icons.grid_view_outlined),
             _NavItemData(label: 'الرسائل', icon: Icons.chat_bubble_outline, showsUnreadMessages: true),

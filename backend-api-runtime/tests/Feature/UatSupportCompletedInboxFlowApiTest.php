@@ -56,6 +56,60 @@ class UatSupportCompletedInboxFlowApiTest extends TestCase
         ]);
     }
 
+    public function test_workspace_buckets_distinguish_assignment_from_pickup_and_preserve_case_dispatch(): void
+    {
+        [, $requester] = $this->user('workspace-requester@example.test', '+967744420005');
+        [$agent, $worker] = $this->user('workspace-assigned@example.test', '+967744420006', ['support_agent']);
+        [$other, $otherWorker] = $this->user('workspace-other@example.test', '+967744420007', ['support_agent']);
+        [, $manager] = $this->user('workspace-manager@example.test', '+967744420008', ['support_manager']);
+        $team = $this->putAgentInFallback($agent);
+        $this->putAgentInFallback($other);
+        $this->travelTo(now()->startOfSecond());
+
+        $caseId = $this->withHeaders($requester)->postJson('/api/support/cases', [
+            'subject' => 'سؤال عن الإعلان',
+            'description' => 'أحتاج مساعدة بخصوص الإعلان.',
+            'category' => 'listing',
+        ])->assertCreated()->json('data.id');
+        $task = SupportTask::query()->where('source_type', 'support_ticket')->where('source_id', $caseId)->sole();
+        $task->forceFill(['created_at' => now()->subMinutes(59)])->save();
+        SupportTask::query()->create([
+            'source_type' => 'account_verification', 'source_id' => 987,
+            'subject' => 'طلب تحقق قديم', 'status' => 'new', 'priority' => 'normal', 'support_team_id' => $team,
+        ]);
+
+        $this->withHeaders($manager)->putJson("/api/admin/workspace/tasks/{$task->id}/assign", ['user_id' => $agent->id])
+            ->assertOk()->assertJsonPath('data.assignment_source', 'assigned')->assertJsonPath('data.claimed_at', null);
+        $dashboard = '/api/admin/workspace/dashboard?workspace_v2=1';
+        $this->withHeaders($worker)->getJson($dashboard)->assertOk()
+            ->assertJsonPath('data.assigned', 1)->assertJsonPath('data.received', 0)
+            ->assertJsonPath('data.inbox_new', 0)->assertJsonPath('data.unreceived_overdue', 0)
+            ->assertJsonPath('data.open_tickets', 0);
+        $task->forceFill(['created_at' => now()->subHour()])->save();
+        $scope = '/api/admin/workspace/tasks?workspace_v2=1';
+        $this->withHeaders($worker)->getJson($scope.'&scope=unreceived_overdue')
+            ->assertOk()->assertJsonPath('data.0.id', $task->id)
+            ->assertJsonPath('data.0.can_claim', true)->assertJsonPath('data.0.is_unreceived_overdue', true);
+        $this->withHeaders($otherWorker)->getJson($scope.'&scope=unreceived_overdue')
+            ->assertOk()->assertJsonPath('meta.total', 0);
+
+        $this->withHeaders($worker)->getJson("/api/admin/support/cases/$caseId")->assertConflict();
+        $this->withHeaders($worker)->postJson("/api/admin/workspace/tasks/{$task->id}/claim")
+            ->assertOk()->assertJsonPath('data.assignment_source', 'assigned')
+            ->assertJsonPath('data.is_unreceived_overdue', false)->assertJsonPath('data.can_claim', false);
+        $this->withHeaders($worker)->patchJson("/api/admin/workspace/tasks/{$task->id}/classification", [
+            'category' => 'support_question',
+        ])->assertOk()->assertJsonPath('data.category', 'support_question')
+            ->assertJsonPath('data.source_type', 'support_ticket');
+        $this->withHeaders($worker)->getJson($scope.'&scope=open_tickets&category=support_question')
+            ->assertOk()->assertJsonPath('data.0.source_id', $caseId);
+        $this->withHeaders($worker)->getJson('/api/admin/workspace/support-messages')
+            ->assertOk()->assertJsonPath('data.0.source_id', $caseId);
+        $this->withHeaders($worker)->getJson($dashboard)->assertOk()
+            ->assertJsonPath('data.assigned', 1)->assertJsonPath('data.open_tickets', 1)
+            ->assertJsonPath('data.unreceived_overdue', 0);
+    }
+
     private function putAgentInFallback(User $agent): int
     {
         $fallback=(int)DB::table('support_teams')->where('is_fallback',true)->value('id');

@@ -3,6 +3,7 @@ namespace App\Http\Middleware;
 
 use App\Models\SupportCase;
 use App\Models\SupportTask;
+use App\Models\User;
 use App\Services\SupportTaskService;
 use Closure;
 use Illuminate\Http\Request;
@@ -23,24 +24,28 @@ class EnsureSupportTaskOwnership
         if(!$actor->hasRole('support_agent')&&!$actor->hasRole('support_manager')&&!$actor->hasPermission('support.manage'))return $next($request);
 
         $path=$request->path();
-        if(preg_match('#^api/admin/account-verifications/(\\d+)/(approve|more-info|reject)$#',$path,$m)&&$request->isMethod('post'))$this->assertOwned((int)$actor->id,'account_verification',(int)$m[1]);
-        if(preg_match('#^api/account-verification/users/(\\d+)/documents/[^/]+$#',$path,$m)&&$request->isMethod('get'))$this->assertOwned((int)$actor->id,'account_verification',(int)$m[1]);
-        if(preg_match('#^api/admin/support/cases/(\\d+)$#',$path,$m)&&$request->isMethod('get'))$this->assertSupportCaseOwned((int)$actor->id,(int)$m[1]);
-        if(preg_match('#^api/admin/support/cases/(\\d+)/(start|reply|note|status)$#',$path,$m))$this->assertSupportCaseOwned((int)$actor->id,(int)$m[1]);
+        if(preg_match('#^api/admin/account-verifications/(\\d+)/(approve|more-info|reject)$#',$path,$m)&&$request->isMethod('post'))$this->assertOwned($actor,'account_verification',(int)$m[1]);
+        if(preg_match('#^api/account-verification/users/(\\d+)/documents/[^/]+$#',$path,$m)&&$request->isMethod('get'))$this->assertOwned($actor,'account_verification',(int)$m[1]);
+        if(preg_match('#^api/admin/support/cases/(\\d+)$#',$path,$m)&&$request->isMethod('get'))$this->assertSupportCaseOwned($actor,(int)$m[1]);
+        if(preg_match('#^api/admin/support/cases/(\\d+)/(start|reply|note|status)$#',$path,$m))$this->assertSupportCaseOwned($actor,(int)$m[1]);
         return $next($request);
     }
 
-    private function assertSupportCaseOwned(int $actorId,int $caseId): void
+    private function assertSupportCaseOwned(User $actor,int $caseId): void
     {
         $case=SupportCase::query()->find($caseId);if(!$case)return;
-        if((int)($case->assigned_to_user_id??0)!==$actorId)throw new ConflictHttpException('يجب استلام المهمة من مركز الدعم أولاً.');
-        $this->assertOwned($actorId,$case->kind==='report'?'report':'support_ticket',$caseId);
+        if((int)($case->assigned_to_user_id??0)!==(int)$actor->id)throw new ConflictHttpException('يجب استلام المهمة من مركز الدعم أولاً.');
+        $this->assertOwned($actor,$case->kind==='report'?'report':'support_ticket',$caseId);
     }
 
-    private function assertOwned(int $actorId,string $type,int $sourceId): void
+    private function assertOwned(User $actor,string $type,int $sourceId): void
     {
         $task=SupportTask::query()->where('source_type',$type)->where('source_id',$sourceId)->whereIn('status',SupportTaskService::ACTIVE_STATUSES)->first();
         if(!$task)$task=$this->tasks->projectSource($type,$sourceId);
-        if($task&&(int)($task->assigned_to_user_id??0)!==$actorId)throw new ConflictHttpException('يجب استلام المهمة من مركز الدعم أولاً.');
+        if (!$task) return;
+        if ((int)($task->assigned_to_user_id ?? 0) !== (int)$actor->id || $task->isAwaitingAssignedReception()) {
+            throw new ConflictHttpException('يجب استلام المهمة من مركز الدعم أولاً.');
+        }
+        $this->tasks->assertTaskOwnership($actor, $task);
     }
 }

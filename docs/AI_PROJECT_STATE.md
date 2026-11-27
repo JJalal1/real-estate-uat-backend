@@ -1,3 +1,11 @@
+# UAT 1850 — Alazzi support workspace
+
+The owner authorized implementation on the UAT 1849 Alazzi source and rollout to Frankfurt UAT. The support center uses six state-based queues, with department assignment distinct from employee pickup. A new assignment remains subject to the one-hour pickup deadline until the assignee takes it. Previously accepted tasks retain their recorded pickup time.
+
+Listing review uses expandable protected images, side-by-side candidate comparison and reasoned image rejection. Approval is for the listing as a whole and continues to enforce rejection of unresolved inappropriate images and the existing property-identity checks. Payment proof review uses the shared support lifecycle with explicit finance permission and governorate routing. Approving payment proof continues through the existing financial ledger service.
+
+Operational roles and scope are decided by Laravel. Team administrators configure governorate teams using active existing accounts. Work for an unstaffed governorate stays with the general support team until a local agent is designated, with the governorate preserved on the task. The staff map and support messages use the assigned team scope, and the app can switch to regular-user navigation using the same account. Existing deal registration continues to use the advertiser’s entered amount. Deployment, exact-source APK and physical handset acceptance require their own evidence.
+
 # Listing preparation step 3 — November19
 
 The current editable Arabic listing draft and Android dictation remain the entry point. The Android listing editor runs the bundled image classifier when adding or replacing gallery photos, before checking file size/format or attaching accepted photos. Queued local draft photos also pass the check before their first upload. The Android build uses the existing UAT package and signer. Emulator acceptance of the new photo check and the owner’s handset dictation check are pending.

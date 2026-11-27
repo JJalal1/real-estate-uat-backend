@@ -122,7 +122,10 @@ class ListingReviewRepository {
 
   Future<Uint8List> protectedImage(String url, {CancelToken? cancelToken}) async {
     final base=Uri.parse(_dio.options.baseUrl), target=Uri.parse(_dio.options.baseUrl).resolve(url);
-    if (target.origin != base.origin || !RegExp('^${RegExp.escape(base.path)}/(?:property-media|listing-documents)/[0-9]+\$').hasMatch(target.path)) {
+    final allowedPath = RegExp('^${RegExp.escape(base.path)}/(?:'
+      '(?:property-media|listing-documents)/[0-9]+|'
+      'admin/listing-review/listings/[0-9]+/duplicates/[0-9]+/images/[0-9]+)\$');
+    if (target.origin != base.origin || !allowedPath.hasMatch(target.path)) {
       throw StateError('Invalid protected image location');
     }
     final cancel=cancelToken ?? CancelToken();

@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,8 +9,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
 import '../../account/presentation/actor_scoped_page.dart';
-import '../../financial/data/financial_repository.dart';
-import '../../financial/domain/financial_models.dart';
 import '../../broker/data/broker_repository.dart';
 import '../../reviews/domain/listing_duplicate_candidate.dart';
 import '../../reviews/presentation/listing_duplicate_notice.dart';
@@ -22,6 +18,7 @@ import '../data/support_workspace_repository.dart';
 import '../domain/support_models.dart';
 import '../domain/support_workspace_models.dart';
 import 'account_verification_support_screen.dart';
+import 'support_payment_review_screen.dart';
 
 class SupportTasksScreen extends ConsumerStatefulWidget {
   const SupportTasksScreen({
@@ -32,6 +29,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
     this.initialSeverity,
     this.overdueOnly = false,
     this.actingAsAgent = false,
+    this.messagesOnly = false,
     this.initialTaskId,
     this.title,
   });
@@ -42,6 +40,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
   final String? initialSeverity;
   final bool overdueOnly;
   final bool actingAsAgent;
+  final bool messagesOnly;
   final int? initialTaskId;
   final String? title;
 
@@ -59,6 +58,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   List<SupportTaskItem> _items = const [];
   late String _scope;
   String? _type;
+  String? _category;
   String? _status;
   String? _priority;
   String? _severity;
@@ -129,9 +129,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       _error = null;
     });
     try {
-      final item = await ref
-          .read(supportWorkspaceRepositoryProvider)
-          .task(taskId);
+      final repository = ref.read(supportWorkspaceRepositoryProvider);
+      final item = widget.actingAsAgent
+          ? await repository.agentTask(taskId)
+          : await repository.task(taskId);
       if (!current()) return;
       setState(() {
         _items = [item];
@@ -139,7 +140,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       });
       if (!_initialTaskOpened) {
         _initialTaskOpened = true;
-        if (item.isMine && (!item.isClosed || item.sourceType == 'support_ticket')) {
+        if (item.isMine && !item.canClaim && (!item.isClosed || item.sourceType == 'support_ticket')) {
           await _open(item, false);
         }
       }
@@ -163,7 +164,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     if (actor == null) return;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    final query = '$_scope:$_type:$_status:$_priority:$_severity:$_assigneeId:$_createdFrom:$_createdTo:$_overdue:${widget.actingAsAgent}';
+    final query = '$_scope:$_type:$_category:$_status:$_priority:$_severity:$_assigneeId:$_createdFrom:$_createdTo:$_overdue:${widget.actingAsAgent}:${widget.messagesOnly}';
     if (append && (_query != query || _actor != actor || _sessionEpoch != epoch)) {
       await _fetchPage(1);
       return;
@@ -192,10 +193,16 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
         query == _query;
     try {
-      final result = await ref.read(supportWorkspaceRepositoryProvider).tasks(
+      final repository = ref.read(supportWorkspaceRepositoryProvider);
+      final SupportTaskPage result;
+      if (widget.messagesOnly) {
+        result = await repository.messages(page: page, actingAsAgent: widget.actingAsAgent);
+      } else {
+        result = await repository.tasks(
             page: page,
             scope: _scope,
             type: _type,
+            category: _category,
             status: _status,
             priority: _priority,
             severity: _severity,
@@ -205,6 +212,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             overdue: _overdue,
             actingAsAgent: widget.actingAsAgent,
           );
+      }
       if (!current()) return;
       setState(() {
         // A task can move between server pages while the queue changes. Keep
@@ -265,7 +273,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         ),
         body: Column(
           children: [
-            if (manager && widget.actingAsAgent && !managerMode)
+            if (manager && widget.actingAsAgent && !managerMode && !widget.messagesOnly)
               Material(
                 color: Theme.of(context).colorScheme.primaryContainer,
                 child: const ListTile(
@@ -273,10 +281,11 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   title: Text('أنت الآن تعمل كموظف دعم',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(
-                      'استلم الطلب أولاً ثم عالجه بنفس قواعد موظفي الدعم. الرجوع يغلق هذا الوضع.'),
+                      'استلم الطلب من الوارد أو من المهام المسندة إليك.'),
                 ),
               ),
-            if (widget.initialTaskId == null) _filters(managerMode),
+            if (widget.initialTaskId == null && !widget.messagesOnly)
+              _filters(managerMode, user.hasPermission('payments.review') || managerMode),
             if (_items.isNotEmpty && (_loading || _error != null)) AppRefreshStatus(loading: _loading, error: _error, onRetry: _load),
             Expanded(child: _body(managerMode)),
           ],
@@ -286,32 +295,32 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   String _defaultTitle() {
+    if (widget.messagesOnly) return 'رسائل الدعم';
+    if (_scope == 'assigned') return 'المهام المسندة إليك';
+    if (_scope == 'received') return 'المهام المستلمة';
+    if (_scope == 'open_tickets') return 'التذاكر المفتوحة';
+    if (_scope == 'waiting_user') return 'بانتظار المستخدم';
+    if (_scope == 'unreceived_overdue') return 'المتأخر';
     if (_scope == 'mine') return 'مهامي';
     if (_scope == 'completed') return 'المهام المنجزة';
     if (_scope == 'all') return 'كل الأعمال';
     return 'الوارد الجديد';
   }
 
-  Widget _filters(bool manager) {
+  Widget _filters(bool manager, bool showPayments) {
+    final showScopes = manager && const ['inbox', 'mine', 'completed', 'all'].contains(_scope);
     return Material(
       color: Theme.of(context).colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
         child: Column(
           children: [
-            if (manager || widget.actingAsAgent)
+            if (showScopes)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: EbrokerSegmentedButton<String>(
                   showSelectedIcon: false,
-                  segments: widget.actingAsAgent
-                      ? const [
-                          ButtonSegment(value: 'inbox', label: Text('الوارد')),
-                          ButtonSegment(value: 'mine', label: Text('مهامي')),
-                          ButtonSegment(
-                              value: 'completed', label: Text('المنجزة')),
-                        ]
-                      : const [
+                  segments: const [
                           ButtonSegment(
                               value: 'inbox', label: Text('غير مسند')),
                           ButtonSegment(value: 'mine', label: Text('مسند لي')),
@@ -327,22 +336,19 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   },
                 ),
               ),
-            if (manager || widget.actingAsAgent) const SizedBox(height: 8),
+            if (showScopes) const SizedBox(height: 8),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _choice('الكل', _type == null, () => _setType(null)),
-                  _choice('تحقق حسابات', _type == 'account_verification',
-                      () => _setType('account_verification')),
-                  _choice('تحقيق إعلانات', _type == 'listing_review',
-                      () => _setType('listing_review')),
-                  _choice('تذاكر', _type == 'support_ticket',
-                      () => _setType('support_ticket')),
-                  _choice(
-                      'بلاغات', _type == 'report', () => _setType('report')),
-                  _choice('متابعة التواصل', _type == 'contact_followup',
-                      () => _setType('contact_followup')),
+                  _choice('الكل', _type == null && _category == null, () => _setCategory(null)),
+                  for (final category in _taskCategories)
+                    if (category != 'payment_review' || showPayments)
+                      _choice(
+                        _typeLabel(category),
+                        (_category ?? _type) == category,
+                        () => _setCategory(category),
+                      ),
                 ],
               ),
             ),
@@ -353,7 +359,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 children: [
                   _filterMenu(),
                   const SizedBox(width: 6),
-                  EbrokerFilterChip(
+                  if (_scope != 'unreceived_overdue') EbrokerFilterChip(
                     label: const Text('متأخر فقط'),
                     avatar: const EbrokerIcon(Icons.timer_off_outlined, size: 18),
                     selected: _overdue,
@@ -377,7 +383,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       onPressed: _pickDateRange,
                     ),
                   ],
-                  if (_type != null ||
+                  if (_type != null || _category != null ||
                       _status != null ||
                       _priority != null ||
                       _severity != null ||
@@ -389,6 +395,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       onPressed: () {
                         setState(() {
                           _type = null;
+                          _category = null;
                           _status = null;
                           _priority = null;
                           _severity = null;
@@ -545,8 +552,11 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     await _load();
   }
 
-  void _setType(String? value) {
-    setState(() => _type = value);
+  void _setCategory(String? value) {
+    setState(() {
+      _type = null;
+      _category = value;
+    });
     _load();
   }
 
@@ -564,7 +574,9 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             const SizedBox(height: 140),
             EbrokerIcon(Icons.inbox_outlined, size: 58, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 14),
-            const Center(child: Text('لا توجد مهام مطابقة لهذه الفلاتر.')),
+            Center(child: Text(widget.messagesOnly
+                ? 'لا توجد محادثات دعم مفتوحة.'
+                : 'لا توجد مهام مطابقة لهذه الفلاتر.')),
           ],
         ),
       );
@@ -587,7 +599,6 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             : _TaskCard(
           key: ValueKey('support-task-${_items[index].id}'),
           task: _items[index],
-          manager: manager,
           onClaim: () => _claim(_items[index]),
           onOpen: () => _open(_items[index], manager),
           onManage: manager || _items[index].isMine
@@ -599,15 +610,18 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   Future<void> _claim(SupportTaskItem task) async {
+    final scope = ref.read(accountRequestScopeProvider);
     try {
       final claimed = await ref.read(supportWorkspaceRepositoryProvider).claim(
             task.id,
             actingAsAgent: widget.actingAsAgent,
           );
-      _message('تم استلام المهمة وإضافتها إلى مهامك.');
-      await _load();
-      if (mounted) await _open(claimed, false);
+      if (!mounted || !scope.isCurrent) return;
+      _message('تم استلام المهمة.');
+      ref.read(supportWorkspaceRevisionProvider.notifier).state++;
+      await _open(claimed, false);
     } catch (error) {
+      if (!mounted || !scope.isCurrent) return;
       _message(friendlyApiError(error));
       await _load();
     }
@@ -619,7 +633,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           'هذه شاشة إدارة العمل. لمعالجة الطلب بنفسك استخدم «العمل كموظف دعم» واستلمه أولاً.');
       return;
     }
-    if ((!manager || widget.actingAsAgent) && !task.isMine) {
+    if ((!manager || widget.actingAsAgent) && (!task.isMine || task.canClaim)) {
       _message('استلم المهمة أولاً قبل فتح بياناتها الخاصة.');
       return;
     }
@@ -651,6 +665,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         break;
       case 'support_ticket':
       case 'report':
+      case 'support_question':
         await _supportCaseDialog(task);
         break;
       case 'payment_review':
@@ -660,7 +675,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         await _contactFollowupDialog(task);
         break;
     }
-    if (mounted) await _load();
+    if (mounted) {
+      ref.read(supportWorkspaceRevisionProvider.notifier).state++;
+      await _load();
+    }
   }
 
   Future<void> _contactFollowupDialog(SupportTaskItem task) async {
@@ -808,145 +826,24 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     }
   }
   Future<void> _paymentReviewDialog(SupportTaskItem task) async {
-    FinancialPayment payment;
-    try {
-      payment = await ref.read(financialRepositoryProvider).adminPayment(
-            task.sourceId,
-            actingAsAgent: widget.actingAsAgent,
-          );
-    } catch (error) {
-      _message(friendlyApiError(error));
-      return;
-    }
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('التحقق من إثبات الدفع'),
-        content: SizedBox(
-          width: 520,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(payment.propertyTitle ?? 'العقار',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                    'المبلغ: ${payment.amount.toStringAsFixed(0)} ${payment.currency}'),
-                Text('الطريقة: ${payment.paymentMethod ?? '—'}'),
-                if (payment.senderName != null)
-                  Text('اسم المرسل: ${payment.senderName}'),
-                if (payment.senderPhone != null)
-                  Text('رقم المرسل: ${payment.senderPhone}'),
-                if (payment.providerReference != null)
-                  Text('رقم العملية: ${payment.providerReference}'),
-                const SizedBox(height: 12),
-                if (payment.hasProof)
-                  FutureBuilder<List<int>?>(
-                    future: ref
-                        .read(financialRepositoryProvider)
-                        .paymentProof(
-                          payment.id,
-                          actingAsAgent: widget.actingAsAgent,
-                        )
-                        .then((response) => response.data),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final bytes = snapshot.data;
-                      if (bytes == null || bytes.isEmpty) {
-                        return const Text('تعذر عرض صورة الإثبات.');
-                      }
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(Uint8List.fromList(bytes),
-                            fit: BoxFit.contain),
-                      );
-                    },
-                  )
-                else
-                  const Text('لا يوجد إثبات مرفوع.'),
-              ],
-            ),
-          ),
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    if (actor == null) return;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final scope = ref.read(accountRequestScopeProvider);
+    final result = await Navigator.of(context).push<String>(MaterialPageRoute(
+      builder: (_) => ActorBoundPage(
+        title: 'مراجعة إيصال سداد',
+        actorId: actor,
+        sessionEpoch: epoch,
+        requestScope: scope,
+        builder: (_) => SupportPaymentReviewScreen(
+          paymentId: task.sourceId,
+          actingAsAgent: widget.actingAsAgent,
+          advertiserName: task.requesterName,
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إغلاق')),
-          TextButton(
-              onPressed: () async {
-                final note = await _paymentReviewReason('طلب تصحيح الإثبات');
-                if (note == null || !mounted) return;
-                await _reviewPayment(task.sourceId, 'correction', note);
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-              child: const Text('طلب تصحيح')),
-          TextButton(
-              onPressed: () async {
-                final note = await _paymentReviewReason('رفض الإثبات');
-                if (note == null || !mounted) return;
-                await _reviewPayment(task.sourceId, 'reject', note);
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-              child: const Text('رفض')),
-          EbrokerFilledButton(
-              onPressed: () async {
-                await _reviewPayment(task.sourceId, 'confirm', null);
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-              child: const Text('تأكيد الدفع')),
-        ],
       ),
-    );
-  }
-
-  Future<String?> _paymentReviewReason(String title) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-            controller: controller,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: 'السبب *')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إلغاء')),
-          EbrokerFilledButton(
-              onPressed: () {
-                final value = controller.text.trim();
-                if (value.length >= 3) Navigator.pop(dialogContext, value);
-              },
-              child: const Text('حفظ')),
-        ],
-      ),
-    );
-    controller.dispose();
-    return result;
-  }
-
-  Future<void> _reviewPayment(
-      int paymentId, String decision, String? note) async {
-    try {
-      await ref.read(financialRepositoryProvider).reviewPayment(
-            paymentId,
-            decision,
-            note: note,
-            actingAsAgent: widget.actingAsAgent,
-          );
-      _message(decision == 'confirm'
-          ? 'تم تأكيد عملية الدفع.'
-          : decision == 'correction'
-              ? 'تم طلب تصحيح الإثبات.'
-              : 'تم رفض الإثبات.');
-    } catch (error) {
-      _message(friendlyApiError(error));
-    }
+    ));
+    if (result != null && mounted && scope.isCurrent) _message(result);
   }
 
   Future<void> _supportCaseDialog(SupportTaskItem task) async {
@@ -978,6 +875,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       ref: ref,
       builder: (dialogContext) => _SupportCaseDialog(
         details: details,
+        onClassify: task.isClosed || !task.isMine ? null : () {
+          verify();
+          return _classify(task, categoryOnly: true);
+        },
         onReply: (text) {
           verify();
           return support.adminReply(task.sourceId, text);
@@ -1026,7 +927,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
               if (manager)
                 ListTile(
                   leading: const EbrokerIcon(Icons.flag_outlined),
-                  title: const Text('الأولوية والخطورة'),
+                title: const Text('تصنيف المهمة'),
                   onTap: () => Navigator.pop(sheetContext, 'classify'),
                 ),
               if (!manager &&
@@ -1269,18 +1170,34 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     _message('تم تحديث إسناد المهمة.');
   }
 
-  Future<void> _classify(SupportTaskItem task) async {
+  Future<void> _classify(SupportTaskItem task, {bool categoryOnly = false}) async {
+    final scope = ref.read(accountRequestScopeProvider);
     String priority = task.priority;
     String? severity = task.severity;
+    const caseCategories = ['support_ticket', 'support_question', 'report'];
+    final caseTask = caseCategories.contains(task.sourceType);
+    var category = caseCategories.contains(task.category) ? task.category : task.sourceType;
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
-          title: const Text('الأولوية والخطورة'),
-          content: Column(
+          title: const Text('تصنيف المهمة'),
+          content: SingleChildScrollView(child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<String>(
+              if (caseTask) DropdownButtonFormField<String>(
+                value: category,
+                decoration: const InputDecoration(labelText: 'نوع المهمة'),
+                items: [
+                  for (final value in caseCategories)
+                    DropdownMenuItem(value: value, child: Text(_typeLabel(value))),
+                ],
+                onChanged: (value) {
+                  if (value != null) setLocal(() => category = value);
+                },
+              ),
+              if (!categoryOnly && caseTask) const SizedBox(height: 12),
+              if (!categoryOnly) DropdownButtonFormField<String>(
                 value: priority,
                 decoration: const InputDecoration(labelText: 'الأولوية'),
                 items: const [
@@ -1292,7 +1209,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                   if (value != null) setLocal(() => priority = value);
                 },
               ),
-              if (task.sourceType == 'report') ...[
+              if (!categoryOnly && task.sourceType == 'report') ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: severity ?? 'medium',
@@ -1307,7 +1224,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 ),
               ],
             ],
-          ),
+          )),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -1321,13 +1238,15 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
         ),
       ),
     );
-    if (accepted != true) return;
+    if (accepted != true || !mounted || !scope.isCurrent) return;
     await ref.read(supportWorkspaceRepositoryProvider).classify(
           task.id,
           priority: priority,
           severity: task.sourceType == 'report' ? severity : null,
+          category: caseTask ? category : null,
+          actingAsAgent: widget.actingAsAgent,
         );
-    _message('تم تحديث التصنيف.');
+    if (scope.isCurrent) _message('تم تحديث التصنيف.');
   }
 
   Future<String?> _textDialog(String title, String hint) async {
@@ -1373,14 +1292,12 @@ class _TaskCard extends StatelessWidget {
   const _TaskCard({
     super.key,
     required this.task,
-    required this.manager,
     required this.onClaim,
     required this.onOpen,
     this.onManage,
   });
 
   final SupportTaskItem task;
-  final bool manager;
   final VoidCallback onClaim;
   final VoidCallback onOpen;
   final VoidCallback? onManage;
@@ -1390,6 +1307,11 @@ class _TaskCard extends StatelessWidget {
     final duplicateDetection = task.sourceType == 'listing_review' && !task.isClosed
         ? ListingDuplicateDetection.fromJson(task.metadata)
         : null;
+    final awaitingPickup = task.claimedAt == null && task.pickupDueAt != null;
+    final overdue = awaitingPickup ? task.isUnreceivedOverdue : task.isOverdue;
+    final remaining = awaitingPickup
+        ? task.pickupDueAt!.difference(DateTime.now()).inMinutes
+        : task.remainingMinutes;
     return Card(
       elevation: task.severity == 'critical' ? 2 : 0,
       child: Padding(
@@ -1455,12 +1377,19 @@ class _TaskCard extends StatelessWidget {
                   _StatusPill(
                       label: 'خطورة ${_severityLabel(task.severity!)}',
                       kind: task.severity == 'critical' ? 2 : 0),
-                if (task.isOverdue) const _StatusPill(label: 'متأخر', kind: 2),
+                if (overdue) const _StatusPill(label: 'متأخر', kind: 2),
               ],
             ),
             if (duplicateDetection != null) ...[
               const SizedBox(height: 8),
               ListingDuplicateNotice(detection: duplicateDetection),
+            ],
+            if (task.sourceType == 'payment_review' &&
+                task.metadata['amount'] is num &&
+                task.metadata['currency'] is String) ...[
+              const SizedBox(height: 8),
+              Text(moneyLabel(task.metadata['amount'], task.metadata['currency'] as String),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
             ],
             const SizedBox(height: 9),
             Wrap(
@@ -1496,18 +1425,20 @@ class _TaskCard extends StatelessWidget {
                     task.assignedToName == null
                         ? 'غير مسند'
                         : task.isMine
-                            ? 'مستلم مني – ${task.assignedToName}'
+                            ? task.assignmentSource == 'assigned'
+                                ? 'مسند إليك'
+                                : 'مستلم منك'
                             : 'المسؤول: ${task.assignedToName}',
                     style: TextStyle(
                         fontSize: 12.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ),
-                Text(
-                  _slaText(task),
+                if (remaining != null) Text(
+                  _slaText(remaining),
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: task.isOverdue
+                    color: overdue
                         ? Theme.of(context).colorScheme.error
                         : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
@@ -1522,12 +1453,11 @@ class _TaskCard extends StatelessWidget {
                     child: EbrokerFilledButton.icon(
                       onPressed: onClaim,
                       icon: const EbrokerIcon(Icons.pan_tool_alt_outlined),
-                      label: const Text('استلام'),
+                      label: const Text('استلم'),
                     ),
                   ),
-                  const SizedBox(width: 8),
                 ],
-                Expanded(
+                if (!task.canClaim) Expanded(
                   child: EbrokerOutlinedButton.icon(
                     onPressed: task.isClosed ? onManage : onOpen,
                     icon: EbrokerIcon(task.isClosed
@@ -1535,7 +1465,7 @@ class _TaskCard extends StatelessWidget {
                         : Icons.open_in_new),
                     label: Text(task.isClosed
                         ? 'تفاصيل القرار'
-                        : (task.canClaim && !manager ? 'بعد الاستلام' : 'فتح')),
+                        : 'فتح'),
                   ),
                 ),
               ],
@@ -1588,6 +1518,7 @@ class _SupportCaseDialog extends StatefulWidget {
     required this.onInternalNote,
     required this.onStatus,
     this.onDealResolution,
+    this.onClassify,
   });
 
   final SupportCaseDetails details;
@@ -1595,6 +1526,7 @@ class _SupportCaseDialog extends StatefulWidget {
   final Future<SupportCaseDetails> Function(String) onInternalNote;
   final Future<void> Function(String) onStatus;
   final Future<void> Function(String, String)? onDealResolution;
+  final Future<void> Function()? onClassify;
 
   @override
   State<_SupportCaseDialog> createState() => _SupportCaseDialogState();
@@ -1693,6 +1625,12 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
+                    if (widget.onClassify != null && !d.summary.isClosed)
+                      TextButton.icon(
+                        onPressed: _busy ? null : _classify,
+                        icon: const EbrokerIcon(Icons.category_outlined),
+                        label: const Text('تصنيف المهمة'),
+                      ),
                     if (!_linkedCustomerCase || !d.summary.isClosed)
                       EbrokerFilledButton.tonalIcon(
                         onPressed: _busy ? null : () => _compose(false),
@@ -1796,6 +1734,18 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
     }
   }
 
+  Future<void> _classify() async {
+    try {
+      await widget.onClassify?.call();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(error))),
+        );
+      }
+    }
+  }
+
   Future<void> _resolveBroker(String decision) async {
     String note = '';
     final form = GlobalKey<FormState>();
@@ -1847,7 +1797,7 @@ String _taskTypeLabel(SupportTaskItem task) {
     };
   }
   if (task.sourceType == 'listing_review') return 'تحقق نشر إعلان';
-  return _typeLabel(task.sourceType);
+  return _typeLabel(task.category ?? task.sourceType);
 }
 
 String _taskResultLabel(SupportTaskItem task) {
@@ -1865,12 +1815,23 @@ String _taskResultLabel(SupportTaskItem task) {
   };
 }
 
+const _taskCategories = [
+  'listing_review',
+  'support_ticket',
+  'support_question',
+  'report',
+  'contact_followup',
+  'payment_review',
+];
+
 String _typeLabel(String value) => switch (value) {
       'account_verification' => 'تحقق حساب',
-      'listing_review' => 'تحقيق إعلان',
+      'listing_review' => 'تحقق إعلان',
       'support_ticket' => 'تذكرة',
+      'support_question' => 'سؤال للدعم',
       'report' => 'بلاغ',
       'contact_followup' => 'متابعة تواصل',
+      'payment_review' => 'متابعة مالية',
       _ => value,
     };
 
@@ -1880,6 +1841,7 @@ IconData _typeIcon(String value) => switch (value) {
       'support_ticket' => Icons.support_agent_outlined,
       'report' => Icons.report_gmailerrorred_outlined,
       'contact_followup' => Icons.phone_callback_outlined,
+      'payment_review' => Icons.payments_outlined,
       _ => Icons.task_alt,
     };
 
@@ -1932,7 +1894,7 @@ String _eventLabel(String value) => switch (value) {
       'created_from_source' => 'إنشاء المهمة',
       'claimed' => 'استلام المهمة',
       'assigned' => 'إسناد / إعادة إسناد',
-      'classification_changed' => 'تحديث الأولوية والخطورة',
+      'classification_changed' => 'تحديث تصنيف المهمة',
       'operational_status_changed' => 'تحديث الحالة التشغيلية',
       'documents_requested' => 'طلب مستند إضافي',
       'verification_rejected' => 'رفض طلب التحقق',
@@ -1957,9 +1919,7 @@ String _timeAgo(DateTime value) {
   return 'منذ ${diff.inDays} ي';
 }
 
-String _slaText(SupportTaskItem task) {
-  final minutes = task.remainingMinutes;
-  if (minutes == null) return 'SLA غير محدد';
+String _slaText(int minutes) {
   final absolute = minutes.abs();
   final hours = absolute ~/ 60;
   final mins = absolute % 60;

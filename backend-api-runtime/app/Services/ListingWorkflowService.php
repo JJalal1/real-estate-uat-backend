@@ -6,6 +6,7 @@ use App\Models\ListingReview;
 use App\Models\Property;
 use App\Models\PropertyAsset;
 use App\Models\PropertyPublicationBlock;
+use App\Models\SupportTask;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -406,9 +407,8 @@ class ListingWorkflowService
                 throw new ConflictHttpException('Identity evidence is incomplete. Retry the identity check before approval.');
             }
 
-            // A listing may be published only after every current image has
-            // explicit, fingerprint-bound human confirmation. Missing/uncertain
-            // reviews fail closed; replacing a file invalidates old evidence.
+            // Publication is the human approval for the listing as a whole.
+            // A review tied to a rejected current file still requires correction.
             $mediaStates = $this->mediaReviewStates($locked);
             $images = $locked->images()->get();
             if ($images->isEmpty()) {
@@ -420,13 +420,6 @@ class ListingWorkflowService
             if ($unrelatedImageIds->isNotEmpty()) {
                 throw new ConflictHttpException('لا يمكن اعتماد الإعلان قبل استبدال أو معالجة الصور المصنفة غير مرتبطة بالعقار.');
             }
-            $unreviewedImageIds = $images->filter(static fn ($image): bool =>
-                ($mediaStates[$image->id]['decision'] ?? 'pending') !== 'relevant'
-            );
-            if ($unreviewedImageIds->isNotEmpty()) {
-                throw new ConflictHttpException('راجع صلة جميع صور الإعلان بالعقار واعتمد الصور المناسبة قبل النشر.');
-            }
-
             $owner = $locked->user()->firstOrFail();
             abort_unless($owner->canCreateListings(), 403);
             $this->brokerVerification->assertApprovalAllowed($locked);
@@ -739,6 +732,14 @@ class ListingWorkflowService
             }
             if ($assignedTo !== (int) $actor->id) {
                 throw new ConflictHttpException('تم استلام هذا الإعلان بواسطة موظف دعم آخر.');
+            }
+            $task = SupportTask::query()->where('source_type', 'listing_review')
+                ->where('source_id', $listing->id)->first();
+            if ($task) {
+                $visibleTask = $this->tasks->taskFor($actor, (int) $task->id, !empty($task->metadata['manager_agent_mode']));
+                if ($visibleTask->isAwaitingAssignedReception()) {
+                    throw new ConflictHttpException('استلم طلب تحقيق الإعلان أولاً قبل تنفيذ قرار المراجعة.');
+                }
             }
         }
     }

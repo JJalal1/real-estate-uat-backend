@@ -54,4 +54,9 @@ class SupportTask extends Model
     {
         return ! $this->isClosed();
     }
+
+    public function isAwaitingAssignedReception(): bool
+    {
+        return $this->claimed_at === null && ($this->metadata['assignment_source'] ?? null) === 'assigned';
+    }
 }

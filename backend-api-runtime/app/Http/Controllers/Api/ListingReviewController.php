@@ -6,11 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\ListingDocument;
 use App\Models\Property;
 use App\Models\PropertyAsset;
+use App\Models\PropertyImage;
 use App\Models\PropertyPublicationBlock;
+use App\Models\SupportTask;
 use App\Services\AuditLogService;
 use App\Services\ListingDuplicateAssessment;
+use App\Services\ListingImageService;
 use App\Services\ListingWorkflowService;
 use App\Services\PropertyAssetService;
+use App\Services\SupportTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -79,6 +83,30 @@ class ListingReviewController extends Controller
 
     public function show(Request $request, Property $property): JsonResponse
     {
+        $this->assertReviewerCanView($request, $property);
+
+        return response()->json([
+            'data' => $this->data(
+                $property->load(['images', 'documents', 'user', 'propertyAsset', 'reviews.actor']),
+                true,
+            ),
+        ]);
+    }
+
+    public function duplicateMedia(Request $request, Property $property, int $candidate, PropertyImage $image)
+    {
+        $this->assertReviewerCanView($request, $property);
+        abort_unless(in_array($property->review_status, ['submitted', 'under_review'], true), 404);
+
+        abort_unless((int) $image->property_id === $candidate && !$image->cdn_url, 404);
+        $match = collect($this->assets->likelyDuplicates($property))->firstWhere('listing_id', $candidate);
+        abort_unless($match && (int) $match['main_image_id'] === (int) $image->id, 404);
+
+        return app(ListingImageService::class)->response($image->path, 'detail', false);
+    }
+
+    private function assertReviewerCanView(Request $request, Property $property): void
+    {
         $user = $request->user();
         $isSupportWorker = $user?->hasRole('support_agent') === true
             && ! $user->hasPermission('support.manage');
@@ -87,12 +115,16 @@ class ListingReviewController extends Controller
             abort(403, 'تم استلام هذا الإعلان بواسطة موظف دعم آخر.');
         }
 
-        return response()->json([
-            'data' => $this->data(
-                $property->load(['images', 'documents', 'user', 'propertyAsset', 'reviews.actor']),
-                true,
-            ),
-        ]);
+        if ($user->hasRole('support_agent') || $user->hasRole('support_manager') || $user->hasPermission('support.manage')) {
+            $task = SupportTask::query()->where('source_type', 'listing_review')
+                ->where('source_id', $property->id)->first();
+            if ($task) {
+                $selfAssigned = (int) $task->assigned_to_user_id === (int) $user->id;
+                $actingAsAgent = $selfAssigned && !empty($task->metadata['manager_agent_mode']);
+                $visibleTask = app(SupportTaskService::class)->taskFor($user, (int) $task->id, $actingAsAgent);
+                abort_if($selfAssigned && $visibleTask->isAwaitingAssignedReception(), 409, 'استلم مهمة تحقيق الإعلان أولاً.');
+            }
+        }
     }
 
     public function reviewMedia(Request $request, Property $property): JsonResponse
@@ -276,6 +308,7 @@ class ListingReviewController extends Controller
             'type' => $p->type,
             'tenure_type' => $p->tenure_type,
             'price' => (float) $p->price,
+            'currency' => $p->currency,
             'status' => $p->status,
             'review_status' => $p->review_status,
             'submitted_at' => $p->submitted_at?->toIso8601String(),
@@ -338,7 +371,21 @@ class ListingReviewController extends Controller
 
         if ($full) {
             $p->loadMissing('reviews.actor');
-            $data['likely_duplicate_candidates'] = $likelyDuplicates;
+            $comparisonListings = Property::query()->whereKey(array_column($likelyDuplicates, 'listing_id'))
+                ->get(['id', 'price', 'currency', 'area_value', 'area_unit'])->keyBy('id');
+            $data['likely_duplicate_candidates'] = array_map(function (array $candidate) use ($p, $comparisonListings): array {
+                $listingId = $candidate['listing_id'];
+                $comparison = $comparisonListings->get($listingId);
+                $imageId = $candidate['main_image_id'];
+                return $candidate + [
+                    'price' => $comparison?->price,
+                    'currency' => $comparison?->currency,
+                    'area_value' => $comparison?->area_value,
+                    'area_unit' => $comparison?->area_unit,
+                    'image_url' => $comparison && $imageId
+                        ? "/api/admin/listing-review/listings/{$p->id}/duplicates/{$listingId}/images/{$imageId}" : null,
+                ];
+            }, $likelyDuplicates);
             $data['review_history'] = $p->reviews->map(fn ($r) => [
                 'id' => $r->id,
                 'action' => $r->action,
