@@ -236,6 +236,11 @@ class _ProfileHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final account = user;
+    final name = account?.name.trim() ?? '';
+    final email = account?.email.trim() ?? '';
+    final contact = email.isNotEmpty && !email.toLowerCase().endsWith('@phone.local.invalid')
+        ? email
+        : account?.phone?.trim() ?? '';
     final photo = account != null && account.canEditPublicProfile
         ? ref.watch(brokerProfileProvider(account.id)).asData?.value.photoUrl
         : null;
@@ -258,7 +263,7 @@ class _ProfileHeader extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  account?.name ?? 'مرحباً بك',
+                  name.isEmpty || name == 'مستخدم جديد' ? 'مرحباً بك' : name,
                   maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
@@ -266,7 +271,7 @@ class _ProfileHeader extends ConsumerWidget {
                 Text(
                   account == null
                       ? 'تصفح العقارات بحرية وسجّل الدخول عند الحاجة.'
-                      : (account.email.trim().isNotEmpty ? account.email : (account.phone ?? '')),
+                      : contact,
                   maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontSize: 12, color: scheme.onSurfaceVariant,

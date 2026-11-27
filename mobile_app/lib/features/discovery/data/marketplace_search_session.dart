@@ -206,7 +206,9 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
             generation != (onMap ? _mapSubmitGeneration : _homeSubmitGeneration) ||
             epoch != Stage6SecureSessionStore.instance.sessionEpoch ||
             !identical(uiFor(onMap: onMap).criteria, editor.criteria) ||
-            uiFor(onMap: onMap).draftQuery != editor.draftQuery) return;
+            uiFor(onMap: onMap).draftQuery != editor.draftQuery) {
+          return;
+        }
         _searchLocation = fresh;
       }
     }

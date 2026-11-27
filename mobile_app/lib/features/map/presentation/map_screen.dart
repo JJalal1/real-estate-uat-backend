@@ -1885,13 +1885,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final revision = _pendingProvinceCameraRevision;
     final hint = widget.cameraCenterHint;
     if (revision == null || state.revision != revision || state.page == 0 ||
-        state.loading || state.resultsError != null || !_styleLoaded) return;
+        state.loading || state.resultsError != null || !_styleLoaded) {
+      return;
+    }
     final hasPins = state.rows.any((row) => hasValidPropertyCoordinates(row.latitude, row.longitude));
     if (!hasPins && hint == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!_journeyCurrent || revision != _pendingProvinceCameraRevision ||
           ref.read(_searchSession).revision != revision ||
-          ModalRoute.of(context)?.isCurrent == false || _selectingArea) return;
+          ModalRoute.of(context)?.isCurrent == false || _selectingArea) {
+        return;
+      }
       final controller = _mapController;
       if (controller == null) return;
       _pendingProvinceCameraRevision = null;

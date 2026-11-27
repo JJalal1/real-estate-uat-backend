@@ -223,7 +223,7 @@ class _ProfileScreenState extends ConsumerState<_ProfileScreenBody> {
     setState(() => _busy = true);
     try {
       await ref.read(authControllerProvider.notifier).requestEmailVerification();
-      if (!_isCurrent) return;
+      if (!mounted || !_isCurrent) return;
       final value = await showActorDialog<String>(
         context: context,
         ref: ref,
