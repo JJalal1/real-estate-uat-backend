@@ -256,7 +256,7 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
             'platform_share_percent' => 100, 'broker_share_percent' => 0,
             'platform_terms_status' => 'not_required', 'created_by_user_id' => $owner->id,
         ]);
-        $legacyTerms = $legacy->getRawOriginal();
+        $legacyTerms = $legacy->fresh()->getRawOriginal();
         $property->forceFill(['current_sai_term_id' => $legacy->id])->save();
         $termOne = (int) $legacy->id;
         $property->forceFill(['status' => 'published', 'review_status' => 'approved', 'published_at' => now()])->save();
@@ -267,6 +267,7 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
             ->json('data.id');
         $this->assertSame($termOne, (int) MessageThread::query()->findOrFail($threadOne)->sai_term_id);
 
+        $owner->forceFill(['broker_enrolled_at' => now()])->save();
         $property->forceFill(['status' => 'draft', 'review_status' => 'draft', 'published_at' => null])->save();
         $this->withHeaders($ownerHeaders)->putJson("/api/properties/{$property->id}/sai", [])
             ->assertOk()->assertJsonPath('data.sai_management.term_id', $termOne)

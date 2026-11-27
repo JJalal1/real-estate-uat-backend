@@ -63,6 +63,8 @@ jobs:
           tests/Feature/NotificationPreferenceTest.php
           tests/Feature/Wave3MarketplaceApiTest.php
           tests/Feature/FinancialV1ApiTest.php
+          tests/Feature/PropertySaiPolicyAcceptanceTest.php
+          tests/Feature/Wave5ListingRefinementTest.php
           tests/Feature/UatFreeServicesHubApiTest.php
           tests/Feature/EmailLoginAndNameTest.php
           tests/Feature/SpokenSearchCityTest.php
@@ -85,6 +87,8 @@ jobs:
           tests/Feature/Branch2RecoveryTest.php
           tests/Feature/ActiveWaveDiscoveryTest.php
           tests/Feature/Wave3MarketplaceApiTest.php
+          tests/Feature/PropertySaiPolicyAcceptanceTest.php
+          tests/Feature/Wave5ListingRefinementTest.php
           tests/Feature/UatFreeServicesHubApiTest.php
           tests/Feature/EmailLoginAndNameTest.php
           tests/Feature/SpokenSearchCityTest.php

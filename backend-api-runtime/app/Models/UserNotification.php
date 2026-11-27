@@ -5,9 +5,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class UserNotification extends Model
 {
-    public const RETIRED_TYPES = ['viewing_requested', 'booking_confirmed', 'booking_declined',
-        'booking_cancelled', 'booking_rescheduled', 'booking_completed', 'booking_reschedule_accepted', 'viewing_reminder', 'booking_reminder',
-        'saved_search_match', 'saved_search_digest'];
+    public const RETIRED_VIEWING_TYPES = ['viewing_requested', 'booking_confirmed', 'booking_declined',
+        'booking_cancelled', 'booking_rescheduled', 'booking_completed', 'booking_reschedule_accepted', 'viewing_reminder', 'booking_reminder'];
+    public const RETIRED_TYPES = [...self::RETIRED_VIEWING_TYPES, 'saved_search_match', 'saved_search_digest'];
     public $timestamps = false;
     protected static function booted(): void
     {

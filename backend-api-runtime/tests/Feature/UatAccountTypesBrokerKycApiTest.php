@@ -115,6 +115,10 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         $this->withHeaders($supportHeaders)->getJson('/api/admin/account-verifications?status=pending&type=owner')
             ->assertOk()->assertJsonPath('data.0.user_id', $owner->id);
         $this->claimVerificationTask($supportHeaders, $owner->id);
+        $this->withHeaders($supportHeaders)
+            ->postJson("/api/admin/account-verifications/{$owner->id}/more-info", [
+                'reason' => 'This archived request does not need additional evidence.',
+            ])->assertConflict();
         foreach (['identity_document', 'selfie'] as $kind) {
             $this->withHeaders($supportHeaders)
                 ->get("/api/account-verification/users/{$owner->id}/documents/$kind")
