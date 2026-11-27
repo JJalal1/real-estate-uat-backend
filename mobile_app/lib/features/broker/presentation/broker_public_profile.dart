@@ -86,10 +86,10 @@ void invalidateBrokerProfile(WidgetRef ref, int id) {
 
 class BrokerPublicProfileActions extends ConsumerStatefulWidget {
   const BrokerPublicProfileActions({
-    required BrokerProfile profile,
+    required BrokerProfile this.profile,
     this.enabled = true,
     super.key,
-  }) : profile = profile, _ownerId = null;
+  }) : _ownerId = null;
 
   const BrokerPublicProfileActions.forOwner({
     required int ownerId,
