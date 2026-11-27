@@ -48,6 +48,7 @@ Future<void> _open(WidgetTester tester) async {
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
+  expect(finder.hitTestable(), findsOneWidget);
   await tester.tap(finder);
   await tester.pumpAndSettle();
 }
@@ -174,18 +175,45 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
 
+      final results = <Map<String, Object>?>[];
       await _mount(tester,
           type: type.key,
           typeLabel: type.value.$1,
           textScale: 2.4,
-          onResult: (_) {});
+          onResult: results.add);
       for (final key in type.value.$2) {
         expect(_filter(key), findsOneWidget);
       }
       expect(_filter('land_use'), findsNothing);
       await _tap(tester, _filter('reset'));
       await _tap(tester, _filter('apply'));
+      expect(results, [<String, Object>{}]);
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('area stays focused when a keyboard reduces the sheet height',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 640);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetViewInsets);
+    final results = <Map<String, Object>?>[];
+    await _mount(tester,
+        type: 'shop', typeLabel: 'محلات', onResult: results.add);
+    final area = _filter('min_area_m2');
+    await tester.enterText(area, '٩٠');
+    tester.view.viewInsets = const FakeViewPadding(bottom: 330);
+    await tester.pumpAndSettle();
+
+    final editable = tester.widget<EditableText>(
+        find.descendant(of: area, matching: find.byType(EditableText)));
+    expect(editable.focusNode.hasFocus, isTrue);
+    await _tap(tester, _filter('apply'));
+    expect(results, [
+      {'min_area_m2': 90}
+    ]);
+    expect(tester.takeException(), isNull);
+  });
 }

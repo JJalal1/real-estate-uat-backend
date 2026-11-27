@@ -638,7 +638,7 @@ jobs:
           compression-level: 0
           retention-days: 30
       - name: Seal the installer for its build-specific one-time chat recipient
-        if: env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850'
+        if: env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
         env:
           AQER_CHAT_PUBLIC_CERTIFICATE_1848_B64: >-
             LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVURENDQXJTZ0F3SUJBZ0lVTi9zWEZua25W
@@ -733,6 +733,35 @@ jobs:
             aHlMSURNdS9vcWlROU9ZCkNzL0VVdVBjTGVTcXdobWVVUGw2bXBUWWh0WEdmc0V0Q0RlYnUrYVRs
             bHQ1NWNKeXpBTlp2Y3J5cG5aRUZKNUUKWVJMcAotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
           AQER_CHAT_PUBLIC_CERTIFICATE_1850_SHA256: '54ce067cb28053b644ab0ff4a0fb05b4e8e31d5bb1be06dce10218dee8b2c7ce'
+          AQER_CHAT_PUBLIC_CERTIFICATE_1851_B64: >-
+            LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVNekNDQXB1Z0F3SUJBZ0lVRGtOSWtueFA4
+            NWdUaWNLVmpvdmszZFhMc3BRd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0tURW5NQ1VHQTFVRUF3d2VR
+            VkZGVWlCVlFWUWdNVGcxTVNCd2NtbDJZWFJsSUdSbGJHbDJaWEo1TUI0WApEVEkyTVRFeU56SXpN
+            elV3TlZvWERUSTJNVEV5T1RJek16VXdOVm93S1RFbk1DVUdBMVVFQXd3ZVFWRkZVaUJWClFWUWdN
+            VGcxTVNCd2NtbDJZWFJsSUdSbGJHbDJaWEo1TUlJQm9qQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FZ
+            OEEKTUlJQmlnS0NBWUVBeWJ1YjBHUjlCTFBtTStoMGVQS2FyVTZ6SkhhS1VFZ213YlpFQko5alFH
+            Y1o2ZGNrak5ReQpwVHdPNGxpSlZnZW56YU92M3hYeUZZOHBwZW1PREZ3WS9meFBGUHA0VTRDSWJ4
+            ejR3Q1NHbmtUOXc5T0NUMGpaCnh4Qy9GOWdqaHN4aHFreVRCdXptQVgxMFNrYkxUK1kxS3FHMFFV
+            MVJ2MlhBSGppSExVUXBkczd4RlRaZGtiZncKam1tTWNlZGdSNTE5RGFNK2NFNHhUSjNDSVQzUEhT
+            SEtBL3RVV3lHV2hxYlJ3QkJ3VEpJaUJYTUFpZEc3MWlXSQpFZEdabVBFUFpxSGU3eG1MbkVwRk1h
+            T0lvdGJPTEMrQ21GaUQ2TmhHREtXSFBPeU9iUlVHNTRxSkV4L1JJeFk3CisxWVpsLzA3REdwV2NJ
+            TjlhRHBaa25KbUMvVm1nQndiMDNwdU5LMUhBZk1pc1VUU2RiNTArUE40Ynh6dHRRRTcKVnZSNUpD
+            czVwb2tHd0xBK0NJclBTMmxFWmkzNWJOOXY0bjBGSWJMSlFvZE5zSkMwckRMaGhkenAzaXhhM0JN
+            UApldmNSVDd6SDdsdjdFOVU0ditvT042QUFRTHNiWC9KQXIvbEZicG4rSnluMSsyUnRmWDh4cTR2
+            c1V2VURYMzkrCitLblNzbmZxSkRYUEFnTUJBQUdqVXpCUk1CMEdBMVVkRGdRV0JCVFV1NUp4cmxu
+            RlpNekVlYVRNLzJGWWx5aE4KL2pBZkJnTlZIU01FR0RBV2dCVFV1NUp4cmxuRlpNekVlYVRNLzJG
+            WWx5aE4vakFQQmdOVkhSTUJBZjhFQlRBRApBUUgvTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCZ1FC
+            eFR3VkJoUHF3c2JaWGpaYndFOE5uL2trZlZxL2VIUVdmCmozdk1sSzNMSXRPVFBxTWlGbDFxcloz
+            bHZzZ1JGTExDclpBOWJKbktCRDVmZEprb01TQytKWFJhSHdZMnFISXAKMGNnUUpoL0hoNWo1dGRq
+            TCtOb0FKbFR5WXM1SW1UZ3REYVplWDA1NmYvM24reWVDUjR2WlJPb0pOYlRrNzkyNgp0d2hLUUx4
+            N2JUQ01EbEM3WkFiVHhZZXc2S1AweVY3VzJvdXErb0hEZGJnK2pLZk5Da2xnT20vc0JMQUVzZnh6
+            Cm9GK2xweDlaZXFNNlVUVm9FYkFTRGZ2TFY3MkdzSUl0emMrSTlDcUdyckZ4THBIY0FHMkFWK3lI
+            U0tNemtnS3EKRlhVVElQcnpiK3dkYXk4MnppN3BVNUlOZXd4K00wdStjdmovZCt6dGVOMmFoMHNs
+            QU9mT2ZWSWhacEFUd25rRgpTT2F1YTNENTZkd2RZZ1ZpRERjVld1YzM2MHY0cHE1Z0NhZE1mTSt1
+            SWRNNzBPQlZzaU5admsyeU52KzNmZmRhCk9aZkxVTmhNTWVkTEhrOGwxR1JyU3hYMmRpNkhTcWtn
+            QnJLU3F2aDZNaGN6UStZMVk4RkJpMDAvMnBpSUxEcDQKWHlKS01waURaRFJneEluZ1hjUFdGTHdW
+            TktkWFNhTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+          AQER_CHAT_PUBLIC_CERTIFICATE_1851_SHA256: 'ba63d0ec0bf27b689601ba05733becc360e0dd59a1e3872d220a8a714763f30e'
         run: |
           python3 -B - <<'PYTHON'
           import base64
@@ -752,7 +781,7 @@ jobs:
           assert receipt["source"] == os.environ["AQER_SOURCE_SHA"]
           assert receipt["run_id"] == os.environ["GITHUB_RUN_ID"]
           build = int(os.environ["AQER_BUILD"])
-          assert build in (1848, 1849, 1850) and receipt["build"] == build and receipt["abis"] == ["arm64-v8a"]
+          assert build in (1848, 1849, 1850, 1851) and receipt["build"] == build and receipt["abis"] == ["arm64-v8a"]
           assert receipt["package"] == identity["package"] == "com.aqer.yemen.uat.offline"
           assert receipt["certificate_sha256"] == identity["certificate_sha256"]
           apk = original / f"AQER-UAT-{build}-Alazzi-ARM64.apk"
@@ -773,7 +802,7 @@ jobs:
           (output / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
           PYTHON
       - name: Upload the temporary encrypted owner delivery
-        if: env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850'
+        if: env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
         uses: actions/upload-artifact@v4
         with:
           name: AQER-UAT-${{ env.AQER_BUILD }}-private-chat-${{ github.run_attempt }}

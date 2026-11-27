@@ -63,6 +63,8 @@ class _MarketplaceCategoryFilterSheetState
   static const _areaMax = 'max_area_m2';
   static const _majlis = 'has_separate_majlis';
   static const _majlisBathroom = 'has_majlis_bathroom';
+  // Preserve TextField focus when the keyboard changes the sheet layout.
+  final _optionsKey = GlobalKey();
   late final Map<String, Object> _draft = Map.of(widget.initial);
   late final _minimum = TextEditingController(text: _initialNumber(_areaMin));
   late final _maximum = TextEditingController(text: _initialNumber(_areaMax));
@@ -356,6 +358,57 @@ class _MarketplaceCategoryFilterSheetState
     final theme = Theme.of(context);
     final viewInsets = MediaQuery.viewInsetsOf(context);
     final purposeLabel = widget.purpose == 'rent' ? 'للإيجار' : 'للبيع';
+    final header = Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(18, 0, 12, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('تصفية ${_filterTitles[widget.type] ?? 'العقارات'}',
+                    style: theme.textTheme.titleLarge),
+                Text('${widget.typeLabel ?? 'عقارات'} $purposeLabel',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          AppIconButton(
+            icon: Icons.close_rounded,
+            tooltip: 'إغلاق التصفية',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+    final options = Padding(
+      key: _optionsKey,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _controls(),
+      ),
+    );
+    final actions = [
+      if (_error case final error?)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
+          child: Semantics(
+            liveRegion: true,
+            child: Text(error,
+                key: const ValueKey('section-filter-error'),
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.error)),
+          ),
+        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
+        child: _footer(context),
+      ),
+    ];
+    const scrollKey = ValueKey('section-filter-options');
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Padding(
@@ -365,59 +418,36 @@ class _MarketplaceCategoryFilterSheetState
           child: ConstrainedBox(
             constraints: BoxConstraints(
                 maxHeight: MediaQuery.sizeOf(context).height * .8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(18, 0, 12, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                          child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                              'تصفية ${_filterTitles[widget.type] ?? 'العقارات'}',
-                              style: theme.textTheme.titleLarge),
-                          Text('${widget.typeLabel ?? 'عقارات'} $purposeLabel',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant)),
-                        ],
-                      )),
-                      AppIconButton(
-                        icon: Icons.close_rounded,
-                        tooltip: 'إغلاق التصفية',
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  child: SingleChildScrollView(
-                    key: const ValueKey('section-filter-options'),
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final enlargedText =
+                    MediaQuery.textScalerOf(context).scale(14) > 22;
+                if (enlargedText || constraints.maxHeight < 360) {
+                  // Give the title and actions room to wrap at accessibility
+                  // text sizes and when the keyboard limits the viewport.
+                  return SingleChildScrollView(
+                    key: scrollKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: _controls(),
+                      children: [header, options, ...actions],
                     ),
-                  ),
-                ),
-                if (_error case final error?)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
-                    child: Semantics(
-                      liveRegion: true,
-                      child: Text(error,
-                          key: const ValueKey('section-filter-error'),
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: theme.colorScheme.error)),
+                  );
+                }
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    header,
+                    Flexible(
+                      child: SingleChildScrollView(
+                        key: scrollKey,
+                        child: options,
+                      ),
                     ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
-                  child: _footer(context),
-                ),
-              ],
+                    ...actions,
+                  ],
+                );
+              },
             ),
           ),
         ),

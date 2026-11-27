@@ -356,8 +356,9 @@ void main() {
     nav.onSelected(1);
     await tester.pumpAndSettle();
     expect(find.byType(MarketplaceCategoriesScreen), findsOneWidget);
-    expect(find.text('الإيجارات'), findsOneWidget);
-    expect(find.text('البيع'), findsOneWidget);
+    expect(find.text('للإيجار'), findsOneWidget);
+    expect(find.text('للبيع'), findsOneWidget);
+    expect(find.text('عقارات للإيجار'), findsOneWidget);
   });
   testWidgets('availability starts empty and confirms only chosen listing IDs', (tester) async {
     final repo = BrokerTestRepository();
