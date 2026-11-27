@@ -119,6 +119,24 @@ class SigningConfigurationTests(unittest.TestCase):
                         signing.import_signing({**env, field: value}, required=True)
                     self.assert_unchanged()
 
+    def test_ui_parity_release_requires_exact_owner_source_and_build(self):
+        env = dict(self.env, GITHUB_REF=signing.ALAZZI_PARITY_RELEASE_BRANCH,
+                   GITHUB_ACTOR='JJalal1', GITHUB_REPOSITORY_OWNER='JJalal1', AQER_BUILD='1849')
+        signing.guard(env)
+        for field, value in (
+            ('GITHUB_REF', signing.ALAZZI_ACCOUNT_RELEASE_BRANCH),
+            ('GITHUB_REF', signing.ALAZZI_MARKETPLACE_BRANCH),
+            ('GITHUB_REF', 'refs/heads/work/alazzi-ui-parity-1849'),
+            ('AQER_BUILD', '1848'), ('AQER_BUILD', ''), ('GITHUB_ACTOR', 'other'),
+            ('GITHUB_REPOSITORY_OWNER', 'other'), ('GITHUB_EVENT_NAME', 'pull_request'),
+            ('GITHUB_REPOSITORY', 'other/real-estate-uat-backend'),
+            ('AQER_SIGNING_ENVIRONMENT', 'production'),
+        ):
+            with self.subTest(field=field, value=value):
+                with self.assertRaises(signing.SigningError):
+                    signing.import_signing({**env, field: value}, required=True)
+                self.assert_unchanged()
+
     def test_optional_absence_does_not_open_paths_or_change_files(self):
         absent = {key: value for key, value in self.env.items() if key not in signing.INPUTS}
         with mock.patch.object(signing, 'open_runner_paths', side_effect=AssertionError):

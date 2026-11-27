@@ -157,14 +157,21 @@ void main() {
       final gallery = tester.getRect(find.byType(PropertyCardGallery));
       final facts = tester.getRect(find.byType(CompactPropertyFacts));
       expect(facts.right, lessThan(gallery.left));
-      expect(facts.bottom, lessThanOrEqualTo(gallery.bottom));
+      expect(gallery.height, 122);
+      expect(find.text('منشور'), findsOneWidget);
+      final menu = find.byTooltip('خيارات البطاقة');
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('favorite-property-1')).hitTestable(), findsOneWidget);
-      expect(find.byTooltip('خيارات البطاقة'), findsNothing);
 
       final compare = find.byKey(const ValueKey('compare-property-1'));
       await tester.tap(compare);
       await tester.pumpAndSettle();
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
       expect(find.text('مضاف للمقارنة'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
       expect(opened, isFalse);
       await tester.tap(find.text(_property(1).title));
       expect(opened, isTrue);

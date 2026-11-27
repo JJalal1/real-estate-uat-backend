@@ -238,7 +238,10 @@ void main() {
     voice.latest.emit(const VoiceEvent('speech_start'));
     voice.latest.emit(const VoiceEvent('partial', text: 'tentative words'));
     voice.latest.emit(const VoiceEvent('speech_end'));
-    await tester.pump(const Duration(seconds: 12));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    expect(voice.latest.stops, 1);
+    voice.latest.emit(const VoiceEvent('error', code: 'SPEECH_RESULT_TIMEOUT'));
     await tester.pump();
     final brief = tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief')));
     expect(brief.controller!.text, 'typed tentative words');
@@ -246,7 +249,7 @@ void main() {
     expect(find.byKey(const ValueKey('listing-ai-field-type')), findsNothing);
     await finishWave6(tester);
   });
-  testWidgets('D01 D04 D06 listing live text resets only the dictated portion and never prepares automatically', (tester) async {
+  testWidgets('D01 D04 D06 interrupted listing dictation retains typing and silence finishes the next session', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave6Ai(); addTearDown(voice.dispose);
     await pumpWave6(tester, const Scaffold(body: ListingAiSheet(prepareDraft: true, facts: {}, initialMessage: 'كتبت هذا')), voice: voice, ai: ai);
     await tester.tap(find.byKey(const ValueKey('listing-ai-voice'))); await tester.pump();
@@ -255,18 +258,25 @@ void main() {
     old.emit(const VoiceEvent('partial', text: 'أربع غرف')); await tester.pump();
     final brief = find.byKey(const ValueKey('listing-ai-brief'));
     expect(tester.widget<TextField>(brief).controller!.text, 'كتبت هذا أربع غرف');
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-restart')));
-    await tester.tap(find.byKey(const ValueKey('voice-restart'))); await tester.pump();
-    expect(voice.calls, 2); expect(tester.widget<TextField>(brief).controller!.text, 'كتبت هذا');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(old.cancellations, 1);
+    expect(tester.widget<TextField>(brief).controller!.text, 'كتبت هذا');
+    final mic = find.byKey(const ValueKey('listing-ai-voice'));
+    await tester.ensureVisible(mic);
+    await tester.tap(mic);
+    await tester.pump();
+    expect(voice.calls, 2);
     old.emit(const VoiceEvent('final', text: 'قديم'));
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('speech_start'));
     voice.latest.emit(const VoiceEvent('segment', text: 'حمامين')); voice.latest.emit(const VoiceEvent('speech_end')); await tester.pump();
-    await tester.pump(const Duration(milliseconds: 2500));
+    await tester.pump(const Duration(milliseconds: 2999));
     expect(voice.latest.stops, 0);
-    final finish = find.byKey(const ValueKey('voice-finish'));
-    await tester.ensureVisible(finish);
-    await tester.tap(finish);
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(voice.latest.stops, 1);
+    expect(find.byKey(const ValueKey('listing-ai-voice-ring')), findsNothing);
     voice.latest.emit(const VoiceEvent('final', text: 'حمامين')); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(brief).controller!.text, 'كتبت هذا حمامين');
     expect(find.byKey(const ValueKey('listing-ai-field-type')), findsNothing);

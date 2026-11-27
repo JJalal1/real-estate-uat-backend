@@ -19,7 +19,7 @@ import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_step_button.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_otp_field.dart';
-import 'package:real_estate_mobile/core/widgets/ebroker_property_card.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
 import 'package:real_estate_mobile/core/widgets/ebroker_screen_sections.dart';
 import 'package:real_estate_mobile/features/account/presentation/phone_verification_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
@@ -89,11 +89,12 @@ AuthUser _user({bool verified = false, String type = 'owner'}) => AuthUser.fromJ
   },
 });
 
-final _property = PropertyMarker.fromJson({
+const _propertyRow = <String, dynamic>{
   'id': 37, 'title': 'منزل للعائلة في حدة', 'display_price': 102000000,
   'price': 100000000, 'currency': 'YER', 'address': 'صنعاء، حدة',
   'latitude': 15.3694, 'longitude': 44.1910, 'purpose': 'sale', 'type': 'house',
-});
+};
+final _property = PropertyMarker.fromJson(_propertyRow);
 
 class _TemplateTestStore extends OfflineStore {
   final _rows = <(String, String), Map<String, dynamic>>{};
@@ -231,7 +232,7 @@ Future<GoRouter> _pump(WidgetTester tester, {AuthUser? user, double scale = 1,
     offlineConnectionProvider.overrideWith((_) => OfflineConnectionController()..online()),
     bookingRepositoryProvider.overrideWithValue(bookings ?? _BookingsFixture()),
     propertyRepositoryProvider.overrideWithValue(properties ?? _PropertiesFixture()),
-    favoritePagesProvider.overrideWith((ref) => fixedFavoritePages([_property])),
+    favoritePagesProvider.overrideWith((ref) => fixedFavoritePages([PropertySummary.fromJson(_propertyRow)])),
     favoritePropertyIdsProvider.overrideWith((ref) async => <int>{37}),
     propertySaiPublicProvider.overrideWith((ref, id) async => const PropertySaiEnvelope()),
     propertyMarketContextProvider.overrideWith((ref, id) async => const PropertyMarketContext(
@@ -535,7 +536,7 @@ void main() {
 
   testWidgets('favorite source card opens its original property route', (tester) async {
     final router = await _pump(tester, initial: '/favorites', user: _user());
-    expect(find.byType(EbrokerPropertyHorizontalCard), findsOneWidget);
+    expect(find.byType(ListingPropertyCard), findsOneWidget);
     await tester.tap(find.text(_property.title));
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/properties/37');

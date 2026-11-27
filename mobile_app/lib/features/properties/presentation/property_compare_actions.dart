@@ -25,6 +25,15 @@ class PropertyCompareSelection extends StateNotifier<Set<int>> {
 
 final propertyCompareSelectionProvider = StateNotifierProvider<PropertyCompareSelection, Set<int>>((ref) => PropertyCompareSelection());
 
+void togglePropertyComparison(BuildContext context, WidgetRef ref, int propertyId) {
+  final selected = ref.read(propertyCompareSelectionProvider).contains(propertyId);
+  if (!ref.read(propertyCompareSelectionProvider.notifier).toggle(propertyId)) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المقارنة بين عقارين فقط. أزل أحدهما أو استبدله لإضافة آخر.')));
+  } else if (ref.read(propertyCompareSelectionProvider).length == 1 && !selected) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختر عقارًا آخر لإكمال المقارنة.')));
+  }
+}
+
 class PropertyCompareAction extends ConsumerWidget {
   const PropertyCompareAction({required this.propertyId, this.enabled = true, this.overlay = false, super.key});
   final int propertyId;
@@ -34,16 +43,9 @@ class PropertyCompareAction extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(propertyCompareSelectionProvider).contains(propertyId);
     final label = selected ? 'مضاف للمقارنة' : 'أضف للمقارنة';
-    void toggle() {
-      if (!ref.read(propertyCompareSelectionProvider.notifier).toggle(propertyId)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المقارنة بين عقارين فقط. أزل أحدهما أو استبدله لإضافة آخر.')));
-      } else if (ref.read(propertyCompareSelectionProvider).length == 1 && !selected) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختر عقارًا آخر لإكمال المقارنة.')));
-      }
-    }
     final scheme = Theme.of(context).colorScheme;
     return Align(alignment: AlignmentDirectional.centerStart, child: Semantics(selected: selected,
-      child: TextButton(key: ValueKey('compare-property-$propertyId'), onPressed: enabled ? toggle : null,
+      child: TextButton(key: ValueKey('compare-property-$propertyId'), onPressed: enabled ? () => togglePropertyComparison(context, ref, propertyId) : null,
         style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 48),
           foregroundColor: scheme.onSurfaceVariant),
         child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),

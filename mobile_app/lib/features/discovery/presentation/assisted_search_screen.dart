@@ -1,6 +1,5 @@
 import '../../account/data/auth_controller.dart';
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,7 +8,7 @@ import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/platform/voice_capture_controller.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../properties/presentation/property_summary_card.dart';
-import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/dictation_microphone.dart';
 import '../data/smart_search_session.dart';
 import '../data/marketplace_repository.dart';
 import '../domain/smart_search_filters.dart';
@@ -70,10 +69,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         entryFilters: sameActor ? widget.entryFilters : null);
       setState(() => _ready = true);
     });
-    _capture = VoiceCaptureController(
-      ref.read(voiceInputProvider),
-      silenceTimeout: const Duration(seconds: 3),
-    )..addListener(_voiceChanged);
+    _capture = VoiceCaptureController.withSilenceStop(ref.read(voiceInputProvider))..addListener(_voiceChanged);
   }
   void _voiceChanged() {
     if (!mounted || _journeyEnded) return;
@@ -157,69 +153,23 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     }
   }
   void _cancelVoice() { if (_capture.active || _capture.canRetry) { ++_voiceTurn; _capture.cancel(); _description.text = _voiceRestoration; } }
-  void _toggleVoice() {
-    switch (_capture.phase) {
-      case VoicePhase.idle: unawaited(_voice());
-      case VoicePhase.preparing: _cancelVoice();
-      case VoicePhase.listening: _capture.stop();
-      case VoicePhase.processing: break;
-    }
-  }
-
-  Widget _voiceButton(SmartSearchState state, {bool compact = false}) {
-    final phase = _capture.phase;
-    final listening = phase == VoicePhase.listening;
-    return SizedBox.square(
-      dimension: compact ? 48 : 56,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (listening)
-            Positioned.fill(child: IgnorePointer(child: CustomPaint(
-              key: const ValueKey('smart-search-voice-ring'),
-              painter: _VoiceRingPainter(Theme.of(context).colorScheme.primary, _capture.level),
-            ))),
-          IconButton.filledTonal(
-            key: const ValueKey('smart-search-voice'),
-            tooltip: switch (phase) {
-              VoicePhase.idle => 'البحث بالصوت',
-              VoicePhase.preparing || VoicePhase.listening => 'إيقاف الإملاء',
-              VoicePhase.processing => 'جارٍ تفريغ الصوت',
-            },
-            onPressed: state.interpreting || phase == VoicePhase.processing ? null : _toggleVoice,
-            icon: const EbrokerIcon(Icons.mic_none_outlined, size: 22),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _voiceFeedback() {
-    final style = Theme.of(context).textTheme.bodySmall;
-    if (_capture.phase == VoicePhase.listening) {
-      final elapsed = _capture.elapsed;
-      final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
-      final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
-      return Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Wrap(spacing: 8, runSpacing: 4, children: [
-          Text('$minutes:$seconds', textDirection: TextDirection.ltr, style: style),
-          Text('اضغط الميكروفون مرة أخرى أو توقّف عن الكلام ٣ ثوانٍ.', style: style),
-        ]),
+  Widget _voiceButton(SmartSearchState state, {bool compact = false}) =>
+      DictationMicrophone(
+        capture: _capture,
+        buttonKey: const ValueKey('smart-search-voice'),
+        ringKey: const ValueKey('smart-search-voice-ring'),
+        idleLabel: 'البحث بالصوت',
+        enabled: !state.interpreting,
+        compact: compact,
+        onStart: () => _voice(),
+        onCancelPreparing: _cancelVoice,
       );
-    }
-    if (_capture.phase == VoicePhase.processing) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 6),
-        child: Text('جارٍ تفريغ الصوت…', style: style),
+
+  Widget _voiceFeedback() => DictationFeedback(
+        capture: _capture,
+        retryKey: const ValueKey('search-voice-retry'),
+        onRetry: () => _voice(retry: true),
       );
-    }
-    if (_capture.canRetry) {
-      return TextButton(key: const ValueKey('search-voice-retry'),
-        onPressed: () => _voice(retry: true), child: const Text('إعادة محاولة التفريغ'));
-    }
-    return const SizedBox.shrink();
-  }
 
   Future<void> _edit({MapSearchActions? mapActions}) async {
     if (_journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
@@ -480,33 +430,6 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     ));
   }
 }
-
-class _VoiceRingPainter extends CustomPainter {
-  const _VoiceRingPainter(this.color, this.level);
-
-  final Color color;
-  final double level;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2;
-    final paint = Paint()..strokeCap = StrokeCap.round..strokeWidth = 2;
-    for (var i = 0; i < 18; i++) {
-      final angle = i * math.pi / 9;
-      final variation = .5 + .5 * math.sin(i * 1.8 + level * math.pi);
-      final offset = Offset(math.cos(angle), math.sin(angle));
-      paint.color = color.withValues(alpha: .5 + .5 * level * variation);
-      canvas.drawLine(center + offset * (radius - 5),
-        center + offset * (radius - 2.5 + level * variation * 1.5), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_VoiceRingPainter oldDelegate) =>
-      oldDelegate.level != level || oldDelegate.color != color;
-}
-
 
 class _SmartSearchEmptyState extends StatelessWidget {
   const _SmartSearchEmptyState({

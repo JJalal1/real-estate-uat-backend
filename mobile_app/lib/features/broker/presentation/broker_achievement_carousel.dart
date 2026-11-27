@@ -50,7 +50,6 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
   bool _scrolling = false;
   bool _hovered = false;
   bool _focused = false;
-  bool _auto = true;
 
   @override
   void initState() {
@@ -125,7 +124,7 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
 
   void _scheduleAdvance() {
     _advanceTimer?.cancel();
-    if (!_auto || !_allowMotion || _stackCards || !_visible || !_foreground || _scrolling ||
+    if (!_allowMotion || _stackCards || !_visible || !_foreground || _scrolling ||
         _focused || _hovered || _pointers.isNotEmpty || widget.achievements.length < 2) {
       return;
     }
@@ -189,6 +188,7 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
     final extraHeight = (scale.scale(16) - 16).clamp(0.0, double.infinity).toDouble();
     final hasRatingGoal = achievements.any((item) => item.kind == BrokerAchievementKind.ratings);
     final height = (hasRatingGoal ? 110.0 : 86.0) + 6 * extraHeight;
+    final activeIndex = _currentPage % achievements.length;
 
     Widget card(BrokerAchievement achievement) => _AchievementCard(
       achievement: achievement,
@@ -203,19 +203,35 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
         children: [
           Row(children: [
             Expanded(child: Text('إنجازاتك', style: theme.textTheme.titleMedium)),
-            if (achievements.length > 1 && _allowMotion && !_stackCards)
-              IconButton(
-                key: const ValueKey('broker-achievement-autoplay'),
-                tooltip: _auto ? 'إيقاف التنقل التلقائي' : 'استئناف التنقل التلقائي',
-                icon: Icon(_auto ? Icons.pause_circle_outline : Icons.play_circle_outline, size: 20),
-                onPressed: () {
-                  setState(() => _auto = !_auto);
-                  _scheduleAdvance();
-                },
+            if (achievements.length > 1 && !_stackCards) ...[
+              Semantics(
+                container: true,
+                label: 'الإنجاز ${activeIndex + 1} من ${achievements.length}',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var index = 0; index < achievements.length; index++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: Container(
+                          key: ValueKey('achievement-dot-$index'),
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: index == activeIndex
+                                ? theme.colorScheme.onSurface
+                                : theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
+              const Spacer(),
+            ],
           ]),
-          if (achievements.length == 1 || !_allowMotion || _stackCards)
-            const SizedBox(height: 8),
+          const SizedBox(height: 8),
           if (_stackCards)
             Column(
               key: const ValueKey('broker-achievement-carousel'),
@@ -256,7 +272,7 @@ class _BrokerAchievementCarouselState extends State<BrokerAchievementCarousel>
                             allowImplicitScrolling: true,
                             // Two preview copies let the rail wrap without a backward scroll.
                             itemCount: achievements.length + 2,
-                            onPageChanged: (page) => _currentPage = page,
+                            onPageChanged: (page) => setState(() => _currentPage = page),
                             itemBuilder: (context, page) => ExcludeSemantics(
                               excluding: page >= achievements.length,
                               child: Padding(

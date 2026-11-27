@@ -122,7 +122,7 @@ void main() {
     final dio = _images(calls, private: false);
     final scope = uxContainer(user: uxUser(type: 'broker'), extra: [dioProvider.overrideWithValue(dio)]);
     await pumpUx(tester, scope, Scaffold(body: PropertySummaryCard(
-      property: _listing(status: 'published').toSummary(), onTap: () {})));
+      property: _listing(status: 'published').toSummary(), compact: true, onTap: () {})));
     expect(calls, isNotEmpty);
     for (final request in calls) {
       expect(request.headers.containsKey('Authorization'), isFalse);

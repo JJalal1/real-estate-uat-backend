@@ -8,6 +8,9 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   VoiceCaptureController(this.input, {this.silenceTimeout}) {
     WidgetsBinding.instance.addObserver(this);
   }
+  VoiceCaptureController.withSilenceStop(VoiceInput input)
+      : this(input, silenceTimeout: const Duration(seconds: 3));
+
   final VoiceInput input;
   final Duration? silenceTimeout;
   VoicePhase phase = VoicePhase.idle;

@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/local/stage6_secure_session_store.dart';
-import '../../account/data/auth_controller.dart';
 import '../../account/data/private_collection.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/favorites_repository.dart';
-import '../domain/property_marker.dart';
+import '../domain/property_details.dart';
+import 'property_summary_card.dart';
 import 'property_compare_screen.dart';
 import 'property_compare_actions.dart';
 
@@ -86,8 +84,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     );
   }
 
-  Widget _content(PrivateCollectionState<PropertyMarker> state,
-      PrivateCollectionController<PropertyMarker> controller) {
+  Widget _content(PrivateCollectionState<PropertySummary> state,
+      PrivateCollectionController<PropertySummary> controller) {
     if (state.items.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -111,7 +109,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     return ListView.separated(
       key: ObjectKey(controller),
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: AppLayout.compactPageGutter, vertical: 16),
       itemCount: state.items.length + (hasHeader ? 1 : 0) + (hasFooter ? 1 : 0),
       separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s12),
       itemBuilder: (context, index) {
@@ -136,27 +134,11 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         final selected = _selected.contains(property.id);
         return Stack(
           children: [
-            AppPropertyCard(horizontal: true,
-              categoryLabel: ebrokerPropertyTypeLabel(property.type),
-        title: property.title,
-              price: _formatPrice(property.purpose == 'rent' ? property.monthlyRent ?? property.price : property.price),
-              priceSuffix: property.purpose == 'rent' && property.monthlyRent != null ? 'شهريًا' : null,
-              currency: property.currency,
-              imageUrl: property.mainImage, imageUrls: property.imageUrls, isSpotlight: property.isSpotlight,
-              location: property.address,
-              purposeLabel: _purposeLabel(property.purpose),
-              facts: _facts(property),
-              action: PropertyCompareAction(propertyId: property.id),
-              trailing: IconButton(
-                      tooltip: 'إزالة من المفضلة',
-                      onPressed: () => _remove(context, property.id),
-                      style: IconButton.styleFrom(minimumSize: const Size(48, 48), shape: const CircleBorder()),
-                      icon: EbrokerIcon(
-                        Icons.favorite_rounded,
-                        size: 19,
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
+            PropertySummaryCard(
+              key: ValueKey('favorite-listing-${property.id}'),
+              property: property,
+              compact: true,
+              knownFavorite: true,
               onTap: _compareMode
                   ? () => _toggleSelection(property.id)
                   : () => context.push('/properties/${property.id}'),
@@ -198,58 +180,5 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         builder: (_) => PropertyCompareScreen(propertyIds: ids),
       ),
     );
-  }
-
-  Future<void> _remove(BuildContext context, int propertyId) async {
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
-    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    bool current() => mounted && epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
-      actor == ref.read(authControllerProvider).asData?.value?.id;
-    try {
-      await ref.read(favoritesRepositoryProvider).remove(propertyId);
-      if (!current()) return;
-      ref.read(favoriteDataRevisionProvider.notifier).state++;
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تمت إزالة العقار من المفضلة.')),
-      );
-    } catch (error) {
-      if (!current() || !context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(friendlyApiError(error))),
-      );
-    }
-  }
-
-  List<AppPropertyFact> _facts(PropertyMarker property) {
-    return [
-      if (property.areaM2 != null && property.areaM2! > 0)
-        AppPropertyFact(
-          icon: Icons.square_foot,
-          label: '${arabicDigits('${property.areaM2}')} م²',
-        ),
-      if (property.bedrooms != null && property.bedrooms! > 0)
-        AppPropertyFact(
-          icon: Icons.bed_outlined,
-          label: '${arabicDigits('${property.bedrooms}')} غرف',
-        ),
-      if (property.bathrooms != null && property.bathrooms! > 0)
-        AppPropertyFact(
-          icon: Icons.bathtub_outlined,
-          label: '${arabicDigits('${property.bathrooms}')} حمام',
-        ),
-    ];
-  }
-
-  String _purposeLabel(String? purpose) => purpose == 'rent' ? 'للإيجار' : 'للبيع';
-
-  String _formatPrice(double value) {
-    final rounded = value.round().toString();
-    final buffer = StringBuffer();
-    for (var i = 0; i < rounded.length; i++) {
-      if (i > 0 && (rounded.length - i) % 3 == 0) buffer.write(',');
-      buffer.write(rounded[i]);
-    }
-    return buffer.toString();
   }
 }

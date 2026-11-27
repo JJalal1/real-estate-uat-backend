@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\SerializesPropertyCards;
 use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\PropertyImage;
@@ -30,6 +31,8 @@ use Throwable;
 
 class PropertyController extends Controller
 {
+    use SerializesPropertyCards;
+
     private const TYPES = ['apartment', 'floor', 'building', 'house', 'villa', 'land', 'shop', 'office', 'farm'];
     private const PURPOSES = ['sale', 'rent'];
     private const TENURE_TYPES = ['freehold', 'waqf'];
@@ -1011,49 +1014,6 @@ class PropertyController extends Controller
         );
     }
 
-    private function summaryData(Property $property, Request $request): array
-    {
-        $property->loadMissing('images');
-        $mainImage = $property->images->first();
-
-        $data = [
-            'id' => $property->id,
-            'title' => $property->title,
-            'purpose' => $property->purpose,
-            'type' => $property->type,
-            'unit_occupies_entire_floor' => $property->type === 'floor' || (bool) $property->unit_occupies_entire_floor,
-            'tenure_type' => $property->tenure_type,
-            'price' => (float) $property->price,
-            'currency' => $property->currency,
-            'area_m2' => $property->area_m2,
-            'area_value' => $property->area_value !== null ? (float) $property->area_value : ($property->area_m2 !== null ? (float) $property->area_m2 : null),
-            'area_unit' => $property->area_unit ?? ($property->area_m2 !== null ? 'sqm' : null),
-            'bedrooms' => $property->bedrooms,
-            'bathrooms' => $property->bathrooms,
-            'has_parking' => $property->has_parking,
-            'has_elevator' => null,
-            'floors_count' => $property->floors_count,
-            'units_per_floor' => $property->units_per_floor,
-            'shop_openings' => $property->shop_openings,
-            'building_facade' => $property->building_facade,
-            'address' => $property->address,
-            'latitude' => (float) $property->latitude,
-            'longitude' => (float) $property->longitude,
-            'status' => $property->status === 'published' && !$property->isPubliclyAvailable() ? 'unavailable' : $property->status,
-            'published_at' => $property->published_at?->toIso8601String(),
-            'availability_status' => $property->availability_status ?? 'available',
-            'availability_confirmed_at' => $property->availability_confirmed_at?->toIso8601String(),
-            'availability_due_at' => $property->availability_due_at?->toIso8601String(),
-            'view_count' => (int) $property->view_count,
-            'main_image' => $mainImage ? $this->imageUrl($mainImage, $request, 'card') : null,
-            'image_urls' => $property->images->take(12)->map(fn ($image) => $this->imageUrl($image, $request, 'card'))->values(),
-            'image_count' => $property->images->count(),
-            'floor_number' => in_array($property->type, ['apartment', 'floor', 'office', 'shop'], true) ? $property->floor_number : null,
-            'is_spotlight' => $property->isPubliclyAvailable() && $property->spotlight_until?->isFuture() === true,
-        ];
-        return array_intersect_key(app(\App\Services\DynamicPropertySchema::class)->facts($data,true),$data);
-    }
-
     private function mineWorkspaceData(Property $property, Request $request): array
     {
         $property->loadMissing(['images', 'documents']);
@@ -1207,19 +1167,6 @@ class PropertyController extends Controller
                 'office_location_registered' => $profile->type === 'office' && isset($details['latitude'], $details['longitude']),
             ],
         ];
-    }
-
-    private function imageUrl(PropertyImage $image, Request $request, ?string $variant = null): string
-    {
-        $raw = trim((string) $image->cdn_url);
-        if ($raw !== '') {
-            if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://')) {
-                return $raw;
-            }
-            return rtrim($request->getSchemeAndHttpHost(), '/') . '/' . ltrim($raw, '/');
-        }
-
-        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id . ($variant ? '?variant='.$variant : '').(config('listing_media.watermark.enabled') ? ($variant ? '&' : '?').'v='.app(\App\Services\ListingWatermarkService::class)->version() : '');
     }
 
     private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float

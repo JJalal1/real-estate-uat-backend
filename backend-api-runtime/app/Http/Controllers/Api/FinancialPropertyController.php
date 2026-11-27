@@ -196,30 +196,7 @@ class FinancialPropertyController extends PropertyController
 
     private function enrichLoadedRow(array $row, Property $property, ?object $term, bool $pending): array
     {
-        $saiAmount=0.0;$sai=null;$note=null;$displayPrice=(float)$property->price;
-        if($term){
-            $basis=$property->purpose==='rent'?(float)($property->monthly_rent?:0):(float)$property->price;
-            $fixed = ($term->sai_amount_type ?? 'percentage') === 'fixed';
-            if($fixed)$saiAmount=round((float)$term->fixed_sai_amount,2);
-            elseif($basis>0)$saiAmount=round($basis*((float)$term->sai_rate_percent/100),2);
-            $buyerPays=in_array($term->payer,['buyer','tenant'],true);
-            $displayMode=$property->price_display_mode ?: ($buyerPays?'excludes_sai':null);
-            if($buyerPays){
-                if($displayMode==='includes_sai'){$displayPrice=round((float)$property->price+$saiAmount,2);$note='المبلغ شامل السعي';}
-                else $note='المبلغ غير شامل السعي';
-            }
-            if ((int) $property->listing_input_version >= 6) {
-                $displayPrice = (float) $property->price;
-                $note = $fixed ? 'السعي '.$saiAmount.' '.$term->fixed_sai_currency : 'السعي '.(float) $term->sai_rate_percent.'%';
-            }
-            $sai=['rate_percent'=>$fixed?null:(float)$term->sai_rate_percent,'payer'=>$term->payer,'amount'=>$saiAmount,
-                'amount_type'=>$fixed?'fixed':'percentage','fixed_amount'=>$fixed?$saiAmount:null,
-                'currency'=>$fixed?$term->fixed_sai_currency:$property->currency];
-        }
-        return array_merge($row,[
-            'base_price'=>(float)$property->price,'display_price'=>$displayPrice,'price_display_mode'=>$property->price_display_mode ?: (($term&&in_array($term->payer,['buyer','tenant'],true))?'excludes_sai':null),
-            'price_display_note'=>$note,'monthly_rent'=>$property->monthly_rent!==null?(float)$property->monthly_rent:null,
-            'rental_term_months'=>$property->rental_term_months,'advance_months'=>$property->advance_months,'sai'=>$sai,
+        return array_merge($row, $this->publicPriceData($property, $term), [
             'financial_hold'=>false,
             'sai_attestation_required'=>$pending,
             'sai_attestation_text'=>(int)(request()->user()?->id ?? 0) === (int)$property->user_id ? ($term ? $this->finance->attestationText($property, $term) : PropertyFinancialService::SAI_ATTESTATION_TEXT) : null,

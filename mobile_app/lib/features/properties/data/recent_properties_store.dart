@@ -155,6 +155,7 @@ class RecentPropertiesStore {
         if (p.address != null) 'address': p.address,
         if (p.publishedAt != null) 'published_at': p.publishedAt!.toIso8601String(),
         'status': p.status,
+        'availability_status': p.availabilityStatus,
         if (p.mainImage != null) 'main_image': p.mainImage,
         'image_urls': p.imageUrls,
         'is_spotlight': p.isSpotlight,

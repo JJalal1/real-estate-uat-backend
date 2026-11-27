@@ -18,6 +18,7 @@ import 'package:real_estate_mobile/features/account/presentation/profile_screen.
 import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
+import 'package:real_estate_mobile/features/broker/presentation/broker_achievement_carousel.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_activity.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_directory.dart';
@@ -488,22 +489,63 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     expect(repo.seenDeals, [(4, 7)]);
   });
-  testWidgets('achievement cards advance after four seconds and support pause', (tester) async {
+  testWidgets('public profile leaves a small gap above the active listing filters', (tester) async {
+    await _pump(tester, const BrokerPublicProfileScreen(id: 1), BrokerTestRepository());
+    final heading = find.text('العقارات النشطة');
+    await tester.scrollUntilVisible(heading, 120, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    final all = find.widgetWithText(AppFilterChip, 'الكل');
+    expect(tester.getTopLeft(all).dy - tester.getBottomLeft(heading).dy, closeTo(8, .1));
+  });
+
+  testWidgets('achievement dots follow RTL pages on automatic advance, swipe and wrap', (tester) async {
     await _pump(tester, const BrokerDashboardScreen(), BrokerTestRepository());
-    final pages = tester.widget<PageView>(find.descendant(
-      of: find.byKey(const ValueKey('broker-achievement-carousel')),
-      matching: find.byType(PageView),
-    ));
+    final rail = find.byKey(const ValueKey('broker-achievement-carousel'));
+    final pageView = find.descendant(of: rail, matching: find.byType(PageView));
+    final pages = tester.widget<PageView>(pageView);
+    final first = find.byKey(const ValueKey('achievement-dot-0'));
+    final second = find.byKey(const ValueKey('achievement-dot-1'));
+    final scheme = Theme.of(tester.element(rail)).colorScheme;
+    Color? color(Finder dot) =>
+        (tester.widget<Container>(dot).decoration as BoxDecoration).color;
+
+    expect(find.text('دلال · أمانة العاصمة'), findsOneWidget);
+    expect(find.byIcon(Icons.pause_circle_outline), findsNothing);
+    expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+    expect(tester.getCenter(first).dx, greaterThan(tester.getCenter(second).dx));
+    expect((tester.getCenter(first).dx + tester.getCenter(second).dx) / 2,
+        closeTo(tester.getCenter(rail).dx, .1));
+    expect(color(first), scheme.onSurface);
+    expect(color(second), scheme.outlineVariant);
     expect(pages.controller!.page, 0);
     await tester.pump(const Duration(seconds: 3));
     expect(pages.controller!.page, 0);
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(pages.controller!.page, 1);
-    await tester.tap(find.byKey(const ValueKey('broker-achievement-autoplay')));
+    expect(color(second), scheme.onSurface);
+    expect(color(first), scheme.outlineVariant);
+    await tester.drag(pageView, const Offset(270, 0));
+    await tester.pumpAndSettle();
+    expect(pages.controller!.page, 0);
+    expect(color(first), scheme.onSurface);
+    expect(color(second), scheme.outlineVariant);
+  });
+
+  testWidgets('reduced motion keeps achievement indicators and permits manual navigation', (tester) async {
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) =>
+        MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: const BrokerScaffold(body: BrokerAchievementCarousel(achievements: [
+            BrokerAchievement(BrokerAchievementKind.firstDeal, 1),
+            BrokerAchievement(BrokerAchievementKind.replies, 3),
+          ])),
+        ))));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 5));
-    expect(pages.controller!.page, 1);
+    expect(find.bySemanticsLabel('الإنجاز 1 من 2'), findsOneWidget);
+    await tester.drag(find.byType(PageView), const Offset(580, 0));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('الإنجاز 2 من 2'), findsOneWidget);
   });
   final screens = <String, Widget>{'dashboard': const BrokerDashboardScreen(), 'customers': const BrokerCustomersScreen(),
     'availability': const BrokerAvailabilityScreen(), 'deals': const BrokerScaffold(appBar: AppAppBar(title: 'نشاطي'), body: BrokerDealsList()), 'finance': const BrokerFinanceScreen(),
