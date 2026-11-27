@@ -48,7 +48,8 @@ void main() {
 
     auth.change(null);
     await tester.pumpAndSettle();
-    expect(find.text('سجّل الدخول للمتابعة.'), findsOneWidget);
+    expect(find.text('سجّل الدخول أولاً'), findsOneWidget);
+    expect(find.text('تسجيل الدخول'), findsOneWidget);
     expect(find.text('مقارنة العقارات'), findsNothing);
     expect(tester.takeException(), isNull);
     await closeUx(tester);

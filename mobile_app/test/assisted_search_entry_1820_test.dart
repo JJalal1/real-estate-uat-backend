@@ -13,7 +13,6 @@ import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/saved_property_search.dart';
-import 'package:real_estate_mobile/features/properties/presentation/saved_searches_screen.dart';
 import 'package:real_estate_mobile/router/app_router.dart';
 
 import 'support/owner_ux_fixtures.dart';
@@ -26,7 +25,7 @@ const _description = ValueKey('smart-search-description');
 void main() {
   setUpAll(loadUxFixtures);
 
-  testWidgets('verified broker opens the saved polygon through the assistant menu', (tester) async {
+  testWidgets('assistant ignores a retired saved-search entry but accepts the current map’s explicit polygon', (tester) async {
     const filters = {'purpose': 'rent', 'governorate_code': 'DHAMAR',
       'area_polygon': '[[44.399,14.551],[44.4,14.551],[44.4,14.553],[44.399,14.553],[44.399,14.551]]'};
     const saved = SavedPropertySearch(id: 1822, name: 'UAT1822 11-on', filters: filters,
@@ -34,20 +33,28 @@ void main() {
     final properties = Wave3PropertiesFake();
     final scope = uxContainer(user: uxUser(id: 28, type: 'broker'), extra: [
       propertyRepositoryProvider.overrideWithValue(properties),
+      homeLocationProvider.overrideWith((_) => const HomeLocation()),
       sharedSearchMapBuilderProvider.overrideWithValue((context, rows, select, viewport) => const ColoredBox(color: Colors.teal)),
     ]);
     final production = scope.read(appRouterProvider);
     addTearDown(production.dispose);
     final aiRoute = production.configuration.routes.whereType<GoRoute>().firstWhere((route) => route.path == '/smart-search');
     final navigation = GoRouter(routes: [
-      GoRoute(path: '/', builder: (_, __) => const SavedSearchResultsScreen(search: saved)),
+      GoRoute(path: '/', builder: (_, __) => const Scaffold()),
       GoRoute(path: '/smart-search', builder: aiRoute.builder),
     ]);
     addTearDown(navigation.dispose);
     await pumpUx(tester, scope, const SizedBox(), router: navigation);
-    await tester.tap(find.byKey(const ValueKey('floating-smart-search')));
+    navigation.go('/smart-search', extra: saved);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('بحث عن عقار بالذكاء'));
+    expect(scope.read(smartSearchSessionProvider).started, isFalse);
+    expect(scope.read(smartSearchSessionProvider).filters.values, isEmpty);
+    expect(properties.queries, isEmpty);
+    expect(find.text('البحوث المحفوظة والتنبيهات'), findsNothing);
+
+    navigation.go('/');
+    await tester.pumpAndSettle();
+    navigation.go('/smart-search', extra: SmartSearchFilters.fromMap(filters));
     await tester.pumpAndSettle();
     expect(scope.read(smartSearchSessionProvider).filters.values, filters);
     expect(properties.queries.single.filters, filters);
