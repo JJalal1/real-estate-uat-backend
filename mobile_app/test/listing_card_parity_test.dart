@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
@@ -23,6 +24,20 @@ const _examples = [
   (type: 'land', title: 'أرض على شارع فرعي', factCount: 2),
   (type: 'apartment', title: 'شقة عائلية واسعة بإطلالة مفتوحة على الجبال قريبة من المدارس والخدمات', factCount: 6),
 ];
+
+class _ViewedPropertyStore extends RecentPropertiesStore {
+  _ViewedPropertyStore(this.viewed, int actorId) : super(actorId: actorId);
+  final PropertySummary viewed;
+
+  @override
+  Future<List<PropertySummary>> load() async => [viewed];
+}
+
+class _PublishedProperties extends Wave3PropertiesFake {
+  @override
+  Future<Set<int>> publiclyVisibleIds(Iterable<int> propertyIds) async =>
+      propertyIds.where((id) => id == 42).toSet();
+}
 
 Map<String, Rect> _measureCard(WidgetTester tester, String title, int factCount) {
   final facts = find.byKey(const ValueKey('my-listing-facts'));
@@ -69,16 +84,17 @@ void main() {
           'revision': revision,
           'filters': {'purpose': 'sale', 'type': example.type, 'governorate': 'صنعاء'},
         };
-        final properties = Wave3PropertiesFake()..onSearch = (_, __) async => ([summary], false);
-        final scope = uxContainer(user: uxUser(), extra: [
+        final properties = _PublishedProperties()..onSearch = (_, __) async => ([summary], false);
+        final user = uxUser();
+        ProviderContainer createScope() => uxContainer(user: user, extra: [
           aiRepositoryProvider.overrideWithValue(ai),
           propertyRepositoryProvider.overrideWithValue(properties),
           myListingsPagesProvider.overrideWith((_) => fixedMyListings([listing])),
-          recentPropertiesProvider.overrideWith((_) async => [summary]),
+          recentPropertiesStoreProvider.overrideWithValue(_ViewedPropertyStore(summary, user.id)),
           favoritePagesProvider.overrideWith((_) => fixedFavoritePages([summary])),
         ]);
         const size = Size(390, 1320);
-        await pumpUx(tester, scope, const MyListingsScreen(), scale: scale, size: size);
+        await pumpUx(tester, createScope(), const MyListingsScreen(), scale: scale, size: size);
         final expected = _measureCard(tester, example.title, example.factCount);
         expect(expected['card']!.left, 18);
         expect(expected['photo']!.height, 122);
@@ -90,6 +106,7 @@ void main() {
           FavoritesScreen(),
           RecentPropertiesScreen(),
         ]) {
+          final scope = createScope();
           await pumpUx(tester, scope, screen, scale: scale, size: size);
           if (screen is AssistedSearchScreen) {
             final field = find.byKey(const ValueKey('smart-search-description'));
@@ -98,6 +115,11 @@ void main() {
             await tester.pumpAndSettle();
             expect(properties.queries, hasLength(1));
             expect(scope.read(smartSearchSessionProvider).rows.map((p) => p.id), [42]);
+          }
+          if (screen is RecentPropertiesScreen) {
+            final viewed = await scope.read(recentPropertiesProvider.future);
+            expect(viewed.map((p) => p.id), [42]);
+            await tester.pumpAndSettle();
           }
           expect(find.text(example.title), findsOneWidget, reason: '${screen.runtimeType} loaded the sample');
           await tester.ensureVisible(find.text(example.title));
