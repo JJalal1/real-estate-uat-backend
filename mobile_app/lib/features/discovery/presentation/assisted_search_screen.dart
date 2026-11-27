@@ -115,15 +115,20 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     await ref.read(smartSearchSessionProvider.notifier).interpret(text);
   }
 
+  String get _pendingComposerText {
+    final state = ref.read(smartSearchSessionProvider);
+    final text = _description.text;
+    // The accepted request stays visible until the user writes a new draft.
+    return state.started && state.draftText.isEmpty && text.trim() == state.lastRequest ? '' : text;
+  }
+
   Future<void> _voice({bool retry = false}) async {
     if (_journeyEnded || !_journeySession.isCurrentJourney(_journey) || _capture.active || ref.read(smartSearchSessionProvider).interpreting) return;
     if (retry && !_capture.canRetry) return;
     FocusScope.of(context).unfocus();
     final revision = ref.read(smartSearchSessionProvider).revision;
-    final current = ref.read(smartSearchSessionProvider);
     _voiceRestoration = _description.text;
-    _voiceDraft = current.started && current.draftText.isEmpty && _description.text.trim() == current.lastRequest
-      ? '' : _description.text;
+    _voiceDraft = _pendingComposerText;
     if (_description.text != _voiceDraft) _description.text = _voiceDraft;
     _voiceVisibleText = _voiceDraft;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
@@ -247,7 +252,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     if (route == null) return;
     if (_capture.active) _cancelVoice();
     _focus.unfocus();
-    _session.setDraftText(_description.text);
+    _session.setDraftText(_pendingComposerText);
     // Back consumes the inline map first. Details still own their own route,
     // and MapScreen can cancel an active drawing before this entry is popped.
     final entry = LocalHistoryEntry(onRemove: () {

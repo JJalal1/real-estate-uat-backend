@@ -94,7 +94,7 @@ void main() {
     await tester.pumpAndSettle(); expect(feed.queries.single.device, false); expect(feed.queries.single.governorate, isNull);
     await tester.tap(find.text('صنعاء')); await tester.pumpAndSettle(); await tester.tap(find.text('تعز')); await tester.pumpAndSettle();
     expect(feed.queries.last.governorate, 'تعز'); expect(feed.queries.last.device, false);
-    await tester.tap(find.byKey(const ValueKey('home-map'))); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('floating-map-search'))); await tester.pumpAndSettle();
     expect(router.state.uri.path, '/marketplace-search-map'); expect(router.state.uri.queryParameters['lat'], '13.58'); expect(router.state.uri.queryParameters['lon'], '44.02');
     expect(tester.takeException(), isNull);
   });
