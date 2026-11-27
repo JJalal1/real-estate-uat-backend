@@ -174,7 +174,7 @@ void main() {
     await pumpUx(tester, container, Scaffold(
       body: Builder(
         builder: (context) => TextButton(
-          onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute(
+          onPressed: () => Navigator.of(context).push<String>(MaterialPageRoute(
             builder: (_) => const SupportPaymentReviewScreen(
               paymentId: 21, actingAsAgent: true,
             ),
@@ -201,6 +201,7 @@ void main() {
     await uxFrames(tester);
     expect(payments.decisions, isEmpty);
     await tester.enterText(find.byType(TextField), 'أرسل صورة أوضح');
+    await uxFrames(tester);
     await tester.tap(confirm);
     await uxFrames(tester);
     expect(payments.decisions, [(21, 'correction', 'أرسل صورة أوضح', true)]);

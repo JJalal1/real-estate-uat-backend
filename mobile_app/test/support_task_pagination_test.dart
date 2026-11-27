@@ -207,7 +207,7 @@ void main() {
       overdue: true, actingAsAgent: true);
     expect(wire.requests.single.path, '/admin/workspace/tasks');
     expect(wire.requests.single.queryParameters, {
-      'page': 2, 'per_page': 40, 'scope': 'mine', 'type': 'listing_review',
+      'page': 2, 'per_page': 40, 'scope': 'mine', 'type': 'listing_review', 'workspace_v2': 1,
       'status': 'new', 'priority': 'urgent', 'severity': 'high', 'assignee_id': 6,
       'created_from': '2026-11-01T00:00:00.000Z',
       'created_to': '2026-11-12T00:00:00.000Z', 'overdue': 1, 'acting_as_agent': 1,
@@ -330,18 +330,19 @@ void main() {
     final pending = Completer<Map<String, dynamic>>();
     final wire = _Wire((request) async {
       if (request.queryParameters['page'] == 2) return pending.future;
-      if (request.queryParameters['type'] == 'listing_review') return _page(1, [_task(10)]);
+      if (request.queryParameters['category'] == 'listing_review') return _page(1, [_task(10)]);
       return _page(1, [_task(1)], last: 2, total: 2);
     });
     await _open(tester, wire);
     await _next(tester);
-    await tester.ensureVisible(find.text('تحقيق إعلانات'));
-    await tester.tap(find.text('تحقيق إعلانات'));
+    await tester.ensureVisible(find.text('تحقق إعلان'));
+    await tester.tap(find.text('تحقق إعلان'));
     await tester.pump();
     pending.complete(_page(2, [_task(99)], last: 2));
     await tester.pumpAndSettle();
     expect(wire.pages, [1, 2, 1]);
-    expect(wire.requests.last.queryParameters['type'], 'listing_review');
+    expect(wire.requests.last.queryParameters['category'], 'listing_review');
+    expect(wire.requests.last.queryParameters.containsKey('type'), isFalse);
     expect(find.byKey(const ValueKey('support-task-10')), findsOneWidget);
     expect(find.byKey(const ValueKey('support-task-1')), findsNothing);
     expect(find.byKey(const ValueKey('support-task-99')), findsNothing);
