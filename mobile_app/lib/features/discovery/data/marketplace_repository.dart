@@ -40,10 +40,11 @@ class HomeLocation {
   /// its distinct GPS circle; a placeholder city is never a location fix.
   Map<String, dynamic> get provinceSearchContext {
     if (needsConfirmation) return const {};
-    final province = governorate == null ? null : GovernorateSearch.inRequest(governorate!);
+    final name = GovernorateSearch.nameForCode(governorateCode) ?? governorate;
+    final province = name == null ? null : GovernorateSearch.inRequest(name);
     return {
       ...?province?.filters,
-      if (governorate != null && governorate!.isNotEmpty) 'governorate': governorate,
+      if (name != null && name.isNotEmpty) 'governorate': name,
       if (governorateCode != null && governorateCode!.isNotEmpty) 'governorate_code': governorateCode,
     };
   }

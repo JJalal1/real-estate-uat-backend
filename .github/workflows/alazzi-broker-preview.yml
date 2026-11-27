@@ -62,6 +62,8 @@ jobs:
           tests/Feature/FinancialV1ApiTest.php
           tests/Feature/EmailLoginAndNameTest.php
           tests/Feature/SpokenSearchCityTest.php
+          tests/Feature/Phase04GovernoratesTest.php
+          tests/Feature/UatAccountTypesBrokerKycApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky
       - name: Exercise the broker API on PostgreSQL and PostGIS
         env:
@@ -81,6 +83,8 @@ jobs:
           tests/Feature/Wave3MarketplaceApiTest.php
           tests/Feature/EmailLoginAndNameTest.php
           tests/Feature/SpokenSearchCityTest.php
+          tests/Feature/Phase04GovernoratesTest.php
+          tests/Feature/UatAccountTypesBrokerKycApiTest.php
           --display-warnings --fail-on-warning --fail-on-risky
 
   broker-ui:
@@ -142,6 +146,9 @@ jobs:
           test/live_dictation_test.dart
           test/search_query_wave_test.dart
           test/governorate_search_test.dart
+          test/map_search_layout_1820_test.dart
+          test/current_wave_contract_test.dart
+          test/wave6_product_contract_test.dart
           test/wave2_home_search_test.dart
           test/wave3_ai_design_ui_test.dart
           test/wave6_product_ui_test.dart

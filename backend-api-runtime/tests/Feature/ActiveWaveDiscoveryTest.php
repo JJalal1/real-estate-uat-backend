@@ -161,12 +161,16 @@ class ActiveWaveDiscoveryTest extends TestCase
             'bio' => 'وساطة عقارية', 'governorate' => 'عدن', 'is_office' => true, 'office_name' => 'مكتب الميناء',
             'verified' => true, 'work_areas' => ['تعز'], 'specializations' => ['شقق'],
         ])->assertOk();
+        $this->withHeaders($headers)->getJson('/api/auth/me')->assertOk()
+            ->assertJsonPath('data.user.marketplace_is_office', true);
         $this->getJson($profile)->assertOk()->assertJsonPath('data.name', 'مكتب الميناء')
             ->assertJsonPath('data.account_type', 'office')->assertJsonPath('data.verified', false)
             ->assertJsonPath('data.governorate', 'عدن')->assertJsonMissingPath('data.work_areas')->assertJsonMissingPath('data.specializations');
         $query = '/api/brokers?'.http_build_query(['region_only' => 1, 'governorate' => 'عدن', 'account_type' => 'office', 'search' => 'الميناء']);
         $this->getJson($query)->assertOk()->assertJsonPath('data.0.id', $broker->id);
         $this->withHeaders($headers)->patchJson('/api/broker/profile', ['is_office' => false])->assertOk();
+        $this->withHeaders($headers)->getJson('/api/auth/me')->assertOk()
+            ->assertJsonPath('data.user.marketplace_is_office', false);
         $this->getJson($query)->assertOk()->assertJsonCount(0, 'data');
         $this->getJson($profile)->assertJsonPath('data.account_type', 'broker')->assertJsonPath('data.name', $broker->name)
             ->assertJsonPath('data.office_name', null)->assertJsonPath('data.bio', 'وساطة عقارية');

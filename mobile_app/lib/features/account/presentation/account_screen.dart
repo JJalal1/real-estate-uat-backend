@@ -266,7 +266,7 @@ class _ProfileHeader extends ConsumerWidget {
                 Text(
                   account == null
                       ? 'تصفح العقارات بحرية وسجّل الدخول عند الحاجة.'
-                      : (account.email?.trim().isNotEmpty == true ? account.email! : (account.phone ?? '')),
+                      : (account.email.trim().isNotEmpty ? account.email : (account.phone ?? '')),
                   maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontSize: 12, color: scheme.onSurfaceVariant,

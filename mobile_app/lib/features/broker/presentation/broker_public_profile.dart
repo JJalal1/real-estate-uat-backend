@@ -40,7 +40,10 @@ class BrokerPublicProfileSummary extends StatelessWidget {
       children: [
         EbrokerAdvertiserCard(
           name: profile.name,
-          identity: profile.typeLabel,
+          identity: switch (profile.type) {
+            'broker' || 'office' => profile.typeLabel,
+            _ => null,
+          },
           rating: profile.rating,
           ratingCount: profile.ratingCount,
           verified: false,
@@ -183,11 +186,8 @@ class _BrokerPublicProfileActionsState
     } catch (error) {
       if (mounted && _ownsProfile(scope, epoch, id)) _showError(error);
     } finally {
-      try {
-        await picker.clearTemporaryFiles(paths);
-      } finally {
-        if (mounted) setState(() => _uploading = false);
-      }
+      await picker.clearTemporaryFiles(paths).catchError((_) {});
+      if (mounted) setState(() => _uploading = false);
     }
   }
 

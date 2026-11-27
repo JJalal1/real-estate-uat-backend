@@ -6,6 +6,7 @@ import '../../properties/data/property_repository.dart';
 import '../domain/governorate_search.dart';
 import '../domain/smart_search_filters.dart';
 import 'ai_repository.dart';
+import 'discovery_location.dart';
 import 'marketplace_repository.dart';
 import 'smart_search_session.dart';
 
@@ -39,9 +40,12 @@ class MarketplaceSearchUi {
 }
 
 class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
-  MarketplaceSearchController(this.home, this.map, this.location) : super(const MarketplaceSearchUi());
+  MarketplaceSearchController(this.home, this.map, this.location, {this.refreshLocation}) : super(const MarketplaceSearchUi());
   final SmartSearchSession home, map;
   final HomeLocation Function() location;
+  final Future<HomeLocation>? Function()? refreshLocation;
+  HomeLocation? _searchLocation;
+  int _homeSubmitGeneration = 0, _mapSubmitGeneration = 0;
   String _lastSubmit = '', _lastMapSubmit = '';
   bool _mapActive = false;
   int _mapJourney = 0, _mapResultsJourney = 0;
@@ -67,25 +71,25 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
 
   SmartSearchFilters _filters({required String text, bool onMap = false}) {
     final editor = uiFor(onMap: onMap);
+    final homeLocation = location();
+    final currentLocation = homeLocation.manual ? homeLocation : _searchLocation ?? homeLocation;
     final spatial = onMap && map.snapshot.filters.hasMapArea
       ? {for (final e in map.snapshot.filters.values.entries) if (SmartSearchFilters.mapFields.contains(e.key)) e.key: e.value}
       : onMap && map.snapshot.filters.values.keys.any((key) => const ['governorate', 'governorate_code'].contains(key))
         ? {for (final e in map.snapshot.filters.values.entries) if (const ['governorate', 'governorate_code'].contains(e.key)) e.key: e.value}
-        : location().provinceSearchContext;
+        : currentLocation.provinceSearchContext;
     final criteria = Map<String, dynamic>.from(editor.criteria.values);
     if (onMap && map.snapshot.filters.hasMapArea) {
       criteria.remove('governorate'); criteria.remove('governorate_code');
     }
-    final query = GovernorateSearch.listingFilters(text);
+    final place = GovernorateSearch.inRequest(text);
+    final query = GovernorateSearch.listingFilters(text, place);
     // The editor's explicit type/purpose applies to the ordinary keyword
     // search. A requested province replaces its inherited province.
     final keyword = query.remove('search') as String?;
     final words = [if (keyword != null) keyword, if (editor.landUse.isNotEmpty) editor.landUse].join(' ');
     final filters = {...spatial, ...query, ...criteria};
-    if (query.containsKey('governorate_code')) {
-      filters['governorate_code'] = query['governorate_code'];
-      filters['governorate'] = query['governorate'];
-    }
+    place?.applyTo(filters);
     if (words.isNotEmpty) filters['search'] = words;
     return SmartSearchFilters.fromMap(filters);
   }
@@ -123,6 +127,8 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   }
 
   void locationChanged() {
+    _searchLocation = null;
+    ++_homeSubmitGeneration;
     final next = Map<String, dynamic>.from(state.criteria.values)..remove('governorate')..remove('governorate_code');
     state = state.copyWith(criteria: SmartSearchFilters.fromMap(next));
     _lastSubmit = '';
@@ -137,7 +143,10 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
   void stopEditing({bool onMap = false}) {
     if (_canEdit(onMap)) _setUi(uiFor(onMap: onMap).copyWith(editing: false), onMap: onMap);
   }
-  void leaveHomeSearch() { if (mounted) state = state.copyWith(active: false, editing: false); }
+  void leaveHomeSearch() {
+    ++_homeSubmitGeneration;
+    if (mounted) state = state.copyWith(active: false, editing: false);
+  }
 
   void prepareSearch({String? type}) {
     if (type == null) {
@@ -185,6 +194,22 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     if (!_canEdit(onMap)) return;
     final editor = uiFor(onMap: onMap), session = onMap ? map : home;
     if (editor.draftQuery.trim().length > 120) return;
+    final generation = onMap ? ++_mapSubmitGeneration : ++_homeSubmitGeneration;
+    final journey = _mapJourney, epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final mapScoped = onMap && (map.snapshot.filters.hasMapArea ||
+        map.snapshot.filters.values.containsKey('governorate') || map.snapshot.filters.values.containsKey('governorate_code'));
+    if (!mapScoped && GovernorateSearch.inRequest(editor.draftQuery) == null && !location().manual) {
+      final pending = refreshLocation?.call();
+      if (pending != null) {
+        final fresh = await pending;
+        if (!_canEdit(onMap) || (onMap && journey != _mapJourney) ||
+            generation != (onMap ? _mapSubmitGeneration : _homeSubmitGeneration) ||
+            epoch != Stage6SecureSessionStore.instance.sessionEpoch ||
+            !identical(uiFor(onMap: onMap).criteria, editor.criteria) ||
+            uiFor(onMap: onMap).draftQuery != editor.draftQuery) return;
+        _searchLocation = fresh;
+      }
+    }
     final filters = _filters(text: editor.draftQuery, onMap: onMap);
     if ((filters.values['search']?.toString().length ?? 0) > 120) return;
     final key = filters.signature, previous = onMap ? _lastMapSubmit : _lastSubmit;
@@ -297,7 +322,8 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
 
 final marketplaceSearchControllerProvider = StateNotifierProvider<MarketplaceSearchController, MarketplaceSearchUi>((ref) {
   final controller = MarketplaceSearchController(ref.watch(homeSearchResultsProvider.notifier),
-    ref.watch(marketplaceMapResultsProvider.notifier), () => ref.read(homeLocationProvider));
+    ref.watch(marketplaceMapResultsProvider.notifier), () => ref.read(homeLocationProvider),
+    refreshLocation: () => ref.read(discoveryLocationCoordinatorProvider).refreshForSearch());
   ref.listen(propertyDataRevisionProvider, (_, __) {
     if (controller.active) unawaited(controller.refreshActiveScopes());
   });

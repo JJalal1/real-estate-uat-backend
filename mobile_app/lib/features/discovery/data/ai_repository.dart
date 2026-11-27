@@ -32,14 +32,14 @@ class AiRepository {
     final next = Map<String, dynamic>.from(updated);
     final keyword = next['search'] as String?;
     final interpretedPlace = GovernorateSearch.canonical(keyword);
-    final place = GovernorateSearch.inRequest(message) ??
-        (keyword != null && keyword != filters['search']
-            ? GovernorateSearch.interpreted(keyword, message) : null);
+    final place = GovernorateSearch.inRequest(message);
     // A confirmed location from this request uses the spatial province key,
     // never a match against a listing title mentioning the place.
     if (place != null) {
-      next.addAll(place.filters);
-      if (interpretedPlace != null || keyword == filters['search']) next.remove('search');
+      final sameProvince = filters['governorate_code'] == place.filters['governorate_code'] ||
+          GovernorateSearch.canonical(filters['governorate'] as String?) == place.name;
+      place.applyTo(next);
+      if (interpretedPlace != null || (!sameProvince && keyword == filters['search'])) next.remove('search');
     } else if (interpretedPlace != null && keyword != filters['search']) {
       // Ignore an invented province; ordinary text still inherits the actual
       // location instead of searching a city suggested by the interpreter.

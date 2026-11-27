@@ -10,15 +10,18 @@ import 'package:real_estate_mobile/features/discovery/data/marketplace_repositor
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_categories_screen.dart';
 import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
+import 'package:real_estate_mobile/core/widgets/ebroker_widgets.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/account/presentation/account_screen.dart';
+import 'package:real_estate_mobile/features/account/presentation/profile_screen.dart';
 import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
 import 'package:real_estate_mobile/features/broker/data/broker_repository.dart';
 import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_workspaces.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_activity.dart';
 import 'package:real_estate_mobile/features/broker/presentation/broker_directory.dart';
+import 'package:real_estate_mobile/features/broker/presentation/broker_public_profile.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/account/data/private_collection.dart';
@@ -29,14 +32,28 @@ final exampleBroker = BrokerProfile.fromJson({'id': 1, 'name': 'دلال عرض 
   'rating_average': 4.6, 'rating_count': 7, 'completed_deals': 12, 'active_listings': 8,
   'work_areas': ['حدة', 'السنينة'], 'specializations': ['بيع', 'إيجار'], 'joined_at': '2026-07-01'});
 
-AuthUser brokerTestUser([int id = 1]) => AuthUser.fromJson({'id': id, 'name': 'حساب عرض تجريبي', 'email': 'preview@example.test',
+AuthUser brokerTestUser([int id = 1, Map<String, Object?> changes = const {}]) => AuthUser.fromJson({'id': id, 'name': 'حساب عرض تجريبي', 'email': 'preview@example.test',
   'phone': '+967700000000', 'account_status': 'active', 'phone_verified_at': '2026-10-12T00:00:00Z', 'profile_completed_at': '2026-10-12T00:00:00Z',
-  if (id == 1) 'verification_profile': {'type': 'broker', 'status': 'approved', 'reviewed_at': '2026-10-12T00:00:00Z'}});
+  if (id == 1) 'verification_profile': {'type': 'broker', 'status': 'approved', 'reviewed_at': '2026-10-12T00:00:00Z'},
+  ...changes});
 class BrokerTestAuth extends AuthController {
   BrokerTestAuth([this.id = 1]);
   final int id;
+  Map<String, Object?>? savedPrivateProfile;
   @override
   Future<AuthUser?> build() async => brokerTestUser(id);
+  @override
+  Future<void> refresh() async {}
+  @override
+  Future<void> updateProfile({String? name, String? phone, String? email}) async {
+    final changes = <String, Object?>{
+      if (name != null) 'name': name,
+      if (phone != null) 'phone': phone,
+      if (email != null) 'email': email,
+    };
+    savedPrivateProfile = changes;
+    state = AsyncData(brokerTestUser(id, changes));
+  }
 }
 
 Map<String, dynamic> brokerTestWorkspace() => {
@@ -53,8 +70,13 @@ class BrokerTestRepository implements BrokerRepository {
   final bool rentDue;
   Map<String, dynamic>? savedPublicProfile;
   @override
-  Future<void> updateProfile({required String bio, String? governorate, bool? isOffice, String? officeName}) async {
-    savedPublicProfile = {'governorate': governorate, 'is_office': isOffice, 'office_name': officeName};
+  Future<void> updateProfile({String? bio, String? governorate, bool? isOffice, String? officeName}) async {
+    savedPublicProfile = {
+      if (bio != null) 'bio': bio,
+      if (governorate != null) 'governorate': governorate,
+      if (isOffice != null) 'is_office': isOffice,
+      if (officeName != null) 'office_name': officeName,
+    };
   }
   final availabilityChanges = <(List<int>, String)>[];
   final reportedDeals = <(int, double?)>[];
@@ -171,9 +193,10 @@ void main() {
   testWidgets('a broker edits one governorate and an optional office from the public profile', (tester) async {
     final repo = BrokerTestRepository();
     await _pump(tester, const BrokerPublicProfileScreen(id: 1), repo);
-    await tester.tap(find.text('تعديل الملف العام'));
+    await tester.tap(find.text('المحافظة واسم المكتب'));
     await tester.pumpAndSettle();
     expect(find.text('المحافظة'), findsOneWidget);
+    expect(find.byKey(const ValueKey('public-profile-bio')), findsNothing);
     expect(find.textContaining('مناطق العمل'), findsNothing);
     expect(find.textContaining('التخصصات'), findsNothing);
     await tester.tap(find.text('أعمل باسم مكتب عقاري'));
@@ -186,6 +209,83 @@ void main() {
     await tester.tap(find.text('حفظ'));
     await tester.pumpAndSettle();
     expect(repo.savedPublicProfile, {'governorate': 'أمانة العاصمة', 'is_office': true, 'office_name': 'مكتب الأمانة'});
+  });
+
+  testWidgets('profile summaries show only professional role chips and keep marketplace stats', (tester) async {
+    final roleIcon = find.byWidgetPredicate(
+      (widget) => widget is EbrokerImage && widget.name == 'following',
+    );
+    final verificationIcon = find.byWidgetPredicate(
+      (widget) => widget is EbrokerImage && widget.name == 'agent_badge',
+    );
+    for (final (type, label) in const [
+      ('individual', null),
+      ('owner', null),
+      ('broker', 'دلال'),
+      ('office', 'مكتب عقاري'),
+    ]) {
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: BrokerPublicProfileSummary(
+              profile: BrokerProfile(
+                id: 1,
+                name: 'اسم الحساب للاختبار',
+                type: type,
+                verified: true,
+                rating: 4.3,
+                ratingCount: 2,
+                completedDeals: 7,
+                activeListings: 3,
+                soldListings: 2,
+                rentedListings: 1,
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(roleIcon, label == null ? findsNothing : findsOneWidget);
+      if (label != null) expect(find.text(label), findsOneWidget);
+      expect(verificationIcon, findsNothing);
+      expect(find.text('7 صفقات مؤكدة · 3 عقارات نشطة'), findsOneWidget);
+      expect(find.text('إعلانات أُغلقت: 2 مباع · 1 مؤجر'), findsOneWidget);
+    }
+  });
+
+  testWidgets('public biography edits are capped at 150 and saved separately', (tester) async {
+    final repo = BrokerTestRepository();
+    await _pump(tester, const BrokerPublicProfileScreen(id: 1), repo);
+    await tester.tap(find.text('تعديل النبذة'));
+    await tester.pumpAndSettle();
+    final field = find.byKey(const ValueKey('public-profile-bio'));
+    expect(tester.widget<TextField>(find.descendant(of: field, matching: find.byType(TextField))).maxLength, 150);
+    expect(find.text('أعمل باسم مكتب عقاري'), findsNothing);
+    await tester.enterText(field, 'نبذة عامة محدثة');
+    await tester.tap(find.text('حفظ'));
+    await tester.pumpAndSettle();
+    expect(repo.savedPublicProfile, {'bio': 'نبذة عامة محدثة'});
+  });
+
+  testWidgets('private profile shows an editable saved name and no active listings section', (tester) async {
+    await _pump(tester, const ProfileScreen(), BrokerTestRepository());
+    expect(find.text(exampleBroker.name), findsOneWidget);
+    expect(find.text('العقارات النشطة'), findsNothing);
+    final name = find.byKey(const ValueKey('profile-field-fullName'));
+    final edit = find.byKey(const ValueKey('profile-edit-fullName'));
+    await tester.scrollUntilVisible(edit, 120, scrollable: find.byType(Scrollable).first);
+    expect(tester.widget<TextField>(find.descendant(of: name, matching: find.byType(TextField))).readOnly, isTrue);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    await tester.enterText(name, 'محمد أحمد علي صالح');
+    await tester.scrollUntilVisible(find.text('حفظ'), 120, scrollable: find.byType(Scrollable).first);
+    final ref = ProviderScope.containerOf(tester.element(find.byType(ProfileScreen)));
+    final auth = ref.read(authControllerProvider.notifier) as BrokerTestAuth;
+    await tester.tap(find.text('حفظ'));
+    await tester.pumpAndSettle();
+    expect(auth.savedPrivateProfile, {'name': 'محمد أحمد علي صالح'});
   });
 
   testWidgets('verified broker opens work and the unified message list from the marketplace', (tester) async {

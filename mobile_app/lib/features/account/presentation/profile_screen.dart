@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/ebroker_otp_field.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
@@ -59,12 +60,16 @@ class _ProfileScreenState extends ConsumerState<_ProfileScreenBody> {
     for (final field in _ProfileField.values) field: FocusNode(),
   };
   final _editing = <_ProfileField>{};
+  late final int? _actorId;
+  late final int _sessionEpoch;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
     final user = ref.read(authControllerProvider).asData?.value;
+    _actorId = user?.id;
+    _sessionEpoch = Stage6SecureSessionStore.instance.sessionEpoch;
     if (user != null) _resetFields(user);
   }
 
@@ -210,7 +215,7 @@ class _ProfileScreenState extends ConsumerState<_ProfileScreenBody> {
 
   Future<void> _confirmEmail() async {
     final user = ref.read(authControllerProvider).asData?.value;
-    if (user == null || _busy) return;
+    if (user == null || !_isCurrent || _busy) return;
     if (_changedValue(_ProfileField.email, user) != null) {
       _showMessage('احفظ البريد الجديد أولًا ثم أكّده.');
       return;
@@ -218,26 +223,26 @@ class _ProfileScreenState extends ConsumerState<_ProfileScreenBody> {
     setState(() => _busy = true);
     try {
       await ref.read(authControllerProvider.notifier).requestEmailVerification();
-      if (!mounted) return;
+      if (!_isCurrent) return;
       final value = await showActorDialog<String>(
         context: context,
         ref: ref,
         builder: (_) => _EmailCodeDialog(email: user.email),
       );
-      if (value == null || !mounted) return;
+      if (value == null || !_isCurrent) return;
       await ref.read(authControllerProvider.notifier).verifyEmail(value);
-      if (mounted) {
+      if (_isCurrent) {
         _showMessage('تم تأكيد البريد. يمكنك الدخول به إلى الحساب نفسه.');
       }
     } catch (error) {
-      if (mounted) _showMessage(friendlyApiError(error));
+      if (_isCurrent) _showMessage(friendlyApiError(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _save(AuthUser user) async {
-    if (_busy || !_form.currentState!.validate()) return;
+    if (_busy || !_isCurrent || !_form.currentState!.validate()) return;
     final name = _changedValue(_ProfileField.fullName, user);
     final phone = _changedValue(_ProfileField.phone, user);
     final email = _changedValue(_ProfileField.email, user);
@@ -251,18 +256,22 @@ class _ProfileScreenState extends ConsumerState<_ProfileScreenBody> {
         phone: phone,
         email: email,
       );
-      if (!mounted) return;
+      if (!_isCurrent) return;
       final saved = ref.read(authControllerProvider).asData?.value;
       if (saved?.id != user.id) return;
       _resetFields(saved!);
       if (name != null) invalidateBrokerProfile(ref, user.id);
       _showMessage('تم حفظ الملف الشخصي.');
     } catch (error) {
-      if (mounted) _showMessage(friendlyApiError(error));
+      if (_isCurrent) _showMessage(friendlyApiError(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  bool get _isCurrent => mounted &&
+      _sessionEpoch == Stage6SecureSessionStore.instance.sessionEpoch &&
+      ref.read(authControllerProvider).asData?.value?.id == _actorId;
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

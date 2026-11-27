@@ -382,9 +382,11 @@ void main() {
     expect(container.read(smartSearchSessionProvider).draftText, isEmpty);
 
     recording.emit(const VoiceEvent('speech_end'));
+    recording.emit(const VoiceEvent('segment', text: 'شقة في'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 2));
     recording.emit(const VoiceEvent('ready'));
+    recording.emit(const VoiceEvent('partial', text: 'شقة في'));
     recording.emit(const VoiceEvent('speech_end'));
     await tester.pump();
     expect(recording.stops, 0);

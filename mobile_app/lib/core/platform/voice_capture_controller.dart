@@ -97,7 +97,9 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
             // A hypothesis can start a segment even if Android omits speech_start.
             // A late hypothesis must not extend its pending result deadline.
             if (event.text.trim().isNotEmpty && !_speechEndAwaitingResult) {
-              _markSpeech();
+              // Partial callbacks also contain the previous, confirmed words.
+              // Repeating those words alone does not interrupt the silence.
+              if (event.text.trim() != stablePreview.trim()) _markSpeech();
               _awaitingLiveSegment = true;
             }
           case 'processing': if (!_stopRequested) return; phase = VoicePhase.processing; level = 0;

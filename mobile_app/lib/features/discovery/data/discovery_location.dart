@@ -56,6 +56,8 @@ class DiscoveryLocationStore {
 }
 
 class DiscoveryLocationAccess {
+  // geolocator has native foreground providers on the app's mobile targets.
+  bool get supportsSearchFix => Platform.isAndroid || Platform.isIOS || Platform.isMacOS || Platform.isWindows;
   Future<LocationPermission> permission() => Geolocator.checkPermission();
   Future<LocationPermission> requestPermission() => Geolocator.requestPermission();
   Future<HomeLocation> locate() async {
@@ -88,6 +90,50 @@ class DiscoveryLocationCoordinator {
   Future<void>? _initialization;
   Future<void>? _deviceRequest;
 
+  Future<HomeLocation>? _searchFix;
+  HomeLocation? _searchResult;
+  DateTime? _searchResolvedAt;
+
+  /// Search-only location. Respect a manual selection, share simultaneous
+  /// lookups, and never request permission or change the Home selection.
+  Future<HomeLocation>? refreshForSearch() {
+    if (_read().manual || !_access.supportsSearchFix) return null;
+    final resolvedAt = _searchResolvedAt;
+    if (resolvedAt != null && _searchResult != null &&
+        DateTime.now().difference(resolvedAt) < const Duration(minutes: 1)) {
+      return Future.value(_searchResult!);
+    }
+    return _searchFix ??= _readSearchLocation().whenComplete(() => _searchFix = null);
+  }
+
+  Future<HomeLocation> _readSearchLocation() async {
+    final selection = _selection;
+    final existing = _read();
+    try {
+      if (_initialization == null) {
+        final saved = await _store.load();
+        if (_selection != selection || _read().manual) return _read();
+        if (saved.manual != null) return saved.manual!;
+      }
+      final permission = await _access.permission();
+      if (_selection != selection || _read().manual) return _read();
+      if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) {
+        return existing;
+      }
+      final fix = await _access.locate();
+      if (_selection != selection || _read().manual) return _read();
+      final location = _resolve == null ? fix : await _resolve(fix);
+      if (_selection != selection || _read().manual) return _read();
+      final province = HomeLocation(governorate: location.governorate, governorateCode: location.governorateCode,
+          needsConfirmation: location.needsConfirmation);
+      _searchResult = province;
+      _searchResolvedAt = DateTime.now();
+      return province;
+    } catch (_) {
+      return _read();
+    }
+  }
+
   Future<void> initialize() => _initialization ??= _initialize();
   Future<void> _initialize() async {
     final selection = _selection;
@@ -106,6 +152,7 @@ class DiscoveryLocationCoordinator {
   Future<void> markIntroductionShown() async { _introductionShown = true; await _save(); }
   Future<void> selectManual(HomeLocation location) async {
     _selection++;
+    _searchResolvedAt = null;
     _introductionShown = true;
     _manual = location;
     _write(location);
@@ -141,6 +188,7 @@ class DiscoveryLocationCoordinator {
     final location = _resolve == null ? fix : await _resolve(fix);
     if (selection != _selection) return;
     _manual = null;
+    _searchResolvedAt = null;
     _write(location);
     await _save();
   }

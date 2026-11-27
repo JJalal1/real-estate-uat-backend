@@ -99,9 +99,14 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertJsonPath('data.status', 'approved')
             ->assertJsonPath('data.verification_flags.identity_reviewed', true);
 
+        $approvedVerification = $owner->accountVerificationProfile()->firstOrFail();
+        $originalVerification = $approvedVerification->getRawOriginal();
         $this->withHeaders($ownerHeaders)->patchJson('/api/auth/profile', [
             'name' => 'اسم مختلف بعد التوثيق',
-        ])->assertStatus(422)->assertJsonValidationErrors('name');
+        ])->assertOk()
+            ->assertJsonPath('data.user.name', 'اسم مختلف بعد التوثيق')
+            ->assertJsonPath('data.user.verification_profile.status', 'approved');
+        $this->assertSame($originalVerification, $approvedVerification->fresh()->getRawOriginal());
 
         $listingId = (int) $this->withHeaders($ownerHeaders)
             ->post('/api/properties', $this->listingPayload('Owner property relation'))

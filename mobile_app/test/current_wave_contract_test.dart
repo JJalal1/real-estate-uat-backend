@@ -132,7 +132,7 @@ void main() {
     await session.interpret('في عدن');expect(session.state.filters.values['governorate'],'عدن');expect(session.state.filters.values.containsKey('governorate_code'),false);expect(session.state.filters.values.containsKey('latitude'),false);
     session.endJourney(first);await Future<void>.delayed(Duration.zero);expect(session.state.filters.values,isEmpty);
     session.beginJourney(savedFilters:SmartSearchFilters.fromMap({'governorate':'صنعاء','type':'land'}));
-    expect(session.state.filters.values,{'governorate':'صنعاء','type':'land'});
+    expect(session.state.filters.values,{'governorate':'صنعاء','governorate_code':'SANAA','type':'land'});
   });
   test('one description request serves double taps, then a later explicit request is allowed', () async {
     final dio=Dio(),auth=DescriptionAuth(),pending=Completer<void>(),started=Completer<void>();int calls=0;
