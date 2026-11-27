@@ -342,6 +342,19 @@ class FinancialV1ApiTest extends TestCase
 
         $service = app(FinancialSupportTaskService::class);
         $task = $service->projectPayment($payment);
+        $this->assertSame($fallbackTeamId, (int) $task->support_team_id);
+        $this->assertSame($provinceId, (int) $task->governorate_id);
+
+        [$reviewer] = $this->user(
+            'financial-regional-reviewer@example.test', '+967772000045', ['support_agent'],
+        );
+        DB::table('support_team_members')->insert([
+            'support_team_id' => $localTeamId, 'user_id' => $reviewer->id,
+            'member_role' => 'agent', 'is_available' => true, 'capacity' => 10,
+            'joined_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $task = $service->projectPayment($payment);
         $this->assertSame($localTeamId, (int) $task->support_team_id);
         $this->assertSame($provinceId, (int) $task->governorate_id);
         $task->forceFill(['support_team_id' => $fallbackTeamId, 'governorate_id' => null])->save();
