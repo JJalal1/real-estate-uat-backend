@@ -8,14 +8,14 @@ import 'property_type_icon.dart';
 class EbrokerPropertyHorizontalCard extends StatelessWidget {
   const EbrokerPropertyHorizontalCard({required this.title, required this.price, required this.currency,
     required this.onTap, this.imageUrl, this.location, this.purposeLabel, this.categoryLabel = 'عقار',
-    this.facts = const [], this.compactFacts, this.trailing, this.action, this.unavailable = false, this.embedded = false, this.imageFirst = false, this.preview = false, this.compactPreview = false,
+    this.facts = const [], this.trailing, this.action, this.unavailable = false, this.embedded = false, this.imageFirst = false, this.preview = false, this.compactPreview = false,
     this.imageUrls = const [], this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, this.supportingText = const [], this.priceSuffix, this.publicationAge, super.key});
   final String title, price, currency, categoryLabel;
   final VoidCallback onTap;
   final String? imageUrl, location, purposeLabel, propertyType, priceSuffix, publicationAge;
   final List<String> imageUrls, supportingText;
   final List<AppPropertyFact> facts;
-  final Widget? trailing, action, compactFacts;
+  final Widget? trailing, action;
   final bool unavailable, embedded, imageFirst, preview, isSpotlight, authenticatedImages;
   final bool compactPreview;
 
@@ -25,8 +25,6 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 21;
     final vertical = preview || imageFirst || largeText;
     final compact = preview && compactPreview;
-    final listingStyle = compactFacts != null;
-    final favoriteInHeader = listingStyle && !vertical && constraints.maxWidth >= 340;
     final inset = compact ? const EdgeInsets.all(8) : const EdgeInsets.all(10);
     final titleStyle = compact ? AppTypography.propertyName.copyWith(fontSize: 16) : AppTypography.propertyName;
     final secondaryStyle = AppTypography.propertySecondary.copyWith(
@@ -54,13 +52,12 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
           Flexible(fit: fillWidth ? FlexFit.tight : FlexFit.loose, child: money),
           const SizedBox(width: 8),
           badge,
-          if (favoriteInHeader && trailing != null) trailing!,
         ],
       );
     }
     Widget gallery(double height) => ClipRRect(borderRadius: BorderRadius.circular(12),
       child: PropertyCardGallery(imageUrl: imageUrl, imageUrls: imageUrls, isSpotlight: isSpotlight, authenticatedImages: authenticatedImages,
-        height: height, overlay: vertical || (listingStyle && !favoriteInHeader) ? trailing : null,
+        height: height, overlay: vertical ? trailing : null,
         overlayAtStart: preview && purposeLabel != null,
         purposeBadge: preview && purposeLabel != null
           ? EbrokerPurposeLabel(purposeLabel!, key: const ValueKey('property-photo-purpose'))
@@ -83,8 +80,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
           fontSize: compact ? 10 : 11, color: scheme.onSurfaceVariant)),
       ),
       if (preview) ...[SizedBox(height: compact ? 4 : 6), money],
-      if (compactFacts != null) ...[const SizedBox(height: 5), compactFacts!]
-      else if (!preview) ...[const SizedBox(height: 4), Row(mainAxisSize: MainAxisSize.min, children: [
+      if (!preview) ...[const SizedBox(height: 4), Row(mainAxisSize: MainAxisSize.min, children: [
         PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
         const SizedBox(width: 4), Flexible(child: Text(categoryLabel,
           style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))),
@@ -95,19 +91,9 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
             ? secondaryStyle
             : theme.textTheme.bodySmall?.copyWith(fontSize: 10))?.copyWith(color: scheme.onSurfaceVariant)))]),
       ])],
-      if (listingStyle && action != null && !vertical)
-        Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            for (final line in supportingText)
-              Text(line, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: scheme.onSurfaceVariant)),
-          ])),
-          Flexible(child: Align(alignment: AlignmentDirectional.centerEnd, child: action)),
-        ])
-      else ...[
-        for (final line in supportingText) Padding(padding: const EdgeInsets.only(top: 4),
-          child: Text(line, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: scheme.onSurfaceVariant))),
-        if (action != null) action!,
-      ],
+      for (final line in supportingText) Padding(padding: const EdgeInsets.only(top: 4),
+        child: Text(line, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: scheme.onSurfaceVariant))),
+      if (action != null) action!,
     ]);
     final content = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (vertical) ...[
@@ -115,20 +101,6 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
         SizedBox(height: compact ? 7 : 9),
         detail,
       ]
-      else if (listingStyle)
-        LayoutBuilder(builder: (context, inner) {
-          final photoWidth = (inner.maxWidth * .28).clamp(70.0, 110.0).toDouble();
-          return Stack(children: [
-            Padding(
-              padding: EdgeInsetsDirectional.only(start: photoWidth + 8),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 122),
-                child: SizedBox(width: double.infinity, child: detail),
-              ),
-            ),
-            PositionedDirectional(start: 0, top: 0, bottom: 0, width: photoWidth, child: gallery(122)),
-          ]);
-        })
       else Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(width: constraints.maxWidth < 350 ? 96 : 108, child: gallery(124)),
         const SizedBox(width: 10), Expanded(child: detail),

@@ -9,6 +9,7 @@ import '../../account/data/auth_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
 import '../domain/property_marker.dart';
+import '../domain/property_details.dart';
 import 'property_repository.dart';
 
 final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
@@ -38,13 +39,13 @@ final favoritePropertiesProvider =
 });
 
 final favoritePagesProvider = StateNotifierProvider.autoDispose<
-    PrivateCollectionController<PropertyMarker>, PrivateCollectionState<PropertyMarker>>((ref) {
+    PrivateCollectionController<PropertySummary>, PrivateCollectionState<PropertySummary>>((ref) {
   ref.watch(favoriteDataRevisionProvider);
   ref.watch(propertyDataRevisionProvider);
   ref.watch(offlineResumeRevisionProvider);
   final repository = ref.watch(favoritesRepositoryProvider);
   return accountCollection(ref, load: (page) => repository.favoritesPage(page: page),
-    idOf: (PropertyMarker item) => item.id);
+    idOf: (PropertySummary item) => item.id);
 });
 
 final favoritePropertyIdsProvider =
@@ -65,7 +66,7 @@ class FavoritesRepository {
   final AccountRequestScope? _requestScope;
   Future<Options> _options() => _requestScope?.options() ?? _auth.requiredAuthOptions();
 
-  Future<PrivateCollectionPage<PropertyMarker>> favoritesPage({int page = 1}) async {
+  Future<PrivateCollectionPage<PropertySummary>> favoritesPage({int page = 1}) async {
     if (page < 1) throw ArgumentError.value(page, 'page');
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final options = await _options();
@@ -81,7 +82,7 @@ class FavoritesRepository {
       parse: (row) {
         final property = row['property'];
         if (property is! Map<String, dynamic>) throw StateError('INVALID_FAVORITE');
-        return PropertyMarker.fromJson(property);
+        return PropertySummary.fromJson(property);
       });
   }
 

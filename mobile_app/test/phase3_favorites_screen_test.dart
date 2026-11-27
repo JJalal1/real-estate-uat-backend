@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/features/properties/data/favorites_repository.dart';
-import 'package:real_estate_mobile/features/properties/domain/property_marker.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/presentation/favorites_screen.dart';
 import 'support/private_collection_fixtures.dart';
 
@@ -28,14 +28,13 @@ void main() {
 
   testWidgets('favorites screen renders server-backed property cards',
       (tester) async {
-    const property = PropertyMarker(
+    const property = PropertySummary(
       id: 42,
       title: 'عقار محفوظ في Phase 3',
       price: 25000000,
       currency: 'YER',
       latitude: 15.3694,
       longitude: 44.1910,
-      distanceKm: 0,
       purpose: 'sale',
       type: 'apartment',
       areaM2: 120,
@@ -63,7 +62,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('بيع'), findsOneWidget);
-    expect(find.text('١٢٠ م²'), findsOneWidget);
-    expect(find.byTooltip('إزالة من المفضلة'), findsOneWidget);
+    expect(find.text('١٢٠ متر مربع'), findsOneWidget);
+    expect(find.text('منشور'), findsOneWidget);
+    await tester.tap(find.byTooltip('خيارات البطاقة'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('favorite-property-42')), findsOneWidget);
+    expect(find.text('إزالة من المفضلة'), findsOneWidget);
   });
 }

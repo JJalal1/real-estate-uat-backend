@@ -12,8 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
+import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
-import 'package:real_estate_mobile/core/widgets/ebroker_property_card.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'support/wave3_fakes.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
@@ -143,7 +144,7 @@ Map<String, dynamic> _snapshot({int step = 2, String type = 'house'}) => {
 };
 
 Future<void> _pump(WidgetTester tester, Widget child, {Map<String, dynamic>? snapshot, _Properties? properties,
-  _Messages? messages, double scale = 1, GlobalKey? boundary, GoRouter? router, Wave6Drafts? drafts}) async {
+  _Messages? messages, AiRepository? ai, double scale = 1, GlobalKey? boundary, GoRouter? router, Wave6Drafts? drafts}) async {
   tester.view.physicalSize = const Size(412, 915); tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides: [
@@ -152,8 +153,7 @@ Future<void> _pump(WidgetTester tester, Widget child, {Map<String, dynamic>? sna
     listingRecoveryStoreProvider.overrideWithValue(_Recovery(snapshot)),
     propertyRepositoryProvider.overrideWithValue(properties ?? _Properties()),
     messageRepositoryProvider.overrideWithValue(messages ?? _Messages()),
-    aiRepositoryProvider.overrideWithValue(Wave3AiFake()..onRefine = (message, filters, revision) async => {'revision': revision,
-      'filters': {'type': 'apartment', 'purpose': 'rent', 'search': 'تعز', 'min_bedrooms': 3, 'max_price': 150000}}),
+    aiRepositoryProvider.overrideWithValue(ai ?? Wave3AiFake()),
   ], child: router == null ? MaterialApp(theme: AppTheme.light,
     builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
       child: RepaintBoundary(key: boundary, child: child!)), home: child) : MaterialApp.router(theme: AppTheme.light, routerConfig: router)));
@@ -426,19 +426,35 @@ void main() {
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 
-  testWidgets('smart search validates assistant chips and uses the existing public API for actual results', (tester) async {
+  testWidgets('smart search opens its map and shows current listing prices from the public results', (tester) async {
     final repository = _Properties(), key = GlobalKey();
-    await _pump(tester, const AssistedSearchScreen(), properties: repository, boundary: key);
+    final transport = Dio()..interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
+      expect(request.path, '/ai/search');
+      handler.resolve(Response<Map<String, dynamic>>(
+        requestOptions: request,
+        statusCode: 200,
+        data: {'data': {
+          'revision': request.data['revision'],
+          'filters': {'type': 'apartment', 'purpose': 'rent', 'search': 'تعز', 'min_bedrooms': 3, 'max_price': 150000},
+        }},
+      ));
+    }));
+    addTearDown(() => transport.close(force: true));
+    await _pump(tester, const AssistedSearchScreen(), properties: repository, boundary: key,
+      ai: AiRepository(transport, AuthRepository(transport)));
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'شقة إيجار في تعز، 3 غرف، أقل من 150 ألف');
     await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
-    expect(find.text('تعز'), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-map')), findsOneWidget);
+    expect(repository.lastQuery!['governorate_code'], 'TAIZ');
+    expect(repository.lastQuery!['governorate'], 'تعز');
+    expect(repository.lastQuery!.containsKey('search'), isFalse);
     await _capture(tester, key, 'smart-filters');
     await tester.scrollUntilVisible(find.text('شقة من نتائج الخادم'), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     expect(repository.lastQuery!['max_monthly_rent'], 150000);
-    final resultCard = tester.widget<EbrokerPropertyHorizontalCard>(find.byType(EbrokerPropertyHorizontalCard));
+    final resultCard = tester.widget<ListingPropertyCard>(find.byType(ListingPropertyCard));
     expect(double.parse(resultCard.price), 100000);
-    expect(resultCard.purposeLabel, 'للإيجار');
+    expect(resultCard.property.purpose, 'rent');
     expect(resultCard.priceSuffix, 'شهريًا');
     expect(find.textContaining('١٠٠٬٠٠٠ ريال', findRichText: true), findsOneWidget);
     expect(find.text('شقة من نتائج الخادم'), findsOneWidget); expect(tester.takeException(), isNull);

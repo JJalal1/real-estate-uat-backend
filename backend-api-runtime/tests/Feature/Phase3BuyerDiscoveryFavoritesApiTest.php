@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Property;
+use App\Models\PropertySaiTerm;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -95,6 +96,56 @@ class Phase3BuyerDiscoveryFavoritesApiTest extends TestCase
             'user_id' => $buyerA->id,
             'property_id' => $published->id,
         ]);
+    }
+
+    public function test_saved_cards_keep_public_facts_images_and_prices_across_pages(): void
+    {
+        [$owner] = $this->activeUser('card-owner@example.test', '+967700003030');
+        [, $headers] = $this->activeUser('card-buyer@example.test', '+967700003031');
+        $sale = $this->property($owner, 'Sale with commission included', 'published', [
+            'purpose' => 'sale', 'type' => 'apartment', 'price' => 10000000,
+            'floor_number' => 3, 'has_parking' => true, 'listing_input_version' => 5,
+        ]);
+        $term = PropertySaiTerm::query()->create([
+            'property_id' => $sale->id, 'version' => 1, 'advertiser_type' => 'broker',
+            'purpose' => 'sale', 'source_mode' => 'broker_custom', 'sai_rate_percent' => 1,
+            'payer' => 'buyer', 'calculation_basis' => 'final_sale_value',
+            'platform_share_percent' => 10, 'broker_share_percent' => 90,
+            'platform_terms_status' => 'not_required', 'created_by_user_id' => $owner->id,
+        ]);
+        $sale->forceFill(['current_sai_term_id' => $term->id, 'price_display_mode' => 'includes_sai'])->saveQuietly();
+        $sale->images()->createMany([
+            ['path' => 'listing-originals/unit-a.jpg', 'is_primary' => true, 'sort_order' => 0],
+            ['path' => 'listing-originals/unit-b.jpg', 'is_primary' => false, 'sort_order' => 1],
+        ]);
+        $rent = $this->property($owner, 'Apartment with advance', 'published', [
+            'type' => 'apartment', 'price' => 360000, 'monthly_rent' => 120000, 'rental_term_months' => 12, 'advance_months' => 3,
+        ]);
+
+        $this->withHeaders($headers)->putJson("/api/properties/{$sale->id}/favorite")->assertOk();
+        $this->putJson("/api/properties/{$rent->id}/favorite")->assertOk();
+
+        $this->getJson('/api/favorites?per_page=1')->assertOk()
+            ->assertJsonPath('meta.last_page', 2)->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.0.property.id', $rent->id)
+            ->assertJsonPath('data.0.property.monthly_rent', 120000)
+            ->assertJsonPath('data.0.property.advance_months', 3);
+
+        $favorite = $this->getJson('/api/favorites?per_page=1&page=2')->assertOk()
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('data.0.property.id', $sale->id)
+            ->assertJsonPath('data.0.property.display_price', 10100000)
+            ->assertJsonPath('data.0.property.floor_number', '3')
+            ->assertJsonPath('data.0.property.has_parking', true)
+            ->assertJsonCount(2, 'data.0.property.image_urls')
+            ->json('data.0.property');
+        $public = $this->getJson('/api/properties?purpose=sale')->assertOk()->json('data.0');
+        foreach (['main_image', 'image_urls', 'floor_number', 'has_parking', 'display_price', 'area_unit'] as $field) {
+            $this->assertSame($public[$field], $favorite[$field]);
+        }
+        foreach (['contact_phone', 'last_review_reason', 'documents', 'sai_attestation_text', 'can_edit'] as $field) {
+            $this->assertArrayNotHasKey($field, $favorite);
+        }
     }
 
     public function test_closed_listing_disappears_from_public_links_and_saved_cards_without_erasing_favorites(): void

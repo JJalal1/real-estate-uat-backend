@@ -177,12 +177,15 @@ void main() {
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('partial', text: 'في تعز')); await tester.pump();
     expect(tester.widget<TextField>(input).controller!.text, 'شقة في تعز');
     expect(saved, isEmpty);
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
+    voice.latest.emit(const VoiceEvent('cancelled'));
+    await tester.pumpAndSettle();
     expect(tester.widget<TextField>(input).controller!.text, 'شقة');
     expect(saved.where((s) => s.contains('تعز')), isEmpty);
     await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-voice'))); await tester.tap(find.byKey(const ValueKey('listing-ai-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-finish'))); await tester.tap(find.byKey(const ValueKey('voice-finish'))); await tester.pump();
+    final mic = find.byKey(const ValueKey('listing-ai-voice'));
+    await tester.ensureVisible(mic); await tester.tap(mic); await tester.pump();
+    expect(voice.latest.stops, 1);
     voice.latest.emit(const VoiceEvent('final', text: 'في صنعاء ثلاث غرف')); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(input).controller!.text, 'شقة في صنعاء ثلاث غرف');
     expect(saved.last, 'شقة في صنعاء ثلاث غرف');

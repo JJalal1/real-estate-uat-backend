@@ -64,6 +64,7 @@ class PropertySummary {
     this.address,
     this.publishedAt,
     this.status = 'published',
+    this.availabilityStatus = 'available',
     this.mainImage,
     this.imageUrls = const [],
     this.isSpotlight = false,
@@ -101,7 +102,7 @@ class PropertySummary {
   final String? buildingFacade;
   final String? address;
   final DateTime? publishedAt;
-  final String status;
+  final String status, availabilityStatus;
   final String? mainImage;
   final List<String> imageUrls;
   final bool isSpotlight;
@@ -142,6 +143,7 @@ class PropertySummary {
       address: _nullableString(json['address']),
       publishedAt: DateTime.tryParse(json['published_at']?.toString() ?? ''),
       status: json['status']?.toString() ?? 'published',
+      availabilityStatus: json['availability_status']?.toString() ?? 'available',
       mainImage: _nullableString(json['main_image']),
       imageUrls: List.unmodifiable((json['image_urls'] as List? ?? const []).whereType<String>().where((url) => url.isNotEmpty).take(12)),
       isSpotlight: _asBool(json['is_spotlight']) ?? false,
@@ -494,6 +496,7 @@ class PropertyDetails {
       address: address,
       publishedAt: publishedAt,
       status: status,
+      availabilityStatus: availabilityStatus,
       mainImage: mainImage,
       imageUrls: images.map((image) => image.url).toList(growable: false),
       isSpotlight: isSpotlight,

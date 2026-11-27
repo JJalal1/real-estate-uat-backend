@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\SerializesPropertyCards;
 use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\PropertyFavorite;
-use App\Models\PropertyImage;
+use Illuminate\Support\Arr;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class PropertyFavoriteController extends Controller
 {
+    use SerializesPropertyCards;
+
     public function index(Request $request): JsonResponse
     {
         /** @var User $user */
@@ -19,7 +22,7 @@ class PropertyFavoriteController extends Controller
         $perPage = max(1, min((int) $request->input('per_page', 20), 50));
 
         $page = PropertyFavorite::query()
-            ->with(['property.images'])
+            ->with(['property.images', 'property.currentSaiTerm'])
             ->where('user_id', $user->id)
             ->whereHas('property', fn ($query) => $query->publiclyVisible())
             ->latest('id')
@@ -128,41 +131,12 @@ class PropertyFavoriteController extends Controller
 
     private function summary(Property $property, Request $request): array
     {
-        $property->loadMissing('images');
-        $mainImage = $property->images->first();
-
-        return [
-            'id' => (int) $property->id,
-            'title' => $property->title,
-            'purpose' => $property->purpose,
-            'type' => $property->type,
-            'tenure_type' => $property->tenure_type,
-            'price' => (float) $property->price,
-            'currency' => $property->currency,
-            'area_m2' => $property->area_m2,
-            'area_value' => $property->area_value !== null ? (float) $property->area_value : ($property->area_m2 !== null ? (float) $property->area_m2 : null),
-            'area_unit' => $property->area_unit ?? ($property->area_m2 !== null ? 'sqm' : null),
-            'bedrooms' => $property->bedrooms,
-            'bathrooms' => $property->bathrooms,
-            'address' => $property->address,
-            'latitude' => (float) $property->latitude,
-            'longitude' => (float) $property->longitude,
-            'status' => $property->status,
-            'published_at' => $property->published_at?->toIso8601String(),
-            'main_image' => $mainImage ? $this->imageUrl($mainImage, $request) : null,
-        ];
-    }
-
-    private function imageUrl(PropertyImage $image, Request $request): string
-    {
-        $raw = trim((string) $image->cdn_url);
-        if ($raw !== '') {
-            if (str_starts_with($raw, 'http://') || str_starts_with($raw, 'https://')) {
-                return $raw;
-            }
-            return rtrim($request->getSchemeAndHttpHost(), '/') . '/' . ltrim($raw, '/');
-        }
-
-        return rtrim($request->getSchemeAndHttpHost(), '/') . '/api/property-media/' . $image->id . '?variant=card'.(config('listing_media.watermark.enabled') ? '&v='.app(\App\Services\ListingWatermarkService::class)->version() : '');
+        return array_merge(
+            $this->summaryData($property, $request),
+            Arr::only($this->publicPriceData($property, $property->currentSaiTerm), [
+                'base_price', 'display_price', 'price_display_mode', 'price_display_note',
+                'monthly_rent', 'rental_term_months', 'advance_months',
+            ]),
+        );
     }
 }

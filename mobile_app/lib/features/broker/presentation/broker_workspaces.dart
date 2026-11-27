@@ -276,7 +276,6 @@ class BrokerDashboardScreen extends ConsumerWidget {
           final photoUrl = profile?.photoUrl;
           final region = profile?.governorate;
           final accountType = profile?.typeLabel ?? (isOffice ? 'مكتب عقاري' : 'دلال');
-          final verified = profile?.verified == true;
           final listings = brokerMap(data['listings']);
           final activity = brokerMap(data['customer_activity']);
           final attention = brokerMap(data['needs_attention']);
@@ -352,7 +351,7 @@ class BrokerDashboardScreen extends ConsumerWidget {
                           children: [
                             Text(profile?.name ?? user?.name ?? 'مرحبًا بك', style: theme.textTheme.titleMedium),
                             Text(
-                              '$accountType${verified ? ' موثق' : ''}${region == null ? '' : ' · $region'}',
+                              '$accountType${region == null ? '' : ' · $region'}',
                               style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                             ),
                           ],

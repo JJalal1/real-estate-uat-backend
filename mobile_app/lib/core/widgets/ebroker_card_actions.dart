@@ -3,10 +3,11 @@ import 'app_components.dart';
 import 'ebroker_widgets.dart';
 
 class EbrokerCardAction {
-  const EbrokerCardAction(this.label, this.onPressed, {this.icon = Icons.chevron_left});
+  const EbrokerCardAction(this.label, this.onPressed, {this.key, this.icon = Icons.chevron_left});
   final String label;
   final VoidCallback? onPressed;
   final IconData icon;
+  final Key? key;
 }
 
 /// One visible next action; all other authorized actions remain reachable.

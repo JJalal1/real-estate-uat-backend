@@ -1,4 +1,3 @@
-import 'dart:async';
 import '../../account/data/auth_controller.dart';
 import '../domain/rental_condition_summary.dart';
 import 'package:flutter/material.dart';
@@ -8,9 +7,8 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/voice_input.dart';
 import '../../../core/platform/app_permission_settings.dart';
 import '../../../core/platform/voice_capture_controller.dart';
-import '../../../core/widgets/inline_voice_capture.dart';
+import '../../../core/widgets/dictation_microphone.dart';
 import '../../../core/widgets/app_components.dart';
-import '../../../core/widgets/ebroker_widgets.dart';
 import '../../discovery/data/ai_repository.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../domain/property_field_options.dart';
@@ -51,11 +49,12 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   final _selected = <String>{};
   final _scroll = ScrollController();
   final _resultKey = GlobalKey();
+  final _briefBoxKey = GlobalKey();
+  double? _dictationFieldHeight;
   Map<String, dynamic>? _fields;
   bool _busy = false, _hasDescription = false, _copyReady = false;
   late final VoiceCaptureController _capture;
   String _voiceDraft = '', _lastBriefText = '';
-  String? _lastVoiceBase, _lastVoiceText;
   int _voiceTurn = 0;
   bool _restoringVoice = false;
   bool get _voiceBusy => _capture.active;
@@ -75,7 +74,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     _accountBound = account != null;
     _message.text = widget.initialMessage; _lastBriefText = _message.text;
     _message.addListener(_briefChanged);
-    _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
+    _capture = VoiceCaptureController.withSilenceStop(ref.read(voiceInputProvider))..addListener(_voiceChanged);
   }
 
   void _briefChanged() {
@@ -205,20 +204,18 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     });
   }
 
-  Future<void> _voice() async {
-    if (!_sessionValid || _busy || _voiceBusy) return;
-    FocusScope.of(context).unfocus(); _voiceDraft = _message.text;
-    setState(() => _error = null);
-    final turn = ++_voiceTurn;
-    final text = await _capture.start();
-    if (mounted && _sessionValid && turn == _voiceTurn) await _acceptVoice(text);
-  }
-  Future<void> _retryVoice() async {
-    if (!_sessionValid || _busy || _voiceBusy || !_capture.canRetry) return;
+  Future<void> _voice({bool retry = false}) async {
+    if (!_sessionValid || _busy || _voiceBusy || (retry && !_capture.canRetry)) return;
+    FocusScope.of(context).unfocus();
     _voiceDraft = _message.text;
-    setState(() => _error = null);
+    // Keep the microphone row stationary while a long transcript wraps inside the field.
+    final fieldHeight = _briefBoxKey.currentContext?.size?.height;
+    setState(() {
+      _dictationFieldHeight = fieldHeight;
+      _error = null;
+    });
     final turn = ++_voiceTurn;
-    final text = await _capture.retryTranscription();
+    final text = retry ? await _capture.retryTranscription() : await _capture.start();
     if (mounted && _sessionValid && turn == _voiceTurn) await _acceptVoice(text);
   }
   Future<void> _acceptVoice(String? text) async {
@@ -237,7 +234,6 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
       return;
     }
     final combined = appendDictation(_voiceDraft, text);
-    _lastVoiceBase = _voiceDraft; _lastVoiceText = combined;
     _restoringVoice = true; _message.text = combined; _restoringVoice = false; _commitBriefChange();
     if (combined.length > 5000) {
       _message.text = combined;
@@ -249,12 +245,6 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   }
   void _restoreVoiceDraft() { _restoringVoice = true; _message.text = _voiceDraft; _restoringVoice = false; }
   void _cancelVoice() { if (_capture.active || _capture.canRetry) { ++_voiceTurn; _capture.cancel(); _restoreVoiceDraft(); } }
-  void _restartVoice() {
-    if (!_sessionValid) return;
-    if (_capture.active) { _cancelVoice(); }
-    else if (_lastVoiceBase != null && _message.text == _lastVoiceText) { _message.text = _lastVoiceBase!; }
-    unawaited(_voice());
-  }
 
   String _value(String key, dynamic value) => switch (key) {
     'type' => SmartSearchFilters.types[value] ?? '$value', 'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
@@ -299,21 +289,47 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
         if (!widget.description) ...[
           Text('صف العقار', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
-          TextField(key: const ValueKey('listing-ai-brief'), controller: _message, maxLength: 5000, minLines: 2, maxLines: 5, enabled: _sessionValid && !_busy, readOnly: _voiceBusy,
-            decoration: InputDecoration(labelText: _voiceBusy ? null : 'صف العقار', floatingLabelBehavior: FloatingLabelBehavior.never,
-              hintText: _voiceBusy ? null : 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…')),
-          if (_voiceBusy) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, onRestart: _restartVoice, listeningLabel: 'جارٍ إملاء تفاصيل العقار'),
-          if (!_voiceBusy) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(onPressed: !_sessionValid || _busy ? null : () => _voice(),
-            key: const ValueKey('listing-ai-voice'),
-            icon: const EbrokerIcon(Icons.mic_none, size: 20), label: Text(_capture.error != null ? 'إعادة الإملاء' : 'أمْلِ تفاصيل العقار'))),
-          if (_capture.canRetry) Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
-            key: const ValueKey('listing-ai-retry-transcription'), onPressed: !_sessionValid || _busy ? null : _retryVoice,
-            icon: const Icon(Icons.refresh_rounded, size: 19), label: const Text('إعادة محاولة التفريغ'))),
+          SizedBox(key: _briefBoxKey, height: _dictationFieldHeight,
+            child: TextField(
+              key: const ValueKey('listing-ai-brief'), controller: _message,
+              maxLength: 5000, minLines: 2, maxLines: 5,
+              enabled: _sessionValid && !_busy, readOnly: _voiceBusy,
+              onChanged: (_) {
+                if (_dictationFieldHeight != null) setState(() => _dictationFieldHeight = null);
+              },
+              decoration: InputDecoration(labelText: _voiceBusy ? null : 'صف العقار', floatingLabelBehavior: FloatingLabelBehavior.never,
+                hintText: _voiceBusy ? null : 'النوع، الموقع، الغرف، الدور، الإيجار أو السعر…'),
+            ),
+          ),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            DictationMicrophone(
+              capture: _capture,
+              buttonKey: const ValueKey('listing-ai-voice'),
+              ringKey: const ValueKey('listing-ai-voice-ring'),
+              idleLabel: 'أمْلِ تفاصيل العقار',
+              enabled: _sessionValid && !_busy,
+              onStart: _voice,
+              onCancelPreparing: _cancelVoice,
+            ),
+            // Large text can make this label taller than the mic. Keep its space
+            // while recording so the scroll position stays valid near the end.
+            Flexible(child: Visibility(
+              visible: !_voiceBusy,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: ExcludeSemantics(child: TextButton(
+                onPressed: _sessionValid && !_busy && !_voiceBusy ? _voice : null,
+                child: Text(_capture.error == null ? 'أمْلِ تفاصيل العقار' : 'إعادة الإملاء'),
+              )),
+            )),
+          ]),
+          DictationFeedback(
+            capture: _capture,
+            retryKey: const ValueKey('listing-ai-retry-transcription'),
+            onRetry: _sessionValid && !_busy ? () => _voice(retry: true) : null,
+          ),
         ],
-        if (!_voiceBusy && !_busy) Wrap(spacing: 8, children: [
-          if (_lastVoiceBase != null && _message.text == _lastVoiceText) TextButton(key: const ValueKey('listing-voice-restart'),
-            onPressed: _restartVoice, child: const Text('ابدأ الإملاء من جديد')),
-        ]),
         SizedBox(key: _resultKey),
         if (_busy) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
         if (_error != null || _capture.error != null) Padding(padding: const EdgeInsets.only(top: 12),

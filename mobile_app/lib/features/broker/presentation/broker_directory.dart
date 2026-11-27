@@ -125,6 +125,7 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
       ),
       BrokerPublicProfileActions(profile: profile),
       const SizedBox(height: 20), Text('العقارات النشطة', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
       Wrap(spacing: 8, children: [for (final item in const [('الكل', null), ('للبيع', 'sale'), ('للإيجار', 'rent')])
         AppFilterChip(label: item.$1, selected: _purpose == item.$2, onSelected: (_) { setState(() => _purpose = item.$2); _loadProperties(); })]),
       const SizedBox(height: 8), const Text('اختر عقارًا للتواصل ومناقشة المعاينة داخل المحادثة.'), const SizedBox(height: 12),

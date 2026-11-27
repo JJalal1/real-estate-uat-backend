@@ -34,11 +34,16 @@ UAT_ACCEPTANCE_BRANCH = 'refs/heads/work/uat-acceptance-1830-20261121'
 ALAZZI_UNIFIED_BRANCH = 'refs/heads/work/alazzi-unify-1846'
 ALAZZI_MARKETPLACE_BRANCH = 'refs/heads/work/alazzi-marketplace-1847'
 ALAZZI_ACCOUNT_RELEASE_BRANCH = 'refs/heads/release/alazzi-1848-account-search'
+ALAZZI_PARITY_RELEASE_BRANCH = 'refs/heads/release/alazzi-1849-ui-parity'
+ALAZZI_OWNER_RELEASES = {
+    ALAZZI_ACCOUNT_RELEASE_BRANCH: '1848',
+    ALAZZI_PARITY_RELEASE_BRANCH: '1849',
+}
 ALLOWED_BRANCHES = {
     BRANCH, CONNECTIVITY_FIX_BRANCH, APK_CLEANUP_BRANCH, MAP_SEARCH_UX_BRANCH,
     LISTING_PHOTO_BRANCH, GOOGLE_MAPS_BRANCH, MAP_LISTING_BRANCH, MAP_LAYERS_BRANCH,
     MAP_SEARCH_TOOLBAR_BRANCH, UAT_ACCEPTANCE_BRANCH, ALAZZI_UNIFIED_BRANCH, ALAZZI_MARKETPLACE_BRANCH,
-    ALAZZI_ACCOUNT_RELEASE_BRANCH,
+    *ALAZZI_OWNER_RELEASES,
 }
 INPUTS = (
     'AQER_UAT_KEYSTORE_BASE64', 'AQER_RELEASE_STORE_PASSWORD',
@@ -99,12 +104,12 @@ def guard(env):
             env.get('AQER_SIGNING_ENVIRONMENT') == 'uat'):
         raise SigningError('explicit_phase23_uat_ci_context_required')
     build = env.get('AQER_BUILD')
-    if ref == ALAZZI_ACCOUNT_RELEASE_BRANCH or build == '1848':
+    if ref in ALAZZI_OWNER_RELEASES or build in ALAZZI_OWNER_RELEASES.values():
         owner = REPOSITORY.split('/', 1)[0]
-        if not (ref == ALAZZI_ACCOUNT_RELEASE_BRANCH and build == '1848' and
+        if not (ref in ALAZZI_OWNER_RELEASES and ALAZZI_OWNER_RELEASES[ref] == build and
                 env.get('GITHUB_REPOSITORY_OWNER') == owner and
                 env.get('GITHUB_ACTOR') == owner):
-            raise SigningError('explicit_alazzi_1848_owner_ci_context_required')
+            raise SigningError('explicit_alazzi_release_owner_ci_context_required')
 
 
 def safe_absolute_path(value):

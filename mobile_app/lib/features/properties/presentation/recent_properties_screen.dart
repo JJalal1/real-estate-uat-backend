@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/recent_properties_store.dart';
 import 'property_summary_card.dart';
@@ -71,7 +72,7 @@ class _RecentPropertiesState extends ConsumerState<RecentPropertiesScreen> {
                   },
                   child: ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: AppLayout.compactPageGutter, vertical: 16),
                     itemCount: items.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (_, index) =>

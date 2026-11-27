@@ -193,22 +193,55 @@ void main() {
       final boundary = GlobalKey();
       await _pump(tester, const Scaffold(body: ListingAiSheet(prepareDraft: true, facts: {}, initialMessage: 'شقة للإيجار')),
         ai: _Assistant(), voice: voice, scale: scale, boundary: boundary);
-      await tester.ensureVisible(find.byKey(const ValueKey('listing-ai-voice')));
-      await tester.tap(find.byKey(const ValueKey('listing-ai-voice'))); await tester.pump();
+      final mic = find.byKey(const ValueKey('listing-ai-voice'));
+      final ring = find.byKey(const ValueKey('listing-ai-voice-ring'));
+      final prepare = find.byKey(const ValueKey('listing-ai-prepare'));
+      await tester.ensureVisible(mic);
+      await tester.pump();
+      final initialMic = tester.getRect(mic);
+      final initialPrepare = tester.getRect(prepare);
+      expect(ring, findsNothing);
+      await tester.tap(mic);
+      await tester.pump();
+      expect(tester.getRect(mic), initialMic, reason: 'Preparing must keep the idle scroll position.');
       voice.latest.emit(const VoiceEvent('mode', code: 'dictation'));
       voice.latest.emit(const VoiceEvent('ready'));
-      voice.latest.emit(const VoiceEvent('partial', text: 'في صنعاء ثلاث غرف، الإيجار مئة ألف ريال'));
+      await tester.pump();
+      expect(tester.getRect(mic), initialMic);
+      expect(tester.getCenter(ring), initialMic.center);
+      expect(tester.getRect(prepare), initialPrepare);
+      expect(tester.widget<AppButton>(prepare).onPressed, isNull);
+      for (final action in ['voice-finish', 'voice-restart', 'voice-cancel', 'voice-wave']) {
+        expect(find.byKey(ValueKey(action)), findsNothing);
+      }
+      expect(find.text('جارٍ إملاء تفاصيل العقار'), findsNothing);
+      final brief = find.byKey(const ValueKey('listing-ai-brief'));
+      final initialFieldHeight = tester.getSize(brief).height;
+      final longTranscript = List.filled(12, 'في صنعاء ثلاث غرف والإيجار مئة ألف ريال').join('، ');
+      voice.latest.emit(VoiceEvent('partial', text: longTranscript));
       await tester.pump(const Duration(milliseconds: 180));
-      expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text,
-        'شقة للإيجار في صنعاء ثلاث غرف، الإيجار مئة ألف ريال');
+      expect(tester.widget<TextField>(brief).controller!.text, 'شقة للإيجار $longTranscript');
+      expect(tester.getSize(brief).height, initialFieldHeight);
+      expect(tester.getRect(mic), initialMic);
+      expect(tester.getRect(prepare), initialPrepare);
       await _capture(tester, boundary, 'voice-inline-$scale');
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.byKey(const ValueKey('voice-finish'))); await tester.pump(const Duration(milliseconds: 200));
-      expect(find.byKey(const ValueKey('voice-finish')).hitTestable(), findsOneWidget);
+      await tester.ensureVisible(mic);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(mic.hitTestable(), findsOneWidget);
       if (scale == 2.4) await _capture(tester, boundary, 'voice-controls-2.4');
-      await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel')));
-      await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
-      expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text, 'شقة للإيجار');
+      await tester.tap(mic);
+      await tester.pump();
+      expect(voice.latest.stops, 1);
+      expect(ring, findsNothing);
+      voice.latest.emit(const VoiceEvent('final', text: 'في صنعاء ثلاث غرف'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text,
+        'شقة للإيجار في صنعاء ثلاث غرف');
+      expect(tester.widget<AppButton>(prepare).onPressed, isNotNull);
+      await tester.enterText(brief, 'شقة للإيجار $longTranscript');
+      await tester.pump();
+      expect(tester.getSize(brief).height, greaterThan(initialFieldHeight));
     });
   }
 
@@ -225,8 +258,9 @@ void main() {
         await _tap(tester,'listing-ai-voice');voice.latest.emit(const VoiceEvent('ready'));await tester.pump();
         voice.latest.emit(const VoiceEvent('partial',text:ownerBrief));await tester.pump();
         expect(ai.prepares,0);expect(applied,isNull);
-        await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));await tester.pump(const Duration(milliseconds:180));
-        await tester.tap(find.byKey(const ValueKey('voice-finish')));await tester.pump();
+        final mic = find.byKey(const ValueKey('listing-ai-voice'));
+        await tester.ensureVisible(mic);await tester.pump(const Duration(milliseconds:180));
+        await tester.tap(mic);await tester.pump();
         voice.latest.emit(const VoiceEvent('final',text:ownerBrief));await tester.pumpAndSettle();
         expect(ai.prepares,0);expect(applied,isNull);
       }else{await tester.enterText(find.byKey(const ValueKey('listing-ai-brief')),ownerBrief);}
@@ -273,9 +307,8 @@ void main() {
     await _tap(tester, 'listing-ai-prepare');
     expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text, 'مسودتي السابقة');
     await _tap(tester, 'listing-ai-voice');
-    voice.latest.emit(const VoiceEvent('ready')); await tester.pump();
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
+    // A second tap while the microphone is still preparing cancels the attempt.
+    await _tap(tester, 'listing-ai-voice');
     expect(voice.latest.cancellations, greaterThan(0));
     expect(tester.widget<TextField>(find.byKey(const ValueKey('listing-ai-brief'))).controller!.text, 'مسودتي السابقة');
     expect(find.byKey(const ValueKey('listing-ai-apply-draft')), findsNothing);
