@@ -71,6 +71,12 @@ class PropertySummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = property, monthly = property.purpose == 'rent' && property.monthlyRent != null;
+    final publishedAt = p.publishedAt;
+    final age = publishedAt == null ? null : propertyPublicationAge(publishedAt, DateTime.now());
+    final supportingText = [
+      if (!preview && monthly && p.price != p.monthlyRent)
+        '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
+    ];
     final VoidCallback open = onTap ?? () => context.push('/properties/${p.id}', extra: p);
     if (compact) {
       final state = listingStatus(p.status, p.availabilityStatus, published: p.status == 'published');
@@ -85,22 +91,20 @@ class PropertySummaryCard extends StatelessWidget {
           enabled: p.status == 'published' && p.availabilityStatus == 'available',
           includeComparison: true,
           knownFavorite: knownFavorite,
+          menuDetails: [if (age != null) age, ...supportingText],
         ),
       );
     }
-    final publishedAt = p.publishedAt;
     return EbrokerPropertyHorizontalCard(title: p.title, price: (monthly ? p.monthlyRent! : p.price).toString(), currency: p.currency,
       imageFirst: imageFirst, preview: preview, compactPreview: compactPreview,
       imageUrl: p.mainImage, imageUrls: p.imageUrls, isSpotlight: p.isSpotlight,
       propertyType: p.type, categoryLabel: ebrokerPropertyTypeLabel(p.type), location: p.address,
       purposeLabel: p.purpose == 'rent' ? 'للإيجار' : 'للبيع', priceSuffix: monthly ? 'شهريًا' : null,
-      publicationAge: publishedAt == null ? null : propertyPublicationAge(publishedAt, DateTime.now()),
+      publicationAge: age,
       facts: summaryPropertyFacts(p, essentialsOnly: preview),
       trailing: PropertyFavoriteAction(propertyId: p.id, enabled: p.status == 'published'),
       action: PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published'),
-      supportingText: [
-        if (!preview && monthly && p.price != p.monthlyRent) '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
-      ], onTap: open);
+      supportingText: supportingText, onTap: open);
   }
 }
 
@@ -233,9 +237,10 @@ class ListingPropertyCard extends StatelessWidget {
 }
 
 class ListingCardActionsMenu extends StatelessWidget {
-  const ListingCardActionsMenu({required this.actions, super.key});
+  const ListingCardActionsMenu({required this.actions, this.details = const [], super.key});
 
   final List<EbrokerCardAction> actions;
+  final List<String> details;
 
   @override
   Widget build(BuildContext context) => PopupMenuButton<EbrokerCardAction>(
@@ -255,6 +260,14 @@ class ListingCardActionsMenu extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(child: Text(action.label)),
                 ],
+              ),
+            ),
+          if (details.isNotEmpty)
+            PopupMenuItem<EbrokerCardAction>(
+              enabled: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [for (final detail in details) Text(detail)],
               ),
             ),
         ],
@@ -346,9 +359,10 @@ class CompactPropertyFacts extends StatelessWidget {
 
 class PropertyFavoriteAction extends ConsumerStatefulWidget {
   const PropertyFavoriteAction({required this.propertyId, this.enabled = true,
-    this.includeComparison = false, this.knownFavorite = false, super.key});
+    this.includeComparison = false, this.knownFavorite = false, this.menuDetails = const [], super.key});
   final int propertyId;
   final bool enabled, includeComparison, knownFavorite;
+  final List<String> menuDetails;
   @override
   ConsumerState<PropertyFavoriteAction> createState() => _PropertyFavoriteState();
 }
@@ -395,7 +409,7 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
       final compared = selection.contains(widget.propertyId);
       final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
       final actor = user?.id;
-      return ListingCardActionsMenu(actions: [
+      return ListingCardActionsMenu(details: widget.menuDetails, actions: [
         EbrokerCardAction(status.tooltip, favorite == null ? null : () {
           if (mounted && epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
               actor == ref.read(authControllerProvider).asData?.value?.id) favorite();

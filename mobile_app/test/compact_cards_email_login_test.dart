@@ -170,7 +170,7 @@ void main() {
       await tester.tap(menu);
       await tester.pumpAndSettle();
       expect(find.text('مضاف للمقارنة'), findsOneWidget);
-      await tester.pageBack();
+      await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
       expect(opened, isFalse);
       await tester.tap(find.text(_property(1).title));
