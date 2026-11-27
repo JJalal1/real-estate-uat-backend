@@ -253,10 +253,18 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
             child: AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 8))),
           error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error),
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: (data) => _feedSliver(data, regional)),
-        if (regionalFilters != null) SliverToBoxAdapter(child: regional!.when(
-          loading: () => const AppRefreshStatus(loading: true),
-          error: (error, _) => AppRefreshStatus(error: friendlyApiError(error),
-            onRetry: () => ref.invalidate(marketplaceRegionalPreviewProvider(query))),
+        if (regionalFilters != null && regional != null && (!feed.hasError || transientError))
+          SliverToBoxAdapter(child: regional.when(
+          skipLoadingOnReload: true,
+          skipError: regional.hasValue && regional.hasError && isTransientApiFailure(regional.error!),
+          // The main feed already reports a page-wide load or connectivity
+          // error. Keep any available regional cards, and report a separate
+          // retry only when the regional request alone is affected.
+          loading: () => feed.isLoading || feed.hasError
+              ? const SizedBox.shrink() : const AppRefreshStatus(loading: true),
+          error: (error, _) => feed.isLoading || feed.hasError ? const SizedBox.shrink()
+              : AppRefreshStatus(error: friendlyApiError(error),
+                  onRetry: () => ref.invalidate(marketplaceRegionalPreviewProvider(query))),
           data: (rows) => rows.isEmpty ? const SizedBox.shrink() : Column(children: [
             EbrokerTitleHeader(title: 'بالقرب منك', compact: true, onSeeAll: () =>
               _section('regional', regionalFilters.values['governorate'] as String, filters: regionalFilters)),

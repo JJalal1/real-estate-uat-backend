@@ -15,6 +15,7 @@ import 'package:real_estate_mobile/features/agreements/presentation/rental_contr
 import 'package:real_estate_mobile/features/bookings/data/booking_repository.dart';
 import 'package:real_estate_mobile/features/bookings/domain/booking_models.dart';
 import 'package:real_estate_mobile/features/bookings/presentation/bookings_screen.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_home_screen.dart';
 
@@ -186,6 +187,7 @@ void main() {
       },
     });
 
+    final regional = Completer<List<PropertySummary>>();
     final refreshed = Completer<MarketplaceFeed>();
     final otherRegion = Completer<MarketplaceFeed>();
     final initial = feedFor('ذمار', 11, 'إعلان ذمار الأول');
@@ -196,6 +198,7 @@ void main() {
         homeLocationProvider.overrideWith((ref) => const HomeLocation(
           label: 'ذمار', governorate: 'ذمار', governorateCode: 'DHAMAR', manual: true,
         )),
+        marketplaceRegionalPreviewProvider.overrideWith((ref, query) => regional.future),
         marketplaceFeedProvider.overrideWith((ref, query) {
           final revision = ref.watch(offlineResumeRevisionProvider);
           if (query.governorateCode == 'IBB') return otherRegion.future;
@@ -219,6 +222,7 @@ void main() {
     expect(find.byKey(skeleton), findsNothing);
     expect(find.byType(AppRefreshStatus), findsOneWidget);
 
+    regional.complete(const []);
     refreshed.complete(updated);
     await tester.pump();
     await tester.pump();
@@ -259,6 +263,7 @@ void main() {
       authControllerProvider.overrideWith(_Account.new),
       homeLocationProvider.overrideWith((ref) => const HomeLocation(
         label: 'ذمار', governorate: 'ذمار', governorateCode: 'DHAMAR', manual: true)),
+      marketplaceRegionalPreviewProvider.overrideWith((ref, query) => throw _failure(503)),
       marketplaceInitialSnapshotProvider.overrideWith((ref, query) => snapshot),
       marketplaceFeedProvider.overrideWith((ref, query) => query.governorateCode == 'IBB' ? denied.future : live.future),
     ], child: const MaterialApp(home: MarketplaceHomeScreen())));
