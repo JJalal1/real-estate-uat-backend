@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\ListingReview;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\AccessControlService;
+use App\Services\SupportTaskService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -14,6 +16,7 @@ use Tests\TestCase;
 class UatAccountTypesBrokerKycApiTest extends TestCase
 {
     use RefreshDatabase;
+    use \Tests\Concerns\ConfirmsListingImages;
 
     protected function setUp(): void
     {
@@ -67,7 +70,7 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertCreated();
     }
 
-    public function test_owner_identity_is_verified_once_and_property_relationship_is_verified_per_listing(): void
+    public function test_legacy_owner_verification_remains_private_and_does_not_gate_listing_review(): void
     {
         [$owner, $ownerHeaders] = $this->unifiedUser('+967711111103', 'أحمد محمد علي صالح');
 
@@ -77,10 +80,34 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             'district' => 'السبعين',
             'identity_document' => UploadedFile::fake()->image('identity.jpg'),
             'selfie' => UploadedFile::fake()->image('selfie.jpg'),
-        ])->assertOk()
-            ->assertJsonPath('data.type', 'owner')
-            ->assertJsonPath('data.status', 'pending');
+        ])->assertUnprocessable()->assertJsonValidationErrors('type');
+        $this->assertDatabaseMissing('account_verification_profiles', ['user_id' => $owner->id]);
 
+        $legacyProfile = $owner->accountVerificationProfile()->create([
+            'type' => 'owner',
+            'status' => 'pending',
+            'details' => ['governorate' => 'صنعاء', 'district' => 'السبعين'],
+            'submitted_at' => now()->subDay(),
+        ]);
+        foreach (['identity_document', 'selfie'] as $kind) {
+            $name = $kind.'.jpg';
+            $file = UploadedFile::fake()->image($name);
+            $path = "account_verification/{$owner->id}/$name";
+            Storage::disk('local')->put($path, $file->getContent());
+            $legacyProfile->documents()->create([
+                'kind' => $kind,
+                'path' => $path,
+                'original_name' => $name,
+                'mime_type' => 'image/jpeg',
+                'size_bytes' => $file->getSize(),
+            ]);
+        }
+        app(SupportTaskService::class)->projectAccountVerification((int) $owner->id);
+
+        $this->withHeaders($ownerHeaders)->getJson('/api/account-verification')
+            ->assertOk()->assertJsonPath('data.type', null)
+            ->assertJsonPath('data.status', 'not_submitted')
+            ->assertJsonCount(0, 'data.documents');
         $this->withHeaders($ownerHeaders)->post('/api/properties', $this->listingPayload('Owner before approval'))
             ->assertCreated();
 
@@ -88,6 +115,10 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
         $this->withHeaders($supportHeaders)->getJson('/api/admin/account-verifications?status=pending&type=owner')
             ->assertOk()->assertJsonPath('data.0.user_id', $owner->id);
         $this->claimVerificationTask($supportHeaders, $owner->id);
+        $this->withHeaders($supportHeaders)
+            ->postJson("/api/admin/account-verifications/{$owner->id}/more-info", [
+                'reason' => 'This archived request does not need additional evidence.',
+            ])->assertConflict();
         foreach (['identity_document', 'selfie'] as $kind) {
             $this->withHeaders($supportHeaders)
                 ->get("/api/account-verification/users/{$owner->id}/documents/$kind")
@@ -99,32 +130,23 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
             ->assertJsonPath('data.status', 'approved')
             ->assertJsonPath('data.verification_flags.identity_reviewed', true);
 
+        $approvedVerification = $owner->accountVerificationProfile()->firstOrFail();
+        $originalVerification = $approvedVerification->getRawOriginal();
         $this->withHeaders($ownerHeaders)->patchJson('/api/auth/profile', [
             'name' => 'اسم مختلف بعد التوثيق',
-        ])->assertStatus(422)->assertJsonValidationErrors('name');
+        ])->assertOk()
+            ->assertJsonPath('data.user.name', 'اسم مختلف بعد التوثيق')
+            ->assertJsonPath('data.user.verification_profile.type', null)
+            ->assertJsonPath('data.user.verification_profile.status', 'not_submitted');
+        $this->assertSame($originalVerification, $approvedVerification->fresh()->getRawOriginal());
 
         $listingId = (int) $this->withHeaders($ownerHeaders)
-            ->post('/api/properties', $this->listingPayload('Owner property relation'))
+            ->post('/api/properties', $this->listingPayload('Legacy owner review') + [
+                'ownership_document_type' => 'purchase_deed',
+                'document_owner_name' => 'شخص مختلف تماماً',
+                'owner_relationship_type' => 'owner',
+            ])
             ->assertCreated()->json('data.id');
-
-        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
-            ->assertStatus(422)->assertJsonValidationErrors('ownership_proof');
-
-        $this->withHeaders($ownerHeaders)->post("/api/properties/$listingId", [
-            'ownership_document_type' => 'purchase_deed',
-            'document_owner_name' => 'شخص مختلف تماماً',
-            'owner_relationship_type' => 'owner',
-            'ownership_proof' => UploadedFile::fake()->image('purchase-deed.jpg'),
-        ])->assertOk();
-
-        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
-            ->assertStatus(422)->assertJsonValidationErrors('owner_relationship_type');
-
-        $this->withHeaders($ownerHeaders)->post("/api/properties/$listingId", [
-            'ownership_document_type' => 'purchase_deed',
-            'document_owner_name' => 'شخص مختلف تماماً',
-            'owner_relationship_type' => 'agent',
-        ])->assertOk();
 
         $this->withHeaders($ownerHeaders)->putJson("/api/properties/$listingId/sai", [
             'sai_payer' => 'buyer',
@@ -134,13 +156,24 @@ class UatAccountTypesBrokerKycApiTest extends TestCase
 
         $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
             ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $this->withHeaders($ownerHeaders)->postJson("/api/properties/$listingId/submit")
+            ->assertConflict();
+        $this->assertSame(1, ListingReview::query()->where('listing_id', $listingId)
+            ->where('action', 'submitted')->count());
+
+        $reviewUrl = "/api/admin/listing-review/listings/$listingId";
+        $this->withHeaders($supportHeaders)->postJson("$reviewUrl/start")->assertOk();
+        $this->confirmListingImages($listingId, $supportHeaders);
+        $this->withHeaders($supportHeaders)->postJson("$reviewUrl/approve", [
+            'reason' => 'Reviewed listing facts and current images.',
+        ])->assertOk()->assertJsonPath('data.status', 'published');
 
         $this->assertDatabaseHas('account_verification_profiles', [
             'user_id' => $owner->id,
             'type' => 'owner',
             'status' => 'approved',
         ]);
-        $this->assertDatabaseHas('listing_documents', [
+        $this->assertDatabaseMissing('listing_documents', [
             'property_id' => $listingId,
             'kind' => 'ownership_proof',
         ]);

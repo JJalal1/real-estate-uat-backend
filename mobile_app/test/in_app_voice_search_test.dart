@@ -86,20 +86,33 @@ void main() {
     final session = container.read(smartSearchSessionProvider.notifier); session.replaceManually(SmartSearchFilters.fromMap(currentFilters));
     ai.onRefine = (text, filters, revision) async => {'revision': revision, 'filters': {...filters, 'min_price': 50000, 'max_price': 100000}};
     final boundary = GlobalKey(); final router = await pumpHome(tester, container, boundary: boundary);
-    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
-    expect(find.text('نجهّز الميكروفون…'), findsOneWidget);
+    final mic = find.byKey(const ValueKey('smart-search-voice'));
+    final submit = find.byKey(const ValueKey('smart-search-send'));
+    await tester.ensureVisible(mic);
+    await tester.pumpAndSettle();
+    final initialMic = tester.getRect(mic);
+    final initialSubmit = tester.getRect(submit);
+    expect(initialMic.center.dx, lessThan(initialSubmit.center.dx));
+    await tester.tap(mic);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('smart-search-voice-ring')), findsNothing);
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('level', level: .8));
     voice.latest.emit(const VoiceEvent('partial', text: 'خلي السعر من خمسين'));
     await tester.pump(const Duration(milliseconds: 180));
-    expect(find.text('نستمع إليك الآن'), findsOneWidget);
+    expect(find.text('نستمع إليك الآن'), findsNothing);
+    expect(tester.getRect(mic), initialMic);
+    expect(tester.getRect(submit), initialSubmit);
+    for (final action in ['voice-wave', 'voice-finish', 'voice-cancel', 'voice-restart']) {
+      expect(find.byKey(ValueKey(action)), findsNothing);
+    }
     final input = tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description')));
     expect(input.readOnly, isTrue); expect(input.controller!.text, 'خلي السعر من خمسين');
-    expect(voice.latest.stops, 0); expect(find.byKey(const ValueKey('voice-wave')), findsOneWidget);
+    expect(voice.latest.stops, 0); expect(find.byKey(const ValueKey('smart-search-voice-ring')), findsOneWidget);
     expect(find.byType(Dialog), findsNothing); expect(ai.requests, isEmpty);
     expect(session.state.filters.values, currentFilters);
     await preview(tester, boundary, 'voice-home-listening');
-    await tester.tap(find.byKey(const ValueKey('voice-finish'))); await tester.pump();
-    expect(voice.latest.stops, 1); expect(find.text('نفرّغ التسجيل كاملًا…'), findsOneWidget);
+    await tester.tap(mic); await tester.pump();
+    expect(voice.latest.stops, 1); expect(find.text('جارٍ تفريغ الصوت…'), findsOneWidget);
     voice.latest.emit(const VoiceEvent('final', text: 'خلي السعر من خمسين إلى مئة ألف')); await tester.pumpAndSettle();
     expect(ai.requests, hasLength(1));
     expect(tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description'))).controller!.text, 'خلي السعر من خمسين إلى مئة ألف');
@@ -109,7 +122,7 @@ void main() {
     expect(ai.requests.single.filters, currentFilters);
     expect(session.state.filters.values, {...currentFilters, 'min_price': 50000, 'max_price': 100000});
     expect(properties.queries.last.filters['min_monthly_rent'], 50000); expect(properties.queries.last.filters['max_monthly_rent'], 100000);
-    expect(find.byKey(const ValueKey('smart-chip-budget')), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-chip-budget')), findsNothing);
     expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
     expect(router.routerDelegate.currentConfiguration.last.matchedLocation, '/smart-search');
     expect(find.byType(AssistedSearchScreen), findsOneWidget);
@@ -117,40 +130,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('budget chip edits only budget and manual chip removal keeps the same search session', (tester) async {
+  testWidgets('typed refinements keep the same search session and map entry', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake(), properties = Wave3PropertiesFake();
     final container = searchContainer(voice, ai, properties); addTearDown(container.dispose); addTearDown(voice.dispose);
     final session = container.read(smartSearchSessionProvider.notifier);
     session.replaceManually(SmartSearchFilters.fromMap({...currentFilters, 'min_price': 50000, 'max_price': 100000}));
+    ai.onRefine = (_, filters, revision) async => {
+      'revision': revision,
+      'filters': (Map.of(filters)
+        ..['max_price'] = 120000
+        ..remove('min_bedrooms')),
+    };
     await pumpHome(tester, container);
-    await tester.tap(find.byKey(const ValueKey('smart-chip-budget'))); await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('filter-search')), findsNothing);
-    expect(find.byKey(const ValueKey('filter-min_bedrooms')), findsNothing);
-    await tester.enterText(find.byKey(const ValueKey('filter-max_price')), '١٢٠٠٠٠');
-    await tester.ensureVisible(find.text('تطبيق الشروط')); await tester.tap(find.text('تطبيق الشروط')); await tester.pumpAndSettle();
-    expect(session.state.filters.values, {...currentFilters, 'min_price': 50000, 'max_price': 120000.0});
-    await tester.ensureVisible(find.byKey(const ValueKey('smart-chip-remove-min_bedrooms')));
-    await tester.tap(find.byKey(const ValueKey('smart-chip-remove-min_bedrooms'))); await tester.pumpAndSettle();
+    final input = find.byKey(const ValueKey('smart-search-description'));
+    final submit = find.byKey(const ValueKey('smart-search-send'));
+    await tester.enterText(input, 'اجعل الحد الأعلى ١٢٠ ألف وتجاهل عدد الغرف');
+    await tester.ensureVisible(submit);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
     expect(session.state.filters.values['search'], 'صنعاء');
     expect(session.state.filters.values['purpose'], 'rent');
     expect(session.state.filters.values['type'], 'apartment');
     expect(session.state.filters.values['max_price'], 120000);
     expect(session.state.filters.values.containsKey('min_bedrooms'), isFalse);
     expect(properties.queries.last.filters['max_monthly_rent'], 120000);
-    expect(ai.requests, isEmpty); expect(tester.takeException(), isNull);
+    expect(ai.requests, hasLength(1));
+    expect(find.byKey(const ValueKey('smart-search-map')), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-manual')), findsNothing);
+    expect(find.byKey(const ValueKey('floating-smart-search')), findsNothing);
+    expect(find.byKey(const ValueKey('floating-map-search')), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('cancel discards partial and late final, restores draft and keeps previous filters', (tester) async {
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
     final session = container.read(smartSearchSessionProvider.notifier); session.replaceManually(SmartSearchFilters.fromMap(currentFilters));
-    await pumpHome(tester, container); await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'مسودة مكتوبة');
+    final router = await pumpHome(tester, container);
+    await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'مسودة مكتوبة');
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     final old = voice.latest; old.emit(const VoiceEvent('ready')); old.emit(const VoiceEvent('partial', text: 'غير المكان')); await tester.pump();
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.pump(const Duration(milliseconds: 200));
-    expect(find.byKey(const ValueKey('voice-cancel')).hitTestable(), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
+    router.push('/other');
+    await tester.pumpAndSettle();
+    router.pop();
+    await tester.pumpAndSettle();
     old.emit(const VoiceEvent('final', text: 'غير المكان')); await tester.pump();
     expect(old.cancellations, 1); expect(ai.requests, isEmpty); expect(session.state.filters.values, currentFilters);
     expect(tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description'))).controller!.text, 'مسودة مكتوبة');
@@ -158,9 +182,10 @@ void main() {
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); old.emit(const VoiceEvent('final', text: 'قديم')); await tester.pump();
     expect(find.text('قديم'), findsNothing);
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.pump(const Duration(milliseconds: 200));
-    expect(find.byKey(const ValueKey('voice-cancel')).hitTestable(), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
+    router.push('/other');
+    await tester.pumpAndSettle();
+    router.pop();
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 
@@ -205,12 +230,14 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
     final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
     final container = searchContainer(voice, ai, Wave3PropertiesFake()); addTearDown(container.dispose); addTearDown(voice.dispose);
-    final boundary = GlobalKey(); await pumpHome(tester, container, boundary: boundary, scale: 1.8, reducedMotion: true);
+    final boundary = GlobalKey();
+    final router = await pumpHome(tester, container, boundary: boundary, scale: 1.8, reducedMotion: true);
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice'))); await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('ready')); voice.latest.emit(const VoiceEvent('partial', text: 'شقة للإيجار في صنعاء، ثلاث غرف، السعر من خمسين إلى مئة ألف'));
     await tester.pumpAndSettle(); expect(tester.takeException(), isNull);
     await preview(tester, boundary, 'voice-home-large-text');
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel'))); await tester.tap(find.byKey(const ValueKey('voice-cancel'))); await tester.pumpAndSettle();
+    router.push('/other');
+    await tester.pumpAndSettle();
     expect(voice.latest.cancellations, 1); expect(ai.requests, isEmpty);
   });
 
@@ -329,27 +356,50 @@ void main() {
     expect(commands.last.method, 'release');
   });
 
-  testWidgets('D10 search keeps tentative words visible without an automatic request', (tester) async {
-    tester.view.physicalSize = const Size(390, 844); tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize); addTearDown(tester.view.resetDevicePixelRatio);
-    final voice = Wave3VoiceFake(autoComplete: false);
-    final ai = Wave3AiFake();
+  testWidgets('smart search finishes after three seconds of silence and submits only the final', (tester) async {
+    final voice = Wave3VoiceFake(autoComplete: false), ai = Wave3AiFake();
     final container = searchContainer(voice, ai, Wave3PropertiesFake());
-    addTearDown(container.dispose); addTearDown(voice.dispose);
+    addTearDown(container.dispose);
+    addTearDown(voice.dispose);
     await pumpHome(tester, container);
     await tester.tap(find.byKey(const ValueKey('smart-search-voice')));
     await tester.pump();
-    voice.latest.emit(const VoiceEvent('mode', code: 'dictation'));
-    voice.latest.emit(const VoiceEvent('ready'));
-    voice.latest.emit(const VoiceEvent('speech_start'));
-    voice.latest.emit(const VoiceEvent('partial', text: 'tentative words'));
-    voice.latest.emit(const VoiceEvent('speech_end'));
-    await tester.pump(const Duration(seconds: 12));
+    final recording = voice.latest;
+    await tester.pump(const Duration(seconds: 4));
+    expect(recording.stops, 0);
+    recording.emit(const VoiceEvent('mode', code: 'dictation'));
+    recording.emit(const VoiceEvent('ready'));
     await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    expect(recording.stops, 0);
+    recording.emit(const VoiceEvent('speech_start'));
+    recording.emit(const VoiceEvent('partial', text: 'شقة في'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 4));
+    expect(recording.stops, 0);
     final input = tester.widget<TextField>(find.byKey(const ValueKey('smart-search-description')));
-    expect(input.controller!.text, 'tentative words');
-    expect(ai.requests, isEmpty);
+    expect(input.controller!.text, 'شقة في');
     expect(container.read(smartSearchSessionProvider).draftText, isEmpty);
+
+    recording.emit(const VoiceEvent('speech_end'));
+    recording.emit(const VoiceEvent('segment', text: 'شقة في'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    recording.emit(const VoiceEvent('ready'));
+    recording.emit(const VoiceEvent('partial', text: 'شقة في'));
+    recording.emit(const VoiceEvent('speech_end'));
+    await tester.pump();
+    expect(recording.stops, 0);
+    await tester.pump(const Duration(seconds: 1));
+    expect(recording.stops, 1);
+    expect(ai.requests, isEmpty);
+    recording.emit(const VoiceEvent('final', text: 'شقة في صنعاء'));
+    await tester.pumpAndSettle();
+    expect(ai.requests.single.message, 'شقة في صنعاء');
+    recording.emit(const VoiceEvent('final', text: 'نص مكرر'));
+    await tester.pump();
+    expect(recording.stops, 1);
+    expect(ai.requests, hasLength(1));
   });
 
   testWidgets('silence beyond old watchdog keeps listening; background cancels and only post-stop processing expires', (tester) async {

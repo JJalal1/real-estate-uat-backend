@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../../core/widgets/property_type_icon.dart';
 import '../../../core/network/api_error_message.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
@@ -58,9 +59,9 @@ String _publicationAgeLabel(int count, String singular, String dual, String plur
 
 class PropertySummaryCard extends StatelessWidget {
   const PropertySummaryCard({required this.property, this.imageFirst = false,
-    this.preview = false, this.compactPreview = false, this.onTap, super.key});
+    this.preview = false, this.compactPreview = false, this.compact = false, this.onTap, super.key});
   final PropertySummary property;
-  final bool imageFirst, preview, compactPreview;
+  final bool imageFirst, preview, compactPreview, compact;
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
@@ -72,12 +73,96 @@ class PropertySummaryCard extends StatelessWidget {
       propertyType: p.type, categoryLabel: ebrokerPropertyTypeLabel(p.type), location: p.address,
       purposeLabel: p.purpose == 'rent' ? 'للإيجار' : 'للبيع', priceSuffix: monthly ? 'شهريًا' : null,
       publicationAge: publishedAt == null ? null : propertyPublicationAge(publishedAt, DateTime.now()),
-      facts: summaryPropertyFacts(p, essentialsOnly: preview),
+      facts: compact ? const [] : summaryPropertyFacts(p, essentialsOnly: preview),
+      compactFacts: compact ? CompactPropertyFacts(property: p) : null,
       trailing: PropertyFavoriteAction(propertyId: p.id, enabled: p.status == 'published'),
       action: PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published'),
       supportingText: [
         if (!preview && monthly && p.price != p.monthlyRent) '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
       ], onTap: onTap ?? () => context.push('/properties/${p.id}', extra: p));
+  }
+}
+
+List<AppPropertyFact> _compactFacts(PropertySummary property) {
+  final scope = {'type': property.type, 'purpose': property.purpose};
+  bool applies(String field) => DynamicPropertySchema.applies(field, scope);
+  final facade = propertyFacadeLabels[property.buildingFacade];
+  final floors = property.floorsCount;
+  final openings = property.shopOpenings;
+  return [
+    AppPropertyFact(
+      icon: propertyTypeIcon(property.type),
+      label: ebrokerPropertyTypeLabel(property.type),
+    ),
+    ...summaryPropertyFacts(property),
+    if (applies('floors_count') && floors != null && floors > 0)
+      AppPropertyFact(
+        icon: Icons.layers_outlined,
+        label: '${arabicDigits('$floors')} أدوار',
+      ),
+    if (applies('building_facade') && facade != null)
+      AppPropertyFact(
+        icon: Icons.explore_outlined,
+        label: facade == 'أكثر من واجهة' ? facade : 'واجهة $facade',
+      ),
+    if (applies('shop_openings') && openings != null && openings > 0)
+      AppPropertyFact(
+        icon: Icons.storefront_outlined,
+        label: '${arabicDigits('$openings')} فتحات',
+      ),
+  ].take(6).toList(growable: false);
+}
+
+class CompactPropertyFacts extends StatelessWidget {
+  const CompactPropertyFacts({required this.property, super.key});
+
+  final PropertySummary property;
+
+  @override
+  Widget build(BuildContext context) {
+    final facts = _compactFacts(property);
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var start = 0; start < facts.length; start += 3)
+          Padding(
+            padding: EdgeInsets.only(top: start == 0 ? 0 : 3),
+            child: Row(
+              children: [
+                for (var column = 0; column < 3; column++)
+                  Expanded(
+                    child: start + column >= facts.length
+                        ? const SizedBox.shrink()
+                        : Tooltip(
+                            message: facts[start + column].label,
+                            excludeFromSemantics: true,
+                            child: Row(
+                              children: [
+                                Icon(facts[start + column].icon,
+                                    size: 13, color: color),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                    child: Text(
+                                  facts[start + column].label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: color,
+                                    fontSize: 10,
+                                  ),
+                                )),
+                                const SizedBox(width: 3),
+                              ],
+                            ),
+                          ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 }
 

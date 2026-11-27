@@ -54,7 +54,7 @@ void main(){
     final session=SmartSearchSession(Wave3AiFake(),Wave3PropertiesFake());addTearDown(session.dispose);
     final first=session.beginJourney();session.endJourney(first);
     session.beginJourney(savedFilters:SmartSearchFilters.fromMap({'type':'land','search':'تعز'}));await Future<void>.delayed(Duration.zero);
-    expect(session.state.filters.values['search'],'تعز');
+    expect(session.state.filters.values['governorate_code'],'TAIZ');
   });
   test('viewport replaces the old geographic circle and preserves text, currency and source constraints',()async{
     final properties=Wave3PropertiesFake();

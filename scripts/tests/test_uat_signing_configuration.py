@@ -84,6 +84,41 @@ class SigningConfigurationTests(unittest.TestCase):
                         signing.guard({**env, field: value})
         self.assert_unchanged()
 
+    def test_alazzi_1848_import_accepts_exact_owner_push_and_build(self):
+        env = dict(self.env, GITHUB_REF=signing.ALAZZI_ACCOUNT_RELEASE_BRANCH,
+                   GITHUB_ACTOR='JJalal1', GITHUB_REPOSITORY_OWNER='JJalal1', AQER_BUILD='1848')
+        with mock.patch.object(signing, 'validate_keystore') as validate:
+            receipt = signing.import_signing(env, required=True)
+        validate.assert_called_once()
+        self.assertEqual(receipt, {
+            'uat_signing_configured': True, 'certificate_sha256': 'a' * 64, 'scope': 'uat',
+        })
+        self.assertIn('AQER_ALLOW_DEBUG_RELEASE_SIGNING=false', self.envfile.read_text())
+
+    def test_alazzi_1848_rejects_every_other_context_before_touching_files(self):
+        env = dict(self.env, GITHUB_REF=signing.ALAZZI_ACCOUNT_RELEASE_BRANCH,
+                   GITHUB_ACTOR='JJalal1', GITHUB_REPOSITORY_OWNER='JJalal1', AQER_BUILD='1848')
+        cases = [
+            ('GITHUB_REF', 'refs/heads/work/alazzi-account-smart-search-1848'),
+            ('GITHUB_REF', signing.ALAZZI_ACCOUNT_RELEASE_BRANCH + '-other'),
+            ('GITHUB_REF', signing.ALAZZI_MARKETPLACE_BRANCH),
+            ('AQER_BUILD', '1847'),
+            ('AQER_BUILD', ''),
+            ('GITHUB_REPOSITORY', 'other/real-estate-uat-backend'),
+            ('GITHUB_ACTOR', 'other'),
+            ('GITHUB_ACTOR', ''),
+            ('GITHUB_REPOSITORY_OWNER', 'other'),
+            ('GITHUB_EVENT_NAME', 'pull_request'),
+            ('GITHUB_ACTIONS', 'false'),
+            ('AQER_SIGNING_ENVIRONMENT', 'production'),
+        ]
+        with mock.patch.object(signing, 'open_runner_paths', side_effect=AssertionError):
+            for field, value in cases:
+                with self.subTest(field=field):
+                    with self.assertRaises(signing.SigningError):
+                        signing.import_signing({**env, field: value}, required=True)
+                    self.assert_unchanged()
+
     def test_optional_absence_does_not_open_paths_or_change_files(self):
         absent = {key: value for key, value in self.env.items() if key not in signing.INPUTS}
         with mock.patch.object(signing, 'open_runner_paths', side_effect=AssertionError):

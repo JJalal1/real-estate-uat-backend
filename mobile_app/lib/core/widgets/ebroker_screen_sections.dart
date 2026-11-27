@@ -88,15 +88,15 @@ class EbrokerSectionPanel extends StatelessWidget {
 // ratings, so the source's badge/stat slots show those existing public facts.
 // It does not add following, direct telephone contact or agent subscriptions.
 class EbrokerAdvertiserCard extends StatelessWidget {
-  const EbrokerAdvertiserCard({required this.name, required this.identity,
+  const EbrokerAdvertiserCard({required this.name, this.identity,
     required this.rating, required this.ratingCount, required this.verified,
-    required this.onTap, this.width, this.photoUrl, this.completedDeals, this.activeListings, this.action, this.compact = false, super.key});
+    this.onTap, this.width, this.photoUrl, this.completedDeals, this.activeListings, this.action, this.compact = false, super.key});
   final String name;
-  final String identity;
+  final String? identity;
   final double rating;
   final int ratingCount;
   final bool verified;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final double? width;
   final String? photoUrl;
   final int? completedDeals, activeListings;
@@ -106,8 +106,9 @@ class EbrokerAdvertiserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
+    final identity = this.identity;
     if (compact) {
-      return Semantics(button: true, label: 'الملف العام للمعلن $name', child: Material(
+      return Semantics(button: onTap != null, label: 'الملف العام للمعلن $name', child: Material(
       color: Theme.of(context).colorScheme.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Padding(padding: const EdgeInsets.all(14),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -117,7 +118,9 @@ class EbrokerAdvertiserCard extends StatelessWidget {
           const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [Text(name, style: Theme.of(context).textTheme.titleMedium),
               if (verified) Icon(Icons.verified, color: primary, size: 18)]),
-            Text(identity, style: Theme.of(context).textTheme.bodySmall), const SizedBox(height: 5),
+            if (identity != null && identity.trim().isNotEmpty)
+              Text(identity, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 5),
             Text(ratingCount == 0 ? 'لا توجد تقييمات بعد' : '${rating.toStringAsFixed(1)} من 5 · $ratingCount تقييمًا', style: Theme.of(context).textTheme.bodySmall),
             if (completedDeals != null && activeListings != null) Text('$activeListings عقارات متاحة · $completedDeals صفقات مؤكدة', style: Theme.of(context).textTheme.bodySmall),
             if(action!=null)action!,
@@ -128,16 +131,21 @@ class EbrokerAdvertiserCard extends StatelessWidget {
     ));
     }
     final enlarged = MediaQuery.textScalerOf(context).scale(11.5) > 20;
-    final identityLabel = EbrokerText(identity, size: 11.5, weight: FontWeight.w600,
-      color: primary, maxLines: enlarged ? 2 : 1);
-    final identityRow = Row(mainAxisSize: MainAxisSize.min, children: [
-      EbrokerImage('following', size: 14.rw(context), color: primary),
-      SizedBox(width: 5.rw(context)),
-      if (enlarged) Expanded(child: identityLabel) else identityLabel,
-    ]);
+    final identityLabel = identity == null || identity.trim().isEmpty
+        ? null
+        : EbrokerText(identity, size: 11.5, weight: FontWeight.w600,
+            color: primary, maxLines: enlarged ? 2 : 1);
+    final identityRow = identityLabel == null ? null : Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        EbrokerImage('following', size: 14.rw(context), color: primary),
+        SizedBox(width: 5.rw(context)),
+        if (enlarged) Expanded(child: identityLabel) else identityLabel,
+      ],
+    );
     final photo = photoUrl;
     final fallbackCover = Image.asset(ebrokerBannerAsset, fit: BoxFit.cover);
-    return Semantics(button: true, label: 'المعلن $name',
+    return Semantics(button: onTap != null, label: 'المعلن $name',
       child: GestureDetector(onTap: onTap,
         child: Container(width: width, padding: EdgeInsets.all(12.rw(context)),
           decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,
@@ -150,11 +158,16 @@ class EbrokerAdvertiserCard extends StatelessWidget {
                   child: photo == null ? fallbackCover : ViewportMedia(
                     builder: (_) => Image.network(photo, fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => fallbackCover)))),
-              Positioned(right: 4.rw(context), top: 162.rh(context),
-                child: Container(padding: EdgeInsets.symmetric(horizontal: 10.rw(context), vertical: 6.rh(context)),
-                  decoration: BoxDecoration(color: primary.withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(8.rw(context))),
-                  child: enlarged ? SizedBox(width: 132.rw(context), child: identityRow) : identityRow)),
+              if (identityRow != null)
+                Positioned(right: 4.rw(context), top: 162.rh(context),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 10.rw(context), vertical: 6.rh(context)),
+                    decoration: BoxDecoration(color: primary.withValues(alpha: .12),
+                      borderRadius: BorderRadius.circular(8.rw(context))),
+                    child: enlarged
+                        ? SizedBox(width: 132.rw(context), child: identityRow)
+                        : identityRow,
+                  )),
               Positioned(left: 6.rw(context), bottom: 0,
                 child: Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
                   Container(width: 70.rw(context), height: 70.rw(context),

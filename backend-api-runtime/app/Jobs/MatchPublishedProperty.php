@@ -2,7 +2,6 @@
 
 namespace App\Jobs;
 
-use App\Services\SavedSearchAlertService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
@@ -12,9 +11,8 @@ class MatchPublishedProperty implements ShouldQueue
 
     public function __construct(public int $propertyId, public ?int $publishedAt = null) {}
 
-    public function handle(SavedSearchAlertService $alerts): void
+    public function handle(): void
     {
-        if ($this->publishedAt !== null && $this->publishedAt < now()->subDay()->timestamp) return;
-        $alerts->notifyPublishedProperty($this->propertyId, $this->publishedAt);
+        // Jobs queued before the saved-search screen was retired can still be deserialized.
     }
 }

@@ -147,6 +147,30 @@ void main() {
       expect(pending.name,isNull); expect(pending.isNewAccount,isFalse);
     });
   }
+  for (final width in [320.0, 390.0]) {
+    testWidgets('consumer listing keeps facts beside the RTL photo and its own actions at $width', (tester) async {
+      var opened = false;
+      await _pump(tester, Scaffold(body: ListView(padding: const EdgeInsets.all(16), children: [
+        PropertySummaryCard(property: _property(1), compact: true, onTap: () => opened = true),
+      ])), width: width);
+
+      final gallery = tester.getRect(find.byType(PropertyCardGallery));
+      final facts = tester.getRect(find.byType(CompactPropertyFacts));
+      expect(facts.right, lessThan(gallery.left));
+      expect(facts.bottom, lessThanOrEqualTo(gallery.bottom));
+      expect(find.byKey(const ValueKey('favorite-property-1')).hitTestable(), findsOneWidget);
+      expect(find.byTooltip('خيارات البطاقة'), findsNothing);
+
+      final compare = find.byKey(const ValueKey('compare-property-1'));
+      await tester.tap(compare);
+      await tester.pumpAndSettle();
+      expect(find.text('مضاف للمقارنة'), findsOneWidget);
+      expect(opened, isFalse);
+      await tester.tap(find.text(_property(1).title));
+      expect(opened, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
   for(final scale in [1.0,2.4]) {
     testWidgets('compact RTL cards keep inline facts, price and two-property actions at $scale',(tester) async {
       final key=GlobalKey();

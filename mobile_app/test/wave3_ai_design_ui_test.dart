@@ -29,7 +29,7 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'شقة إيجار في صنعاء');
     await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('voice-finish'))); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pumpAndSettle();
     expect(ai.requests, hasLength(2)); // The final voice turn submits automatically once.
     expect(ai.requests.last.message, voice.text);
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));
@@ -37,7 +37,8 @@ void main() {
     expect(ai.requests, hasLength(2)); // A repeated manual send does not replay it.
     expect(voice.calls, 1); expect(ai.requests.last.filters['search'], 'صنعاء'); expect(ai.requests.last.filters['purpose'], 'rent');
     expect(properties.queries.last.filters['max_monthly_rent'], 100000);
-    expect(find.byKey(const ValueKey('smart-chip-type')), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-chip-type')), findsNothing);
+    expect(find.byKey(const ValueKey('smart-search-map')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -93,7 +94,7 @@ void main() {
     await tester.pumpAndSettle(); expect(feed.queries.single.device, false); expect(feed.queries.single.governorate, isNull);
     await tester.tap(find.text('صنعاء')); await tester.pumpAndSettle(); await tester.tap(find.text('تعز')); await tester.pumpAndSettle();
     expect(feed.queries.last.governorate, 'تعز'); expect(feed.queries.last.device, false);
-    await tester.tap(find.byKey(const ValueKey('home-map'))); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('floating-map-search'))); await tester.pumpAndSettle();
     expect(router.state.uri.path, '/marketplace-search-map'); expect(router.state.uri.queryParameters['lat'], '13.58'); expect(router.state.uri.queryParameters['lon'], '44.02');
     expect(tester.takeException(), isNull);
   });

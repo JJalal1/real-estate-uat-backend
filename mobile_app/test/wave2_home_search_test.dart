@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/data/published_listing_suggestions.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
@@ -62,7 +63,10 @@ GoRouter router() => GoRouter(routes: [
 void main() {
   setUpAll(loadUxFixtures);
   test('S07 S08 one literal submit and no implicit GPS or AI interpretation', () async {
-    final properties = Listings(), scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties)]);
+    final properties = Listings(), scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      homeLocationProvider.overrideWith((ref) => const HomeLocation(governorate: 'صنعاء', governorateCode: 'SANAA', manual: true)),
+    ]);
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
     controller.edit('شقة في حدة');
     await controller.submit(); await controller.submit();
@@ -88,7 +92,10 @@ void main() {
   });
 
   test('S14 S17 S20 map viewport and filters keep independent Home spatial snapshot', () async {
-    final properties = Listings(), scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties)]);
+    final properties = Listings(), scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      homeLocationProvider.overrideWith((ref) => const HomeLocation(governorate: 'صنعاء', governorateCode: 'SANAA', manual: true)),
+    ]);
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
     controller.edit('شقة'); await controller.submit(); controller.enterMap(); await Future<void>.delayed(Duration.zero);
     scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south:14,west:43,north:16,east:45);
@@ -135,11 +142,16 @@ void main() {
     controller.edit('أرض'); controller.applyFilters(SmartSearchFilters.fromMap({'type':'land','min_bedrooms':3,'min_area_m2':100}));
     controller.setLandUse('تجاري'); await Future<void>.delayed(Duration.zero);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('min_bedrooms'), isFalse);
-    expect(scope.read(homeSearchResultsProvider).filters.values['search'], 'أرض تجاري');
+    final land = scope.read(homeSearchResultsProvider).filters.values;
+    expect(land['type'], 'land');
+    expect(land['search'], 'تجاري');
     expect(scope.read(marketplaceSearchControllerProvider).draftQuery, 'أرض');
     controller.setChoice('type', 'apartment'); await Future<void>.delayed(Duration.zero);
     expect(scope.read(marketplaceSearchControllerProvider).landUse, isEmpty);
-    expect(scope.read(homeSearchResultsProvider).filters.values['search'], 'أرض');
+    final apartment = scope.read(homeSearchResultsProvider).filters.values;
+    expect(apartment['type'], 'apartment');
+    expect(apartment.containsKey('search'), isFalse);
+    expect(controller.uiFor().draftQuery, 'أرض');
   });
 
   test('S22 retain rows on 503, retry exact failed page and deduplicate pagination', () async {

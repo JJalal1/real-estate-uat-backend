@@ -81,9 +81,14 @@ class BrokerExperienceController extends Controller
 
     public function updateProfile(Request $request): JsonResponse
     {
-        $actor = $this->advertiser($request);
-        abort_unless($actor->hasMarketplaceProfessionalProfile() || $actor->hasApprovedVerificationProfile(), 403);
-        $rules = ['bio' => ['sometimes', 'nullable', 'string', 'max:900']];
+        $actor = $request->user(); // The route requires an authenticated, active account.
+        $canManageProfile = $actor->canCreateListings() &&
+            ($actor->hasMarketplaceProfessionalProfile() || $actor->hasApprovedVerificationProfile());
+        if (! $canManageProfile) {
+            // Saving an optional biography never enrolls the account as an advertiser.
+            abort_unless(array_keys($request->all()) === ['bio'], 403);
+        }
+        $rules = ['bio' => ['sometimes', 'nullable', 'string', 'max:150']];
         if ($actor->hasMarketplaceProfessionalProfile()) {
             $rules += [
                 'governorate' => ['sometimes', 'required', 'string', Rule::exists('governorates', 'name_ar')->where('is_active', true)],
@@ -99,7 +104,8 @@ class BrokerExperienceController extends Controller
             $changes['marketplace_office_name'] = $changes['marketplace_is_office'] ? $values['office_name'] : null;
         }
         $actor->forceFill($changes)->save();
-        return response()->json(['data' => $this->ranking->publicIdentity($actor) + ['bio' => $actor->public_professional_bio]]);
+        $identity = $canManageProfile ? $this->ranking->publicIdentity($actor) : [];
+        return response()->json(['data' => $identity + ['bio' => $actor->public_professional_bio]]);
     }
 
     public function uploadPhoto(Request $request, \App\Services\ProfessionalPhotoService $photos): JsonResponse

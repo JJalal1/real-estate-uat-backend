@@ -6,7 +6,6 @@ import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import '../domain/smart_search_filters.dart';
-import 'discovery_suggestions.dart';
 
 String publishedSuggestionKey(SmartSearchFilters filters) {
   final values = filters.apiFilters, keys = values.keys.toList()..sort();
@@ -29,7 +28,7 @@ class PublishedListingSuggestions {
   Future<List<PropertySummary>> load(String key, CancelToken transfer) async {
     final filters = Map<String, dynamic>.from(jsonDecode(key) as Map);
     final text = filters['search']?.toString().trim() ?? '';
-    if (text.isEmpty || text.length > 120 || transfer.isCancelled) return const [];
+    if (filters.isEmpty || text.length > 120 || transfer.isCancelled) return const [];
     final response = await dio.get<Map<String, dynamic>>('/properties', queryParameters: {
       ...filters, 'page': 1, 'per_page': limit, 'sort': 'latest',
     }, cancelToken: transfer, options: Options(receiveTimeout: const Duration(seconds: 12), listFormat: ListFormat.multiCompatible));
@@ -37,7 +36,7 @@ class PublishedListingSuggestions {
     if (transfer.isCancelled) throw transfer.cancelError!;
     final raw = response.data?['data'];
     if (raw is! List) throw const FormatException('Invalid public suggestions response');
-    final seen = <int>{}, tokens = normalizeDiscoveryText(text).split(' ');
+    final seen = <int>{};
     final rows = raw.whereType<Map>().map((r) => PropertySummary.fromJson(Map<String, dynamic>.from(r)))
       .where((r) => r.id > 0 && r.status == 'published' && seen.add(r.id)
         && (filters['purpose'] == null || r.purpose == filters['purpose'])
@@ -47,7 +46,6 @@ class PublishedListingSuggestions {
       // Description may match even when title/address do not; the server owns
       // normalized AND-token relevance and all visibility/availability checks.
       .take(limit).toList(growable: false);
-    if (tokens.every((t) => t.isEmpty)) return const [];
     _cache[key] = (at: now(), rows: List.unmodifiable(rows));
     while (_cache.length > 12) { _cache.remove(_cache.keys.first); }
     return rows;

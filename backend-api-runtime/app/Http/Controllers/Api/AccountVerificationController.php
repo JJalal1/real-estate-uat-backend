@@ -30,7 +30,7 @@ class AccountVerificationController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        return response()->json(['data' => $this->applicationData($user)]);
+        return response()->json(['data' => $this->applicationData($user, hideRetiredType: true)]);
     }
 
     public function submit(Request $request): JsonResponse
@@ -43,7 +43,6 @@ class AccountVerificationController extends Controller
 
         $base = $request->validate([
             'type' => ['required', Rule::in([
-                AccountVerificationProfile::TYPE_OWNER,
                 AccountVerificationProfile::TYPE_BROKER,
                 AccountVerificationProfile::TYPE_OFFICE,
             ])],
@@ -279,15 +278,17 @@ class AccountVerificationController extends Controller
         });
 
         $this->tasks->projectAccountVerification((int) $user->id);
-        $this->notifications->create(
-            $user->id,
-            'account_verification_approved',
-            'تم اعتماد نوع الحساب',
-            'اكتملت مراجعة طلب التحقق وتم اعتماد حسابك.',
-            'account_verification_profile',
-            $profile->id,
-            ['type' => $profile->type, 'status' => AccountVerificationProfile::STATUS_APPROVED],
-        );
+        if ($profile->type !== AccountVerificationProfile::TYPE_OWNER) {
+            $this->notifications->create(
+                $user->id,
+                'account_verification_approved',
+                'تم اعتماد نوع الحساب',
+                'اكتملت مراجعة طلب التحقق وتم اعتماد حسابك.',
+                'account_verification_profile',
+                $profile->id,
+                ['type' => $profile->type, 'status' => AccountVerificationProfile::STATUS_APPROVED],
+            );
+        }
 
         return response()->json([
             'message' => 'Account verification approved.',
@@ -300,6 +301,9 @@ class AccountVerificationController extends Controller
         /** @var User $actor */
         $actor = $request->user();
         $profile = $user->accountVerificationProfile()->firstOrFail();
+        if ($profile->type === AccountVerificationProfile::TYPE_OWNER) {
+            throw new ConflictHttpException('هذا الطلب مؤرشف ولا يتطلب مستندات إضافية.');
+        }
         $this->assertReviewStatusOpen($profile);
         $v = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:2000']]);
         $profile->forceFill([
@@ -341,21 +345,25 @@ class AccountVerificationController extends Controller
             'reason' => $v['reason'],
         ], $request, $user->id);
         $this->tasks->projectAccountVerification((int) $user->id);
-        $this->notifications->create(
-            $user->id,
-            'account_verification_rejected',
-            'تم تحديث طلب التحقق',
-            $v['reason'],
-            'account_verification_profile',
-            $profile->id,
-            ['type' => $profile->type, 'status' => AccountVerificationProfile::STATUS_REJECTED],
-        );
+        if ($profile->type !== AccountVerificationProfile::TYPE_OWNER) {
+            $this->notifications->create(
+                $user->id,
+                'account_verification_rejected',
+                'تم تحديث طلب التحقق',
+                $v['reason'],
+                'account_verification_profile',
+                $profile->id,
+                ['type' => $profile->type, 'status' => AccountVerificationProfile::STATUS_REJECTED],
+            );
+        }
         return response()->json(['message' => 'Account verification rejected.', 'data' => $this->applicationData($user->fresh())]);
     }
 
-    private function applicationData(User $user): array
+    private function applicationData(User $user, bool $hideRetiredType = false): array
     {
-        $profile = $user->accountVerificationProfile()->with('documents')->first();
+        $profile = $user->accountVerificationProfile()
+            ->when($hideRetiredType, fn ($query) => $query->where('type', '!=', AccountVerificationProfile::TYPE_OWNER))
+            ->with('documents')->first();
         if (! $profile) {
             return [
                 'user_id' => (int) $user->id,

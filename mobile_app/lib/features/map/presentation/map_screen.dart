@@ -40,6 +40,8 @@ import 'property_map_results_sheet.dart';
 import '../../properties/presentation/property_compare_actions.dart';
 import '../../discovery/data/smart_search_session.dart';
 import '../../discovery/data/marketplace_repository.dart';
+import '../../discovery/data/marketplace_search_session.dart';
+import '../../discovery/domain/governorate_search.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../../discovery/presentation/smart_search_assistant.dart';
 import '../../discovery/presentation/assisted_search_screen.dart';
@@ -360,6 +362,18 @@ LatLng? mapSearchInitialCamera(SmartSearchFilters filters, HomeLocation home,
   return null;
 }
 
+bool mapSearchRequestedNewProvince(
+  SmartSearchFilters before,
+  SmartSearchFilters after,
+  String submittedQuery,
+) {
+  final code = after.values['governorate_code'];
+  if (code == null || after.hasMapArea || (!before.hasMapArea && before.values['governorate_code'] == code)) {
+    return false;
+  }
+  return GovernorateSearch.inRequest(submittedQuery)?.filters['governorate_code'] == code;
+}
+
 class MapSearchActions {
   const MapSearchActions({required this.onDrawArea, required this.onClearArea,
     required this.onSmartSearch, required this.hasDrawnArea, this.onFindAddress});
@@ -409,6 +423,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   String _lastSharedViewport = '';
   LatLngBounds? _cameraBounds;
   int _viewportGeneration = 0;
+  int? _pendingProvinceCameraRevision;
   List<PropertyMarker> _lastGoodItems = const [];
   String _lastGoodCriteria = '';
   final _mapSymbols = <String, Symbol>{};
@@ -1743,7 +1758,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
     final rows=search.rows;
     if(rows.isEmpty)return;
-    final points=rows.where((p)=>p.latitude.isFinite && p.longitude.isFinite && p.latitude.abs()<=90 && p.longitude.abs()<=180).toList();
+    final points=rows.where((p)=>hasValidPropertyCoordinates(p.latitude, p.longitude)).toList();
     if(points.isEmpty)return;
     double south=points.first.latitude,north=south,west=points.first.longitude,east=west;
     for(final p in points){if(p.latitude<south)south=p.latitude;if(p.latitude>north)north=p.latitude;if(p.longitude<west)west=p.longitude;if(p.longitude>east)east=p.longitude;}
@@ -1866,6 +1881,37 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  void _showRequestedProvince(SmartSearchState state) {
+    final revision = _pendingProvinceCameraRevision;
+    final hint = widget.cameraCenterHint;
+    if (revision == null || state.revision != revision || state.page == 0 ||
+        state.loading || state.resultsError != null || !_styleLoaded) {
+      return;
+    }
+    final hasPins = state.rows.any((row) => hasValidPropertyCoordinates(row.latitude, row.longitude));
+    if (!hasPins && hint == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!_journeyCurrent || revision != _pendingProvinceCameraRevision ||
+          ref.read(_searchSession).revision != revision ||
+          ModalRoute.of(context)?.isCurrent == false || _selectingArea) {
+        return;
+      }
+      final controller = _mapController;
+      if (controller == null) return;
+      _pendingProvinceCameraRevision = null;
+      _mapViewportGesture = false;
+      if (hasPins) {
+        await _fitSharedRows();
+      } else if (hint != null) {
+        try {
+          await controller.moveCamera(CameraUpdate.newLatLngZoom(hint, 13.5));
+        } catch (_) {
+          // The native view can disappear while the route is being closed.
+        }
+      }
+    });
+  }
+
   Widget _sharedJourney() {
     final state=ref.watch(_searchSession);
     final session = ref.read(_searchSession.notifier);
@@ -1880,7 +1926,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       }
     }
     ref.listen<SmartSearchState>(_searchSession, (before, after) {
-      if (before?.revision != after.revision) _mapViewportGesture = false;
+      if (before != null && before.revision != after.revision) {
+        _mapViewportGesture = false;
+        final query = _searchSession == marketplaceMapResultsProvider
+            ? ref.read(marketplaceSearchControllerProvider).mapEditor?.submittedQuery ?? ''
+            : after.lastRequest;
+        final pendingSameProvince = _pendingProvinceCameraRevision == before.revision &&
+            !after.filters.hasMapArea && before.filters.values['governorate_code'] == after.filters.values['governorate_code'];
+        _pendingProvinceCameraRevision = pendingSameProvince ||
+                mapSearchRequestedNewProvince(before.filters, after.filters, query)
+            ? after.revision : null;
+      }
       if (before?.filters.values['area_polygon'] == after.filters.values['area_polygon']) return;
       final encoded = after.filters.values['area_polygon'];
       MapAreaGeometry? geometry;
@@ -1890,6 +1946,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       setState(() { _selectedAreaGeometry = geometry; _selectedAreaBounds = geometry?.bounds; });
       unawaited(_renderSelectedAreaAnnotations());
     });
+    _showRequestedProvince(state);
     final rows = _sharedMapMarkers(state.rows);
     if(_selected!=null && !rows.any((p)=>p.id==_selected!.id))_selected=null;
     _queueMarkerSync(rows);
@@ -1942,7 +1999,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           if (notification.depth == 0) _trackSharedResultsExtent(notification.extent);
           return false;
         }, child: Stack(key: const ValueKey('shared-search-map-viewport'), fit: StackFit.expand, children: [
-          Positioned.fill(child: Listener(onPointerDown: (_) { _mapUserTouched = true; widget.onMapInteraction?.call(); },
+          Positioned.fill(child: Listener(onPointerDown: (_) { _mapUserTouched = true; _pendingProvinceCameraRevision = null; widget.onMapInteraction?.call(); },
             onPointerMove: _onMapViewportGesture,
             onPointerPanZoomUpdate: _onMapViewportGesture,
             onPointerSignal: _onMapViewportGesture,

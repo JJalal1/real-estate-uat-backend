@@ -197,7 +197,6 @@ class FreeServicesHubModel {
       availabilityOf(code) == 'requires_verification';
 
   String get accountTypeLabel => switch (accountType) {
-        'owner' => 'مالك',
         'broker' => 'دلال',
         'office' => 'مكتب عقاري',
         _ => 'حساب أساسي',

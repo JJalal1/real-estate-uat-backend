@@ -2,12 +2,10 @@
 
 namespace App\Observers;
 
-use App\Jobs\MatchPublishedProperty;
 use App\Jobs\NotifyFavoritePrice;
 use App\Models\Property;
 use App\Services\BackgroundQueue;
 use App\Services\PropertyPriceChangeAlertService;
-use App\Services\SavedSearchAlertService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -18,9 +16,6 @@ class PropertyExperienceObserver
         $id = (int) $property->id;
         if ($property->status !== 'published') return;
         $queues = app(BackgroundQueue::class);
-        if ($property->wasChanged('status') && ! $queues->submit('instant_search', new MatchPublishedProperty($id, now()->timestamp))) {
-            DB::afterCommit(static fn () => app(SavedSearchAlertService::class)->notifyPublishedProperty($id));
-        }
         if ($property->wasChanged('price')) {
             $old = (float) $property->getOriginal('price');
             $new = (float) $property->price;

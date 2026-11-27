@@ -29,7 +29,7 @@ class SpokenSearchCityTest extends TestCase
     {
         $service = app(SmartSearchService::class);
         foreach ([['اب', 'إب'], ['مدينة اب', 'إب'], ['مدينة اب،', 'إب'], ['مدينه إب', 'إب'], ['مَدِينَة إِب', 'إب'],
-            ['مدينةإب', 'إب'], [' محافظة   اب ', 'إب'], ['مدينة ذمار', 'ذمار'],
+            ['مدينةإب', 'إب'], [' محافظة   اب ', 'إب'], ['مدينة ذمار', 'ذمار'], ['ذماء', 'ذمار'], ['صنعا', 'صنعاء'],
             ['مدينه صنعاء', 'صنعاء'], ['محافظة مارب', 'مأرب']] as [$spoken, $canonical]) {
             $this->assertSame($canonical, $service->validate(['search' => $spoken])['search'], $spoken);
         }
@@ -80,6 +80,19 @@ class SpokenSearchCityTest extends TestCase
         ])->assertOk()->assertJsonPath('data.filters.type', 'apartment')
             ->assertJsonPath('data.filters.purpose', 'rent')
             ->assertJsonPath('data.filters.search', 'ذمار');
+        Http::assertNothingSent();
+    }
+
+    public function test_generic_listing_type_preserves_requested_purpose_and_spoken_province(): void
+    {
+        config(['gemini.enabled' => false]);
+        Http::fake();
+        $this->postJson('/api/ai/search', [
+            'message' => 'عقار للإيجار في محافظة ذماء',
+            'filters' => (object) [],
+            'revision' => 9,
+        ])->assertOk()->assertJsonPath('data.filters.search', 'ذمار')
+            ->assertJsonPath('data.filters.purpose', 'rent')->assertJsonMissingPath('data.filters.type');
         Http::assertNothingSent();
     }
 

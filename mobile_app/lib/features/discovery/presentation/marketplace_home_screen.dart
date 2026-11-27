@@ -61,13 +61,6 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   int _openingEpoch = 0;
   @override
   void dispose() { _feedScroll.dispose(); super.dispose(); }
-  HomeFeedQuery get _query {
-    final location = ref.read(homeLocationProvider);
-    final filters = ref.watch(marketplaceSearchControllerProvider).criteria;
-    return HomeFeedQuery(latitude: location.latitude, longitude: location.longitude, governorate: location.governorate, governorateCode: location.governorateCode, accuracyMetres: location.accuracyMetres,
-      type: filters.values['type']?.toString(), purpose: filters.values['purpose']?.toString(),
-      filters: filters, device: location.device);
-  }
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _tryDeviceLocation(); }); }
 
@@ -160,15 +153,18 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   Widget build(BuildContext context) {
     final location = ref.watch(homeLocationProvider), theme = Theme.of(context);
     final background = theme.colorScheme.surfaceContainerLow;
-    final selectedTypes = ref.watch(marketplaceSearchControllerProvider).criteria.selectedTypes;
+    final search = ref.watch(marketplaceSearchControllerProvider);
+    final filters = search.criteria;
+    final selectedTypes = filters.selectedTypes;
     final professional = ref.watch(authControllerProvider.select((state) =>
       state.asData?.value?.hasMarketplaceProfessionalProfile == true));
-    final query = _query;
-    final criteria = query.effectiveFilters;
-    final locationKnown = !location.needsConfirmation && (location.governorate != null || location.governorateCode != null);
-    final useDhamar = !locationKnown && !criteria.hasMapArea &&
-      !criteria.values.containsKey('governorate') && !criteria.values.containsKey('governorate_code');
-    final dhamar = useDhamar ? ref.watch(marketplaceDhamarPreviewProvider(query)) : null;
+    final query = HomeFeedQuery(latitude: location.latitude, longitude: location.longitude,
+      governorate: location.needsConfirmation ? null : location.governorate,
+      governorateCode: location.needsConfirmation ? null : location.governorateCode,
+      accuracyMetres: location.accuracyMetres, device: location.device, filters: filters,
+      type: filters.values['type']?.toString(), purpose: filters.values['purpose']?.toString());
+    final regionalFilters = search.active ? null : query.regionalPreviewFilters;
+    final regional = regionalFilters == null ? null : ref.watch(marketplaceRegionalPreviewProvider(query));
     final feed = ref.watch(marketplaceFeedProvider(query));
     final transientError = feed.hasError && isTransientApiFailure(feed.error!);
     final canShowSnapshot = !feed.hasValue && (feed.hasError ? transientError : feed.isLoading);
@@ -213,10 +209,10 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
         ref.read(marketplaceRepositoryProvider).invalidateFeed(query);
         ref.invalidate(marketplaceFeedProvider(query));
         ref.invalidate(recentPropertiesProvider);
-        if (useDhamar) ref.invalidate(marketplaceDhamarPreviewProvider(query));
+        if (regionalFilters != null) ref.invalidate(marketplaceRegionalPreviewProvider(query));
         try { await Future.wait([
           ref.read(marketplaceFeedProvider(query).future),
-          if (useDhamar) ref.read(marketplaceDhamarPreviewProvider(query).future),
+          if (regionalFilters != null) ref.read(marketplaceRegionalPreviewProvider(query).future),
         ]); } catch (_) { /* Inline retry retains only this query. */ }
       }, child: CustomScrollView(key: const PageStorageKey('marketplace-home'), controller: _feedScroll,
         cacheExtent: ConditionalImagePrefetch.enabled ? ConditionalImagePrefetch.extent : 0,
@@ -251,20 +247,28 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           SliverToBoxAdapter(child: AppRefreshStatus(loading: feed.isLoading,
             error: feed.hasError ? friendlyApiError(feed.error!) : null,
             onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))),
-        if (snapshot != null) _feedSliver(snapshot, dhamar)
+        if (snapshot != null) _feedSliver(snapshot, regional)
         else feed.when(skipLoadingOnReload: true, skipError: feed.hasValue && transientError,
           loading: () => const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(18),
             child: AppSkeleton(key: ValueKey('home-feed-loading'), height: 270, radius: 8))),
           error: (error, _) => SliverToBoxAdapter(child: AppErrorState(message: friendlyApiError(error),
-            onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: (data) => _feedSliver(data, dhamar)),
-        if (dhamar != null) SliverToBoxAdapter(child: dhamar.when(
-          loading: () => const AppRefreshStatus(loading: true),
-          error: (error, _) => AppRefreshStatus(error: friendlyApiError(error),
-            onRetry: () => ref.invalidate(marketplaceDhamarPreviewProvider(query))),
+            onRetry: () => ref.invalidate(marketplaceFeedProvider(query)))), data: (data) => _feedSliver(data, regional)),
+        if (regionalFilters != null && regional != null && (!feed.hasError || transientError))
+          SliverToBoxAdapter(child: regional.when(
+          skipLoadingOnReload: true,
+          skipError: regional.hasValue && regional.hasError && isTransientApiFailure(regional.error!),
+          // The main feed already reports a page-wide load or connectivity
+          // error. Keep any available regional cards, and report a separate
+          // retry only when the regional request alone is affected.
+          loading: () => feed.isLoading || feed.hasError
+              ? const SizedBox.shrink() : const AppRefreshStatus(loading: true),
+          error: (error, _) => feed.isLoading || feed.hasError ? const SizedBox.shrink()
+              : AppRefreshStatus(error: friendlyApiError(error),
+                  onRetry: () => ref.invalidate(marketplaceRegionalPreviewProvider(query))),
           data: (rows) => rows.isEmpty ? const SizedBox.shrink() : Column(children: [
             EbrokerTitleHeader(title: 'بالقرب منك', compact: true, onSeeAll: () =>
-              _section('regional', dhamarPreviewGovernorate.name, filters: dhamarPreviewFilters(criteria))),
-            _propertyRail('dhamar', rows),
+              _section('regional', regionalFilters.values['governorate'] as String, filters: regionalFilters)),
+            _propertyRail('regional', rows),
           ]),
         )),
          if (recent != null && recent.isNotEmpty)
@@ -294,7 +298,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     );
   }
 
-  Widget _feedSliver(MarketplaceFeed data, AsyncValue<List<PropertySummary>>? dhamar) {
+  Widget _feedSliver(MarketplaceFeed data, AsyncValue<List<PropertySummary>>? regional) {
     final entries = <WidgetBuilder>[];
     if (data.brokers.isNotEmpty) {
       entries.add((context) {
@@ -328,18 +332,17 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     }
     final sections = [
       if (data.sectionOrder.contains('latest')) 'latest',
-      ...data.sectionOrder.where((key) => key == 'spotlight' || (key == 'sale' && dhamar == null)),
+      if (data.sectionOrder.contains('spotlight')) 'spotlight',
     ];
     for (final key in sections) {
       final rows = data.sections[key] ?? const <PropertySummary>[];
       if (rows.isEmpty) continue;
-      final title = switch (key) { 'spotlight' => 'عقارات تستحق نظرة',
-        'sale' => 'بالقرب منك', _ => 'أحدث العقارات' };
+      final title = key == 'spotlight' ? 'عقارات تستحق نظرة' : 'أحدث العقارات';
       entries.add((_) => EbrokerTitleHeader(title: title, compact: true, onSeeAll: () => _section(key, data.governorate)));
       entries.add((_) => _propertyRail(key, rows));
     }
     if (sections.every((key) => data.sections[key]?.isNotEmpty != true) &&
-        (dhamar == null || dhamar.asData?.value.isEmpty == true)) {
+        (regional == null || regional.asData?.value.isEmpty == true)) {
       entries.add((_) => AppEmptyState(title: 'لا توجد عقارات في هذه المنطقة الآن', message: 'استكشف الخريطة أو اختر منطقة أخرى.',
         actionLabel: 'تغيير المنطقة', onAction: _chooseLocation));
     }
@@ -418,7 +421,7 @@ class _HomeBrokerCard extends StatelessWidget {
                         colors: [Colors.transparent, Color(0x77007C86)],
                       ))),
                     )),
-                    PositionedDirectional(
+                    if (profile.marketplaceRoleLabel case final role?) PositionedDirectional(
                       top: 5,
                       start: 5,
                       child: DecoratedBox(
@@ -431,7 +434,7 @@ class _HomeBrokerCard extends StatelessWidget {
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             Icon(Icons.group_outlined, size: 12, color: scheme.onPrimaryContainer),
                             const SizedBox(width: 3),
-                            Text(profile.typeLabel, style: labelStyle?.copyWith(color: scheme.onPrimaryContainer)),
+                            Text(role, style: labelStyle?.copyWith(color: scheme.onPrimaryContainer)),
                           ]),
                         ),
                       ),
@@ -445,7 +448,7 @@ class _HomeBrokerCard extends StatelessWidget {
                   Expanded(child: Row(children: [
                     Flexible(child: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, fontWeight: FontWeight.w700))),
-                    if (profile.verified) ...[
+                    if (profile.marketplaceVerified) ...[
                       const SizedBox(width: 3),
                       const Icon(Icons.verified_rounded, color: Color(0xFF198CE0), size: 14,
                         semanticLabel: 'موثّق'),

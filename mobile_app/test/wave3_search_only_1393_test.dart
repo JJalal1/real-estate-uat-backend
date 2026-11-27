@@ -51,7 +51,10 @@ void main() {
     listings.respond = (_, __) => pending.future;
     controller.edit('بيت'); final next = controller.submit();
     expect(scope.read(homeSearchResultsProvider).rows, isEmpty);
-    expect(scope.read(homeSearchResultsProvider).filters.values['search'], 'بيت');
+    expect(scope.read(homeSearchResultsProvider).filters.values['type'], 'house');
+    expect(listings.calls.last['type'], 'house');
+    expect(listings.calls.last.containsKey('search'), isFalse);
+    expect(controller.uiFor().draftQuery, 'بيت');
     pending.complete(([row(20, title: 'بيت')], false)); await next;
     final purposeReply = Completer<PageResult>();
     listings.respond = (_, __) => purposeReply.future;

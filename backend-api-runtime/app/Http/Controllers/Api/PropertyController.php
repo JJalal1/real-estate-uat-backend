@@ -1167,6 +1167,7 @@ class PropertyController extends Controller
     private function advertiserVerificationData(Property $property): array
     {
         $profile = $property->user?->accountVerificationProfile;
+        if ($profile?->type === 'owner') $profile = null;
         $identity = $property->user ? app(BrokerRankingService::class)->publicIdentity($property->user) : null;
         if (! $identity || ! $identity['verified']) {
             $type = $identity['account_type'] ?? 'individual';
@@ -1189,7 +1190,6 @@ class PropertyController extends Controller
         $details = $profile->details ?? [];
         $professional = $profile->type === 'broker' && $kinds->contains('professional_license');
         $label = match ($profile->type) {
-            'owner' => 'مالك العقار',
             'broker' => $professional ? 'دلال مهني' : 'دلال',
             'office' => 'مكتب عقاري',
             default => 'معلن',
@@ -1200,9 +1200,7 @@ class PropertyController extends Controller
             'verification_status' => $profile->status,
             'verification_flags' => [
                 'identity_reviewed' => true,
-                'relationship_document_reviewed' => $profile->type === 'owner'
-                    && $property->status === 'published'
-                    && $property->documents()->where('kind', 'ownership_proof')->exists(),
+                'relationship_document_reviewed' => false,
                 'professional_document_reviewed' => $professional,
                 'commercial_register_reviewed' => $profile->type === 'office' && $kinds->contains('commercial_register'),
                 'office_documents_reviewed' => $profile->type === 'office' && $kinds->contains('office_license'),

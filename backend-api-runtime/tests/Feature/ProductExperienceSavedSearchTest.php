@@ -57,7 +57,7 @@ class ProductExperienceSavedSearchTest extends TestCase
         ]);
     }
 
-    public function test_instant_saved_search_alert_does_not_notify_listing_owner(): void
+    public function test_legacy_instant_search_does_not_notify_either_party(): void
     {
         [$searcher, $headers] = $this->user('alert@example.test', '+967770001003');
         [$owner] = $this->user('owner@example.test', '+967770001004');
@@ -71,8 +71,8 @@ class ProductExperienceSavedSearchTest extends TestCase
         $listing = $this->property('شقة جديدة', 'rent', 'apartment', 150000, 'published', $owner);
         $count = app(SavedSearchAlertService::class)->notifyPublishedProperty($listing->id);
 
-        $this->assertSame(1, $count);
-        $this->assertDatabaseHas('user_notifications', [
+        $this->assertSame(0, $count);
+        $this->assertDatabaseMissing('user_notifications', [
             'user_id' => $searcher->id,
             'type' => 'saved_search_match',
             'entity_type' => 'property',
@@ -145,7 +145,7 @@ class ProductExperienceSavedSearchTest extends TestCase
         ]);
     }
 
-    public function test_background_price_retries_and_late_publication_daily_digest(): void
+    public function test_favorite_price_retries_remain_enabled_while_old_daily_search_subscriptions_are_silent(): void
     {
         [$saver, $headers] = $this->user('queue-search@example.test', '+967770002021');
         [$owner] = $this->user('queue-owner@example.test', '+967770002022');
@@ -162,7 +162,6 @@ class ProductExperienceSavedSearchTest extends TestCase
         $this->assertSame(1, \App\Models\UserNotification::where('type','favorite_price_changed')->count());
         $this->travelTo(now('Asia/Aden')->addDay()->startOfDay()->addMinute());
         $daily = app(SavedSearchAlertService::class);
-        $this->assertSame(1, $daily->sendDailyDigests());
         $this->assertSame(0, $daily->sendDailyDigests());
     }
 

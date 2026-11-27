@@ -6,7 +6,6 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../data/notification_preference_repository.dart';
-import '../data/push_registration_repository.dart';
 import '../../account/presentation/actor_scoped_page.dart';
 
 class NotificationPreferencesScreen extends StatelessWidget {
@@ -27,12 +26,10 @@ class _NotificationPreferencesScreenState
     extends ConsumerState<_NotificationPreferencesPage> {
   NotificationPreferences? _draft;
   bool _saving = false;
-  bool _enablingPush = false;
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(notificationPreferencesProvider);
-    final pushConfigured = ref.watch(pushCapabilityProvider).asData?.value == true;
     final loaded = state.asData?.value;
     _draft ??= loaded;
 
@@ -56,47 +53,6 @@ class _NotificationPreferencesScreenState
                 AppSpacing.s40,
               ),
               children: [
-                const AppInlineMessage(
-                  title: 'تنبيهات الأمان والدعم داخل التطبيق',
-                  message:
-                      'تبقى رسائل الأمان والتحقق وردود الدعم متاحة داخل التطبيق. يمكنك إيقاف إشعارات هذا الجهاز بشكل مستقل.',
-                  tone: AppStatusTone.info,
-                  icon: Icons.shield_outlined,
-                ),
-                const SizedBox(height: AppSpacing.s16),
-                if (pushConfigured) ...[
-                  AppSurface(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'إشعارات الجهاز',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        const SizedBox(height: AppSpacing.s6),
-                        const Text(
-                          'فعّل إذن الإشعارات في أندرويد حتى تصلك الرسائل المهمة خارج التطبيق.',
-                        ),
-                        const SizedBox(height: AppSpacing.s12),
-                        AppButton(
-                          label: _enablingPush ? 'جارٍ تنفيذ الطلب...' : 'تفعيل إشعارات الجهاز',
-                          icon: Icons.notifications_active_outlined,
-                          loading: _enablingPush,
-                          onPressed: _enablingPush ? null : _enablePush,
-                          expand: true,
-                        ),
-                        TextButton.icon(
-                          onPressed: _enablingPush ? null : _disablePush,
-                          icon: const Icon(Icons.notifications_off_outlined),
-                          label: const Text('إيقاف إشعارات هذا الجهاز'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.s16),
-                ],
                 _PreferenceCard(
                   icon: Icons.chat_bubble_outline,
                   title: 'الرسائل',
@@ -118,10 +74,9 @@ class _NotificationPreferencesScreenState
                 ),
                 const SizedBox(height: AppSpacing.s10),
                 _PreferenceCard(
-                  icon: Icons.saved_search_outlined,
-                  title: 'البحث والمفضلة',
-                  subtitle:
-                      'عقار جديد يطابق بحثًا محفوظًا أو تغيّر سعر عقار في المفضلة.',
+                  icon: Icons.favorite_border,
+                  title: 'المفضلة',
+                  subtitle: 'تغيّر سعر عقار في المفضلة.',
                   value: value.discoveryAlerts,
                   onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(discoveryAlerts: enabled),
@@ -155,52 +110,6 @@ class _NotificationPreferencesScreenState
 
   void _change(NotificationPreferences value) {
     setState(() => _draft = value);
-  }
-
-  Future<void> _enablePush() async {
-    if (_enablingPush) return;
-    setState(() => _enablingPush = true);
-    try {
-      final enabled = await ref
-          .read(pushRegistrationRepositoryProvider)
-          .requestAndRegister();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            enabled
-                ? 'تم تفعيل إشعارات الجهاز.'
-                : 'لم يتم منح إذن الإشعارات.',
-          ),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر تفعيل إشعارات الجهاز الآن.')),
-      );
-    } finally {
-      if (mounted) setState(() => _enablingPush = false);
-    }
-  }
-
-  Future<void> _disablePush() async {
-    if (_enablingPush) return;
-    setState(() => _enablingPush = true);
-    try {
-      await ref.read(pushRegistrationRepositoryProvider).disable();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم إيقاف إشعارات هذا الجهاز.')),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر إيقاف إشعارات الجهاز. حاول مجددًا.')),
-      );
-    } finally {
-      if (mounted) setState(() => _enablingPush = false);
-    }
   }
 
   Future<void> _save() async {
@@ -286,7 +195,7 @@ class _PreferenceSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.separated(
       padding: const EdgeInsetsDirectional.all(AppLayout.compactPageGutter),
-      itemCount: 6,
+      itemCount: 4,
       separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.s10),
       itemBuilder: (_, __) => const AppSkeleton(
         height: 88,

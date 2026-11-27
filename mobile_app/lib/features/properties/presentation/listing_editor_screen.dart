@@ -75,23 +75,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'office': 'مكتب',
     'farm': 'مزرعة',
   };
-  static const _ownershipDocumentTypes = <String, String>{
-    'purchase_deed': 'بصيرة شراء',
-    'registry_record': 'سند / قيد سجل عقاري',
-    'partition_deed': 'فصل قسمة',
-    'court_judgment': 'حكم قضائي',
-    'inheritance_document': 'مستند إرث',
-    'ownership_contract': 'عقد تمليك',
-    'other': 'مستند آخر مناسب',
-  };
-  static const _relationshipTypes = <String, String>{
-    'owner': 'مالك مباشر',
-    'agent': 'وكيل',
-    'heir': 'وارث',
-    'co_owner': 'شريك في الملكية',
-    'other': 'صفة أخرى',
-  };
-
   final _mediaPicker = const Stage5MediaPicker();
   final _photoCheck = const ListingPhotoCheck();
   final _checkedPhotoTypes = <String, String>{};
@@ -122,8 +105,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool _validateContacts = false;
   final _phone = TextEditingController();
   final _whatsapp = TextEditingController();
-  final _documentOwnerName = TextEditingController();
-  final _relationshipNote = TextEditingController();
   final _editorScroll = ScrollController();
 
   int _step = 0;
@@ -140,8 +121,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   String? _parkingChoice;
   String? _elevatorChoice;
   String? _facade;
-  String? _ownershipDocumentType;
-  String? _relationshipType;
   double? _latitude;
   double? _longitude;
   bool get _hasLocation => hasValidPropertyCoordinates(_latitude, _longitude);
@@ -156,12 +135,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   PropertyLocationAddress _addressContext = const PropertyLocationAddress();
   bool _replaceImages = false;
   List<String> _imagePaths = <String>[];
-  String? _ownershipProofPath;
   PropertyDetails? _workingDraft;
   final _saiRate = TextEditingController();
   final _saiAmount = TextEditingController();
   String _saiAmountType = 'fixed';
   PropertySaiManagement? _saiPolicy;
+  PropertySaiManagement? _historicalSai;
   String? _saiPolicyError;
   bool _saiAccepted = false, _saiTouched = false, _hasRecoveredSai = false;
   bool _wholeFloor = false; // Read-only identity for existing legacy whole-floor listings.
@@ -221,7 +200,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       final fields=Map<String,dynamic>.from(data['fields'] as Map);
       fields.remove('broker_sai_rate_percent');fields.remove('fixed_sai_amount');data['fields']=fields;
     }
-    return jsonEncode([data,_ownershipProofPath]);
+    return jsonEncode(data);
   }
   bool get _hasUnsavedChanges => _recoveryReady && _sessionValid &&
     (_recoveryFailed || _editSignature != (_confirmedEditSignature ?? _initialEditSignature));
@@ -508,7 +487,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_purpose == 'rent' && _rentalConditionsError() != null) result.add('rental_conditions');
     if (_effectiveImageCount == 0 || _photoKeys.any((key) => !key.startsWith('property-') && !_remotePhotos.containsKey(key))) result.add('photos');
     if (!_isSaiReady) result.add('sai');
-    if (_ownershipValidation() != null) result.add('ownership');
     if (_type == 'land' && _landBoundaryGeoJson == null) result.add('boundary');
     if (_contactPolicy.error(_phone.text, required: true) != null || _contactPolicy.error(_whatsapp.text) != null) result.add('contact_phone');
     return result;
@@ -552,8 +530,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         if (_supportsFacade) choice('building_facade','واجهة البناء',_facade,propertyFacadeLabels,(v) => setState(() => _facade = v)),
         text('price',_purpose == 'rent' ? _monthlyRent : _price,_purpose == 'rent' ? 'الإيجار الشهري بالريال اليمني' : 'سعر البيع بالريال اليمني',numeric:true),
         if (keys.contains('photos')) ...[const SizedBox(height: 16), _listingPhotos(), const Text('ارفع صورًا حقيقية للعقار.')],
-        if (keys.contains('sai')) ListingSaiSection(purpose:_purpose,policy:_saiPolicy,rateController:_saiRate,amountController:_saiAmount,
+        if (keys.contains('sai')) ListingSaiSection(purpose:_purpose,policy:_displayedSaiPolicy,rateController:_saiRate,amountController:_saiAmount,
           basis:_effectivePrice,amountType:_saiAmountType,accepted:_saiAccepted,error:_saiPolicyError,enabled:!_busy,
+          professionalAdvertiser: _usesBrokerSaiCopy, onEditHistoricalTerms: _editHistoricalSai,
           onChanged:() => setState(() => _saiTouched = true),onAcceptanceChanged:(v) => setState(() => _saiAccepted = v),
           onAmountTypeChanged:(v) => setState(() { _saiAmountType=v;_saiTouched=true; }),onRetry:_loadSaiPolicy),
         if (keys.contains('contact_phone')) ...[const SizedBox(height: 12),
@@ -561,7 +540,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           if (_contactPolicy.error(_whatsapp.text) != null) AppTextField(controller: _whatsapp, label: 'رقم اتصال آخر', keyboardType: TextInputType.phone, enabled: !_busy)],
         if (keys.contains('rental_conditions')) RentalConditionsEditor(value: _rentalConditions, enabled: !_busy,
           onChanged: (value) => setState(() => _rentalConditions = value)),
-        if (keys.contains('ownership')) _ownershipEvidence(),
       ],
       const SizedBox(height: 20),
       TextButton(key: const ValueKey('listing-review-completed'), onPressed: _busy ? null : () => _showFullStep(0), child: const Text('مراجعة وتعديل البيانات المكتملة والاختيارية')),
@@ -651,7 +629,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'floors_count': _floorsCount, 'shop_openings': _shopOpenings, 'bedrooms': _bedrooms, 'bathrooms': _bathrooms, 'governorate': _governorate, 'city': _city, 'district': _district, 'neighborhood': _neighborhood,
     'street': _street, 'building_reference': _buildingReference, 'unit_number': _unitNumber,
     'floor_number': _floorNumber, 'phone': _phone, 'whatsapp': _whatsapp,
-    'document_owner_name': _documentOwnerName, 'relationship_note': _relationshipNote,
   };
 
   Map<String, dynamic> _recoverySnapshot() => {
@@ -664,16 +641,13 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     'draft_key': _draftKey, 'server_revision': _draftRevision, 'image_tokens': _localPhotoKeys, 'image_order': _photoKeys,
     'remote_images':_remotePhotos, 'removed_image_keys':_removedPhotoKeys.toList(), 'photo_states':_photoStates,
     'account_checkpoint_key':_checkpointKey, 'account_checkpoint_signature':_checkpointSignature,
-    if (_ownershipProofPath != null) 'ownership_proof_path':_ownershipProofPath,
     'step': _step, 'purpose': _purpose, 'type': _type, 'area_unit': _areaUnit,
     'tenure_type': _tenureType, 'parking': _parkingChoice, 'elevator': _elevatorChoice, 'facade': _facade,
-    'ownership_document_type': _ownershipDocumentType, 'relationship_type': _relationshipType,
     'location_accuracy_m': _locationAccuracyMetres, 'location_reduced_accuracy': _locationReducedAccuracy,
     'location_method': _locationMethod, 'location_context': _addressContext.toJson(),
     'latitude': _latitude, 'longitude': _longitude, 'land_boundary': _landBoundaryGeoJson,
     'replace_images': _replaceImages, 'price_display_mode': _priceDisplayMode,
     'server_property_id': _existing?.id ?? _recoveredServerId,
-    'proof_needs_reselection': _ownershipProofPath != null,
     'fields': {for (final entry in _recoveryFields.entries) entry.key: entry.key == 'description' && (_descriptionCapture.active || _unconfirmedVoiceDescription != null) ? _descriptionVoiceBase : entry.value.text},
   };
 
@@ -849,8 +823,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _parkingChoice = const ['yes', 'no'].contains(data['parking']) ? data['parking'] as String : null;
       _elevatorChoice = const ['yes', 'no'].contains(data['elevator']) ? data['elevator'] as String : null;
       _facade = propertyFacadeLabels.containsKey(data['facade']) ? data['facade'] as String : null;
-      _ownershipDocumentType = _ownershipDocumentTypes.containsKey(data['ownership_document_type']) ? data['ownership_document_type'] as String : null;
-      _relationshipType = _relationshipTypes.containsKey(data['relationship_type']) ? data['relationship_type'] as String : null;
       _latitude = (data['latitude'] as num?)?.toDouble(); _longitude = (data['longitude'] as num?)?.toDouble();
       _locationAccuracyMetres = (data['location_accuracy_m'] as num?)?.toDouble();
       _locationReducedAccuracy = data['location_reduced_accuracy'] is bool ? data['location_reduced_accuracy'] as bool : null;
@@ -860,7 +832,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _replaceImages = data['replace_images'] == true;
       if (const ['excludes_sai', 'includes_sai'].contains(data['price_display_mode'])) _priceDisplayMode = data['price_display_mode'] as String;
       _imagePaths = (data['image_paths'] as List? ?? const []).whereType<String>().toList();
-      _ownershipProofPath=data['ownership_proof_path'] as String?;
       for (final key in _photoKeys) {
         if (_remotePhotos.containsKey(key)) { _photoStates[key]='complete'; }
         else if (_photoStates[key]=='uploading' || _photoStates[key]=='processing') { _photoStates[key]='queued'; }
@@ -894,7 +865,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       }
 
       _recoverySaved = true;
-      if (data['proof_needs_reselection'] == true && _ownershipProofPath==null) _message('استعدنا بيانات الإعلان. أعد اختيار ملف إثبات الملكية عند إكمال المسودة.');
     }
     if (_recoveredServerId!=null&& !_localOnly) await _resolveRecoveredDraft();
     if (!mounted || !_sessionValid) return;
@@ -921,14 +891,18 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   bool get _startedAsEditing => widget.existingProperty != null;
   bool get _isEditing => _existing != null;
   bool get _isSaiReady => _inlineSaiValidation == null;
+  bool get _usesBrokerSaiCopy => ref.watch(authControllerProvider).asData?.value?.hasMarketplaceProfessionalProfile == true;
+  bool get _preservesHistoricalSai => _historicalSai != null &&
+      _historicalSai!.purpose == _purpose && !_saiTouched && !_hasRecoveredSai;
+  PropertySaiManagement? get _displayedSaiPolicy => _preservesHistoricalSai ? _historicalSai : _saiPolicy;
   double get _enteredSaiRate => parseSaiNumber(_saiRate.text) ?? double.nan;
   double get _enteredSaiAmount => parseSaiNumber(_saiAmount.text) ?? double.nan;
-  bool get _fixedSai => _saiAmountType == 'fixed' && _saiPolicy?.isOwner != true;
+  bool get _fixedSai => _saiAmountType == 'fixed' && !_preservesHistoricalSai;
   double get _activeSaiValue => _fixedSai ? _enteredSaiAmount : _enteredSaiRate;
   String? get _inlineSaiValidation {
-    final policy = _saiPolicy;
+    final policy = _displayedSaiPolicy;
     if (policy == null) return 'تعذر تحميل سياسة السعي. أعد تحميلها قبل الإرسال.';
-    if (policy.isOwner) return null;
+    if (_preservesHistoricalSai) return null;
     if (_isEditing && !_existingSaiLoaded && !_saiTouched && !_hasRecoveredSai) return 'انتظر تحميل السعي الحالي أو حدد النسبة بنفسك.';
     if (_fixedSai) {
       final amount = _enteredSaiAmount, basis = _effectivePrice;
@@ -947,12 +921,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return null;
   }
   String get _saiDisplayText {
-    final policy = _saiPolicy;
+    final policy = _displayedSaiPolicy;
     if (policy == null) return 'سياسة السعي غير محملة';
     if (_fixedSai && _enteredSaiAmount.isFinite && _enteredSaiAmount > 0) {
       return 'السعي ${_enteredSaiAmount.toStringAsFixed(2)} ريال';
     }
-    final rate = policy.isOwner || _enteredSaiRate == 0 ? policy.fixedRatePercent : _enteredSaiRate;
+    final rate = _preservesHistoricalSai || _enteredSaiRate == 0 ? policy.effectiveFixedRate : _enteredSaiRate;
     return 'السعي ${rate ?? '—'}%';
   }
   Map<String, dynamic> get _schemaContext => {'type': _type, 'purpose': _purpose, 'unit_occupies_entire_floor': _wholeFloor, 'sai_amount_type': _saiAmountType};
@@ -1134,10 +1108,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _landBoundaryGeoJson = property.landBoundaryGeoJson;
     _phone.text = ListingContactPolicy.normalize(property.contactPhone ?? '');
     _whatsapp.text = ListingContactPolicy.normalize(property.contactWhatsapp ?? '');
-    _ownershipDocumentType = property.ownershipDocumentType;
-    _documentOwnerName.text = property.documentOwnerName ?? '';
-    _relationshipType = property.ownerRelationshipType;
-    _relationshipNote.text = property.ownerRelationshipNote ?? '';
     unawaited(_refreshSai(property.id));
   }
 
@@ -1153,7 +1123,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     _recoveryTimer?.cancel();
     final eligible = _autoSaveEligible();
     final snapshot=_recoverySnapshot(), paths=List<String>.of(_imagePaths), userId=_recoveryUserId;
-    final temporary=[...paths,if(_ownershipProofPath!=null)_ownershipProofPath!].where((path)=>!ListingRecoveryStore.isSavedMedia(path));
+    final temporary=paths.where((path)=>!ListingRecoveryStore.isSavedMedia(path));
     _disposed=true;_pendingAccount=null;
     for (final cancel in _photoCancels.values) { cancel.cancel('Editor closed'); }
     // Never delete the only remaining copy if the durable device write failed.
@@ -1185,8 +1155,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       _floorNumber,
       _phone,
       _whatsapp,
-      _documentOwnerName,
-      _relationshipNote,
     ]) {
       controller.removeListener(controller == _description ? _descriptionChanged : _scheduleRecovery);
       controller.dispose();
@@ -1512,7 +1480,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           ),
         ],
         const SizedBox(height: 24),
-        _ownershipEvidence(),
       ],
     );
   }
@@ -1681,8 +1648,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             enabled: !_busy,
           ),
         ],
-        ListingSaiSection(purpose: _purpose, policy: _saiPolicy, rateController: _saiRate,
+        ListingSaiSection(purpose: _purpose, policy: _displayedSaiPolicy, rateController: _saiRate,
           amountController: _saiAmount, amountType: _saiAmountType,
+          professionalAdvertiser: _usesBrokerSaiCopy, onEditHistoricalTerms: _editHistoricalSai,
           onAmountTypeChanged: (value) => setState(() { _saiAmountType = value; _saiTouched = true; }),
           basis: _purpose == 'rent' ? double.tryParse(_monthlyRent.text.trim()) : _effectivePrice,
           accepted: _saiAccepted, error: _saiPolicyError, enabled: !_busy,
@@ -1774,81 +1742,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _replacePhoto(String key) => _pickImages(replacing: key);
-
-  Widget _ownershipEvidence() {
-    final user = ref.watch(authControllerProvider).asData?.value;
-    final isOwner = user?.isOwner == true && user?.hasVerifiedPublishingProfile == true &&
-        _existing?.reviewStatus == 'returned_for_correction';
-    final existingOwnershipProof = _existing?.ownershipProofPresent == true;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (isOwner) ...[
-          const SizedBox(height: AppSpacing.s16),
-          const AppSectionHeader(
-            title: 'إثبات علاقتك بهذا العقار',
-            subtitle:
-                'هويتك موثقة في الحساب؛ هنا نراجع علاقتك بهذا العقار فقط.',
-          ),
-          const SizedBox(height: AppSpacing.s12),
-          AppSelectField<String>(
-            value: _ownershipDocumentType,
-            decoration: const InputDecoration(labelText: 'نوع مستند العقار'),
-            items: _ownershipDocumentTypes.entries
-                .map((entry) => DropdownMenuItem(
-                    value: entry.key, child: Text(entry.value)))
-                .toList(growable: false),
-            onChanged: _busy
-                ? null
-                : (value) => setState(() => _ownershipDocumentType = value),
-          ),
-          const SizedBox(height: AppSpacing.s12),
-          AppTextField(
-            controller: _documentOwnerName,
-            label: 'اسم صاحب الحق كما في المستند',
-            enabled: !_busy,
-          ),
-          const SizedBox(height: AppSpacing.s12),
-          AppSelectField<String>(
-            value: _relationshipType,
-            decoration: const InputDecoration(labelText: 'صفتك بالنسبة للعقار'),
-            items: _relationshipTypes.entries
-                .map((entry) => DropdownMenuItem(
-                    value: entry.key, child: Text(entry.value)))
-                .toList(growable: false),
-            onChanged: _busy
-                ? null
-                : (value) => setState(() => _relationshipType = value),
-          ),
-          if (_relationshipType != null && _relationshipType != 'owner') ...[
-            const SizedBox(height: AppSpacing.s12),
-            AppTextField(
-              controller: _relationshipNote,
-              label: _relationshipType == 'other'
-                  ? 'وضح صفتك وعلاقتك بالعقار'
-                  : 'تفاصيل العلاقة أو التفويض (اختياري)',
-              enabled: !_busy,
-              maxLines: 3,
-            ),
-          ],
-          const SizedBox(height: AppSpacing.s12),
-          AppSurface(
-            onTap: _busy ? null : _pickOwnershipProof,
-            child: AppListRow(
-              title: 'مستند ملكية / علاقة العقار',
-              subtitle: _ownershipProofPath != null
-                  ? 'تم اختيار مستند جديد'
-                  : existingOwnershipProof
-                      ? 'يوجد مستند مرفوع سابقاً'
-                      : 'اضغط لاختيار المستند',
-              leading: EbrokerIcon(
-                _ownershipProofPath != null || existingOwnershipProof
-                    ? Icons.check_circle_outline
-                    : Icons.upload_file_outlined,
-              ),
-            ),
-          ),
-        ],
-    ]);
-  }
 
   Widget _actions() {
     if (_reviewingCompleted) {
@@ -2004,34 +1897,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (effectiveImageCount < 1) {
       return 'أضف صورة واحدة على الأقل للعقار قبل النشر.';
     }
-    return _ownershipValidation();
-  }
-
-  String? _ownershipValidation() {
-    final user = ref.read(authControllerProvider).asData?.value;
-    if (user?.isOwner == true && user?.hasVerifiedPublishingProfile == true &&
-        _existing?.reviewStatus == 'returned_for_correction') {
-      if (_ownershipDocumentType == null) {
-        return 'اختر نوع مستند ملكية أو علاقة العقار.';
-      }
-      if (_documentOwnerName.text.trim().length < 3) {
-        return 'اكتب اسم صاحب الحق كما يظهر في مستند العقار.';
-      }
-      if (_relationshipType == null) return 'حدد صفتك بالنسبة للعقار.';
-      if (_ownershipProofPath == null &&
-          _existing?.ownershipProofPresent != true) {
-        return 'أرفق مستند ملكية أو علاقة هذا العقار.';
-      }
-      if (_relationshipType == 'owner' &&
-          _normalizedName(_documentOwnerName.text) !=
-              _normalizedName(user!.name)) {
-        return 'الاسم في مستند العقار لا يطابق اسم الحساب. اختر صفتك الصحيحة مثل وكيل أو وارث أو شريك.';
-      }
-      if (_relationshipType == 'other' &&
-          _relationshipNote.text.trim().length < 3) {
-        return 'وضح صفتك أو علاقتك بالعقار.';
-      }
-    }
     return null;
   }
 
@@ -2048,8 +1913,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_validationMessageForStep(3) == null && !_isSaiReady && _inlineSaiValidation != null) {
       gaps.add((3, _inlineSaiValidation!));
     }
-    final ownership = _ownershipValidation();
-    if (ownership != null) gaps.add((1, ownership));
     gaps.sort((a, b) => a.$1.compareTo(b.$1));
     return gaps;
   }
@@ -2219,7 +2082,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   PropertyListingInput _input() {
-    final user = ref.read(authControllerProvider).asData?.value;
     return PropertyListingInput(
       inputVersion: 9,
       rentalConditions: _purpose == 'rent' ? _rentalConditions : const [],
@@ -2258,13 +2120,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       longitude: _longitude!,
       contactPhone: ListingContactPolicy.normalize(_phone.text),
       contactWhatsapp: ListingContactPolicy.normalize(_whatsapp.text),
-      ownershipDocumentType:
-          user?.isOwner == true ? _ownershipDocumentType : null,
-      documentOwnerName:
-          user?.isOwner == true ? _documentOwnerName.text.trim() : null,
-      ownerRelationshipType: user?.isOwner == true ? _relationshipType : null,
-      ownerRelationshipNote:
-          user?.isOwner == true ? _relationshipNote.text.trim() : null,
     );
   }
 
@@ -2340,14 +2195,12 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
               editorDraftKey: _draftKey, editorDraftRevision: _draftRevision,
               replaceImages: _replaceImages,
               submitForReview: false,
-              ownershipProofPath: _ownershipProofPath,
             )
           : await repository.createListing(
               _input(),
               imagePaths: const [],
               editorDraftKey: _draftKey, editorDraftRevision: _draftRevision,
               submitForReview: false,
-              ownershipProofPath: _ownershipProofPath,
             );
 
       if (!mounted || !_sessionValid) return;
@@ -2365,14 +2218,15 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
       // These writes follow the explicit Save/Submit action. Neither editing
       // the percentage nor displaying a preview mutates a server listing.
       final policy = _saiPolicy;
-      if (policy != null && (policy.isOwner || ((_existingSaiLoaded || _saiTouched || _hasRecoveredSai || !_startedAsEditing) && _isSaiReady))) {
+      if (!_preservesHistoricalSai && policy != null && _isSaiReady &&
+          (_existingSaiLoaded || _saiTouched || _hasRecoveredSai || !_startedAsEditing)) {
         try {
           await repository.configureSai(draft.id,
             payer: _purpose == 'rent' ? 'tenant' : 'buyer',
-            brokerRatePercent: policy.isOwner || _fixedSai ? null : _enteredSaiRate,
+            brokerRatePercent: _fixedSai ? null : _enteredSaiRate,
             amountType: _fixedSai ? 'fixed' : 'percentage',
             fixedAmount: _fixedSai ? _enteredSaiAmount : null,
-            deferPlatformTerms: !policy.isOwner && _activeSaiValue > 0);
+            deferPlatformTerms: _activeSaiValue > 0);
           if (!mounted || !_sessionValid) return;
           ref.read(propertyDataRevisionProvider.notifier).state++;
         } catch (error) {
@@ -2589,6 +2443,17 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (mounted) setState(() {});
   }
 
+  void _editHistoricalSai() {
+    setState(() {
+      _saiTouched = true;
+      _saiAccepted = false;
+      _saiAmountType = 'fixed';
+      _saiAmount.clear();
+      _saiRate.clear();
+    });
+    if (_saiPolicy == null) unawaited(_loadSaiPolicy());
+  }
+
   Future<void> _loadSaiPolicy() async {
     final request = ++_saiPolicyRequest;
     final purpose = _purpose;
@@ -2609,6 +2474,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         _existingSaiLoaded = true;
         final management = envelope.management;
         if (management != null && management.purpose == _purpose && !_saiTouched && !_hasRecoveredSai) {
+          _historicalSai = management.hasHistoricalFixedTerms ? management : null;
           _saiAmountType = management.configured ? management.amountType : 'fixed';
           _saiAmount.text = management.fixedAmount?.toString() ?? '';
           _saiRate.text = management.requestedBrokerRatePercent?.toString() ?? '';
@@ -2779,24 +2645,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     return issue;
   }
 
-  Future<void> _pickOwnershipProof() async {
-    try {
-      final picked = await _mediaPicker.pickImages();
-      if (!mounted || picked.isEmpty) return;
-      final next = picked.first;
-      await _mediaPicker.clearTemporaryFiles(picked.skip(1));
-      final old = _ownershipProofPath;
-      setState(() => _ownershipProofPath = next);
-      if (old != null && old != next) {
-        await _mediaPicker.clearTemporaryFiles([old]);
-      }
-    } on PlatformException {
-      _message('تعذر فتح معرض الصور لاختيار المستند.');
-    } catch (_) {
-      _message('تعذر اختيار المستند.');
-    }
-  }
-
   bool _locationRequestCurrent(int? actor, int epoch) => mounted && _sessionValid &&
     Stage6SecureSessionStore.instance.sessionEpoch == epoch &&
     actor == ref.read(authControllerProvider).asData?.value?.id;
@@ -2901,13 +2749,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _clearUploadedTemporaryFiles() async {
-    final paths = <String>[
-      ..._imagePaths,
-      if (_ownershipProofPath != null) _ownershipProofPath!,
-    ];
+    final paths = _imagePaths;
     _imagePaths = <String>[];
     _replaceImages = false;
-    _ownershipProofPath = null;
     try {
       await _mediaPicker.clearTemporaryFiles(paths.where((path) => !ListingRecoveryStore.isSavedMedia(path)));
     } catch (_) {}

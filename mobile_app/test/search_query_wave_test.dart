@@ -117,9 +117,9 @@ void main() {
     await _submit(tester, 'ابحث لي عن عقارات في إب');
     expect(_draft(tester), 'ابحث لي عن عقارات في إب');
     expect(session.state.draftText, isEmpty);
-    expect(find.byKey(const ValueKey('smart-search-query-summary')), findsOneWidget);
-    expect(find.byKey(const ValueKey('smart-chip-search')), findsOneWidget);
-    expect(find.text('إب'), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-query-summary')), findsNothing);
+    expect(find.byKey(const ValueKey('smart-chip-search')), findsNothing);
+    expect(find.byKey(const ValueKey('smart-search-map')), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(_voice));
     await tester.tap(find.byKey(_voice));
@@ -130,8 +130,8 @@ void main() {
     expect(_draft(tester), 'السعر أكثر من');
     expect(ai.requests, hasLength(1));
     expect(session.state.filters.values, {'search': 'إب'});
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-finish')));
-    await tester.tap(find.byKey(const ValueKey('voice-finish')));
+    await tester.ensureVisible(find.byKey(_voice));
+    await tester.tap(find.byKey(_voice));
     await tester.pump();
     voice.latest.emit(const VoiceEvent('final', text: 'السعر أكثر من ١٠٠ مليون'));
     await tester.pumpAndSettle();
@@ -144,7 +144,8 @@ void main() {
     expect(ai.requests.last.filters, {'search': 'إب'});
     expect(session.state.filters.values, {'search': 'إب', 'min_price': 100000000, 'currency': 'YER'});
     expect(_draft(tester), 'السعر أكثر من ١٠٠ مليون');
-    expect(find.text('من 100 مليون ريال يمني'), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-chip-budget')), findsNothing);
+    expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
     expect(properties.queries.last.filters['min_price'], 100000000);
 
     await _submit(tester, 'خلها أرض للبيع');
@@ -197,7 +198,9 @@ void main() {
     expect(properties.queries, isEmpty);
     response.complete({'revision': ai.requests.single.revision, 'filters': {'search': 'إب'}});
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('smart-chip-search')), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-chip-search')), findsNothing);
+    expect(find.byKey(const ValueKey('smart-search-map')), findsOneWidget);
+    expect(container.read(smartSearchSessionProvider).filters.values['search'], 'إب');
     expect(_draft(tester), 'عقارات في إب');
     expect(tester.takeException(), isNull);
   });
@@ -237,17 +240,20 @@ void main() {
         'currency': 'YER', 'min_bedrooms': 3, 'has_parking': true,
       }};
       final boundary = GlobalKey();
-      await pumpHome(tester, container, boundary: boundary, scale: scale, reducedMotion: true);
+      final router = await pumpHome(tester, container, boundary: boundary, scale: scale, reducedMotion: true);
       await _submit(tester, 'منزل للبيع في إب بسعر أكثر من مئة مليون، ثلاث غرف وموقف');
       expect(_draft(tester), 'منزل للبيع في إب بسعر أكثر من مئة مليون، ثلاث غرف وموقف');
       await tester.drag(find.byType(Scrollable).first, const Offset(0, 2000));
       await tester.pumpAndSettle();
-      for (final key in ['type', 'purpose', 'search', 'budget', 'min_bedrooms', 'has_parking']) {
-        final chip = tester.getRect(find.byKey(ValueKey('smart-chip-$key')));
-        final label = tester.getRect(find.byKey(ValueKey('smart-chip-label-$key')));
-        expect(chip.contains(label.topLeft), isTrue, reason: '$key label starts inside its criterion');
-        expect(chip.contains(label.bottomRight - const Offset(.1, .1)), isTrue, reason: '$key label must not be clipped');
-      }
+      expect(find.byKey(const ValueKey('smart-search-query-summary')), findsNothing);
+      expect(find.byKey(const ValueKey('smart-search-map')), findsOneWidget);
+      final mic = find.byKey(_voice);
+      final submit = find.byKey(_send);
+      await tester.ensureVisible(mic);
+      await tester.pumpAndSettle();
+      final restingMic = tester.getRect(mic);
+      final restingSubmit = tester.getRect(submit);
+      expect(restingMic.center.dx, lessThan(restingSubmit.center.dx));
       await preview(tester, boundary, 'search-query-summary-$scale');
 
       await tester.ensureVisible(find.byKey(_voice));
@@ -261,12 +267,15 @@ void main() {
       expect(ai.requests, hasLength(1));
       await tester.ensureVisible(find.byKey(_input));
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('voice-finish')).hitTestable(), findsOneWidget);
-      expect(find.byKey(const ValueKey('voice-cancel')).hitTestable(), findsOneWidget);
+      expect(find.byKey(const ValueKey('voice-finish')), findsNothing);
+      expect(find.byKey(const ValueKey('voice-cancel')), findsNothing);
+      expect(find.byKey(const ValueKey('smart-search-voice-ring')), findsOneWidget);
+      expect(tester.getSize(mic), restingMic.size);
+      expect(tester.getSize(submit), restingSubmit.size);
       await preview(tester, boundary, 'search-query-followup-$scale');
-      await tester.ensureVisible(find.byKey(const ValueKey('voice-cancel')));
+      router.push('/other');
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('voice-cancel')));
+      router.pop();
       await tester.pumpAndSettle();
       final resultsList = tester.widget<ListView>(find.byType(ListView).first);
       resultsList.controller!.jumpTo(0);

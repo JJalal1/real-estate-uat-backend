@@ -14,7 +14,13 @@ class BrokerProfile {
   final int ratingCount, completedDeals, activeListings, soldListings, rentedListings;
   final String? governorate, bio, photoUrl, joinedAt;
   final String? officeName;
-  String get typeLabel => type == 'office' ? 'مكتب عقاري' : type == 'owner' ? 'مالك' : type == 'broker' ? 'دلال' : 'معلن';
+  String? get marketplaceRoleLabel => switch (type) {
+    'office' => 'مكتب عقاري',
+    'broker' => 'دلال',
+    _ => null,
+  };
+  bool get marketplaceVerified => marketplaceRoleLabel != null && verified;
+  String get typeLabel => marketplaceRoleLabel ?? 'المعلن';
   factory BrokerProfile.fromJson(Map<String, dynamic> j) => BrokerProfile(id: brokerInt(j['id']), name: '${j['name'] ?? 'معلن'}',
     type: '${j['account_type'] ?? 'individual'}', verified: j['verified'] == true, rating: brokerNumber(j['rating_average']),
     soldListings:brokerInt(j['sold_listings']),rentedListings:brokerInt(j['rented_listings']),

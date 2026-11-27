@@ -2,6 +2,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\AccountVerificationProfile;
 use App\Models\VerificationChallenge;
 use App\Services\EmailVerificationSender;
 use App\Services\VerificationCodeService;
@@ -69,6 +70,40 @@ class EmailLoginAndNameTest extends TestCase
         $this->assertSame($count, User::query()->count());
         $this->assertNotNull($user->fresh()->profile_completed_at);
         $this->assertSame(1, $user->apiTokens()->count());
+    }
+
+    public function test_a_saved_name_can_be_edited_without_changing_a_legacy_verification_record(): void
+    {
+        foreach (['pending', 'approved'] as $status) {
+            $user = User::factory()->create([
+                'name' => self::NAME,
+                'account_status' => 'active',
+                'phone_verified_at' => now(),
+                'email_verified_at' => now(),
+                'profile_completed_at' => now(),
+                'identity_policy_version' => 2,
+            ]);
+            $privateDetails = ['governorate' => 'عدن', 'office_name' => 'مكتب الاختبار'];
+            $verification = AccountVerificationProfile::query()->create([
+                'user_id' => $user->id,
+                'type' => 'office',
+                'status' => $status,
+                'details' => $privateDetails,
+                'reviewed_at' => $status === 'approved' ? now() : null,
+            ]);
+
+            $this->withHeaders($this->authHeaders($user))->patchJson('/api/auth/profile', [
+                'name' => 'محمد أحمد علي صالح',
+            ])->assertOk()->assertJsonPath('data.user.name', 'محمد أحمد علي صالح');
+
+            $current = $user->fresh();
+            $this->assertSame($user->phone, $current->phone);
+            $this->assertSame($user->email, $current->email);
+            $this->assertNotNull($current->phone_verified_at);
+            $this->assertNotNull($current->email_verified_at);
+            $this->assertSame($status, $verification->fresh()->status);
+            $this->assertSame($privateDetails, $verification->fresh()->details);
+        }
     }
 
     public function test_existing_verified_email_logs_in_without_a_name_and_keeps_the_same_account(): void

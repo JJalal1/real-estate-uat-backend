@@ -32,10 +32,21 @@ class Wave3MarketplaceApiTest extends TestCase
 
         $first = $this->create($headers);
         $second = $this->create($headers, ['longitude' => 44.25, 'title' => 'عقار ثان']);
+        [, $outsiderHeaders] = $this->actor('publication-outsider', 'broker');
+        $this->withHeaders($outsiderHeaders)->postJson("/api/properties/$first/submit", [
+            'publish_now' => true,
+            'upgrade_to_broker' => true,
+        ])->assertForbidden();
         $this->withHeaders($headers)->getJson('/api/listing-access')->assertOk()
             ->assertJsonPath('data.listing_count', 0)->assertJsonPath('data.upgrade_required', false);
         $this->withHeaders($headers)->postJson("/api/properties/$first/submit", ['publish_now' => true])
             ->assertOk()->assertJsonPath('data.status', 'published');
+        $this->withHeaders($headers)->post("/api/properties/$first", [
+            'title' => 'منزل للعائلة في حدة بعد التعديل',
+            'submit_for_review' => true,
+            'publish_now' => true,
+        ])->assertOk()->assertJsonPath('data.id', $first)->assertJsonPath('data.status', 'published');
+        $this->assertSame($first, (int) $owner->fresh()->first_marketplace_listing_id);
         $this->withHeaders($headers)->postJson("/api/properties/$first/submit", ['publish_now' => true])
             ->assertOk()->assertJsonPath('data.status', 'published');
         $this->assertNull($owner->fresh()->broker_enrolled_at);
@@ -57,7 +68,8 @@ class Wave3MarketplaceApiTest extends TestCase
         $this->withHeaders($headers)->getJson('/api/listing-sai-policy?purpose=sale')->assertOk()
             ->assertJsonPath('data.advertiser_type', 'broker');
         $this->withHeaders($headers)->getJson("/api/properties/$second/sai-management")->assertOk()
-            ->assertJsonPath('data.sai_management.advertiser_type', 'owner')
+            ->assertJsonPath('data.sai_management.advertiser_type', 'broker')
+            ->assertJsonPath('data.sai_management.requested_broker_rate_percent', 2)
             ->assertJsonPath('data.sai_management.configured', true);
     }
 
@@ -76,11 +88,20 @@ class Wave3MarketplaceApiTest extends TestCase
         $this->withHeaders($headers)->post('/api/properties', $this->payload())->assertCreated();
     }
 
-    public function test_personal_owner_keeps_property_actions_but_cannot_open_crm(): void
+    public function test_legacy_owner_is_an_individual_publicly_and_keeps_property_actions_but_not_crm(): void
     {
-        [, $headers] = $this->actor('owner-tools', 'owner');
+        [$owner, $headers] = $this->actor('owner-tools', 'owner');
         $id = $this->create($headers);
         Property::findOrFail($id)->forceFill(['status' => 'published', 'review_status' => 'approved', 'published_at' => now()])->save();
+        $this->getJson("/api/advertisers/{$owner->id}/profile")->assertOk()
+            ->assertJsonPath('data.account_type', 'individual')
+            ->assertJsonPath('data.verified', false);
+        $this->getJson("/api/properties/$id")->assertOk()
+            ->assertJsonPath('data.advertiser.verification_type', null)
+            ->assertJsonPath('data.advertiser.verification_label', 'معلن')
+            ->assertJsonPath('data.advertiser.verification_status', 'not_submitted')
+            ->assertJsonPath('data.advertiser.verification_flags.identity_reviewed', false)
+            ->assertJsonPath('data.advertiser.verification_flags.relationship_document_reviewed', false);
         foreach (['/api/broker/workspace', '/api/broker/customers'] as $path) {
             $this->withHeaders($headers)->getJson($path)->assertForbidden();
         }
@@ -119,7 +140,48 @@ class Wave3MarketplaceApiTest extends TestCase
         }
     }
 
-    public function test_owner_upgrade_requires_fresh_documents_and_review(): void
+    public function test_legacy_owner_enrolls_from_second_publication_without_changing_verification(): void
+    {
+        [$owner, $headers] = $this->actor('legacy-owner-enroll', 'owner');
+        $verification = $owner->verificationProfile()->getRawOriginal();
+        $first = $this->create($headers);
+        $second = $this->create($headers, ['longitude' => 44.25, 'title' => 'إعلان إضافي']);
+
+        $this->withHeaders($headers)->postJson("/api/properties/$first/submit", ['publish_now' => true])
+            ->assertOk()->assertJsonPath('data.status', 'published');
+        $this->withHeaders($headers)->postJson("/api/properties/$second/submit", ['publish_now' => true])
+            ->assertConflict()->assertJsonPath('code', 'broker_upgrade_required');
+        $this->assertNull($owner->fresh()->broker_enrolled_at);
+
+        $this->withHeaders($headers)->postJson("/api/properties/$second/submit", [
+            'publish_now' => true,
+            'upgrade_to_broker' => true,
+        ])->assertOk()->assertJsonPath('data.status', 'published');
+
+        $owner->refresh();
+        $this->assertNotNull($owner->broker_enrolled_at);
+        $this->assertSame($first, (int) $owner->first_marketplace_listing_id);
+        $this->assertSame($verification, $owner->verificationProfile()->getRawOriginal());
+        $this->assertFalse($owner->hasPermission('listings.moderate'));
+        $this->withHeaders($headers)->getJson('/api/broker/workspace')->assertOk();
+    }
+
+    public function test_old_personal_account_can_submit_for_review_without_proof(): void
+    {
+        [$user, $headers] = $this->actor('version-zero', 'owner');
+        $user->accountVerificationProfile()->delete();
+        $user->forceFill(['identity_policy_version' => 0])->save();
+
+        $created = $this->withHeaders($headers)->post('/api/properties', $this->payload([
+            'submit_for_review' => true,
+        ]))->assertCreated()->assertJsonPath('data.review_status', 'submitted');
+
+        $id = (int) $created->json('data.id');
+        $this->assertSame($id, (int) $user->fresh()->first_marketplace_listing_id);
+        $this->assertDatabaseMissing('listing_documents', ['property_id' => $id]);
+    }
+
+    public function test_legacy_review_request_still_validates_documents_independently_of_enrollment(): void
     {
         [$owner, $headers] = $this->actor('upgrade', 'owner');
         $this->withHeaders($headers)->post('/api/account-verification', ['type' => 'broker', 'governorate' => 'صنعاء', 'district' => 'حدة'])
@@ -155,8 +217,10 @@ class Wave3MarketplaceApiTest extends TestCase
     private function create(array $headers, array $changes = []): int
     {
         $id = (int) $this->withHeaders($headers)->post('/api/properties', $this->payload($changes))->assertCreated()->json('data.id');
-        $type = Property::findOrFail($id)->user->verificationProfileType();
-        $this->withHeaders($headers)->putJson("/api/properties/$id/sai", in_array($type, ['owner', null], true) ? [] : ['broker_sai_rate_percent' => 2, 'platform_terms_decision' => 'accept'])->assertOk();
+        $this->withHeaders($headers)->putJson("/api/properties/$id/sai", [
+            'broker_sai_rate_percent' => 2,
+            'platform_terms_decision' => 'accept',
+        ])->assertOk();
         return $id;
     }
 }

@@ -11,6 +11,7 @@ import 'package:real_estate_mobile/core/local/listing_recovery_store.dart';
 import 'package:real_estate_mobile/core/platform/voice_input.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/app_shell/presentation/app_shell_screen.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
@@ -21,13 +22,14 @@ import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/data/listing_account_draft_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/listing_account_draft.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_sai.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_sai_configuration_sheet.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_editor_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/listing_draft_entry_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_compare_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
-import 'broker_experience_ui_test.dart' show BrokerTestAuth;
+import 'broker_experience_ui_test.dart' show BrokerTestAuth, brokerTestUser;
 import 'support/wave3_fakes.dart';
 import 'support/wave6_fakes.dart';
 
@@ -41,10 +43,10 @@ Map<String,dynamic> editorSnapshot({String type='house'})=>{
 Finder textField(String label)=>find.byWidgetPredicate((w)=>w is TextField && w.decoration?.labelText==label);
 
 Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,Wave3VoiceFake? voice,bool testMap=false,double scale=1,GlobalKey? boundary,
-  bool allowLocation=false,DiscoveryLocationStore? locationStore,DiscoveryLocationAccess? locationAccess,Wave3MarketplaceFake? marketplace})async{
+  bool allowLocation=false,DiscoveryLocationStore? locationStore,DiscoveryLocationAccess? locationAccess,Wave3MarketplaceFake? marketplace, AuthController Function()? auth})async{
   tester.view.physicalSize=const Size(412,915);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(()=>BrokerTestAuth(1)),
+  await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(auth ?? BrokerTestAuth.new),
     propertyRepositoryProvider.overrideWithValue(Wave6Properties()),aiRepositoryProvider.overrideWithValue(ai??Wave6Ai()),
     listingAccountDraftRepositoryProvider.overrideWithValue(drafts??Wave6Drafts()),listingRecoveryStoreProvider.overrideWithValue(recovery??Wave6Recovery()),
     voiceInputProvider.overrideWithValue(voice??Wave3VoiceFake()),
@@ -90,6 +92,26 @@ class Wave6SaiProperties extends Wave6Properties {
     return const PropertySaiEnvelope(management:policy);
   }
 }
+
+class _HistoricalAdvertiserAuth extends BrokerTestAuth {
+  @override
+  Future<AuthUser?> build() async => brokerTestUser(1, {
+    'account_type': 'regular',
+    'verification_profile': {
+      'type': 'owner', 'status': 'approved', 'reviewed_at': '2026-10-12T00:00:00Z',
+    },
+  });
+}
+
+class _HistoricalSaiProperties extends Wave6SaiProperties {
+  @override
+  Future<PropertySaiEnvelope> saiForEditor(int id) async => const PropertySaiEnvelope(
+    management: PropertySaiManagement(configured: true, advertiserType: 'owner',
+      purpose: 'sale', saiRatePercent: 1.5, fixedRatePercent: 1,
+      platformSharePercent: 100, fallbackPlatformSharePercent: 100),
+  );
+}
+
 void main(){
   setUpAll(() { WidgetController.hitTestWarningShouldBeFatal=true; });
   tearDownAll(() { WidgetController.hitTestWarningShouldBeFatal=false; });
@@ -100,6 +122,96 @@ void main(){
     final icons=await File('${Platform.environment['FLUTTER_ROOT']!}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf').readAsBytes();
     await (FontLoader('MaterialIcons')..addFont(Future.value(icons.buffer.asByteData()))).load();
   });
+
+  testWidgets('a historical advertiser can resume corrections without owner proof', (tester) async {
+    final existing = PropertyDetails.fromJson({
+      'id': 11, 'title': 'منزل قيد التصحيح', 'type': 'house', 'purpose': 'sale',
+      'status': 'draft', 'review_status': 'returned_for_correction', 'is_owner': true,
+      'ownership_document_type': 'purchase_deed', 'document_owner_name': 'اسم تاريخي مختلف',
+      'owner_relationship_type': 'owner', 'ownership_proof_present': false,
+    });
+    await pumpWave6(tester, ListingEditorScreen(existingProperty: existing, localRecovery: {
+      ...editorSnapshot(), 'step': 1, 'proof_needs_reselection': true,
+    }), auth: _HistoricalAdvertiserAuth.new);
+    expect(find.text('موقع العقار'), findsOneWidget);
+    expect(find.text('إثبات علاقتك بهذا العقار'), findsNothing);
+    expect(find.text('اسم صاحب الحق كما في المستند'), findsNothing);
+    expect(find.textContaining('إثبات الملكية'), findsNothing);
+    await tester.tap(find.text('التالي'));
+    await tester.pumpAndSettle();
+    expect(find.text('المواصفات'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await finishWave6(tester);
+  });
+
+  for (final historical in [false, true]) {
+    testWidgets('unpublished regular advertiser chooses sai amount or rate historical=$historical', (tester) async {
+      await pumpWave6(tester, ListingEditorScreen(localRecovery: {
+        ...editorSnapshot(), 'step': 3,
+      }), auth: historical ? _HistoricalAdvertiserAuth.new : () => BrokerTestAuth(2));
+      final amount = find.byKey(const ValueKey('listing-sai-amount'));
+      final rate = find.byKey(const ValueKey('listing-sai-rate'));
+      final percentage = find.byKey(const ValueKey('listing-sai-percentage'));
+      await tester.ensureVisible(amount);
+      await tester.enterText(amount, '250000');
+      await tester.pumpAndSettle();
+      expect(find.text('حصة المنصة تُحتسب على المعلن'), findsOneWidget);
+      expect(find.text('حصة المنصة 50000 ريال'), findsOneWidget);
+      await tester.ensureVisible(percentage);
+      await tester.tap(percentage);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(rate);
+      await tester.enterText(rate, '3');
+      await tester.pumpAndSettle();
+      expect(find.text('حصة المنصة 20% · 60000 ريال من سعي 300000 ريال'), findsOneWidget);
+      expect(find.text('ترقية حسابك إلى دلال؟'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await finishWave6(tester);
+    });
+  }
+
+  testWidgets('confirming a historical term preserves it until the advertiser edits explicitly', (tester) async {
+    final repository = _HistoricalSaiProperties();
+    bool? ready;
+    await tester.pumpWidget(MaterialApp(theme: AppTheme.light, home: Scaffold(body: Builder(
+      builder: (context) => TextButton(child: const Text('ابدأ'), onPressed: () async {
+        ready = await showPropertySaiConfigurationSheet(context,
+          repository: repository, propertyId: 11, purpose: 'sale', basis: 10000000,
+          professionalAdvertiser: false);
+      }),
+    ))));
+    await tester.tap(find.text('ابدأ'));
+    await tester.pumpAndSettle();
+    expect(find.text('النسبة الثابتة المسجّلة 1.5%'), findsOneWidget);
+    final confirm = find.text('تأكيد السعي والمتابعة');
+    await tester.ensureVisible(confirm);
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(ready, isTrue);
+    expect(repository.writes, 0);
+
+    await tester.tap(find.text('ابدأ'));
+    await tester.pumpAndSettle();
+    final edit = find.byKey(const ValueKey('listing-sai-edit-historical'));
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    final amount = find.byKey(const ValueKey('listing-sai-amount'));
+    await tester.ensureVisible(amount);
+    await tester.enterText(amount, '250000');
+    await tester.pumpAndSettle();
+    final accept = find.text('قبول');
+    await tester.ensureVisible(accept);
+    await tester.tap(accept);
+    await tester.pumpAndSettle();
+    expect(ready, isTrue);
+    expect(repository.writes, 1);
+    expect(repository.savedType, 'fixed');
+    expect(repository.savedAmount, 250000);
+    expect(repository.decision, 'accept');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('fresh entry has no initial chips or save; list/map share text, coordinates and filters; full reentry is empty',(tester)async{
     final properties=Wave6Properties(),ai=Wave6Ai(),container=ProviderContainer(overrides:[propertyRepositoryProvider.overrideWithValue(properties),
       aiRepositoryProvider.overrideWithValue(ai),voiceInputProvider.overrideWithValue(Wave3VoiceFake()),
@@ -116,7 +228,7 @@ void main(){
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));await tester.tap(find.byKey(const ValueKey('smart-search-send')));await tester.pumpAndSettle();
     final before=container.read(smartSearchSessionProvider).filters.values;
     expect(tester.widget<TextField>(field).controller!.text,'شقة للإيجار في صنعاء');
-    expect(find.byKey(const ValueKey('smart-search-query-summary')),findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-query-summary')),findsNothing);
     await tester.enterText(field,'مسودة متابعة لم أرسلها');
     expect(find.byKey(const ValueKey('smart-search-save')),findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
@@ -125,13 +237,18 @@ void main(){
     await tester.tap(find.byTooltip('إغلاق البحث'));await tester.pumpAndSettle();
     expect(find.text('15.3694,44.191'),findsOneWidget);
     await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, 500)); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('map-pan')));
+    await tester.pumpAndSettle();
+    expect(container.read(smartSearchSessionProvider).filters.values['south'], 15.2);
     expect(find.byKey(const ValueKey('marker-11')).hitTestable(), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('marker-11')));await tester.pumpAndSettle();
-    await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -215)); await tester.pumpAndSettle();
-    expect(find.text('عقار تجريبي 11'),findsOneWidget);
-    await tester.drag(find.byKey(const ValueKey('map-results-handle')),const Offset(0,350));await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('map-pan')));await tester.pumpAndSettle();expect(container.read(smartSearchSessionProvider).filters.values['south'],15.2);
-    await tester.tap(find.byKey(const ValueKey('smart-search-list')));await tester.pumpAndSettle();expect(tester.widget<TextField>(field).controller!.text,'مسودة متابعة لم أرسلها');
+    final markerPreview = find.byKey(const ValueKey('map-marker-preview-11'));
+    expect(markerPreview.hitTestable(), findsOneWidget);
+    expect(find.descendant(of: markerPreview, matching: find.text('عقار تجريبي 11')), findsOneWidget);
+    expect(find.byKey(const ValueKey('map-results-handle')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('map-back')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, 'مسودة متابعة لم أرسلها');
     router.pop();await tester.pumpAndSettle();await tester.tap(find.text('ابدأ'));await tester.pumpAndSettle();
     expect(container.read(smartSearchSessionProvider).filters.values,isEmpty);expect(tester.widget<TextField>(field).controller!.text,isEmpty);expect(properties.queries,isNotEmpty);
     await finishWave6(tester);
@@ -231,7 +348,7 @@ void main(){
       final field=find.byKey(const ValueKey('smart-search-description'));
       await tester.enterText(field,'شقة للإيجار في صنعاء');await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));
       await tester.tap(find.byKey(const ValueKey('smart-search-send')));await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('smart-search-manual')),findsOneWidget);
+      expect(find.byKey(const ValueKey('smart-search-manual')),findsNothing);
       expect(tester.widget<TextField>(field).controller!.text,'شقة للإيجار في صنعاء');
       await previewWave6(tester,boundary,'wave6-search-$scale');
       await tester.enterText(field,'أضف شرطًا آخر');
@@ -244,8 +361,10 @@ void main(){
       await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, 500)); await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('fixture-map-11')).hitTestable(), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('fixture-map-11')));await tester.pumpAndSettle();
-      await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, -210)); await tester.pumpAndSettle();
-      expect(find.text('عقار تجريبي 11'),findsOneWidget);
+      final markerPreview = find.byKey(const ValueKey('map-marker-preview-11'));
+      expect(markerPreview.hitTestable(), findsOneWidget);
+      expect(find.descendant(of: markerPreview, matching: find.text('عقار تجريبي 11')), findsOneWidget);
+      expect(find.byKey(const ValueKey('map-results-handle')), findsNothing);
       await previewWave6(tester,boundary,'wave6-map-$scale');
       expect(tester.takeException(),isNull);await finishWave6(tester);
     });

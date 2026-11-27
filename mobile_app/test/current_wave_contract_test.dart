@@ -96,11 +96,10 @@ void main() {
     final store = MemoryLocationStore(), access = FakeLocationAccess();
     var location = const HomeLocation();
     DiscoveryLocationCoordinator controller() => DiscoveryLocationCoordinator(store,access,()=>location,(next)=>location=next);
-    await Future.wait([controller().initialize(), Future<void>.value()]);
-    expect(access.requests,0); expect(access.fixes,0); expect(store.value.permissionResolved,false);
-    await expectLater(controller().useDevice(),throwsStateError);
-    expect(access.requests,1);expect(store.value.permissionResolved,true);
-    await controller().initialize(); expect(access.requests,1);
+    await expectLater(controller().initialize(), throwsStateError);
+    expect(access.requests, 1); expect(access.fixes, 0); expect(store.value.permissionResolved, isTrue);
+    await controller().initialize();
+    expect(access.requests, 1);
     final c = controller();
     await c.selectManual(const HomeLocation(latitude:13.58,longitude:44.02,governorate:'تعز',label:'تعز',manual:true));
     location = const HomeLocation(); await controller().initialize();
@@ -111,9 +110,10 @@ void main() {
     var location=const HomeLocation();
     final c=DiscoveryLocationCoordinator(store,access,()=>location,(next)=>location=next);
     await Future.wait([c.initialize(),c.initialize()]);
-    expect(access.requests,0);expect(location.device,false);
+    expect(access.requests, 1); expect(access.fixes, 1);
+    expect(location.device, isTrue); expect(location.latitude, 12.8);
     await c.useDevice();
-    expect(access.requests,1);expect(location.device,true);expect(location.latitude,12.8);
+    expect(access.requests, 1); expect(access.fixes, 2);
     expect(store.value.manual,isNull);
     access.pending=Completer<HomeLocation>();final pending=c.useDevice();await Future<void>.delayed(Duration.zero);
     await c.selectManual(const HomeLocation(latitude:13.58,longitude:44.02,governorate:'تعز',label:'تعز',manual:true));
@@ -132,7 +132,7 @@ void main() {
     await session.interpret('في عدن');expect(session.state.filters.values['governorate'],'عدن');expect(session.state.filters.values.containsKey('governorate_code'),false);expect(session.state.filters.values.containsKey('latitude'),false);
     session.endJourney(first);await Future<void>.delayed(Duration.zero);expect(session.state.filters.values,isEmpty);
     session.beginJourney(savedFilters:SmartSearchFilters.fromMap({'governorate':'صنعاء','type':'land'}));
-    expect(session.state.filters.values,{'governorate':'صنعاء','type':'land'});
+    expect(session.state.filters.values,{'governorate':'صنعاء','governorate_code':'SANAA','type':'land'});
   });
   test('one description request serves double taps, then a later explicit request is allowed', () async {
     final dio=Dio(),auth=DescriptionAuth(),pending=Completer<void>(),started=Completer<void>();int calls=0;

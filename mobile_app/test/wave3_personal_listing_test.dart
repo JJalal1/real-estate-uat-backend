@@ -11,7 +11,9 @@ import 'package:real_estate_mobile/features/properties/data/property_repository.
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/presentation/add_property_wizard_screen.dart';
 
-class _OwnerAuth extends AuthController {
+class _PublicationAuth extends AuthController {
+  _PublicationAuth(this.historicalOwner);
+  final bool historicalOwner;
   int refreshes = 0;
   @override
   Future<void> refresh() async {
@@ -25,7 +27,7 @@ class _OwnerAuth extends AuthController {
         'account_status': 'active',
         'phone_verified_at': '2026-10-13T10:00:00Z',
         'profile_completed_at': '2026-10-13T10:00:00Z',
-        'verification_profile': {
+        if (historicalOwner) 'verification_profile': {
           'type': 'owner',
           'status': 'approved',
           'reviewed_at': '2026-10-13T10:00:00Z'
@@ -41,13 +43,14 @@ class _UploadAuth implements AuthRepository {
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
-Future<_OwnerAuth> _mountPublisher(
+Future<_PublicationAuth> _mountPublisher(
   WidgetTester tester, {
   required bool needsUpgrade,
+  required bool historicalOwner,
   required List<Map<String, dynamic>> calls,
   required List<PropertyDetails?> results,
 }) async {
-  final auth = _OwnerAuth();
+  final auth = _PublicationAuth(historicalOwner);
   final dio = Dio(BaseOptions(baseUrl: 'https://fixture.example.test/api'));
   dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
     final body = Map<String, dynamic>.from(request.data as Map);
@@ -105,42 +108,44 @@ void main() {
     expect(find.text('ترقية ونشر الإعلان'), findsNothing);
   });
 
-  testWidgets('first publication succeeds directly', (tester) async {
-    final calls = <Map<String, dynamic>>[], results = <PropertyDetails?>[];
-    final auth = await _mountPublisher(tester,
-        needsUpgrade: false, calls: calls, results: results);
-    await tester.tap(find.text('نشر الإعلان'));
-    await tester.pumpAndSettle();
-    expect(calls, [
-      {'publish_now': true}
-    ]);
-    expect(results.single!.status, 'published');
-    expect(auth.refreshes, 0);
-    expect(find.text('ترقية ونشر الإعلان'), findsNothing);
-  });
-
-  for (final accept in [false, true]) {
-    testWidgets('second publication waits for consent, accept=$accept',
-        (tester) async {
+  for (final historicalOwner in [false, true]) {
+    testWidgets('first publication succeeds directly, historicalOwner=$historicalOwner', (tester) async {
       final calls = <Map<String, dynamic>>[], results = <PropertyDetails?>[];
       final auth = await _mountPublisher(tester,
-          needsUpgrade: true, calls: calls, results: results);
+          needsUpgrade: false, historicalOwner: historicalOwner, calls: calls, results: results);
       await tester.tap(find.text('نشر الإعلان'));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsOneWidget);
       expect(calls, [
         {'publish_now': true}
       ]);
-      expect(results, isEmpty);
-      await tester.tap(find.text(accept ? 'ترقية ونشر الإعلان' : 'ليس الآن'));
-      await tester.pumpAndSettle();
-      expect(calls, [
-        {'publish_now': true},
-        if (accept) {'publish_now': true, 'upgrade_to_broker': true},
-      ]);
-      expect(results.single?.status, accept ? 'published' : null);
-      expect(auth.refreshes, accept ? 1 : 0);
+      expect(results.single!.status, 'published');
+      expect(auth.refreshes, 0);
+      expect(find.text('ترقية ونشر الإعلان'), findsNothing);
     });
+
+    for (final accept in [false, true]) {
+      testWidgets('second publication waits for consent, historicalOwner=$historicalOwner accept=$accept',
+          (tester) async {
+        final calls = <Map<String, dynamic>>[], results = <PropertyDetails?>[];
+        final auth = await _mountPublisher(tester,
+            needsUpgrade: true, historicalOwner: historicalOwner, calls: calls, results: results);
+        await tester.tap(find.text('نشر الإعلان'));
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(calls, [
+          {'publish_now': true}
+        ]);
+        expect(results, isEmpty);
+        await tester.tap(find.text(accept ? 'ترقية ونشر الإعلان' : 'ليس الآن'));
+        await tester.pumpAndSettle();
+        expect(calls, [
+          {'publish_now': true},
+          if (accept) {'publish_now': true, 'upgrade_to_broker': true},
+        ]);
+        expect(results.single?.status, accept ? 'published' : null);
+        expect(auth.refreshes, accept ? 1 : 0);
+      });
+    }
   }
 
   test('whole-floor state survives models and multipart boolean encoding',

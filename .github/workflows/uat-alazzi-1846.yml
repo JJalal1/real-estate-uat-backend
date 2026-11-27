@@ -2,7 +2,10 @@ name: Alazzi signed UAT installer
 
 on:
   push:
-    branches: [work/alazzi-unify-1846, work/alazzi-marketplace-1847]
+    branches:
+      - work/alazzi-unify-1846
+      - work/alazzi-marketplace-1847
+      - release/alazzi-1848-account-search
 
 permissions:
   contents: read
@@ -12,13 +15,22 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AQER_BUILD: ${{ github.ref_name == 'work/alazzi-marketplace-1847' && '1847' || '1846' }}
+  AQER_BUILD: >-
+    ${{ github.ref_name == 'release/alazzi-1848-account-search' && '1848'
+      || github.ref_name == 'work/alazzi-marketplace-1847' && '1847' || '1846' }}
   AQER_SOURCE_SHA: ${{ github.sha }}
+  AQER_PUBSPEC_BLOB: >-
+    ${{ github.ref_name == 'release/alazzi-1848-account-search'
+      && '09ac4bdf253134411b87d99acd412bb118159e71' || '4583d88e975281d4d55c0622b48ae1249342d99c' }}
 
 jobs:
   verify-api:
     name: Test listing availability, deal confirmation and dues APIs
-    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
+    if: >-
+      ${{ github.repository == 'JJalal1/real-estate-uat-backend' && !github.event.deleted &&
+          ((github.event.repository.private && github.ref_name != 'release/alazzi-1848-account-search') ||
+           (github.actor == github.repository_owner &&
+            (github.ref_name == 'work/alazzi-marketplace-1847' || github.ref_name == 'release/alazzi-1848-account-search'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 27
     services:
@@ -99,7 +111,11 @@ jobs:
 
   verify-flutter:
     name: Analyze Flutter and exercise listing, finance, and support journeys
-    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
+    if: >-
+      ${{ github.repository == 'JJalal1/real-estate-uat-backend' && !github.event.deleted &&
+          ((github.event.repository.private && github.ref_name != 'release/alazzi-1848-account-search') ||
+           (github.actor == github.repository_owner &&
+            (github.ref_name == 'work/alazzi-marketplace-1847' || github.ref_name == 'release/alazzi-1848-account-search'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 28
     steps:
@@ -119,7 +135,7 @@ jobs:
         working-directory: mobile_app
         run: |
           # This manifest differs from UAT 1830 only by the Cairo font assets.
-          test "$(git hash-object pubspec.yaml)" = '4583d88e975281d4d55c0622b48ae1249342d99c'
+          test "$(git hash-object pubspec.yaml)" = "$AQER_PUBSPEC_BLOB"
           git diff --exit-code fd832497768aac67fdd32485f2af835f273111c8 HEAD -- \
             pubspec.lock ../docs/ui-transplant-v3/pubspec_overrides.yaml
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
@@ -184,7 +200,11 @@ jobs:
     needs: [verify-api, verify-flutter]
     permissions:
       contents: write
-    if: ${{ github.repository == 'JJalal1/real-estate-uat-backend' && (github.event.repository.private || (github.ref_name == 'work/alazzi-marketplace-1847' && github.actor == github.repository_owner)) }}
+    if: >-
+      ${{ github.repository == 'JJalal1/real-estate-uat-backend' && !github.event.deleted &&
+          ((github.event.repository.private && github.ref_name != 'release/alazzi-1848-account-search') ||
+           (github.actor == github.repository_owner &&
+            (github.ref_name == 'work/alazzi-marketplace-1847' || github.ref_name == 'release/alazzi-1848-account-search'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -194,6 +214,8 @@ jobs:
       AQER_JAWALI_ARTWORK_SHA256: '5288ea4552ee477d6418f03692982ca0eb2adaf31bf600b9d387e0481367f66e'
       AQER_HOME_ASSISTANT_ASSET_PATH: assets/brand/home-smart-assistant.webp
       AQER_HOME_ASSISTANT_ASSET_SHA256: '0fd0d4726de99e45609a1ed94f76756f7abdb2616c683b97d52dbedd7117617a'
+      AQER_GOVERNORATES_ASSET_PATH: assets/regions/yemen-adm1.geojson
+      AQER_GOVERNORATES_ASSET_SHA256: 'f8a7f28f8fe73a5263ea43bb868cc7eeb7a01c7faf419f2155cffd9fef4ea253'
       AQER_SIGNING_ENVIRONMENT: uat
       AQER_VERIFIED_FIREBASE_FINGERPRINT: '716a458274e8e131530269d9a5196cf6bd3e3bc9d231f3c0c415870d0b1dc79a'
       AQER_ALLOW_DEBUG_RELEASE_SIGNING: 'false'
@@ -206,13 +228,31 @@ jobs:
           ref: ${{ env.AQER_SOURCE_SHA }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify source and protect approved UAT 1845 mobile inputs
+      - name: Verify source and protect approved UAT mobile inputs
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$AQER_SOURCE_SHA"
           baseline=8b5ad43b62afab42bd4dbc10cd0bd1ed3e5b6308
+          protected_exclusions=()
           if [ "$AQER_BUILD" = 1847 ]; then
             baseline=c5c9ec1a50ddd41fcc8c0d1f88a48dd66986d44a
+          elif [ "$AQER_BUILD" = 1848 ]; then
+            baseline=8f31b6823b9d8f28d795d7818de1426ce79a569d
+            tested_source="$(git rev-parse --verify 'refs/remotes/origin/work/alazzi-account-smart-search-1848^{commit}')"
+            test "$tested_source" = "$AQER_SOURCE_SHA"
+            governorates="mobile_app/$AQER_GOVERNORATES_ASSET_PATH"
+            notice=mobile_app/assets/regions/README.md
+            protected_exclusions=(":(exclude,top)$governorates" ":(exclude,top)$notice" ":(exclude,top)mobile_app/pubspec.yaml")
+            test -f "$governorates" && test ! -L "$governorates"
+            test -f "$notice" && test ! -L "$notice"
+            cmp "backend-api-runtime/resources/regions/${governorates##*/}" "$governorates"
+            cmp "backend-api-runtime/resources/regions/${notice##*/}" "$notice"
+            printf '%s  %s\n' "$AQER_GOVERNORATES_ASSET_SHA256" "$governorates" \
+              '1d97dedd3df366c9ee63e2011475ef6d098c8ddfed4afaadb640f15191348091' "$notice" | sha256sum --check --strict
+          fi
+          test ! -L mobile_app/pubspec.yaml
+          test "$(git hash-object mobile_app/pubspec.yaml)" = "$AQER_PUBSPEC_BLOB"
+          if [ "$AQER_BUILD" != 1846 ]; then
             git diff --exit-code "$baseline" HEAD -- docs/PUBLIC_UAT_DELIVERY.json .github/uat-apk-recipient.pem scripts/prepare_phase1_close.py
           fi
           kuraimi="mobile_app/$AQER_KURAIMI_ARTWORK_PATH"
@@ -220,8 +260,12 @@ jobs:
           git merge-base --is-ancestor "$baseline" HEAD
           git diff --exit-code "$baseline" HEAD -- docs/uat-signing-identity.json \
             mobile_app/android mobile_app/ios mobile_app/pubspec.yaml mobile_app/pubspec.lock \
-            mobile_app/assets scripts/import_ci_uat_firebase.py
-          printf '%s  %s\n' 'b94d32f369e40254381cc6320fe911a41e015441ec89ca94d2b54ab493656790' scripts/import_ci_uat_signing.py \
+            mobile_app/assets scripts/import_ci_uat_firebase.py "${protected_exclusions[@]}"
+          signing_importer_sha256='b94d32f369e40254381cc6320fe911a41e015441ec89ca94d2b54ab493656790'
+          if [ "$AQER_BUILD" = 1848 ]; then
+            signing_importer_sha256='4f7e8f991cc2ed0fd72d0d12a02653e25e537805cb1bd0dd6b7dc15757ccd42e'
+          fi
+          printf '%s  %s\n' "$signing_importer_sha256" scripts/import_ci_uat_signing.py \
             | sha256sum --check --strict
           test -f "$kuraimi" && test ! -L "$kuraimi"
           test -f "$jawali" && test ! -L "$jawali"
@@ -259,7 +303,7 @@ jobs:
         working-directory: mobile_app
         run: |
           # This manifest differs from UAT 1830 only by the Cairo font assets.
-          test "$(git hash-object pubspec.yaml)" = '4583d88e975281d4d55c0622b48ae1249342d99c'
+          test "$(git hash-object pubspec.yaml)" = "$AQER_PUBSPEC_BLOB"
           git diff --exit-code fd832497768aac67fdd32485f2af835f273111c8 HEAD -- \
             pubspec.lock ../docs/ui-transplant-v3/pubspec_overrides.yaml
           cp ../docs/ui-transplant-v3/pubspec_overrides.yaml pubspec_overrides.yaml
@@ -344,6 +388,7 @@ jobs:
           from prepare_uat_firebase import OFFLINE_PACKAGE
 
           apk = Path(sys.argv[1])
+          build = int(os.environ["AQER_BUILD"])
           identity = json.loads(Path("docs/uat-signing-identity.json").read_text())
           assert identity["approved_for_delivery"] and identity["github_secret_storage_verified"]
           assert os.environ["SIGNER_SHA256"] == identity["certificate_sha256"]
@@ -376,6 +421,12 @@ jobs:
               bundled_assistant = contents.read("assets/flutter_assets/" + assistant_asset)
               assert hashlib.sha256(bundled_assistant).hexdigest() == assistant_digest
               assert bundled_assistant == Path("mobile_app", assistant_asset).read_bytes()
+              if build == 1848:
+                  governorates_asset = os.environ["AQER_GOVERNORATES_ASSET_PATH"]
+                  bundled_governorates = contents.read("assets/flutter_assets/" + governorates_asset)
+                  governorates_digest = hashlib.sha256(bundled_governorates).hexdigest()
+                  assert governorates_digest == os.environ["AQER_GOVERNORATES_ASSET_SHA256"]
+                  assert bundled_governorates == Path("mobile_app", governorates_asset).read_bytes()
               for weight in ("Regular", "Medium", "SemiBold", "Bold", "ExtraBold"):
                   asset = "assets/fonts/Cairo-" + weight + ".ttf"
                   bundled = contents.read("assets/flutter_assets/" + asset)
@@ -399,8 +450,8 @@ jobs:
           assert firebase["config_fingerprint"] == os.environ["AQER_VERIFIED_FIREBASE_FINGERPRINT"]
           receipt = {
               "branch": os.environ["GITHUB_REF_NAME"],
-              "size_baseline_build": 1845,
-              "bytes_baseline": 25938100,
+              "size_baseline_build": 1847 if build == 1848 else 1845,
+              "bytes_baseline": 25922129 if build == 1848 else 25938100,
               "cairo_fonts_verified": True,
               "assistant_asset": {"path": assistant_asset, "sha256": assistant_digest, "bundled_verified": True},
               "payment_artwork": payment_artwork,
@@ -408,7 +459,7 @@ jobs:
               "source": os.environ["AQER_SOURCE_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
               "package": "com.aqer.yemen.uat.offline",
-              "build": int(os.environ["AQER_BUILD"]),
+              "build": build,
               "certificate_sha256": identity["certificate_sha256"],
               "bytes": apk.stat().st_size,
               "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
@@ -416,6 +467,10 @@ jobs:
               "google_maps_android_configured": True,
               "firebase": firebase,
           }
+          if build == 1848:
+              receipt["governorates_asset"] = {
+                  "path": governorates_asset, "sha256": governorates_digest, "bundled_verified": True,
+              }
           (apk.parent / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
           print(json.dumps(receipt))
           PY
@@ -434,10 +489,11 @@ jobs:
           set -euo pipefail
           cd uat-installer
           apk="AQER-UAT-$AQER_BUILD-Alazzi-ARM64.apk"
-          jq -e --argjson build "$AQER_BUILD" --arg source "$AQER_SOURCE_SHA" '.source == $source and .build == $build and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
+          jq -e --argjson build "$AQER_BUILD" --arg source "$AQER_SOURCE_SHA" \
+            '.source == $source and .build == $build and .package == "com.aqer.yemen.uat.offline" and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
           printf '%s  %s\n' "$(jq -r .sha256 APK_VERIFICATION.json)" "$apk" | sha256sum --check --strict
-      - name: Seal the public-repository installer for the approved recipient
-        if: github.event.repository.private == false
+      - name: Seal the installer for the approved recipient
+        if: github.event.repository.private == false || env.AQER_BUILD == '1848'
         run: |
           python3 -B - <<'PYTHON'
           import hashlib
@@ -464,7 +520,7 @@ jobs:
           (sealed / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2))
           PYTHON
       - name: Upload recipient-encrypted installer and receipt
-        if: github.event.repository.private == false
+        if: github.event.repository.private == false || env.AQER_BUILD == '1848'
         uses: actions/upload-artifact@v4
         with:
           name: AQER-UAT-${{ env.AQER_BUILD }}-sealed-${{ github.run_attempt }}
@@ -474,8 +530,90 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+      - name: Seal UAT 1848 for the owner-approved one-time chat delivery
+        if: env.AQER_BUILD == '1848'
+        env:
+          AQER_CHAT_PUBLIC_CERTIFICATE_B64: >-
+            LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVURENDQXJTZ0F3SUJBZ0lVTi9zWEZua25W
+            cXRPSlpjZ0xXOHFsaDRScS9nd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0x6RXRNQ3NHQTFVRUF3d2tR
+            VkZGVWlCVlFWUWdNVGcwT0NCdmJtVXRkR2x0WlNCamFHRjBJR1JsYkdsMgpaWEo1TUI0WERUSTJN
+            VEV5TnpBeE5USTBNVm9YRFRJMk1URXlPVEF4TlRJME1Wb3dMekV0TUNzR0ExVUVBd3drClFWRkZV
+            aUJWUVZRZ01UZzBPQ0J2Ym1VdGRHbHRaU0JqYUdGMElHUmxiR2wyWlhKNU1JSUJvakFOQmdrcWhr
+            aUcKOXcwQkFRRUZBQU9DQVk4QU1JSUJpZ0tDQVlFQXduZmZibWZIdXdDSEpwajUxeDdVWmRxRkdm
+            L2tiWWU5d0NPUwo4SVVQSHRXWVAwckdQMm9qeE5MZlM5Zlp3azljeS83RDgyaFVvVmpQUWoyd3VY
+            TVRTVS9OMHQ5RHFrbk9GeUlvCkpiZ08yd2MyV2VXY1Z5T1kvUURXZitmQ1VuUkVNRlFuREpJU3hn
+            NExMcVpTbjFaZ3hpTThEeEUrOTVTS2JXZEcKRlVmMG50YnVyTkEwWklKa001T0toMFFnVHdIVEVI
+            RVBqakRXSkpWVG9HU3hSamN6MGhucjFybS9DSjZJU1JvYwpqeEZEWWdSNk1zR21keGFnajZYUktr
+            L3dQREJlellQdFVZWkhId2NwUHdxR09WV1RFWklvb0FxQThzYVVpZGZ4CjNFeHl1T1MwQVh2L0U5
+            dHhVL0QrdlZVNTJVOHcyZTVRVnF5MnVJMmsxWVBmQnZoWHpYREVyZ3RuWEZrTk5LYnAKOTFXODRm
+            dUU0Z1NpT3FMSmxyRjVJcUU1bzJJaWRnQ1JpQlpFbmpFaUFFRUJRMXQvRTVhTU5xazNpYWRTckxy
+            OApYWVdkaFNKQkZITVdSTjNVRktwK2VTSTBkZWVYcmppL0NSK2JOdkRJaVBZTmw4eWZ5aGpPZzFZ
+            RVFPSUprOGo0Ckp4MlJTWXpVY0pkeXZHY2Q3cDg5K1FlT0RXY0ZBZ01CQUFHallEQmVNQjBHQTFV
+            ZERnUVdCQlFaWFkxVVMybjkKVW9SbDZkT09paXcxOWtCSEhEQWZCZ05WSFNNRUdEQVdnQlFaWFkx
+            VVMybjlVb1JsNmRPT2lpdzE5a0JISERBTQpCZ05WSFJNQkFmOEVBakFBTUE0R0ExVWREd0VCL3dR
+            RUF3SUZJREFOQmdrcWhraUc5dzBCQVFzRkFBT0NBWUVBClpuak4yY2FMNnlLODU0eWZUMG9qVU1F
+            ejZ4WkFNWE5tdjFRR0xxQXJjVUFmYzlKcnUrN1kxSU9LQllQSFVmNDcKYzFxUXg4REJXQ05wNmhO
+            RUFuSDU2RlhKMHZhWC9Famtxc0RKNUhSdTBaR2g4MFNtRWU4QUZ5RDdkSU83YkZmVwpFekdWVTNl
+            VGhvWkIzWXk2SkJsZUh5aDRxSnlhNTdIWi9ZWjU4a2pMOVRsb2ZuYVppTEpmL01sZXUyZ2xIRWJT
+            CnFvYWRhTnA4VklHYnFFOHI2V0V3Z3p4NFVSdk1zOURrSjM0N3JUQ1VRU2dOaTZlbkRrNmIrYWV2
+            azlzQ3A3S0YKK0hpVjF3MlA1OGYrd3IwUTJRUC9ibGlZZHVNYy9jMDlPTkZ6OWVhNlR1VmlCNDVT
+            RXJodjM2S1V6K0hkU2t3VQp5RjJGbUZWV0NwNkYxYTdXaWlNVXlnM0pXQ28ybHVQS0pKZHZHWWlM
+            Mkc4RWh4WGU2ZnJ5UndseXRXdkg4cy96Clo1ODVXZFB2Tk01cU81UWRZMEo4YWJ0RGhFNDBEZmNK
+            a3JkTUhkSGJOYU9EVlhZTzFRTDZ4YVVVYndKVDVkWmgKQVFaV3FuRmozemo1UjdDM29PeGxIcUVn
+            UjErWDZwKzl3Q0lyS1ZjUVZtVmM2a2NOOW5Eb1VONnhTRmZaVVhuTAotLS0tLUVORCBDRVJUSUZJ
+            Q0FURS0tLS0tCg==
+          AQER_CHAT_PUBLIC_CERTIFICATE_SHA256: '559bd5574d3fbf6fff0015bfcf7b21d4b26e742fdd7a4d4ad7c0dcbcebca9511'
+        run: |
+          python3 -B - <<'PYTHON'
+          import base64
+          import hashlib
+          import json
+          import os
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from prepare_phase1_close import encrypt
+
+          original = Path("uat-installer")
+          receipt = json.loads((original / "APK_VERIFICATION.json").read_text())
+          identity = json.loads(Path("docs/uat-signing-identity.json").read_text())
+          assert receipt["source"] == os.environ["AQER_SOURCE_SHA"]
+          assert receipt["run_id"] == os.environ["GITHUB_RUN_ID"]
+          assert receipt["build"] == 1848 and receipt["abis"] == ["arm64-v8a"]
+          assert receipt["package"] == identity["package"] == "com.aqer.yemen.uat.offline"
+          assert receipt["certificate_sha256"] == identity["certificate_sha256"]
+          apk = original / "AQER-UAT-1848-Alazzi-ARM64.apk"
+          assert not apk.is_symlink() and apk.stat().st_size == receipt["bytes"]
+          assert hashlib.sha256(apk.read_bytes()).hexdigest() == receipt["sha256"]
+
+          encoded = "".join(os.environ["AQER_CHAT_PUBLIC_CERTIFICATE_B64"].split())
+          certificate = base64.b64decode(encoded, validate=True)
+          fingerprint = os.environ["AQER_CHAT_PUBLIC_CERTIFICATE_SHA256"]
+          assert hashlib.sha256(certificate).hexdigest() == fingerprint
+          output = Path("uat-private-chat")
+          output.mkdir(mode=0o700)
+          with tempfile.TemporaryDirectory(prefix="aqer-chat-recipient-", dir=os.environ["RUNNER_TEMP"]) as directory:
+              recipient = Path(directory) / "recipient.pem"
+              recipient.write_bytes(certificate)
+              receipt["encrypted_installer"] = encrypt(apk, output / "installer.cms", recipient)
+          receipt["recipient_sha256"] = fingerprint
+          (output / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          PYTHON
+      - name: Upload the temporary encrypted owner delivery
+        if: env.AQER_BUILD == '1848'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AQER-UAT-1848-private-chat-${{ github.run_attempt }}
+          path: |
+            uat-private-chat/installer.cms
+            uat-private-chat/APK_VERIFICATION.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
       - name: Upload the verified APK and receipt
-        if: github.event.repository.private == true
+        if: github.event.repository.private == true && env.AQER_BUILD != '1848'
         uses: actions/upload-artifact@v4
         with:
           name: AQER-UAT-${{ env.AQER_BUILD }}-Alazzi-ARM64-${{ github.run_attempt }}
@@ -486,7 +624,7 @@ jobs:
           compression-level: 0
           retention-days: 30
       - name: Attach the verified installer to a private draft
-        if: github.event.repository.private == true
+        if: github.event.repository.private == true && env.AQER_BUILD != '1848'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -10,6 +10,9 @@ import '../../properties/data/property_repository.dart';
 import '../../map/domain/map_area_geometry.dart';
 import '../../properties/domain/property_details.dart';
 import '../domain/smart_search_filters.dart';
+import '../domain/governorate_search.dart';
+import 'discovery_location.dart';
+import 'governorate_map_scope.dart';
 import 'ai_repository.dart';
 import 'marketplace_repository.dart';
 
@@ -38,13 +41,14 @@ class SmartSearchState {
 }
 
 class SmartSearchSession extends StateNotifier<SmartSearchState> {
-  SmartSearchSession(this._ai, this._properties, {this.defaultLocation,
+  SmartSearchSession(this._ai, this._properties, {this.defaultLocation, this.refreshLocation,
     this.traceMapResults = false, this.retainMapRowsOnUnknownFailure = false})
     : super(const SmartSearchState());
   final AiRepository _ai;
   final PropertyRepository _properties;
   SmartSearchState get snapshot => state;
   final SmartSearchFilters Function()? defaultLocation;
+  final Future<HomeLocation>? Function()? refreshLocation;
   final bool traceMapResults;
   final bool retainMapRowsOnUnknownFailure;
   Map<String, dynamic> _defaultContext = {};
@@ -68,8 +72,25 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     final token = ++_journey;
     _journeyActive = true;
     reset(useLocation: true);
-    final filters = savedFilters ?? entryFilters;
-    if (filters == null) return token;
+    var incoming = savedFilters ?? entryFilters;
+    if (incoming == null) return token;
+    if (savedFilters != null && !incoming.hasMapArea && !incoming.values.containsKey('governorate_code')) {
+      final oldKeyword = incoming.values['search'] as String?;
+      final canonical = GovernorateSearch.canonical(incoming.values['governorate'] as String? ?? oldKeyword);
+      if (canonical != null) {
+        final restored = Map<String, dynamic>.of(incoming.values);
+        if (GovernorateSearch.canonical(oldKeyword) == canonical) restored.remove('search');
+        restored.addAll(GovernorateSearch.inRequest(canonical)!.filters);
+        incoming = SmartSearchFilters.fromMap(restored);
+      }
+    }
+    // Links and shortcuts may provide only a property type. Keep the same
+    // current-province default as opening the search from the account screen.
+    final inheritProvince = savedFilters == null && defaultLocation != null &&
+        !incoming.hasMapArea && !incoming.values.containsKey('governorate') &&
+        !incoming.values.containsKey('governorate_code') && !incoming.values.containsKey('search');
+    final filters = inheritProvince
+        ? SmartSearchFilters.fromMap({..._defaultContext, ...incoming.values}) : incoming;
     if (initialResults != null && initialResults.started && !initialResults.loading &&
         initialResults.resultsError == null && initialResults.page > 0 && initialResults.filters.sameAs(filters)) {
       _usingDefaultLocation = false;
@@ -78,6 +99,11 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     } else {
       replaceManually(filters);
     }
+    // Replaying an unscoped saved query keeps its original criteria. A new
+    // request within it can use the account's current province.
+    _usingDefaultLocation = inheritProvince || (savedFilters != null && defaultLocation != null &&
+        !filters.hasMapArea && !filters.values.containsKey('governorate') &&
+        !filters.values.containsKey('governorate_code'));
     return token;
   }
   void endJourney(int token) {
@@ -150,16 +176,37 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     state = state.copyWith(interpreting: true, clearAiError: true, lastRequest: text);
     try {
       // A default city is a starting point, not an explicit map constraint.
-      // Let a city stated in the request override it; retain user-chosen bounds.
-      final input = Map<String, dynamic>.from(filters.values);
+      // Check previously applied map geometry against an explicit new place.
+      var input = Map<String, dynamic>.from(filters.values);
       if (_usingDefaultLocation) { for (final key in _defaultContext.keys) { input.remove(key); } }
+      final homeAtStart = _usingDefaultLocation ? defaultLocation?.call() : null;
+      final place = GovernorateSearch.inRequest(text);
+      if (place != null && filters.hasMapArea) {
+        final matching = await GovernorateMapScope.reconcile(SmartSearchFilters.fromMap(input), place.code);
+        if (!_acceptInferenceDelivery(request, revision, epoch)) return;
+        input = Map.of(matching.values);
+      }
+      final location = _usingDefaultLocation && place == null
+          ? refreshLocation?.call() : null;
       final result = await _ai.refine(text, input, revision);
       if (!_acceptInferenceDelivery(request, revision, epoch)) return;
       if (result['revision'] != revision || result['filters'] is! Map) throw StateError('Invalid search session response.');
       final values = Map<String, dynamic>.from(result['filters'] as Map);
       final explicitLocation = values.containsKey('governorate') ||
-        (values['search'] is String && (values['search'] as String).trim().isNotEmpty) || SmartSearchFilters.mapFields.any(values.containsKey);
-      if (_usingDefaultLocation && !explicitLocation) values.addAll(_defaultContext);
+        values.containsKey('governorate_code') || SmartSearchFilters.mapFields.any(values.containsKey);
+      if (_usingDefaultLocation && !explicitLocation) {
+        // The home location can finish resolving after this screen opened.
+        // A neighborhood or keyword is still scoped to that province.
+        final fresh = location == null ? null : await location;
+        if (!_acceptInferenceDelivery(request, revision, epoch)) return;
+        final homeNow = defaultLocation?.call();
+        if (homeAtStart != null && homeNow != null && !homeNow.sameAs(homeAtStart)) {
+          _defaultContext = Map.of(homeNow.values);
+        } else {
+          _defaultContext = Map.of(fresh?.provinceSearchContext ?? homeNow?.values ?? _defaultContext);
+        }
+        values.addAll(_defaultContext);
+      }
       if (explicitLocation) _usingDefaultLocation = false;
       final next = SmartSearchFilters.fromMap(values);
       _replace(next, message: result['message']?.toString() ?? 'حدّثنا شروط بحثك.',
@@ -214,7 +261,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     _resultTransfer = null;
     _locationBeforeDrawing = null;
     _defaultContext = useLocation ? Map.of(defaultLocation?.call().values ?? const <String,dynamic>{}) : {};
-    _usingDefaultLocation = _defaultContext.isNotEmpty;
+    _usingDefaultLocation = useLocation && defaultLocation != null;
     state = SmartSearchState(revision: state.revision + 1, filters: SmartSearchFilters.fromMap(_defaultContext));
   }
 
@@ -284,5 +331,6 @@ final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, Sma
   ref.watch(authControllerProvider.select((value) =>
     (value.asData?.value?.id, Stage6SecureSessionStore.instance.sessionEpoch)));
   return SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
-    defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext));
+    defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).provinceSearchContext),
+    refreshLocation: () => ref.read(discoveryLocationCoordinatorProvider).refreshForSearch());
 });

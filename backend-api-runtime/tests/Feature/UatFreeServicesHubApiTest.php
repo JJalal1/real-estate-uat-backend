@@ -12,7 +12,7 @@ class UatFreeServicesHubApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_verified_owner_receives_current_marketplace_service_contract(): void
+    public function test_historical_owner_keeps_contract_access_without_a_professional_badge(): void
     {
         [, $headers] = $this->user('owner', '+967700000101', 'owner');
 
@@ -22,8 +22,9 @@ class UatFreeServicesHubApiTest extends TestCase
             ->assertJsonPath('data.ui_version', 'free_services_v2')
             ->assertJsonPath('data.pricing_model', 'free')
             ->assertJsonPath('data.paid_features_enabled', false)
-            ->assertJsonPath('data.account_type', 'owner')
-            ->assertJsonPath('data.verified_professional', true)
+            ->assertJsonPath('data.account_type', 'basic')
+            ->assertJsonPath('data.verification_status', 'not_submitted')
+            ->assertJsonPath('data.verified_professional', false)
             ->assertJsonPath('data.capabilities.create_listing', true)
             ->assertJsonPath('data.capabilities.rental_contracts', true)
             ->assertJsonPath('data.availability.create_listing', 'available')

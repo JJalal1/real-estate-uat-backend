@@ -253,6 +253,29 @@ void main() {
     await closeUx(tester);
   });
 
+  test('only a newly requested province recenters the mounted results map', () {
+    SmartSearchFilters province(String name, String code) =>
+        SmartSearchFilters.fromMap({'governorate': name, 'governorate_code': code});
+    final dhamar = province('ذمار', 'DHAMAR');
+    final sanaa = province('صنعاء', 'SANAA');
+    const request = 'شقة للبيع في صنعاء';
+    expect(mapSearchRequestedNewProvince(dhamar, sanaa, request), isTrue);
+    expect(mapSearchRequestedNewProvince(sanaa, dhamar, 'منزل في ذمار'), isTrue);
+    expect(mapSearchRequestedNewProvince(sanaa, sanaa, request), isFalse);
+    final staleViewport = SmartSearchFilters.fromMap({
+      ...sanaa.values, 'west': 44.39, 'east': 44.41, 'south': 14.54, 'north': 14.56,
+    });
+    expect(mapSearchRequestedNewProvince(staleViewport, sanaa, request), isTrue);
+    expect(mapSearchRequestedNewProvince(dhamar, sanaa, 'شقة للبيع'), isFalse);
+    for (final geometry in [
+      {'south': 14, 'west': 44, 'north': 15, 'east': 45},
+      {'area_polygon': 'selected polygon'},
+    ]) {
+      final bounded = SmartSearchFilters.fromMap({...sanaa.values, ...geometry});
+      expect(mapSearchRequestedNewProvince(dhamar, bounded, request), isFalse);
+    }
+  });
+
   test('governorate camera hint follows the requested registry entry without changing explicit user bounds', () {
     const home = HomeLocation(latitude: 15.3, longitude: 44.2, governorate: 'صنعاء', label: 'صنعاء');
     const dhamar = HomeLocation(latitude: 14.5428, longitude: 44.4051, governorate: 'ذمار', governorateCode: 'DH', label: 'ذمار');

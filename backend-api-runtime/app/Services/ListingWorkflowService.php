@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\AccountVerificationProfile;
 use App\Models\ListingReview;
 use App\Models\Property;
 use App\Models\PropertyAsset;
@@ -92,7 +91,6 @@ class ListingWorkflowService
             if ($direct) {
                 app(PropertySaiService::class)->assertReadyForSubmission($locked, $actor);
             }
-            $this->assertAdvertiserCanPublish($actor, $locked, $direct);
             app(ListingAccessService::class)->authorizePublication($actor, $locked, $request);
             $asset = PropertyAsset::query()->whereKey($locked->property_asset_id)->lockForUpdate()->firstOrFail();
             $this->assets->assertPurposeNotBlocked($asset, $locked->purpose);
@@ -430,9 +428,7 @@ class ListingWorkflowService
             }
 
             $owner = $locked->user()->firstOrFail();
-            $marketplacePublish = (bool) ($locked->reviews()->where('action', 'submitted')
-                ->reorder('id', 'desc')->first()?->metadata['marketplace_publish'] ?? false);
-            $this->assertAdvertiserCanPublish($owner, $locked, $marketplacePublish);
+            abort_unless($owner->canCreateListings(), 403);
             $this->brokerVerification->assertApprovalAllowed($locked);
 
             $asset = PropertyAsset::query()->whereKey($locked->property_asset_id)->lockForUpdate()->firstOrFail();
@@ -729,57 +725,6 @@ class ListingWorkflowService
 
             return $locked->fresh();
         });
-    }
-
-    private function assertAdvertiserCanPublish(User $advertiser, Property $property, bool $direct): void
-    {
-        abort_unless($advertiser->canCreateListings(), 403);
-        $profile = $advertiser->verificationProfile();
-        if ($direct && $property->review_status !== 'returned_for_correction') return;
-        if ($profile?->isApproved() && $profile->type === AccountVerificationProfile::TYPE_OWNER
-            && $advertiser->broker_enrolled_at === null) {
-            if (! $property->documents()->where('kind', 'ownership_proof')->exists()) {
-                throw ValidationException::withMessages([
-                    'ownership_proof' => ['يجب إرفاق مستند يثبت الملكية أو العلاقة بهذا العقار قبل الإرسال للمراجعة.'],
-                ]);
-            }
-            if (! $property->ownership_document_type
-                || ! $property->document_owner_name
-                || ! $property->owner_relationship_type) {
-                throw ValidationException::withMessages([
-                    'ownership_relationship' => ['حدد نوع مستند الملكية واسم صاحب الحق وصفة علاقتك بالعقار.'],
-                ]);
-            }
-            if ($property->owner_relationship_type === 'owner'
-                && $this->normalizedName($property->document_owner_name) !== $this->normalizedName($advertiser->name)) {
-                throw ValidationException::withMessages([
-                    'owner_relationship_type' => ['الاسم المدخل من مستند العقار لا يطابق اسم الحساب. اختر صفتك الصحيحة مثل وكيل أو وارث أو شريك.'],
-                ]);
-            }
-            if ($property->owner_relationship_type === 'other'
-                && trim((string) $property->owner_relationship_note) === '') {
-                throw ValidationException::withMessages([
-                    'owner_relationship_note' => ['وضح صفتك أو علاقتك بالعقار.'],
-                ]);
-            }
-            return;
-        }
-        // Older clients still submitting a version-zero proof workflow keep its proof requirement.
-        if (! $direct && ! $profile && $advertiser->broker_enrolled_at === null
-            && (int) $advertiser->identity_policy_version === 0
-            && ! $property->documents()->where('kind', 'ownership_or_authorization')->exists()) {
-            throw ValidationException::withMessages([
-                'proof_documents' => ['أرفق إثبات ملكية أو تفويض قبل إرسال الإعلان للمراجعة.'],
-            ]);
-        }
-    }
-
-    private function normalizedName(?string $value): string
-    {
-        $text = mb_strtolower(trim((string) $value));
-        $text = preg_replace('/[\x{064B}-\x{065F}\x{0670}\x{0640}]/u', '', $text) ?? $text;
-        $text = strtr($text, ['أ' => 'ا', 'إ' => 'ا', 'آ' => 'ا', 'ى' => 'ي', 'ؤ' => 'و', 'ئ' => 'ي', 'ة' => 'ه']);
-        return preg_replace('/\s+/u', ' ', $text) ?? $text;
     }
 
     private function assertReviewable(Property $listing, ?User $actor = null): void

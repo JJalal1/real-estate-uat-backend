@@ -10,16 +10,8 @@ import '../../broker/domain/broker_models.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/domain/property_coordinates.dart';
+import '../domain/governorate_search.dart';
 import '../domain/smart_search_filters.dart';
-
-const dhamarPreviewGovernorate = (name: 'ذمار', code: 'DHAMAR');
-
-SmartSearchFilters dhamarPreviewFilters(SmartSearchFilters filters) =>
-    SmartSearchFilters.fromMap({
-      ...filters.values,
-      'governorate': dhamarPreviewGovernorate.name,
-      'governorate_code': dhamarPreviewGovernorate.code,
-    });
 
 class HomeLocation {
   const HomeLocation({this.latitude = 15.3694, this.longitude = 44.1910, this.governorate, this.governorateCode,
@@ -35,6 +27,18 @@ class HomeLocation {
     // A manual governorate covers its complete boundary, not a city-center circle.
     if (device) ...{'latitude': latitude, 'longitude': longitude, 'radius_km': 30},
   };
+  /// A listing search covers the confirmed province. The nearby feed keeps
+  /// its distinct GPS circle; a placeholder city is never a location fix.
+  Map<String, dynamic> get provinceSearchContext {
+    if (needsConfirmation) return const {};
+    final name = GovernorateSearch.nameForCode(governorateCode) ?? governorate;
+    final province = name == null ? null : GovernorateSearch.inRequest(name);
+    return {
+      ...?province?.filters,
+      if (name != null && name.isNotEmpty) 'governorate': name,
+      if (governorateCode != null && governorateCode!.isNotEmpty) 'governorate_code': governorateCode,
+    };
+  }
   factory HomeLocation.fromJson(Map<String, dynamic> j) => HomeLocation(
     latitude: (j['latitude'] as num).toDouble(), longitude: (j['longitude'] as num).toDouble(),
     governorate: j['governorate']?.toString(), governorateCode: j['governorate_code']?.toString(),
@@ -82,6 +86,12 @@ class HomeFeedQuery {
   final SmartSearchFilters filters;
   SmartSearchFilters get effectiveFilters => SmartSearchFilters.fromMap({...filters.values,
     if (type != null) 'type': type, if (purpose != null) 'purpose': purpose});
+  SmartSearchFilters? get regionalPreviewFilters {
+    final name = GovernorateSearch.nameForCode(governorateCode) ?? GovernorateSearch.canonical(governorate);
+    if (name == null || filters.hasMapArea) return null;
+    final province = GovernorateSearch.inRequest(name)!;
+    return SmartSearchFilters.fromMap({...effectiveFilters.values, ...province.filters});
+  }
   @override
   bool operator ==(Object other) => other is HomeFeedQuery && other.latitude == latitude && other.longitude == longitude &&
     other.governorate == governorate && other.governorateCode == governorateCode && other.accuracyMetres == accuracyMetres && other.device == device && effectiveFilters.sameAs(other.effectiveFilters);
@@ -200,9 +210,11 @@ class MarketplaceRepository {
     return feed;
   }
 
-  Future<List<PropertySummary>> dhamarPreview(SmartSearchFilters criteria, {required CancelToken cancelToken}) async {
+  Future<List<PropertySummary>> regionalPreview(HomeFeedQuery query, {required CancelToken cancelToken}) async {
+    final scope = query.regionalPreviewFilters;
+    if (scope == null) return const [];
     const size = 6;
-    final filters = dhamarPreviewFilters(criteria).apiFilters;
+    final filters = scope.apiFilters;
     Future<({List<PropertySummary> rows, int total, bool cached})> loadPage(int page) async {
       final response = await _dio.get<Map<String, dynamic>>('/properties', queryParameters: {
         ...filters, 'page': page, 'per_page': size, 'sort': 'latest',
@@ -261,12 +273,12 @@ final homeLocationAttemptedProvider = StateProvider<bool>((ref) => false);
 final homeLocationsProvider = FutureProvider<List<HomeLocation>>((ref) => ref.watch(marketplaceRepositoryProvider).locations());
 final marketplaceInitialSnapshotProvider = FutureProvider.autoDispose.family<MarketplaceFeed?, HomeFeedQuery>(
   (ref, query) => ref.watch(marketplaceRepositoryProvider).initialSnapshot(query));
-final marketplaceDhamarPreviewProvider = FutureProvider.autoDispose.family<List<PropertySummary>, HomeFeedQuery>((ref, query) {
+final marketplaceRegionalPreviewProvider = FutureProvider.autoDispose.family<List<PropertySummary>, HomeFeedQuery>((ref, query) {
   ref.watch(propertyDataRevisionProvider);
   ref.watch(offlineResumeRevisionProvider);
   final transfer = CancelToken();
-  ref.onDispose(() => transfer.cancel('Dhamar preview disposed'));
-  return ref.watch(marketplaceRepositoryProvider).dhamarPreview(query.effectiveFilters, cancelToken: transfer);
+  ref.onDispose(() => transfer.cancel('Regional preview disposed'));
+  return ref.watch(marketplaceRepositoryProvider).regionalPreview(query, cancelToken: transfer);
 });
 final marketplaceFeedProvider = FutureProvider.autoDispose.family<MarketplaceFeed, HomeFeedQuery>((ref, query) async {
   final int revision = ref.watch<int>(propertyDataRevisionProvider) + ref.watch<int>(offlineResumeRevisionProvider);

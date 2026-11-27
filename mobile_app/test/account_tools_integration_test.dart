@@ -105,7 +105,7 @@ class _Harness {
       authControllerProvider.overrideWith(() => auth),
       authRepositoryProvider.overrideWithValue(credentials),
       dioProvider.overrideWithValue(dio),
-      pushCapabilityProvider.overrideWith((_) async => false),
+      pushCapabilityProvider.overrideWith((_) async => true),
       if (financial != null) financialRepositoryProvider.overrideWithValue(financial),
     ]);
     await container.read(authControllerProvider.future);
@@ -227,6 +227,16 @@ void main() {
   testWidgets('preference draft from account A is removed when B signs in', (tester) async {
     final h = await _harness();
     await _preferences(tester, h);
+    expect(find.byType(SwitchListTile), findsNWidgets(4));
+    for (final title in ['الرسائل', 'نشاط إعلاناتي', 'المفضلة', 'الخدمات']) {
+      expect(find.widgetWithText(SwitchListTile, title), findsOneWidget);
+    }
+    expect(find.text('تنبيهات الأمان والدعم داخل التطبيق'), findsNothing);
+    expect(find.textContaining('بحثًا محفوظًا'), findsNothing);
+    expect(find.text('إشعارات الجهاز'), findsNothing);
+    expect(find.text('تفعيل إشعارات الجهاز'), findsNothing);
+    expect(find.text('إيقاف إشعارات هذا الجهاز'), findsNothing);
+    expect(find.text('حفظ التفضيلات'), findsOneWidget);
     expect(tester.widgetList<SwitchListTile>(find.byType(SwitchListTile)).every((w) => w.value), isTrue);
     h.change(2);
     await tester.pumpAndSettle();

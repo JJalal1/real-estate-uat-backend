@@ -33,10 +33,12 @@ MAP_SEARCH_TOOLBAR_BRANCH = 'refs/heads/work/map-search-toolbar-1829-20261120'
 UAT_ACCEPTANCE_BRANCH = 'refs/heads/work/uat-acceptance-1830-20261121'
 ALAZZI_UNIFIED_BRANCH = 'refs/heads/work/alazzi-unify-1846'
 ALAZZI_MARKETPLACE_BRANCH = 'refs/heads/work/alazzi-marketplace-1847'
+ALAZZI_ACCOUNT_RELEASE_BRANCH = 'refs/heads/release/alazzi-1848-account-search'
 ALLOWED_BRANCHES = {
     BRANCH, CONNECTIVITY_FIX_BRANCH, APK_CLEANUP_BRANCH, MAP_SEARCH_UX_BRANCH,
     LISTING_PHOTO_BRANCH, GOOGLE_MAPS_BRANCH, MAP_LISTING_BRANCH, MAP_LAYERS_BRANCH,
     MAP_SEARCH_TOOLBAR_BRANCH, UAT_ACCEPTANCE_BRANCH, ALAZZI_UNIFIED_BRANCH, ALAZZI_MARKETPLACE_BRANCH,
+    ALAZZI_ACCOUNT_RELEASE_BRANCH,
 }
 INPUTS = (
     'AQER_UAT_KEYSTORE_BASE64', 'AQER_RELEASE_STORE_PASSWORD',
@@ -89,12 +91,20 @@ def read_configuration(env, required=False):
 
 
 def guard(env):
+    ref = env.get('GITHUB_REF')
     if not (env.get('GITHUB_ACTIONS') == 'true' and
             env.get('GITHUB_REPOSITORY') == REPOSITORY and
-            env.get('GITHUB_REF') in ALLOWED_BRANCHES and
+            ref in ALLOWED_BRANCHES and
             env.get('GITHUB_EVENT_NAME') == 'push' and
             env.get('AQER_SIGNING_ENVIRONMENT') == 'uat'):
         raise SigningError('explicit_phase23_uat_ci_context_required')
+    build = env.get('AQER_BUILD')
+    if ref == ALAZZI_ACCOUNT_RELEASE_BRANCH or build == '1848':
+        owner = REPOSITORY.split('/', 1)[0]
+        if not (ref == ALAZZI_ACCOUNT_RELEASE_BRANCH and build == '1848' and
+                env.get('GITHUB_REPOSITORY_OWNER') == owner and
+                env.get('GITHUB_ACTOR') == owner):
+            raise SigningError('explicit_alazzi_1848_owner_ci_context_required')
 
 
 def safe_absolute_path(value):

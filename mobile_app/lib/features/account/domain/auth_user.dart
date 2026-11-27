@@ -27,7 +27,6 @@ class VerificationProfileSummary {
       flags['office_location_registered'] == true;
 
   String get typeLabel => switch (type) {
-        'owner' => 'مالك',
         'broker' => professionalDocumentReviewed ? 'دلال مهني' : 'دلال',
         'office' => 'مكتب عقارات',
         _ => 'باحث / متصفح / مشتري',
@@ -83,6 +82,8 @@ class AuthUser {
     required this.permissions,
     this.emailVerifiedAt,
     this.brokerEnrolled = false,
+    this.marketplaceIsOffice,
+    this.publicBio,
     this.listingEligible,
   });
 
@@ -91,6 +92,7 @@ class AuthUser {
   final String email;
   final String? phone;
   final String accountType;
+  final String? publicBio;
   final String accountStatus;
   final DateTime? phoneVerifiedAt;
   final DateTime? emailVerifiedAt;
@@ -102,6 +104,7 @@ class AuthUser {
   final String? brokerVerificationNote;
   final VerificationProfileSummary verificationProfile;
   final bool brokerEnrolled;
+  final bool? marketplaceIsOffice;
   final bool? listingEligible;
   final bool isPlatformOwner;
   final List<String> roles;
@@ -113,7 +116,6 @@ class AuthUser {
       accountStatus == 'pending_verification' || !isPhoneVerified;
   bool get needsProfileCompletion => profileCompletedAt == null &&
       listingEligible != true && !hasVerifiedPublishingProfile;
-  bool get isOwner => !brokerEnrolled && verificationProfile.type == 'owner';
   bool get isOffice => !brokerEnrolled && verificationProfile.type == 'office';
   bool get isBroker => brokerEnrolled || verificationProfile.type == 'broker' ||
       (verificationProfile.type == null && accountType == 'broker');
@@ -133,6 +135,14 @@ class AuthUser {
   bool get canEditPublicProfile => hasMarketplaceProfessionalProfile || hasVerifiedPublishingProfile;
   bool get canCreateListing => isActive && (listingEligible ?? !needsProfileCompletion);
   String get accountTypeLabel => brokerEnrolled ? 'دلال' : verificationProfile.typeLabel;
+
+  String? get marketplaceRoleLabel {
+    if (!isBroker && !isOffice) return null;
+    final office = marketplaceIsOffice ??
+        (verificationProfile.type == 'office' &&
+            (!brokerEnrolled || verificationProfile.isApproved));
+    return office ? 'مكتب عقاري' : 'دلال';
+  }
 
   bool hasRole(String key) => roles.contains(key);
   bool hasPermission(String key) =>
@@ -177,6 +187,8 @@ class AuthUser {
         verificationProfile:
             VerificationProfileSummary.fromJson(json['verification_profile']),
         brokerEnrolled: json['broker_enrolled'] == true,
+        marketplaceIsOffice: json['marketplace_is_office'] as bool?,
+        publicBio: _nullable(json['public_bio']),
         listingEligible: json['can_create_listing'] is bool
             ? json['can_create_listing'] as bool
             : null,

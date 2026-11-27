@@ -52,17 +52,45 @@ class _PropertyCardGalleryState extends State<PropertyCardGallery> {
         onPageChanged: (index) => setState(() => _index = index),
         itemBuilder: (_, index) => Semantics(label: 'صورة العقار ${index + 1} من ${urls.length}', image: true,
           child: AppPropertyMedia(imageUrl: urls[index], authenticated: widget.authenticatedImages, height: widget.height, cacheWidth: pixels, propertyType: widget.propertyType)))),
-      if (urls.length > 1) PositionedDirectional(bottom: widget.priceBadge == null ? 8 : null,
-        top: widget.priceBadge == null ? null : 8, start: 8, end: widget.priceBadge == null ? 8 : null, child: IgnorePointer(child: Row(
-        mainAxisAlignment: MainAxisAlignment.center, children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(color: Colors.black.withValues(alpha: .30), borderRadius: BorderRadius.circular(20)),
-            child: urls.length <= 6 ? Row(mainAxisSize: MainAxisSize.min, children: [for (var i = 0; i < urls.length; i++)
-              Container(key: ValueKey('photo-dot-$i'), margin: const EdgeInsets.symmetric(horizontal: 2.5),
-                width: i == _index ? 12 : 5, height: 5,
-                decoration: BoxDecoration(color: i == _index ? Colors.white : Colors.white70, borderRadius: BorderRadius.circular(4))),
-            ]) : Text('${_index + 1}/${urls.length}', style: const TextStyle(color: Colors.white, fontSize: 11))),
-        ]))),
+      if (urls.length > 1)
+        PositionedDirectional(
+          bottom: widget.priceBadge == null ? 8 : null,
+          top: widget.priceBadge == null ? null : 8,
+          start: 8,
+          end: widget.priceBadge == null ? 8 : null,
+          child: IgnorePointer(
+            child: Align(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: .30),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: urls.length <= 6
+                      ? Row(mainAxisSize: MainAxisSize.min, children: [
+                          for (var i = 0; i < urls.length; i++)
+                            Container(
+                              key: ValueKey('photo-dot-$i'),
+                              margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                              width: i == _index ? 12 : 5,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: i == _index ? Colors.white : Colors.white70,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                        ])
+                      : Text('${_index + 1}/${urls.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11)),
+                ),
+              ),
+            ),
+          ),
+        ),
       if (widget.isSpotlight) PositionedDirectional(bottom: 8,
         start: widget.priceBadge != null && Directionality.of(context) == TextDirection.ltr ? 8 : null,
         end: widget.priceBadge == null || Directionality.of(context) == TextDirection.rtl ? 8 : null,

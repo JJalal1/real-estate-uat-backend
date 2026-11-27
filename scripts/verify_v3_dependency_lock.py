@@ -34,6 +34,7 @@ MAP_SEARCH_TOOLBAR_BRANCH = "work/map-search-toolbar-1829-20261120"
 APPROVED_UAT_1829_SHA = "eb4df35101387bdb0cc969224cdd28f5d5b913d9"
 # The approved design adds the Cairo font assets and their license to the 1829 manifest.
 APPROVED_CAIRO_MANIFEST_SHA256 = "c30ebd1d03da47c843ccf863b684f1f450de1807e0e61e9c2541af992d90c84c"
+APPROVED_REGIONS_MANIFEST_SHA256 = "213dc44d36224062c704de622346cfafd28624b0116c422f53b72f34cbeea3c8"
 GOOGLE_MAPS_BASE_SHA = "2ff278bb27e25fcae8292a88128f58b3da04bc80"
 GOOGLE_MAPS_PACKAGES = {
     "csslib": "1.0.2",
@@ -316,11 +317,13 @@ def verify_approved_uat1829(resolved):
         for path in inputs:
             expected = subprocess.check_output(["git", "show", f"{APPROVED_UAT_1829_SHA}:{path}"], cwd=ROOT)
             committed = subprocess.check_output(["git", "show", f"HEAD:{path}"], cwd=ROOT)
-            cairo_manifest = (
+            approved_asset_manifest = (
                 path == "mobile_app/pubspec.yaml"
-                and hashlib.sha256(committed).hexdigest() == APPROVED_CAIRO_MANIFEST_SHA256
+                and hashlib.sha256(committed).hexdigest() in (
+                    APPROVED_CAIRO_MANIFEST_SHA256, APPROVED_REGIONS_MANIFEST_SHA256
+                )
             )
-            if committed != expected and not cairo_manifest:
+            if committed != expected and not approved_asset_manifest:
                 raise ValueError(f"Approved UAT 1829 dependency input changed: {path}")
             if path != "mobile_app/pubspec.lock" and (ROOT / path).read_bytes() != committed:
                 raise ValueError(f"Working dependency input differs from UAT 1829: {path}")

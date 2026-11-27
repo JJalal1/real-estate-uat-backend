@@ -9,7 +9,6 @@ import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_card_actions.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../../../core/widgets/property_card_gallery.dart';
-import '../../../core/widgets/property_type_icon.dart';
 import '../../../router/app_deep_links.dart';
 import '../../account/data/auth_controller.dart';
 import '../../broker/presentation/broker_workspaces.dart';
@@ -17,8 +16,6 @@ import '../../financial/data/financial_repository.dart';
 import '../data/my_listings_pages.dart';
 import '../data/property_repository.dart';
 import '../domain/property_details.dart';
-import '../domain/property_field_options.dart';
-import '../domain/property_schema.dart';
 import 'add_property_wizard_screen.dart';
 import 'property_sai_configuration_sheet.dart';
 import 'publish_listing.dart';
@@ -273,6 +270,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         propertyId: item.id,
         purpose: item.purpose,
         basis: item.purpose == 'rent' ? (item.monthlyRent ?? item.editablePrice) : item.editablePrice,
+        professionalAdvertiser: ref.read(authControllerProvider).asData?.value?.hasMarketplaceProfessionalProfile == true,
       );
       if (!context.mounted) return;
       if (!saiReady) {
@@ -643,9 +641,9 @@ class _ListingCard extends StatelessWidget {
                           ),
                         ),
                       const SizedBox(height: 5),
-                      _ListingFacts(
+                      CompactPropertyFacts(
                         key: const ValueKey('my-listing-facts'),
-                        facts: _listingFacts(property, summary),
+                        property: summary,
                       ),
                       if (state != null)
                         Padding(
@@ -697,58 +695,6 @@ class _ListingActionsMenu extends StatelessWidget {
             ),
         ],
       );
-}
-
-class _ListingFacts extends StatelessWidget {
-  const _ListingFacts({required this.facts, super.key});
-
-  final List<AppPropertyFact> facts;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = theme.colorScheme.onSurfaceVariant;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var start = 0; start < facts.length; start += 3)
-          Padding(
-            padding: EdgeInsets.only(top: start == 0 ? 0 : 3),
-            child: Row(
-              children: [
-                for (var column = 0; column < 3; column++)
-                  Expanded(
-                    child: start + column >= facts.length
-                        ? const SizedBox.shrink()
-                        : Tooltip(
-                            message: facts[start + column].label,
-                            excludeFromSemantics: true,
-                            child: Row(
-                              children: [
-                                Icon(facts[start + column].icon,
-                                    size: 13, color: color),
-                                const SizedBox(width: 3),
-                                Flexible(
-                                    child: Text(
-                                  facts[start + column].label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: color,
-                                    fontSize: 10,
-                                  ),
-                                )),
-                                const SizedBox(width: 3),
-                              ],
-                            ),
-                          ),
-                  ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
 }
 
 class _ListingReviewRow extends StatelessWidget {
@@ -884,37 +830,4 @@ bool _published(PropertyDetails item) =>
     _ when property.status == 'archived' => ('مؤرشف', AppStatusTone.neutral),
     _ => null,
   };
-}
-
-List<AppPropertyFact> _listingFacts(
-  PropertyDetails property,
-  PropertySummary summary,
-) {
-  final scope = {'type': property.type, 'purpose': property.purpose};
-  bool applies(String field) => DynamicPropertySchema.applies(field, scope);
-  final facade = propertyFacadeLabels[property.buildingFacade];
-  final floors = property.floorsCount;
-  final openings = property.shopOpenings;
-  return [
-    AppPropertyFact(
-      icon: propertyTypeIcon(property.type),
-      label: ebrokerPropertyTypeLabel(property.type),
-    ),
-    ...summaryPropertyFacts(summary),
-    if (applies('floors_count') && floors != null && floors > 0)
-      AppPropertyFact(
-        icon: Icons.layers_outlined,
-        label: '${arabicDigits('$floors')} أدوار',
-      ),
-    if (applies('building_facade') && facade != null)
-      AppPropertyFact(
-        icon: Icons.explore_outlined,
-        label: facade == 'أكثر من واجهة' ? facade : 'واجهة $facade',
-      ),
-    if (applies('shop_openings') && openings != null && openings > 0)
-      AppPropertyFact(
-        icon: Icons.storefront_outlined,
-        label: '${arabicDigits('$openings')} فتحات',
-      ),
-  ].take(6).toList(growable: false);
 }

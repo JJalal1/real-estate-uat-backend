@@ -183,7 +183,7 @@ class UatThreeRoleSupportWorkspaceApiTest extends TestCase
 
         DB::table('account_verification_profiles')->insert([
             'user_id' => $requester->id,
-            'type' => 'owner',
+            'type' => 'broker',
             'status' => 'pending',
             'details' => json_encode([], JSON_THROW_ON_ERROR),
             'submitted_at' => now(),

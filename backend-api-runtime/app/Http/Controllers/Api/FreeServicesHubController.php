@@ -16,15 +16,10 @@ class FreeServicesHubController extends Controller
             ->where('user_id', $user->id)
             ->first();
 
-        $profileType = $profile?->type;
-        $verificationStatus = $profile?->status ?? AccountVerificationProfile::STATUS_NOT_SUBMITTED;
-        $verifiedProfessional = $profile !== null
-            && $profile->isApproved()
-            && in_array($profileType, [
-                AccountVerificationProfile::TYPE_OWNER,
-                AccountVerificationProfile::TYPE_BROKER,
-                AccountVerificationProfile::TYPE_OFFICE,
-            ], true);
+        $professionalProfile = $profile?->type === AccountVerificationProfile::TYPE_OWNER ? null : $profile;
+        $profileType = $professionalProfile?->type;
+        $verificationStatus = $professionalProfile?->status ?? AccountVerificationProfile::STATUS_NOT_SUBMITTED;
+        $verifiedProfessional = $professionalProfile?->isApproved() === true;
 
         return response()->json([
             'data' => [
@@ -37,7 +32,7 @@ class FreeServicesHubController extends Controller
                 'capabilities' => [
                     'create_listing' => $user->canCreateListings(),
                     'view_my_listings' => true,
-                    'rental_contracts' => $verifiedProfessional,
+                    'rental_contracts' => $profile?->isApproved() === true,
                     'price_indicators' => true,
                     'property_valuation' => true,
                     'real_estate_guide' => true,

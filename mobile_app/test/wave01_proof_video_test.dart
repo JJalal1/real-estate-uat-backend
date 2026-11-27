@@ -74,10 +74,10 @@ void main() {
       await capture(27);
       expect(voice.latest.stops, 0);
       expect(ai.requests, isEmpty);
-      await tap('voice-finish');
+      await capture(5);
       expect(voice.latest.stops, 1);
       expect(ai.requests, isEmpty);
-      chapters['manual_finish_waits_for_final'] = frame;
+      chapters['silence_timeout_waits_for_final'] = frame;
       await capture();
       voice.latest.emit(const VoiceEvent('final', text: 'شقة للإيجار في صنعاء'));
       await tester.pumpAndSettle();
@@ -85,7 +85,7 @@ void main() {
       expect(properties.queries, hasLength(1));
       chapters['one_automatic_search'] = frame;
       await capture(10);
-      await tap('floating-map-search'); await tester.pumpAndSettle();
+      await tap('smart-search-map'); await tester.pumpAndSettle();
       chapters['map_panel'] = frame;
       await capture(8);
       await tester.drag(find.byKey(const ValueKey('map-results-handle')), const Offset(0, 500)); await tester.pumpAndSettle();

@@ -3,23 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
-import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_screen_sections.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
-import '../../account/data/auth_controller.dart';
-import '../../account/domain/yemen_admin_divisions.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import '../data/broker_repository.dart';
 import '../domain/broker_models.dart';
 import 'broker_workspaces.dart';
 import 'broker_contact_button.dart';
-
-final _brokerGovernorates = YemenAdminDivisions.governorates
-    .map((name) => name == 'سقطرى' ? 'أرخبيل سقطرى' : name)
-    .toList(growable: false);
+import 'broker_public_profile.dart';
 
 class BrokerGovernorateFilter extends ConsumerWidget {
   const BrokerGovernorateFilter({this.onChanged, super.key});
@@ -29,7 +23,7 @@ class BrokerGovernorateFilter extends ConsumerWidget {
     value: ref.watch(brokerGovernorateProvider), isExpanded: true,
     decoration: const InputDecoration(labelText: 'المحافظة'), hint: const Text('كل المحافظات'),
     items: [const DropdownMenuItem<String>(value: null, child: Text('كل المحافظات')),
-      for (final name in _brokerGovernorates) DropdownMenuItem(value: name, child: Text(name))],
+      for (final name in brokerGovernorates) DropdownMenuItem(value: name, child: Text(name))],
     onChanged: (value) { ref.read(brokerGovernorateProvider.notifier).state = value; onChanged?.call(); },
   );
 }
@@ -78,8 +72,11 @@ class _BrokerDirectoryScreenState extends ConsumerState<BrokerDirectoryScreen> {
       Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(key: const ValueKey('broker-directory-apply'), onPressed: () => _load(), icon: const Icon(Icons.search), label: const Text('بحث في الدليل'))),
       const SizedBox(height: 14),
       for (final profile in _items) Padding(padding: const EdgeInsets.only(bottom: 14), child: EbrokerAdvertiserCard(
-        name: profile.name, identity: '${profile.typeLabel}${profile.governorate == null ? '' : ' · ${profile.governorate}'}', rating: profile.rating,
-        ratingCount: profile.ratingCount, verified: profile.verified, photoUrl: profile.photoUrl,
+        name: profile.name, identity: [
+          if (profile.marketplaceRoleLabel case final role?) role,
+          if (profile.governorate case final governorate?) governorate,
+        ].join(' · '), rating: profile.rating,
+        ratingCount: profile.ratingCount, verified: profile.marketplaceVerified, photoUrl: profile.photoUrl,
         completedDeals: profile.completedDeals, activeListings: profile.activeListings, action: const ['broker','office'].contains(profile.type) ? BrokerContactButton(brokerId:profile.id) : null, onTap: () async { await context.push('/advertisers/${profile.id}'); if (mounted) _load(); })),
       if (_loading) const AppLoadingState(),
       if (_error != null) AppErrorState(message: _error!, onRetry: () => _load()),
@@ -116,42 +113,17 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
       setState(() { if (!next) _properties.clear(); _properties.addAll(rows.$1); _more = rows.$2; _page = next ? _page + 1 : 1; _loading = false; });
     } catch (e) { if (mounted && request == _request) setState(() { _loading = false; _error = friendlyApiError(e); }); }
   }
-  Future<void> _editProfile(BrokerProfile profile) async {
-    final repository = ref.read(brokerRepositoryProvider);
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => _EditPublicProfileDialog(profile: profile, repository: repository),
-    );
-    if (saved != true || !mounted) return;
-    ref.invalidate(brokerProfileProvider(widget.id));
-    ref.invalidate(brokerWorkspaceProvider);
-    ref.invalidate(brokerDirectoryProvider);
-    ref.read(propertyDataRevisionProvider.notifier).state++;
-  }
-  Future<void> _photo() async {
-    final paths = await const Stage5MediaPicker().pickImages();
-    if (paths.isEmpty || !mounted) return;
-    try {
-      await ref.read(brokerRepositoryProvider).uploadPhoto(paths.first);
-      ref.invalidate(brokerProfileProvider(widget.id)); ref.invalidate(brokerDirectoryProvider);
-    } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e)))); }
-    finally { await const Stage5MediaPicker().clearTemporaryFiles(paths); }
-  }
   @override
   Widget build(BuildContext context) => BrokerScaffold(appBar: const AppAppBar(title: 'الملف العام'), body: ref.watch(brokerProfileProvider(widget.id)).when(
     loading: () => const AppLoadingState(), error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerProfileProvider(widget.id))),
     data: (profile) => ListView(padding: const EdgeInsets.all(16), children: [
-      EbrokerAdvertiserCard(name: profile.name, identity: profile.typeLabel, rating: profile.rating, ratingCount: profile.ratingCount,
-        verified: profile.verified, photoUrl: profile.photoUrl, completedDeals: profile.completedDeals, activeListings: profile.activeListings, action: const ['broker','office'].contains(profile.type) ? BrokerContactButton(brokerId:profile.id) : null, onTap: () {}),
-      const SizedBox(height: 16),
-      Text('إعلانات أُغلقت: ${profile.soldListings} مباع · ${profile.rentedListings} مؤجر'),
-      if (profile.bio?.isNotEmpty == true) Text(profile.bio!),
-      if (profile.governorate != null) Text('المحافظة: ${profile.governorate}'),
-      if (profile.joinedAt != null) Text('عضو منذ ${profile.joinedAt}'),
-      if (ref.watch(authControllerProvider).asData?.value?.id == profile.id && profile.type != 'individual') Wrap(spacing: 8, children: [
-        AppButton(label: 'تعديل الملف العام', icon: Icons.edit_outlined, onPressed: () => _editProfile(profile)),
-        AppButton(label: 'تغيير الصورة العامة', icon: Icons.add_a_photo_outlined, onPressed: _photo),
-      ]),
+      BrokerPublicProfileSummary(
+        profile: profile,
+        contact: const ['broker', 'office'].contains(profile.type)
+            ? BrokerContactButton(brokerId: profile.id)
+            : null,
+      ),
+      BrokerPublicProfileActions(profile: profile),
       const SizedBox(height: 20), Text('العقارات النشطة', style: Theme.of(context).textTheme.titleLarge),
       Wrap(spacing: 8, children: [for (final item in const [('الكل', null), ('للبيع', 'sale'), ('للإيجار', 'rent')])
         AppFilterChip(label: item.$1, selected: _purpose == item.$2, onSelected: (_) { setState(() => _purpose = item.$2); _loadProperties(); })]),
@@ -166,85 +138,4 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
       if (_more && !_loading) AppButton(label: 'عرض المزيد من العقارات', onPressed: () => _loadProperties(next: true)),
     ]),
   ));
-}
-
-class _EditPublicProfileDialog extends StatefulWidget {
-  const _EditPublicProfileDialog({required this.profile, required this.repository});
-  final BrokerProfile profile;
-  final BrokerRepository repository;
-
-  @override
-  State<_EditPublicProfileDialog> createState() => _EditPublicProfileDialogState();
-}
-
-class _EditPublicProfileDialogState extends State<_EditPublicProfileDialog> {
-  final _form = GlobalKey<FormState>();
-  late String _bio;
-  late String _officeName;
-  late bool _office;
-  String? _governorate, _error;
-  bool _saving = false;
-
-  bool get _professional => const {'broker', 'office'}.contains(widget.profile.type);
-
-  @override
-  void initState() {
-    super.initState();
-    final profile = widget.profile;
-    _bio = profile.bio ?? '';
-    _office = profile.type == 'office';
-    _officeName = profile.officeName ?? '';
-    final region = YemenAdminDivisions.canonicalGovernorate(profile.governorate ?? '');
-    _governorate = _brokerGovernorates.contains(region) ? region : null;
-  }
-
-  Future<void> _save() async {
-    if (_saving || !_form.currentState!.validate()) return;
-    setState(() { _saving = true; _error = null; });
-    try {
-      await widget.repository.updateProfile(
-        bio: _bio, governorate: _professional ? _governorate : null,
-        isOffice: _professional ? _office : null, officeName: _officeName,
-      );
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (error) {
-      if (mounted) setState(() { _saving = false; _error = friendlyApiError(error); });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('تعديل الملف العام'),
-    scrollable: true,
-    content: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      if (_professional) ...[
-        DropdownButtonFormField<String>(
-          value: _governorate, isExpanded: true,
-          decoration: const InputDecoration(labelText: 'المحافظة'),
-          items: [for (final name in _brokerGovernorates) DropdownMenuItem(value: name, child: Text(name))],
-          onChanged: _saving ? null : (value) => setState(() => _governorate = value),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero, title: const Text('أعمل باسم مكتب عقاري'),
-          value: _office, onChanged: _saving ? null : (value) => setState(() => _office = value),
-        ),
-        if (_office) TextFormField(
-          key: const ValueKey('public-office-name'), initialValue: _officeName, enabled: !_saving, maxLength: 140,
-          decoration: const InputDecoration(labelText: 'اسم المكتب'),
-          onChanged: (value) => _officeName = value,
-          validator: (value) => value == null || value.trim().isEmpty ? 'أدخل اسم المكتب' : null,
-        ),
-      ],
-      TextFormField(
-        key: const ValueKey('public-profile-bio'), initialValue: _bio, enabled: !_saving, onChanged: (value) => _bio = value,
-        maxLength: 900, minLines: 2, maxLines: 4,
-        decoration: const InputDecoration(labelText: 'نبذة عنك'),
-      ),
-      if (_error != null) Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-    ])),
-    actions: [
-      TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('إلغاء')),
-      AppButton(label: _saving ? 'جارٍ الحفظ' : 'حفظ', onPressed: _saving ? null : _save),
-    ],
-  );
 }

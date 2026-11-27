@@ -41,12 +41,12 @@ final assistantHintStoreProvider = Provider<AssistantHintStore>((ref) => Assista
 class SmartSearchAssistantLayer extends ConsumerStatefulWidget {
   const SmartSearchAssistantLayer({required this.child, this.onPressed, this.bottom = 20, this.enabled = true,
     this.showComparisonTray = true, this.showMapButton = true, this.showHint = true,
-    this.onOpenMap, this.mapFilters, this.savedSearch, super.key});
+    this.showAssistantShortcuts = true, this.onOpenMap, this.mapFilters, this.savedSearch, super.key});
   final Widget child;
   final VoidCallback? onPressed;
   final double bottom;
   final bool enabled, showComparisonTray;
-  final bool showMapButton, showHint;
+  final bool showMapButton, showHint, showAssistantShortcuts;
   final Future<void> Function()? onOpenMap;
   final SmartSearchFilters? mapFilters;
   final SavedPropertySearch? savedSearch;
@@ -91,12 +91,14 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
     super.initState();
     _motion = AnimationController(vsync: this, duration: const Duration(milliseconds: 650));
     _pulse = Timer.periodic(const Duration(seconds: 9), (_) {
-      if (mounted && widget.enabled && TickerMode.of(context) && !MediaQuery.disableAnimationsOf(context) && ModalRoute.of(context)?.isCurrent != false) {
+      if (mounted && widget.enabled && widget.showAssistantShortcuts &&
+          TickerMode.of(context) && !MediaQuery.disableAnimationsOf(context) &&
+          ModalRoute.of(context)?.isCurrent != false) {
         _motion.forward(from: 0);
       }
     });
     Future<void>.microtask(() async {
-      if (!mounted || !widget.enabled || !widget.showHint ||
+      if (!mounted || !widget.enabled || !widget.showAssistantShortcuts || !widget.showHint ||
           !await ref.read(assistantHintStoreProvider).take() || !mounted) {
         return;
       }
@@ -113,7 +115,8 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final broker = ref.watch(authControllerProvider).asData?.value?.hasMarketplaceProfessionalProfile == true;
+    final broker = widget.showAssistantShortcuts &&
+        ref.watch(authControllerProvider).asData?.value?.hasMarketplaceProfessionalProfile == true;
     final menuOpen = broker && ref.watch(brokerAssistantMenuProvider);
     return Stack(fit: StackFit.expand, children: [
       ExcludeSemantics(excluding: menuOpen, child: widget.child),
@@ -122,7 +125,7 @@ class _AssistantLayerState extends ConsumerState<SmartSearchAssistantLayer> with
         leftAligned: true, baseBottom: widget.bottom + 64, scrimOpacity: .35),
       if (widget.enabled && widget.showComparisonTray && MediaQuery.viewInsetsOf(context).bottom == 0) Positioned(right: 12, bottom: widget.bottom,
         child: ConstrainedBox(constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 100), child: const PropertyCompareTray())),
-      if (widget.enabled && MediaQuery.viewInsetsOf(context).bottom == 0)
+      if (widget.enabled && widget.showAssistantShortcuts && MediaQuery.viewInsetsOf(context).bottom == 0)
         Positioned(left: 16, bottom: widget.bottom, child: Column(textDirection: TextDirection.ltr, crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           if (_hint && !menuOpen) Padding(padding: const EdgeInsets.only(bottom: 8), child: Material(
             elevation: 3, color: scheme.surface, borderRadius: BorderRadius.circular(16),

@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/features/account/presentation/account_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/saved_search_repository.dart';
-import 'package:real_estate_mobile/features/properties/domain/saved_property_search.dart';
 import 'package:real_estate_mobile/features/services/data/service_repository.dart';
 import 'package:real_estate_mobile/features/services/domain/service_models.dart';
 import 'package:real_estate_mobile/router/app_router.dart';
@@ -14,7 +13,7 @@ void main() {
   setUpAll(loadUxFixtures);
 
   testWidgets(
-      'an active verified broker opens owned saved searches from Account through the authenticated hub',
+      'the broker services route omits retired pages and never loads saved searches',
       (tester) async {
     final auth = UxAuth(uxUser(id: 28, type: 'broker'));
     final scope = uxContainer(auth: auth, extra: [
@@ -24,15 +23,7 @@ void main() {
                 'verification_status': 'approved',
                 'verified_professional': true,
               })),
-      savedSearchesProvider.overrideWith((_) async => const [
-            SavedPropertySearch(
-                id: 6,
-                name: 'UAT1822 10',
-                filters: {'type': 'land'},
-                alertFrequency: 'off',
-                isActive: true,
-                matchingCount: 36),
-          ]),
+      savedSearchesProvider.overrideWith((_) => throw StateError('Retired catalog must not load')),
     ]);
     final production = scope.read(appRouterProvider);
     addTearDown(production.dispose);
@@ -44,29 +35,28 @@ void main() {
       GoRoute(path: services.path, builder: services.builder),
     ]);
     addTearDown(navigation.dispose);
-    await pumpUx(tester, scope, const SizedBox(), router: navigation);
-    final entry = find.text('الخدمات والأدوات');
-    await tester.scrollUntilVisible(entry, 240,
-        scrollable: find.byType(Scrollable).first);
-    await tester.tap(entry);
+    await pumpUx(tester, scope, const SizedBox(), router: navigation,
+      size: const Size(412, 1320));
+    expect(find.text('الخدمات والدعم'), findsOneWidget);
+    expect(find.text('الخدمات والأدوات'), findsNothing);
+    navigation.go('/services');
     await tester.pumpAndSettle();
-    final saved = find.text('البحوث المحفوظة والتنبيهات');
-    await tester.ensureVisible(saved);
-    await tester.tap(saved);
-    await tester.pumpAndSettle();
-    expect(find.text('UAT1822 10'), findsOneWidget);
-    expect(find.text('عرض النتائج'), findsOneWidget);
+    expect(find.text('مقارنة العقارات'), findsOneWidget);
+    for (final label in ['رحلتي العقارية', 'البحوث المحفوظة والتنبيهات', 'اتفاقاتي وعقودي', 'مؤشرات الأسعار داخل صفحة العقار']) {
+      expect(find.text(label), findsNothing);
+    }
 
     auth.change(null);
     await tester.pumpAndSettle();
-    expect(find.text('سجّل الدخول للمتابعة.'), findsOneWidget);
-    expect(find.text('UAT1822 10'), findsNothing);
+    expect(find.text('سجّل الدخول أولاً'), findsOneWidget);
+    expect(find.text('تسجيل الدخول'), findsOneWidget);
+    expect(find.text('مقارنة العقارات'), findsNothing);
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });
 
   testWidgets(
-      'the broker account entry stays hidden in the administrative account layout',
+      'the services shortcut stays absent in the administrative account layout',
       (tester) async {
     final scope =
         uxContainer(user: uxUser(type: 'broker', roles: ['support_agent']));
