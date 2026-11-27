@@ -426,12 +426,13 @@ void main() {
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 
-  testWidgets('smart search validates assistant chips and uses the existing public API for actual results', (tester) async {
+  testWidgets('smart search opens its map and shows current listing prices from the public results', (tester) async {
     final repository = _Properties(), key = GlobalKey();
     await _pump(tester, const AssistedSearchScreen(), properties: repository, boundary: key);
     await tester.enterText(find.byKey(const ValueKey('smart-search-description')), 'شقة إيجار في تعز، 3 غرف، أقل من 150 ألف');
     await tester.tap(find.byKey(const ValueKey('smart-search-send'))); await tester.pumpAndSettle();
-    expect(find.text('تعز'), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-map')), findsOneWidget);
+    expect(repository.lastQuery!['governorate_code'], 'YE-TA');
     await _capture(tester, key, 'smart-filters');
     await tester.scrollUntilVisible(find.text('شقة من نتائج الخادم'), 250, scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();

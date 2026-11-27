@@ -130,9 +130,6 @@ jobs:
           test/broker_experience_ui_test.dart
           test/listing_card_parity_test.dart
           test/private_listing_card_photo_test.dart
-          test/listing_design_wave_test.dart
-          test/ui_transplant_v3_template_test.dart
-          test/ux_refinement_test.dart
           test/broker_listing_assistant_test.dart
           test/branch2_voice_test.dart
           test/broker_convenience_test.dart
@@ -152,6 +149,13 @@ jobs:
           test/owner_ux_gallery_filters_test.dart
           test/phase3_favorites_screen_test.dart
           test/wave3_search_only_1393_test.dart
+      - name: Test existing listing-card navigation and monthly-price journeys
+        run: >-
+          flutter test --no-pub --reporter expanded
+          --name 'favorites share photo|favorite source card opens|smart search opens its map and shows'
+          test/listing_design_wave_test.dart
+          test/ui_transplant_v3_template_test.dart
+          test/ux_refinement_test.dart
       - name: Test account preferences, profile editing and regional search
         if: ${{ !cancelled() && steps.analyze.outcome == 'success' }}
         run: >-
