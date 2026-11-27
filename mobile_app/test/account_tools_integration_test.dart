@@ -228,10 +228,11 @@ void main() {
     final h = await _harness();
     await _preferences(tester, h);
     expect(find.byType(SwitchListTile), findsNWidgets(4));
-    for (final title in ['الرسائل', 'نشاط إعلاناتي', 'البحث والمفضلة', 'الخدمات']) {
+    for (final title in ['الرسائل', 'نشاط إعلاناتي', 'المفضلة', 'الخدمات']) {
       expect(find.widgetWithText(SwitchListTile, title), findsOneWidget);
     }
     expect(find.text('تنبيهات الأمان والدعم داخل التطبيق'), findsNothing);
+    expect(find.textContaining('بحثًا محفوظًا'), findsNothing);
     expect(find.text('إشعارات الجهاز'), findsNothing);
     expect(find.text('تفعيل إشعارات الجهاز'), findsNothing);
     expect(find.text('إيقاف إشعارات هذا الجهاز'), findsNothing);

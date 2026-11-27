@@ -269,6 +269,23 @@ void main() {
     expect(repo.savedPublicProfile, {'bio': 'نبذة عامة محدثة'});
   });
 
+  testWidgets('ordinary account can edit an optional bio before its first public listing', (tester) async {
+    final repo = BrokerTestRepository(viewerId: 2);
+    await _pump(tester, const ProfileScreen(), repo, userId: 2);
+    expect(find.text('تغيير الصورة العامة'), findsNothing);
+    expect(find.text('المحافظة واسم المكتب'), findsNothing);
+    await tester.tap(find.text('تعديل النبذة'));
+    await tester.pumpAndSettle();
+    final field = find.byKey(const ValueKey('public-profile-bio'));
+    final editor = tester.widget<TextField>(find.descendant(of: field, matching: find.byType(TextField)));
+    expect(editor.maxLength, 150);
+    expect(editor.controller!.text, isEmpty);
+    await tester.enterText(field, 'نبذتي الاختيارية');
+    await tester.tap(find.descendant(of: find.byType(AlertDialog), matching: find.text('حفظ')));
+    await tester.pumpAndSettle();
+    expect(repo.savedPublicProfile, {'bio': 'نبذتي الاختيارية'});
+  });
+
   testWidgets('private profile shows an editable saved name and no active listings section', (tester) async {
     await _pump(tester, const ProfileScreen(), BrokerTestRepository());
     expect(find.text(exampleBroker.name), findsOneWidget);

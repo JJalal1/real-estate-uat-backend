@@ -35,7 +35,8 @@ class GovernorateSearch {
   const GovernorateSearch._(this.name, this.remainder);
   final String name;
   final String remainder;
-  Map<String, dynamic> get filters => {'governorate': name, 'governorate_code': _governorateCodes[name]!};
+  String get code => _governorateCodes[name]!;
+  Map<String, dynamic> get filters => {'governorate': name, 'governorate_code': code};
 
   static String? nameForCode(String? code) => _namesByCode[code?.trim().toUpperCase()];
 
@@ -47,8 +48,8 @@ class GovernorateSearch {
 
   void applyTo(Map<String, dynamic> values) {
     // Former releases inherited a GPS circle of 30 km. An explicitly named
-    // province replaces that circle; drawn polygons and viewport bounds are
-    // independent user choices.
+    // province replaces that implicit circle. User-applied map bounds are
+    // evaluated against the province when the search is submitted.
     if (num.tryParse(values['radius_km'].toString()) == 30 &&
         values.containsKey('latitude') && values.containsKey('longitude')) {
       values.remove('latitude');

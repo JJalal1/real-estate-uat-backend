@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/ai_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/discovery_location.dart';
+import 'package:real_estate_mobile/features/discovery/data/governorate_map_scope.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/data/smart_search_session.dart';
@@ -39,6 +41,7 @@ class _Preferences extends DiscoveryLocationStore {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   const dhamar = HomeLocation(governorate: 'ذمار', governorateCode: 'DHAMAR',
       device: true, latitude: 14.55, longitude: 44.4);
   const sanaa = HomeLocation(governorate: 'صنعاء', governorateCode: 'SANAA', manual: true);
@@ -72,6 +75,85 @@ void main() {
     await controller.submit(onMap: true);
     expect(map.snapshot.filters.apiFilters, {...dhamar.provinceSearchContext, 'purpose': 'sale', 'type': 'house'});
     expect(home.snapshot.filters.apiFilters['governorate_code'], 'SANAA');
+  });
+
+  const dhamarRing = '[[44.39,14.54],[44.41,14.54],[44.41,14.56],[44.39,14.56],[44.39,14.54]]';
+  const dhamarViewport = {'west': 44.38, 'east': 44.42, 'south': 14.53, 'north': 14.57};
+  test('ordinary map releases incompatible shapes for the named province and keeps subsequent independent pans', () async {
+    final properties = Wave3PropertiesFake();
+    final home = SmartSearchSession(Wave3AiFake(), properties);
+    final map = SmartSearchSession(Wave3AiFake(), properties);
+    final controller = MarketplaceSearchController(home, map, () => dhamar);
+    addTearDown(() { controller.dispose(); home.dispose(); map.dispose(); });
+    controller.edit('بيت للبيع');
+    await controller.submit();
+    final parent = home.snapshot;
+    controller.enterMap();
+    map.updateViewport(south: 14.53, west: 44.38, north: 14.57, east: 44.42);
+    await map.applyDrawnArea(dhamarRing);
+    controller.edit('بيت للبيع في ذمار', onMap: true);
+    await controller.submit(onMap: true);
+    expect(map.snapshot.filters.values['area_polygon'], dhamarRing);
+    expect(map.snapshot.filters.values['west'], 44.38);
+    controller.edit('شقة للإيجار في صنعاء', onMap: true);
+    await controller.submit(onMap: true);
+    expect(map.snapshot.filters.apiFilters, {...sanaa.provinceSearchContext, 'type': 'apartment', 'purpose': 'rent'});
+
+    // An intentional subsequent pan is an independent search area. Changing
+    // a property attribute doesn't silently resubmit the last typed province.
+    map.updateViewport(south: 14.53, west: 44.38, north: 14.57, east: 44.42);
+    controller.choosePurpose('sale', onMap: true);
+    await Future<void>.delayed(Duration.zero);
+    expect(map.snapshot.filters.values['west'], 44.38);
+    expect(map.snapshot.filters.values.containsKey('governorate_code'), isFalse);
+    await controller.submit(onMap: true);
+    expect(map.snapshot.filters.values['governorate_code'], 'SANAA');
+    expect(map.snapshot.filters.hasMapArea, isFalse);
+    controller.leaveMap();
+    expect(home.snapshot, same(parent));
+  });
+
+  test('typed or transcribed smart turns replace only incompatible scoped geometry', () async {
+    final properties = Wave3PropertiesFake();
+    final dio = Dio();
+    addTearDown(() => dio.close(force: true));
+    final inputs = <Map<String, dynamic>>[];
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
+      final input = request.data as Map;
+      inputs.add(Map.from(input['filters'] as Map));
+      handler.resolve(Response(requestOptions: request, statusCode: 200, data: {'data': {
+        'revision': input['revision'], 'filters': {...inputs.last, 'type': 'house'},
+      }}));
+    }));
+    final smart = SmartSearchSession(AiRepository(dio, _UnusedAuth()), properties);
+    addTearDown(smart.dispose);
+    final saved = SmartSearchFilters.fromMap({
+      ...dhamarViewport, 'area_polygon': dhamarRing, 'advertiser_id': 7,
+    });
+    smart.beginJourney(savedFilters: saved);
+    await smart.interpret('بيت في ذمار');
+    expect(properties.queries.last.filters, {...saved.values, ...dhamar.provinceSearchContext, 'type': 'house'});
+    await smart.interpret('بيت في صنعاء');
+    expect(inputs.last.containsKey('area_polygon'), isFalse);
+    expect(properties.queries.last.filters, {...sanaa.provinceSearchContext, 'type': 'house', 'advertiser_id': 7});
+    expect(saved.values['area_polygon'], dhamarRing);
+  });
+
+  test('governorate holes, crossing viewports and drawn areas use actual shared geometry', () async {
+    final source = File('../backend-api-runtime/resources/regions/yemen-adm1.geojson');
+    expect(await File(GovernorateMapScope.asset).readAsString(), await source.readAsString());
+    const capital = {'west': 44.185, 'east': 44.195, 'south': 15.365, 'north': 15.375};
+    final capitalScope = SmartSearchFilters.fromMap(capital);
+    expect((await GovernorateMapScope.reconcile(capitalScope, 'AMANAT_AL_ASIMAH')).hasMapArea, isTrue);
+    expect((await GovernorateMapScope.reconcile(capitalScope, 'SANAA')).hasMapArea, isFalse);
+    final mixed = SmartSearchFilters.fromMap({'area_polygon': dhamarRing, ...capital});
+    final matchDraw = await GovernorateMapScope.reconcile(mixed, 'DHAMAR');
+    expect(matchDraw.values, {'area_polygon': dhamarRing});
+    final matchViewport = await GovernorateMapScope.reconcile(mixed, 'AMANAT_AL_ASIMAH');
+    expect(matchViewport.values, capital);
+    final crossing = SmartSearchFilters.fromMap({'west': 44.3, 'east': 44.7, 'south': 14.5, 'north': 15.5});
+    expect((await GovernorateMapScope.reconcile(crossing, 'SANAA')).values, crossing.values);
+    expect((await GovernorateMapScope.reconcile(crossing, 'DHAMAR')).values, crossing.values);
   });
 
   test('smart typed and transcribed turns use the same province and pagination filters', () async {

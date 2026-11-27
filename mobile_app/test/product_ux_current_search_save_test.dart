@@ -13,8 +13,14 @@ void main() {
       'lib/features/discovery/presentation/assisted_search_screen.dart',
     ).readAsStringSync();
 
-    for (final discovery in [source, assisted]) {
+    for (final discovery in [
+      source,
+      assisted,
+      for (final screen in ['marketplace_home_screen', 'marketplace_search_screen', 'marketplace_search_panel'])
+        File('lib/features/discovery/presentation/$screen.dart').readAsStringSync(),
+    ]) {
       expect(discovery, isNot(contains('SavedSearchBuilderScreen')));
+      expect(discovery, isNot(contains('SavedSearchesScreen')));
       expect(discovery, isNot(contains('حفظ البحث الحالي')));
       expect(discovery, isNot(contains('حفظ البحث')));
     }

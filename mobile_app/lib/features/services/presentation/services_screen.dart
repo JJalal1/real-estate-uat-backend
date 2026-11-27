@@ -7,11 +7,9 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
-import '../../properties/presentation/saved_searches_screen.dart';
 import '../data/service_repository.dart';
 import '../domain/service_models.dart';
 import 'professional_workspace_screen.dart';
-import 'property_journey_screen.dart';
 
 class ServicesScreen extends ConsumerWidget {
   const ServicesScreen({super.key});
@@ -118,86 +116,16 @@ class _ServicesHub extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.s24),
-        const AppSectionHeader(
-          title: 'أدوات الباحث',
-          subtitle:
-              'من البحث إلى المراسلة والاتفاق، بدون ما تضيع الخطوة التالية.',
-        ),
+        const AppSectionHeader(title: 'أدوات الباحث'),
         const SizedBox(height: AppSpacing.s8),
         AppSurface(
           padding: EdgeInsets.zero,
           child: Column(
             children: [
-              AppListRow(
-                title: 'رحلتي العقارية',
-                subtitle:
-                    'المحفوظات والرسائل والاتفاقات مع الخطوة التالية.',
-                leading: const EbrokerIcon(Icons.route_outlined),
-                trailing: const AppStatusBadge(
-                  label: 'متاح الآن',
-                  tone: AppStatusTone.success,
-                ),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const PropertyJourneyScreen(),
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-              AppListRow(
-                title: 'البحوث المحفوظة والتنبيهات',
-                subtitle:
-                    'تابع نتائج بحثك واحصل على تنبيه عند ظهور عقار مطابق.',
-                leading: const EbrokerIcon(Icons.saved_search_rounded),
-                trailing: const EbrokerIcon(Icons.chevron_left_rounded),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const SavedSearchesScreen(),
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-              AppListRow(
-                title: 'اتفاقاتي وعقودي',
-                subtitle:
-                    'تابع الاتفاقات المقبولة وعقود الإيجار المرتبطة بعقاراتك.',
-                leading: const EbrokerIcon(Icons.handshake_outlined),
-                trailing: const AppStatusBadge(
-                  label: 'متاح الآن',
-                  tone: AppStatusTone.success,
-                ),
-                onTap: () => context.push('/agreements'),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.s24),
-        const AppSectionHeader(
-          title: 'أدوات القرار',
-          subtitle:
-              'معلومات مساعدة من بيانات المنصة نفسها، بدون ادعاء تقييم رسمي.',
-        ),
-        const SizedBox(height: AppSpacing.s8),
-        AppSurface(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              AppListRow(
-                title: 'مؤشرات الأسعار داخل صفحة العقار',
-                subtitle:
-                    'تقارن العقار بعقارات منشورة ومعتمدة مشابهة، وتظهر فقط عندما تكون العينة كافية.',
-                leading: const EbrokerIcon(Icons.insights_outlined),
-                trailing: const AppStatusBadge(
-                  label: 'متاح الآن',
-                  tone: AppStatusTone.success,
-                ),
-                onTap: () => context.push('/property-market'),
-              ),
-              const Divider(height: 1),
               AppListRow(
                 title: 'مقارنة العقارات',
                 subtitle:
-                    'قارن عقارين من المفضلة في السعر والمساحة والسعي والثقة ومؤشر السوق.',
+                    'قارن السعر والمساحة وخصائص العقارات في المفضلة.',
                 leading: const EbrokerIcon(Icons.compare_arrows_rounded),
                 trailing: const AppStatusBadge(
                   label: 'متاح الآن',

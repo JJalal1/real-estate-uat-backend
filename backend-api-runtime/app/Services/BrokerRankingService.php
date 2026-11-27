@@ -73,7 +73,9 @@ class BrokerRankingService
         $profile = $user->accountVerificationProfile;
         $approved = $profile?->isApproved() === true;
         $details = $approved ? ($profile->details ?? []) : [];
-        $type = $approved ? $profile->type : 'individual';
+        $type = $approved && in_array($profile->type, ['broker', 'office'], true)
+            ? $profile->type
+            : 'individual';
         $officeName = null;
         if ($user->hasMarketplaceProfessionalProfile()) {
             $office = $user->marketplace_is_office === null ? $type === 'office' : (bool) $user->marketplace_is_office;

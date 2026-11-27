@@ -39,6 +39,7 @@ flutter:
   assets:
     - assets/brand/
     - assets/payments/
+    - assets/regions/
     - assets/ebroker/svg/
     - assets/ebroker/svg/agent/
     - assets/ebroker/svg/MultiColorSvg/

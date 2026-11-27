@@ -23,7 +23,7 @@ def main():
                 'build/broker-preview/assistant-voice-inline-1.0.png', 'build/broker-preview/assistant-voice-inline-2.4.png',
                 'build/broker-preview/assistant-voice-controls-2.4.png',
                 *[f'build/broker-preview/active-wave-{screen}-{scale}.png'
-                  for screen in ['compare', 'details', 'advertiser', 'save', 'directory']
+                  for screen in ['compare', 'details', 'advertiser', 'directory']
                   for scale in ['1.0', '2.4']]]
     selected += [f'build/broker-preview/wave6-{screen}-{scale}.png' for screen in ['compare','compare-facts','description-loading','description-ready','completion','home','existing-sai','search','map'] for scale in ['1.0','2.4']]
     for path in selected:

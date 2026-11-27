@@ -16,6 +16,7 @@ Future<bool> showPropertySaiConfigurationSheet(
   required int propertyId,
   required String purpose,
   required double basis,
+  bool professionalAdvertiser = true,
 }) async {
   final initial = await repository.saiForEditor(propertyId);
   if (initial.management == null) throw StateError('تعذر تحميل سياسة السعي. أعد المحاولة.');
@@ -29,6 +30,7 @@ Future<bool> showPropertySaiConfigurationSheet(
           purpose: purpose,
           basis: basis,
           initial: initial,
+          professionalAdvertiser: professionalAdvertiser,
         ),
       ) ??
       false;
@@ -41,6 +43,7 @@ class _SaiConfigurationBody extends StatefulWidget {
     required this.purpose,
     required this.initial,
     required this.basis,
+    required this.professionalAdvertiser,
   });
 
   final PropertyRepository repository;
@@ -48,6 +51,7 @@ class _SaiConfigurationBody extends StatefulWidget {
   final String purpose;
   final PropertySaiEnvelope initial;
   final double basis;
+  final bool professionalAdvertiser;
 
   @override
   State<_SaiConfigurationBody> createState() => _SaiConfigurationBodyState();
@@ -60,18 +64,19 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
   String? _payer;
   bool _busy = false;
   String? _error;
+  PropertySaiManagement? _editablePolicy;
 
-  PropertySaiManagement get management => widget.initial.management!;
+  PropertySaiManagement get management => _editablePolicy ?? widget.initial.management!;
 
   bool get isSale => widget.purpose == 'sale';
-  bool get isOwner => management.isOwner;
+  bool get historicalFixed => management.hasHistoricalFixedTerms;
   double? get maxProfessionalRate => management.brokerMaxRatePercent;
   double get enteredRate => parseSaiNumber(_rateController.text) ?? double.nan;
   double get enteredAmount => parseSaiNumber(_amountController.text) ?? double.nan;
-  bool get fixed => !isOwner && _amountType == 'fixed';
-  PropertySaiQuote? get quote => PropertySaiQuote.calculate(management, isOwner ? (management.fixedRatePercent ?? double.nan) : enteredRate, widget.basis,
+  bool get fixed => !historicalFixed && _amountType == 'fixed';
+  PropertySaiQuote? get quote => PropertySaiQuote.calculate(management, historicalFixed ? (management.effectiveFixedRate ?? double.nan) : enteredRate, widget.basis,
       fixedAmount: fixed ? enteredAmount : null);
-  bool get custom => !isOwner && quote != null && !quote!.fallback;
+  bool get custom => !historicalFixed && quote != null && !quote!.fallback;
 
   @override
   void initState() {
@@ -109,13 +114,15 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
             children: [
               AppSectionHeader(
                 title: 'تحديد السعي قبل إرسال الإعلان',
-                subtitle: isOwner
-                    ? 'نسبة السعي ثابتة في النظام ويتحملها العميل.'
+                subtitle: historicalFixed
+                    ? 'يمكنك المتابعة بالسعي المسجّل أو اختيار سعي جديد.'
                     : 'حدد السعي ضمن الحد المسموح.',
               ),
               ListingSaiSection(
                 purpose: widget.purpose, policy: management, basis: widget.basis,
                 rateController: _rateController, amountController: _amountController, amountType: _amountType,
+                professionalAdvertiser: widget.professionalAdvertiser,
+                onEditHistoricalTerms: _editHistoricalTerms,
                 accepted: false, enabled: !_busy, onChanged: () => setState(() => _error = null),
                 onAcceptanceChanged: (_) {}, onRetry: () {},
                 onAmountTypeChanged: (value) => setState(() {
@@ -129,7 +136,7 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
                 AppInlineMessage(message: _error!, tone: AppStatusTone.error),
               ],
               const SizedBox(height: AppSpacing.s20),
-              if (!isOwner && custom)
+              if (custom)
                 Row(
                   children: [
                     Expanded(
@@ -173,7 +180,29 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
     );
   }
 
+  Future<void> _editHistoricalTerms() async {
+    setState(() { _busy = true; _error = null; });
+    try {
+      final policy = await widget.repository.saiPolicy(widget.purpose);
+      if (!mounted) return;
+      setState(() {
+        _editablePolicy = policy;
+        _amountType = 'fixed';
+        _rateController.clear();
+        _amountController.clear();
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = friendlyApiError(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _save(String? decision) async {
+    if (historicalFixed) {
+      Navigator.pop(context, true);
+      return;
+    }
     final payer = _payer;
     if (payer == null) {
       setState(() => _error = 'يجب تحديد الطرف الذي يتحمل السعي.');
@@ -196,7 +225,7 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
       final result = await widget.repository.configureSai(
         widget.propertyId,
         payer: payer,
-        brokerRatePercent: isOwner || fixed ? null : rate,
+        brokerRatePercent: fixed ? null : rate,
         amountType: fixed ? 'fixed' : 'percentage',
         fixedAmount: fixed ? enteredAmount : null,
         platformTermsDecision: decision,

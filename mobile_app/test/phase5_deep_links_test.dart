@@ -17,6 +17,11 @@ void main() {
     expect(manifest, contains('android:pathPrefix="/l/properties"'));
   });
 
+  test('retired agreement catalog links open the inbox', () {
+    expect(internalLocationForAppLink(Uri.parse('realestate://app/agreements')), '/messages');
+    expect(internalLocationForAppLink(Uri.parse('realestate://other/agreements')), isNull);
+  });
+
   test('Phase 5 agreement deep link opens exact private agreement route', () {
     final link = agreementAppDeepLink(12);
     expect(link.toString(), 'realestate://app/agreements/12');

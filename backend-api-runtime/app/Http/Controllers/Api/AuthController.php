@@ -2,6 +2,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AccountVerificationProfile;
 use App\Models\User;
 use App\Models\VerificationChallenge;
 use App\Services\AccessControlService;
@@ -608,7 +609,7 @@ class AuthController extends Controller
     private function verificationProfileData(User $user): array
     {
         $profile=$user->accountVerificationProfile;
-        if(!$profile){
+        if(!$profile || $profile->type === AccountVerificationProfile::TYPE_OWNER){
             return [
                 'type'=>null,
                 'status'=>'not_submitted',
@@ -655,6 +656,7 @@ class AuthController extends Controller
             'name'=>$user->name,
             'email'=>$user->email,
             'phone'=>$user->phone,
+            'public_bio'=>$user->public_professional_bio,
             'account_type'=>$user->account_type ?? User::ACCOUNT_TYPE_REGULAR,
             'phone_verified_at'=>$user->phone_verified_at?->toIso8601String(),
             'email_verified_at'=>$user->email_verified_at?->toIso8601String(),

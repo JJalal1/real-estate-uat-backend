@@ -19,7 +19,7 @@ class UserNotificationService
         array $data = [],
         bool $deliverPush = true,
     ): ?UserNotification {
-        if (in_array($type, UserNotification::RETIRED_VIEWING_TYPES, true) || $entityType === 'viewing_booking') return null;
+        if (in_array($type, UserNotification::RETIRED_TYPES, true) || $entityType === 'viewing_booking') return null;
         $category = $this->preferenceCategory($type);
         $canPush = $category === null || $this->enabled($userId, $category);
         // Keep this moderation decision in the inbox when optional listing alerts are muted.
@@ -61,7 +61,7 @@ class UserNotificationService
 
     public function mayDeliver(UserNotification $notification): bool
     {
-        if (in_array($notification->type, UserNotification::RETIRED_VIEWING_TYPES, true) || $notification->entity_type === 'viewing_booking') return false;
+        if (in_array($notification->type, UserNotification::RETIRED_TYPES, true) || $notification->entity_type === 'viewing_booking') return false;
         if (! \App\Models\User::query()->whereKey($notification->user_id)->where('account_status', \App\Models\User::STATUS_ACTIVE)->exists()) return false;
         if ($notification->type === 'platform_receivable_reminder') {
             return \App\Models\PropertyPlatformReceivable::query()->whereKey($notification->entity_id)
@@ -87,9 +87,7 @@ class UserNotificationService
         if (str_starts_with($type, 'agreement_') || str_starts_with($type, 'rental_contract_')) {
             return 'agreements';
         }
-        if ($type === 'saved_search_match' ||
-            $type === 'saved_search_digest' ||
-            $type === 'favorite_price_changed') {
+        if ($type === 'favorite_price_changed') {
             return 'discovery_alerts';
         }
         if (str_starts_with($type, 'listing_') ||

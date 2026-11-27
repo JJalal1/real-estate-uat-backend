@@ -37,7 +37,6 @@ import '../domain/property_field_options.dart';
 import '../domain/property_schema.dart';
 import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
-import 'property_market_context_card.dart';
 import 'property_sai_public_line.dart';
 import 'property_favorite_status.dart';
 import 'property_share.dart';
@@ -232,7 +231,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       onRefresh: () async {
         ref.invalidate(propertyDetailsProvider(widget.propertyId));
         ref.invalidate(propertySaiPublicProvider(widget.propertyId));
-        ref.invalidate(propertyMarketContextProvider(widget.propertyId));
         if (ref.read(authControllerProvider).asData?.value != null) {
           ref.invalidate(favoritePropertyIdsProvider);
         }
@@ -325,19 +323,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
                       EbrokerText(facts[index].label, weight: FontWeight.w500, maxLines: 2),
                     ])),
                 ]))),
-          ],
-          if (published) ...[
-            const SizedBox(height: AppSpacing.s24),
-            const AppSectionHeader(
-              title: 'السعر مقارنة بالسوق',
-              subtitle:
-                  'مقارنة استرشادية من عقارات منشورة ومعتمدة داخل المنصة فقط.',
-            ),
-            const SizedBox(height: AppSpacing.s8),
-            PropertyMarketContextCard(
-              propertyId: property.id,
-              currency: property.currency,
-            ),
           ],
           if (property.purpose == 'rent' && property.rentalConditions.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s24),
@@ -627,7 +612,6 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
       );
       if (mounted) {
         ref.invalidate(propertyDetailsProvider(widget.propertyId));
-        ref.invalidate(propertyMarketContextProvider(widget.propertyId));
       }
     }
   }
@@ -720,12 +704,15 @@ class _AdvertiserCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final advertiser = property.advertiser!;
     final profile = ref.watch(brokerProfileProvider(advertiser.id)).asData?.value;
-    final verified = advertiser.verificationStatus == 'approved';
+    final verified = profile?.marketplaceVerified ?? advertiser.marketplaceVerified;
+    final identity = profile == null ||
+            (verified && advertiser.marketplaceVerified)
+        ? advertiser.marketplaceRoleLabel
+        : profile.marketplaceRoleLabel;
     final signals = <_AdvertiserTrustSignal>[
+    if (verified && advertiser.marketplaceVerified) ...[
       if (advertiser.verificationFlag('identity_reviewed'))
         const _AdvertiserTrustSignal(Icons.badge_outlined, 'هوية المعلن متحققة'),
-      if (advertiser.verificationFlag('relationship_document_reviewed'))
-        const _AdvertiserTrustSignal(Icons.home_work_outlined, 'علاقة المالك بالعقار متحققة'),
       if (advertiser.verificationFlag('professional_document_reviewed'))
         const _AdvertiserTrustSignal(Icons.workspace_premium_outlined, 'بيانات مهنية متحققة'),
       if (advertiser.verificationFlag('commercial_register_reviewed'))
@@ -734,15 +721,16 @@ class _AdvertiserCard extends ConsumerWidget {
         const _AdvertiserTrustSignal(Icons.domain_verification_outlined, 'بيانات المكتب متحققة'),
       if (advertiser.verificationFlag('office_location_registered'))
         const _AdvertiserTrustSignal(Icons.location_on_outlined, 'موقع المكتب مسجل'),
+    ],
     ];
 
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           EbrokerAdvertiserCard(name: profile?.name ?? advertiser.name, compact: true, photoUrl: profile?.photoUrl, completedDeals: profile?.completedDeals, activeListings: profile?.activeListings,
-            identity: verified && profile?.verified != false ? advertiser.verificationLabel : profile?.typeLabel ?? advertiser.verificationLabel,
+            identity: identity ?? profile?.marketplaceRoleLabel,
             rating: advertiser.ratingAverage, ratingCount: advertiser.ratingCount,
-            verified: profile?.verified ?? verified, onTap: () => context.push('/advertisers/${advertiser.id}')),
+            verified: verified, onTap: () => context.push('/advertisers/${advertiser.id}')),
           ExpansionTile(key: const ValueKey('property-advertiser-feedback'), tilePadding: EdgeInsets.zero, title: Text(signals.isEmpty ? 'التقييم والتعليقات' : 'التوثيق والتقييم'), children: [
           if (signals.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.s12),

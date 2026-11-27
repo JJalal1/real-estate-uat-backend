@@ -173,6 +173,18 @@ class AdvertiserCommunitySummary {
   final Map<String, bool> verificationFlags;
 
   bool verificationFlag(String key) => verificationFlags[key] == true;
+  bool get marketplaceVerified => verificationStatus == 'approved' &&
+      const {'broker', 'office'}.contains(verificationType);
+
+  String? get marketplaceRoleLabel => switch (verificationType) {
+        'owner' => null,
+        'broker' => verificationFlag('professional_document_reviewed') ? 'دلال مهني' : 'دلال',
+        'office' => 'مكتب عقاري',
+        _ => switch (verificationLabel) {
+          'دلال' || 'مكتب عقاري' => verificationLabel,
+          _ => null,
+        },
+      };
 
   factory AdvertiserCommunitySummary.fromJson(Map<String, dynamic> json) {
     final rawFlags = json['verification_flags'];

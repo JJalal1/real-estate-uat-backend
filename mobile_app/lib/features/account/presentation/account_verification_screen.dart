@@ -49,7 +49,7 @@ class _AccountVerificationScreenState
 
   late Future<AccountVerificationApplication> _future;
   AccountVerificationApplication? _application;
-  String _type = 'owner';
+  String _type = 'broker';
   double? _latitude;
   double? _longitude;
   bool _initialized = false;
@@ -96,8 +96,9 @@ class _AccountVerificationScreenState
   }
 
   void _applyApplication(AccountVerificationApplication application) {
-    _type = widget.initialType == 'broker' && application.type != 'broker' && application.status != 'pending'
-        ? 'broker' : application.type ?? 'owner';
+    _type = _isProfessional(application)
+        ? application.type!
+        : widget.initialType == 'office' ? 'office' : 'broker';
     final storedGovernorate = application.detailText('governorate') ?? '';
     _governorate.text =
         YemenAdminDivisions.canonicalGovernorate(storedGovernorate);
@@ -154,13 +155,16 @@ class _AccountVerificationScreenState
                     return AppErrorState(message: friendlyApiError(snapshot.error!), onRetry: _reload);
                   }
                   final application = snapshot.data ?? _application!;
+                  final professional = _isProfessional(application);
+                  final approved = professional && application.approved;
+                  final pending = professional && application.status == 'pending';
                   return ListView(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                     children: [
                       if (snapshot.connectionState == ConnectionState.waiting || snapshot.hasError)
                         AppRefreshStatus(loading: snapshot.connectionState == ConnectionState.waiting,
                           error: snapshot.hasError ? friendlyApiError(snapshot.error!) : null, onRetry: _reload),
-                      _StatusCard(application: application),
+                      if (application.type != 'owner') _StatusCard(application: application),
                       const SizedBox(height: 16),
                       Text(
                         'نوع الحساب',
@@ -177,11 +181,6 @@ class _AccountVerificationScreenState
                       EbrokerSegmentedButton<String>(
                         segments: const [
                           ButtonSegment(
-                            value: 'owner',
-                            icon: EbrokerIcon(Icons.home_work_outlined),
-                            label: Text('مالك'),
-                          ),
-                          ButtonSegment(
                             value: 'broker',
                             icon: EbrokerIcon(Icons.real_estate_agent_outlined),
                             label: Text('دلال'),
@@ -193,7 +192,7 @@ class _AccountVerificationScreenState
                           ),
                         ],
                         selected: <String>{_type},
-                        onSelectionChanged: _formLocked || _upgrading
+                        onSelectionChanged: _formLocked
                             ? null
                             : (value) => setState(() => _type = value.first),
                       ),
@@ -212,17 +211,6 @@ class _AccountVerificationScreenState
                       ),
                       const SizedBox(height: 8),
                       ..._documentTiles(application),
-                      if (_type == 'owner') ...[
-                        const SizedBox(height: 8),
-                        const Card(
-                          child: Padding(
-                            padding: EdgeInsets.all(14),
-                            child: Text(
-                              'هوية المالك تُراجع مرة واحدة هنا. عند نشر كل عقار سيُطلب مستند العلاقة بذلك العقار بشكل مستقل، مثل بصيرة شراء أو سجل عقاري أو فصل قسمة أو إرث أو حكم قضائي أو عقد تمليك.',
-                            ),
-                          ),
-                        ),
-                      ],
                       const SizedBox(height: 18),
                       EbrokerFilledButton.icon(
                         onPressed: _formLocked ? null : _submit,
@@ -231,27 +219,22 @@ class _AccountVerificationScreenState
                                 dimension: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : application.approved && !_upgrading
+                            : approved
                                 ? const EbrokerIcon(Icons.verified_outlined)
-                                : application.status == 'pending'
+                                : pending
                                     ? const EbrokerIcon(Icons.hourglass_top_outlined)
                                     : const EbrokerIcon(Icons.verified_user_outlined),
                         label: Text(
-                          _upgrading
-                              ? 'إرسال طلب الترقية للمراجعة'
-                              : application.approved
+                          approved
                               ? 'تم التحقق'
-                              : application.status == 'pending'
+                              : pending
                                   ? 'تم إرسال الطلب - قيد المراجعة'
-                                  : application.hasApplication
+                                  : professional && application.hasApplication
                                       ? 'إعادة إرسال طلب التحقق'
                                       : 'إرسال طلب التحقق للمراجعة',
                         ),
                       ),
-                      if (_upgrading) ...[
-                        const SizedBox(height: 12),
-                        const Text('تظهر أدوات الدلال بعد اعتماد الترقية. أرفق مستندات الطلب الجديد؛ الترقية لا تتجاوز المراجعة.', textAlign: TextAlign.center),
-                      ] else if (application.approved) ...[
+                      if (approved) ...[
                         const SizedBox(height: 12),
                         const Text(
                           'هذا النوع موثق حاليًا. تغيير نوع الحساب يتطلب مراجعة جديدة، لذلك لا يتم تغييره من هذه الشاشة أثناء حالة الاعتماد.',
@@ -266,13 +249,14 @@ class _AccountVerificationScreenState
     );
   }
 
-  bool get _upgrading => widget.initialType == 'broker' && _application?.approved == true && _application?.type == 'owner' && _type == 'broker';
+  bool _isProfessional(AccountVerificationApplication? application) =>
+      const {'broker', 'office'}.contains(application?.type);
 
   bool get _formLocked {
     final application = _application;
     return _busy ||
-        application?.status == 'pending' ||
-        (application?.approved == true && !_upgrading);
+        (_isProfessional(application) &&
+            (application?.status == 'pending' || application?.approved == true));
   }
 
   Widget _governorateDropdown() {
@@ -412,11 +396,6 @@ class _AccountVerificationScreenState
 
   List<Widget> _documentTiles(AccountVerificationApplication application) {
     final specs = switch (_type) {
-      'owner' => const <(String, String, bool)>[
-          ('identity_document', 'صورة البطاقة الشخصية أو جواز السفر', true),
-          ('identity_back', 'الوجه الخلفي للهوية إن وجد', false),
-          ('selfie', 'صورة حية / سيلفي', true),
-        ],
       'broker' => const <(String, String, bool)>[
           ('identity_document', 'صورة البطاقة الشخصية أو جواز السفر', true),
           ('identity_back', 'الوجه الخلفي للهوية إن وجد', false),
@@ -672,7 +651,6 @@ class _AccountVerificationScreenState
         _files.containsKey(kind) ||
         (application?.type == _type && application!.hasDocument(kind));
     final required = switch (_type) {
-      'owner' => const ['identity_document', 'selfie'],
       'broker' => const ['identity_document', 'selfie'],
       _ => const [
           'responsible_identity',

@@ -99,11 +99,16 @@ class PropertySaiManagement {
 
   bool get isOwner => advertiserType == 'owner';
   bool get isProfessional => advertiserType == 'broker' || advertiserType == 'office';
+  bool get hasHistoricalFixedTerms => configured && isOwner;
+
+  double? get effectiveFixedRate => hasHistoricalFixedTerms
+      ? saiRatePercent ?? fixedRatePercent
+      : fixedRatePercent;
 
   factory PropertySaiManagement.fromJson(Map<String, dynamic> json) {
     return PropertySaiManagement(
       configured: json['configured'] == true,
-      advertiserType: json['advertiser_type']?.toString() ?? 'owner',
+      advertiserType: json['advertiser_type']?.toString() ?? 'advertiser',
       termId: _asIntOrNull(json['term_id']),
       version: _asIntOrNull(json['version']),
       purpose: _textOrNull(json['purpose']),
@@ -175,15 +180,18 @@ class PropertySaiQuote {
   final bool fallback;
   double get platformPercent => total == 0 ? 0 : platform * 100 / total;
   static PropertySaiQuote? calculate(PropertySaiManagement policy, double requestedRate, double basis, {double? fixedAmount}) {
-    final fixed = fixedAmount != null && !policy.isOwner;
+    final historicalFixed = policy.hasHistoricalFixedTerms;
+    final fixed = fixedAmount != null && !historicalFixed;
     final amount = fixedAmount ?? 0;
     if (!basis.isFinite || basis <= 0) return null;
     if (fixed ? !amount.isFinite || amount < 0 : !requestedRate.isFinite || requestedRate < 0 || requestedRate > 100) return null;
-    final fallback = policy.isOwner || (fixed ? amount == 0 : requestedRate == 0);
-    final rate = fallback ? policy.fixedRatePercent : requestedRate;
-    final share = fallback ? policy.fallbackPlatformSharePercent : policy.professionalPlatformSharePercent;
+    final fallback = historicalFixed || (fixed ? amount == 0 : requestedRate == 0);
+    final rate = fallback ? policy.effectiveFixedRate : requestedRate;
+    final share = historicalFixed
+        ? policy.platformSharePercent ?? policy.fallbackPlatformSharePercent
+        : fallback ? policy.fallbackPlatformSharePercent : policy.professionalPlatformSharePercent;
     if (rate == null || share == null || share < 0 || share > 100) return null;
-    if (!policy.isOwner && (policy.brokerMaxRatePercent == null ||
+    if (!historicalFixed && (policy.brokerMaxRatePercent == null ||
         (fixed ? amount > (basis * policy.brokerMaxRatePercent!).round() / 100
           : requestedRate > policy.brokerMaxRatePercent!))) {
       return null;

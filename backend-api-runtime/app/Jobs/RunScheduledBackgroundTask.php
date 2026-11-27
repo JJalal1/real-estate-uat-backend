@@ -7,7 +7,6 @@ use App\Services\BackgroundQueue;
 use App\Services\BrokerAvailabilityService;
 use App\Services\BrokerCustomerFollowupService;
 use App\Services\DeadlineReminderService;
-use App\Services\SavedSearchAlertService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 
@@ -23,7 +22,7 @@ class RunScheduledBackgroundTask implements ShouldQueue
         match ($this->feature) {
             'broker_reminders' => app(BrokerCustomerFollowupService::class)->sweep(100),
             'availability' => app(BrokerAvailabilityService::class)->sweep(100),
-            'daily_search' => app(SavedSearchAlertService::class)->sendDailyDigests(),
+            'daily_search' => null, // Drain outstanding jobs for the retired saved-search screen.
             'receivables' => app(DeadlineReminderService::class)->receivables(),
             'entitlements' => app(DeadlineReminderService::class)->entitlements(),
             'listing_expiry' => app(DeadlineReminderService::class)->listings(),

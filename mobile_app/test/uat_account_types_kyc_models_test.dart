@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/features/account/domain/account_verification.dart';
 import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
+import 'package:real_estate_mobile/features/broker/domain/broker_models.dart';
+import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 
 void main() {
   test('base account can prepare and publish its first listing', () {
@@ -30,6 +32,7 @@ void main() {
     expect(user.hasVerifiedPublishingProfile, isFalse);
     expect(user.canCreateListing, isTrue);
     expect(user.hasMarketplaceProfessionalProfile, isFalse);
+    expect(user.marketplaceRoleLabel, isNull);
     expect(user.accountTypeLabel, 'باحث / متصفح / مشتري');
   });
 
@@ -52,7 +55,6 @@ void main() {
       'profile_completed_at': '2026-08-29T00:01:00Z',
       'verification_profile': {'type': 'owner', 'status': 'not_submitted'},
     });
-    expect(user.isOwner, isFalse);
     expect(user.isBroker, isTrue);
     expect(user.accountTypeLabel, 'دلال');
     expect(user.hasMarketplaceProfessionalProfile, isTrue);
@@ -61,7 +63,7 @@ void main() {
     expect(user.canAccessAdminPanel, isFalse);
   });
 
-  test('approved owner account can create listing after account identity review',
+  test('historical owner verification retains access without a marketplace role',
       () {
     final user = AuthUser.fromJson({
       'id': 11,
@@ -82,10 +84,28 @@ void main() {
       'permissions': <String>[],
     });
 
-    expect(user.isOwner, isTrue);
+    expect(user.verificationProfile.type, 'owner');
     expect(user.verificationProfile.identityReviewed, isTrue);
     expect(user.canCreateListing, isTrue);
-    expect(user.accountTypeLabel, 'مالك');
+    expect(user.marketplaceRoleLabel, isNull);
+    expect(user.hasMarketplaceProfessionalProfile, isFalse);
+    expect(user.accountTypeLabel, 'باحث / متصفح / مشتري');
+  });
+
+  test('legacy advertiser payloads do not display owner or verification badges', () {
+    final profile = BrokerProfile.fromJson({
+      'account_type': 'owner', 'name': 'معلن سابق', 'verified': true,
+    });
+    final advertiser = AdvertiserCommunitySummary.fromJson({
+      'verification_type': 'owner', 'verification_label': 'مالك العقار',
+      'verification_status': 'approved',
+      'verification_flags': {'identity_reviewed': true, 'relationship_document_reviewed': true},
+    });
+    expect(profile.marketplaceRoleLabel, isNull);
+    expect(profile.marketplaceVerified, isFalse);
+    expect(advertiser.marketplaceRoleLabel, isNull);
+    expect(advertiser.marketplaceVerified, isFalse);
+    expect(advertiser.verificationFlag('relationship_document_reviewed'), isTrue);
   });
 
   test('broker professional label requires approved professional document', () {

@@ -262,6 +262,10 @@ void main() {
     expect(mapSearchRequestedNewProvince(dhamar, sanaa, request), isTrue);
     expect(mapSearchRequestedNewProvince(sanaa, dhamar, 'منزل في ذمار'), isTrue);
     expect(mapSearchRequestedNewProvince(sanaa, sanaa, request), isFalse);
+    final staleViewport = SmartSearchFilters.fromMap({
+      ...sanaa.values, 'west': 44.39, 'east': 44.41, 'south': 14.54, 'north': 14.56,
+    });
+    expect(mapSearchRequestedNewProvince(staleViewport, sanaa, request), isTrue);
     expect(mapSearchRequestedNewProvince(dhamar, sanaa, 'شقة للبيع'), isFalse);
     for (final geometry in [
       {'south': 14, 'west': 44, 'north': 15, 'east': 45},

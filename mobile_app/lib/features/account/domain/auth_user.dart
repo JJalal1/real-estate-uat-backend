@@ -27,7 +27,6 @@ class VerificationProfileSummary {
       flags['office_location_registered'] == true;
 
   String get typeLabel => switch (type) {
-        'owner' => 'مالك',
         'broker' => professionalDocumentReviewed ? 'دلال مهني' : 'دلال',
         'office' => 'مكتب عقارات',
         _ => 'باحث / متصفح / مشتري',
@@ -84,6 +83,7 @@ class AuthUser {
     this.emailVerifiedAt,
     this.brokerEnrolled = false,
     this.marketplaceIsOffice,
+    this.publicBio,
     this.listingEligible,
   });
 
@@ -92,6 +92,7 @@ class AuthUser {
   final String email;
   final String? phone;
   final String accountType;
+  final String? publicBio;
   final String accountStatus;
   final DateTime? phoneVerifiedAt;
   final DateTime? emailVerifiedAt;
@@ -115,7 +116,6 @@ class AuthUser {
       accountStatus == 'pending_verification' || !isPhoneVerified;
   bool get needsProfileCompletion => profileCompletedAt == null &&
       listingEligible != true && !hasVerifiedPublishingProfile;
-  bool get isOwner => !brokerEnrolled && verificationProfile.type == 'owner';
   bool get isOffice => !brokerEnrolled && verificationProfile.type == 'office';
   bool get isBroker => brokerEnrolled || verificationProfile.type == 'broker' ||
       (verificationProfile.type == null && accountType == 'broker');
@@ -188,6 +188,7 @@ class AuthUser {
             VerificationProfileSummary.fromJson(json['verification_profile']),
         brokerEnrolled: json['broker_enrolled'] == true,
         marketplaceIsOffice: json['marketplace_is_office'] as bool?,
+        publicBio: _nullable(json['public_bio']),
         listingEligible: json['can_create_listing'] is bool
             ? json['can_create_listing'] as bool
             : null,

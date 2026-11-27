@@ -3,7 +3,7 @@ import 'package:real_estate_mobile/features/messages/domain/message_models.dart'
 import 'package:real_estate_mobile/features/messages/domain/notification_destination.dart';
 
 void main() {
-  test('agreement notification beats conversation fallback and opens agreement', () {
+  test('agreement notice opens its own conversation', () {
     final item = AppNotificationItem(
       id: 1,
       type: 'agreement_revised',
@@ -18,10 +18,10 @@ void main() {
     );
 
     expect(item.agreementId, 12);
-    expect(notificationDestination(item), '/agreements/12');
+    expect(notificationDestination(item), '/messages/91');
   });
 
-  test('rental contract notification beats conversation fallback and opens contract', () {
+  test('contract notice opens its own conversation', () {
     final item = AppNotificationItem(
       id: 2,
       type: 'rental_contract_active',
@@ -37,7 +37,19 @@ void main() {
     );
 
     expect(item.rentalContractId, 31);
-    expect(notificationDestination(item), '/rental-contracts/31');
+    expect(notificationDestination(item), '/messages/91');
+  });
+
+  test('archived notices retain a transaction or property destination without an overview', () {
+    AppNotificationItem notice(String type, {Map<String, dynamic> data = const {}}) =>
+        AppNotificationItem(id: 4, type: type, title: type, isRead: true, data: data);
+    expect(notificationDestination(notice('agreement_revised', data: {'agreement_id': 12})), '/agreements/12');
+    expect(notificationDestination(notice('rental_contract_active', data: {
+      'agreement_id': 12, 'rental_contract_id': 31,
+    })), '/rental-contracts/31');
+    expect(notificationDestination(notice('agreement_closed')), '/messages');
+    expect(notificationDestination(notice('saved_search_match', data: {'property_id': '8'})), '/properties/8');
+    expect(notificationDestination(notice('saved_search_digest')), '/marketplace-search');
   });
 
   test('existing message routing remains a message route', () {

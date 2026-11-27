@@ -86,13 +86,23 @@ void invalidateBrokerProfile(WidgetRef ref, int id) {
 
 class BrokerPublicProfileActions extends ConsumerStatefulWidget {
   const BrokerPublicProfileActions({
-    required this.profile,
+    required BrokerProfile profile,
     this.enabled = true,
     super.key,
-  });
+  }) : profile = profile, _ownerId = null;
 
-  final BrokerProfile profile;
+  const BrokerPublicProfileActions.forOwner({
+    required int ownerId,
+    this.profile,
+    this.enabled = true,
+    super.key,
+  }) : _ownerId = ownerId;
+
+  final int? _ownerId;
+  final BrokerProfile? profile;
   final bool enabled;
+
+  int get ownerId => _ownerId ?? profile!.id;
 
   @override
   ConsumerState<BrokerPublicProfileActions> createState() =>
@@ -106,13 +116,11 @@ class _BrokerPublicProfileActionsState
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).asData?.value;
-    if (user == null ||
-        user.id != widget.profile.id ||
-        !user.canCreateListing ||
-        !user.canEditPublicProfile) {
+    if (user == null || user.id != widget.ownerId || !user.isActive) {
       return const SizedBox.shrink();
     }
     final enabled = widget.enabled && !_uploading;
+    final canManageProfile = widget.profile != null && user.canCreateListing && user.canEditPublicProfile;
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: Wrap(
@@ -124,12 +132,12 @@ class _BrokerPublicProfileActionsState
             icon: const Icon(Icons.edit_outlined),
             label: const Text('تعديل النبذة'),
           ),
-          EbrokerFilledButton.icon(
+          if (canManageProfile) EbrokerFilledButton.icon(
             onPressed: enabled ? _photo : null,
             icon: const Icon(Icons.add_a_photo_outlined),
             label: Text(_uploading ? 'جارٍ رفع الصورة…' : 'تغيير الصورة العامة'),
           ),
-          if (user.hasMarketplaceProfessionalProfile)
+          if (canManageProfile && user.hasMarketplaceProfessionalProfile)
             TextButton.icon(
               onPressed: enabled ? () => _edit(bioOnly: false) : null,
               icon: const Icon(Icons.location_on_outlined),
@@ -141,16 +149,19 @@ class _BrokerPublicProfileActionsState
   }
 
   Future<void> _edit({required bool bioOnly}) async {
-    final id = widget.profile.id;
+    final id = widget.ownerId;
     final scope = ref.read(accountRequestScopeProvider);
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final repository = ref.read(brokerRepositoryProvider);
+    final profile = widget.profile;
+    final bio = profile == null ? ref.read(authControllerProvider).valueOrNull?.publicBio : profile.bio;
     final saved = await showActorDialog<bool>(
       context: context,
       ref: ref,
       barrierDismissible: false,
       builder: (_) => _EditPublicProfileDialog(
         profile: widget.profile,
+        initialBio: bio,
         repository: repository,
         bioOnly: bioOnly,
         canSave: () => _ownsProfile(scope, epoch, id),
@@ -158,7 +169,7 @@ class _BrokerPublicProfileActionsState
     );
     if (saved != true || !mounted || !_ownsProfile(scope, epoch, id)) return;
     invalidateBrokerProfile(ref, id);
-    if (!bioOnly) {
+    if (!bioOnly || widget.profile == null) {
       try {
         await ref.read(authControllerProvider.notifier).refresh();
       } catch (error) {
@@ -169,7 +180,7 @@ class _BrokerPublicProfileActionsState
 
   Future<void> _photo() async {
     if (_uploading) return;
-    final id = widget.profile.id;
+    final id = widget.ownerId;
     final scope = ref.read(accountRequestScopeProvider);
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final repository = ref.read(brokerRepositoryProvider);
@@ -193,7 +204,7 @@ class _BrokerPublicProfileActionsState
 
   bool _ownsProfile(AccountRequestScope scope, int epoch, int id) =>
       mounted &&
-      widget.profile.id == id &&
+      widget.ownerId == id &&
       scope.isCurrent &&
       epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
       ref.read(authControllerProvider).asData?.value?.id == id;
@@ -208,12 +219,14 @@ class _BrokerPublicProfileActionsState
 class _EditPublicProfileDialog extends StatefulWidget {
   const _EditPublicProfileDialog({
     required this.profile,
+    required this.initialBio,
     required this.repository,
     required this.bioOnly,
     required this.canSave,
   });
 
-  final BrokerProfile profile;
+  final BrokerProfile? profile;
+  final String? initialBio;
   final BrokerRepository repository;
   final bool bioOnly;
   final bool Function() canSave;
@@ -236,11 +249,11 @@ class _EditPublicProfileDialogState extends State<_EditPublicProfileDialog> {
   void initState() {
     super.initState();
     final profile = widget.profile;
-    _bio = profile.bio ?? '';
-    _office = profile.type == 'office';
-    _officeName = profile.officeName ?? '';
+    _bio = widget.initialBio ?? '';
+    _office = profile?.type == 'office';
+    _officeName = profile?.officeName ?? '';
     final region = YemenAdminDivisions.canonicalGovernorate(
-      profile.governorate ?? '',
+      profile?.governorate ?? '',
     );
     _governorate = brokerGovernorates.contains(region) ? region : null;
   }
@@ -253,7 +266,7 @@ class _EditPublicProfileDialogState extends State<_EditPublicProfileDialog> {
     });
     try {
       if (widget.bioOnly) {
-        if (_bio.trim() != (widget.profile.bio ?? '').trim()) {
+        if (_bio.trim() != (widget.initialBio ?? '').trim()) {
           await widget.repository.updateProfile(bio: _bio);
         }
       } else {
@@ -291,7 +304,7 @@ class _EditPublicProfileDialogState extends State<_EditPublicProfileDialog> {
               maxLength: _bioLimit,
               minLines: 2,
               maxLines: 4,
-              decoration: const InputDecoration(labelText: 'نبذة عنك'),
+              decoration: const InputDecoration(labelText: 'نبذة عنك (اختياري)'),
               validator: (value) =>
                   (value?.trim().runes.length ?? 0) > _bioLimit
                   ? 'الحد الأقصى للنبذة 150 حرفًا'

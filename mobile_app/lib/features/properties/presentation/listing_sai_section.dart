@@ -17,6 +17,8 @@ class ListingSaiSection extends StatelessWidget {
     this.amountController,
     this.amountType = 'fixed',
     this.onAmountTypeChanged,
+    this.onEditHistoricalTerms,
+    this.professionalAdvertiser = true,
     this.error,
     this.enabled = true,
     super.key,
@@ -27,8 +29,9 @@ class ListingSaiSection extends StatelessWidget {
   final TextEditingController rateController;
   final TextEditingController? amountController;
   final double? basis;
-  final bool accepted, enabled;
+  final bool accepted, enabled, professionalAdvertiser;
   final VoidCallback onChanged, onRetry;
+  final VoidCallback? onEditHistoricalTerms;
   final ValueChanged<bool> onAcceptanceChanged;
   final ValueChanged<String>? onAmountTypeChanged;
   final String? error;
@@ -37,8 +40,9 @@ class ListingSaiSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = policy;
     final theme = Theme.of(context);
-    final fixed = amountType == 'fixed' && current?.isOwner != true;
-    final rate = current != null && current.isOwner ? current.fixedRatePercent
+    final historicalFixed = current?.hasHistoricalFixedTerms == true;
+    final fixed = amountType == 'fixed' && !historicalFixed;
+    final rate = historicalFixed ? current?.effectiveFixedRate
         : parseSaiNumber(rateController.text);
     final enteredAmount = fixed ? parseSaiNumber(amountController?.text ?? '') : null;
     final words = enteredAmount == null || !enteredAmount.isFinite || (enteredAmount * 100 - (enteredAmount * 100).round()).abs() > .000001
@@ -47,9 +51,12 @@ class ListingSaiSection extends StatelessWidget {
     final quote = current == null || basis == null ||
         (fixed ? enteredAmount == null : rate == null)
         ? null : PropertySaiQuote.calculate(current, rate ?? 0, basis!, fixedAmount: enteredAmount);
-    final platformShare = quote?.fallback == true ? current?.fallbackPlatformSharePercent : current?.professionalPlatformSharePercent;
+    final platformShare = historicalFixed
+        ? current?.platformSharePercent ?? current?.fallbackPlatformSharePercent
+        : quote?.fallback == true ? current?.fallbackPlatformSharePercent : current?.professionalPlatformSharePercent;
     String percent(double value) => value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
-    final fixedRateText = current?.fixedRatePercent?.toStringAsFixed(0) ?? '—';
+    final fixedRate = current?.effectiveFixedRate;
+    final fixedRateText = fixedRate == null ? '—' : percent(fixedRate);
     final maximumText = current?.brokerMaxRatePercent?.toStringAsFixed(0) ?? '—';
     final basisText = purpose == 'rent' ? 'إيجار الشهر الأول' : 'سعر البيع';
     final zeroText = fixed ? '0' : '0%';
@@ -69,9 +76,13 @@ class ListingSaiSection extends StatelessWidget {
                   child: const Text('إعادة تحميل سياسة السعي')),
             ])
       else ...[
-        if (current.isOwner)
-          Text('النسبة الثابتة $fixedRateText%')
-        else ...[
+        if (historicalFixed) ...[
+          Text('النسبة الثابتة المسجّلة $fixedRateText%'),
+          if (onEditHistoricalTerms != null)
+            TextButton(key: const ValueKey('listing-sai-edit-historical'),
+              onPressed: enabled ? onEditHistoricalTerms : null,
+              child: const Text('تغيير السعي')),
+        ] else ...[
           Wrap(spacing: 8, runSpacing: 6, children: [
             ChoiceChip(key: const ValueKey('listing-sai-percentage'),
               label: const Text('نسبة مئوية %'), selected: !fixed,
@@ -95,8 +106,9 @@ class ListingSaiSection extends StatelessWidget {
                 helperText: 'من 0 إلى $maximumText% من $basisText'),
               onChanged: (_) => onChanged()),
         ],
-        if (!current.isOwner) Padding(padding: const EdgeInsets.only(top: 8),
-          child: Text('حصة المنصة تُحتسب على الدلال', style: theme.textTheme.bodySmall)),
+        if (!historicalFixed) Padding(padding: const EdgeInsets.only(top: 8),
+          child: Text(professionalAdvertiser ? 'حصة المنصة تُحتسب على الدلال' : 'حصة المنصة تُحتسب على المعلن',
+            style: theme.textTheme.bodySmall)),
         if (quote != null) ...[
           const SizedBox(height: 12),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -106,7 +118,7 @@ class ListingSaiSection extends StatelessWidget {
               key: const ValueKey('listing-sai-total'), style: theme.textTheme.bodySmall)),
           ]),
         ],
-        if (!current.isOwner && (fixed ? enteredAmount == 0 : rate == 0)) ...[
+        if (!historicalFixed && (fixed ? enteredAmount == 0 : rate == 0)) ...[
           const SizedBox(height: 8),
           Text('اختيار $zeroText يفعّل السعي الثابت $fixedRateText% تلقائيًا.',
               style: theme.textTheme.bodySmall),

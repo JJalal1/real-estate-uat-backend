@@ -82,6 +82,7 @@ String? internalLocationForAppLink(Uri uri) {
   if (!isCustomLink) return null;
 
   final segments = uri.pathSegments;
+  if (segments.length == 1 && segments.single == 'agreements') return '/messages';
   if (segments.length == 3 && segments[0] == 'broker' && segments[1] == 'deals') {
     final id = int.tryParse(segments[2]) ?? 0;
     return id > 0 ? '/broker/deals/$id' : null;

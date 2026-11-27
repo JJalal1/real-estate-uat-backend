@@ -52,6 +52,7 @@ Future<GoRouter> _pumpHome(
   Future<List<PropertyMarker>> Function()? load,
   Map<String, List<PropertySummary>> sections = const {},
   List<PropertySummary> recent = const [],
+  List<PropertySummary> regional = const [],
   List<BrokerProfile> brokers = const [],
   AuthUser? user,
   double scale = 1,
@@ -110,6 +111,7 @@ Future<GoRouter> _pumpHome(
         homeLocationAttemptedProvider.overrideWith((_) => true),
         homeLocationProvider.overrideWith((_) => const HomeLocation(governorate: 'صنعاء', manual: true)),
         recentPropertiesProvider.overrideWith((_) async => recent),
+        marketplaceRegionalPreviewProvider.overrideWith((_, __) async => regional),
         marketplaceRepositoryProvider.overrideWithValue(Wave3MarketplaceFake(onFeed: (query) async {
           final rows = await (load?.call() ?? Future.value([_exampleProperty]));
           return MarketplaceFeed(label: 'صنعاء', governorate: 'صنعاء', brokers: brokers, sections: {'latest': rows.map((row) => PropertySummary.fromJson({
@@ -206,9 +208,8 @@ void main() {
     });
     final router = await _pumpHome(tester, sections: {
       'latest': [listing(51, 'آخر إعلان أول'), listing(52, 'آخر إعلان ثانٍ')],
-      'sale': [listing(53, 'إعلان في المنطقة')],
       'rent': [listing(54, 'إعلان قسم الإيجار السابق')],
-    }, recent: [listing(55, 'إعلان من السجل المحلي')], brokers: const [
+    }, regional: [listing(53, 'إعلان في المنطقة')], recent: [listing(55, 'إعلان من السجل المحلي')], brokers: const [
       BrokerProfile(id: 71, name: 'وسيط صنعاء', type: 'broker', verified: true,
         rating: 4.8, ratingCount: 6, completedDeals: 7, activeListings: 8),
     ]);

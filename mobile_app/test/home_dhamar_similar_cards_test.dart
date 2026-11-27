@@ -22,7 +22,7 @@ import 'support/wave3_fakes.dart';
 void main() {
   setUpAll(loadUxFixtures);
 
-  test('Dhamar sample chooses from the full public inventory and keeps filters', () async {
+  test('Regional sample chooses from the full province inventory and keeps filters', () async {
     final calls = <RequestOptions>[];
     final dio = Dio(BaseOptions(baseUrl: 'https://synthetic.example/api'));
     addTearDown(() => dio.close(force: true));
@@ -39,16 +39,17 @@ void main() {
         }));
     }));
     final repository = MarketplaceRepository(dio, random: _LastPageRandom());
-    final sample = await repository.dhamarPreview(
-      SmartSearchFilters.fromMap({'type': 'apartment', 'purpose': 'rent', 'max_price': 150000}),
+    final sample = await repository.regionalPreview(
+      HomeFeedQuery(latitude: 14.5, longitude: 44.4, device: true, governorateCode: 'TAIZ',
+        filters: SmartSearchFilters.fromMap({'type': 'apartment', 'purpose': 'rent', 'max_price': 150000})),
       cancelToken: CancelToken(),
     );
 
     expect(calls.map((call) => call.queryParameters['page']), [1, 3]);
     for (final call in calls) {
       expect(call.path, '/properties');
-      expect(call.queryParameters, containsPair('governorate', 'ذمار'));
-      expect(call.queryParameters, containsPair('governorate_code', 'DHAMAR'));
+      expect(call.queryParameters, containsPair('governorate', 'تعز'));
+      expect(call.queryParameters, containsPair('governorate_code', 'TAIZ'));
       expect(call.queryParameters, containsPair('type', 'apartment'));
       expect(call.queryParameters, containsPair('purpose', 'rent'));
       expect(call.queryParameters, containsPair('max_monthly_rent', 150000));
@@ -60,13 +61,13 @@ void main() {
   });
 
   for (final scenario in [
-    (label: 'unselected', location: const HomeLocation(), fallback: true),
-    (label: 'unconfirmed GPS', location: const HomeLocation(device: true, governorate: 'إب', needsConfirmation: true), fallback: true),
-    (label: 'manual governorate', location: const HomeLocation(governorate: 'إب', governorateCode: 'IBB', manual: true), fallback: false),
-    (label: 'resolved GPS', location: const HomeLocation(governorate: 'إب', governorateCode: 'IBB', device: true), fallback: false),
+    (label: 'unselected', location: const HomeLocation(), expectedCode: null),
+    (label: 'unconfirmed GPS', location: const HomeLocation(device: true, governorate: 'إب', governorateCode: 'IBB', needsConfirmation: true), expectedCode: null),
+    (label: 'manual governorate', location: const HomeLocation(governorate: 'ذمار', governorateCode: 'DHAMAR', manual: true), expectedCode: 'DHAMAR'),
+    (label: 'resolved GPS', location: const HomeLocation(governorate: 'صنعاء', governorateCode: 'SANAA', device: true), expectedCode: 'SANAA'),
   ]) {
-    testWidgets('Home hides the GPS-only section for ${scenario.label} and scopes See all', (tester) async {
-      final fallbackQueries = <HomeFeedQuery>[];
+    testWidgets('Home near-you rail and See all respect ${scenario.label}', (tester) async {
+      final regionalQueries = <HomeFeedQuery>[];
       final listings = Wave3PropertiesFake();
       final scope = uxContainer(extra: [
         homeLocationProvider.overrideWith((_) => scenario.location),
@@ -77,8 +78,8 @@ void main() {
             'sale': [wave3Property(30), wave3Property(31)],
           }, sectionOrder: const ['nearby', 'latest', 'sale'],
         ))),
-        marketplaceDhamarPreviewProvider.overrideWith((_, query) async {
-          fallbackQueries.add(query);
+        marketplaceRegionalPreviewProvider.overrideWith((_, query) async {
+          regionalQueries.add(query);
           return [wave3Property(40), wave3Property(41)];
         }),
         propertyRepositoryProvider.overrideWithValue(listings),
@@ -98,15 +99,28 @@ void main() {
       final home = find.descendant(of: find.byKey(const PageStorageKey('marketplace-home')),
         matching: find.byType(Scrollable)).first;
       final heading = find.text('بالقرب منك');
+      if (scenario.expectedCode == null) {
+        expect(regionalQueries, isEmpty);
+        await tester.drag(home, const Offset(0, -1000));
+        await tester.pumpAndSettle();
+        expect(heading, findsNothing);
+        expect(find.byKey(const ValueKey('home-property-40')), findsNothing);
+        await closeUx(tester);
+        return;
+      }
+      expect(regionalQueries, hasLength(1));
+      final scopeFilters = regionalQueries.single.regionalPreviewFilters!.apiFilters;
+      expect(scopeFilters, containsPair('governorate_code', scenario.expectedCode));
+      expect(scopeFilters, containsPair('type', 'apartment'));
+      expect(scopeFilters, isNot(contains('radius_km')));
       await tester.scrollUntilVisible(heading, 160, scrollable: home);
       expect(find.text('حول موقعك الحالي'), findsNothing);
       expect(find.byKey(const ValueKey('home-property-20')), findsNothing);
-      expect(fallbackQueries, hasLength(scenario.fallback ? 1 : 0));
-      final rail = find.byKey(PageStorageKey('home-properties-${scenario.fallback ? 'dhamar' : 'sale'}'));
+      final rail = find.byKey(const PageStorageKey('home-properties-regional'));
       await Scrollable.ensureVisible(tester.element(rail), alignment: 0.5);
       await tester.pumpAndSettle();
       expect(tester.widget<SingleChildScrollView>(rail).scrollDirection, Axis.horizontal);
-      final second = find.descendant(of: rail, matching: find.byKey(ValueKey('home-property-${scenario.fallback ? 41 : 31}')));
+      final second = find.descendant(of: rail, matching: find.byKey(const ValueKey('home-property-41')));
       final initialX = tester.getCenter(second).dx;
       await tester.drag(rail, const Offset(235, 0));
       await tester.pumpAndSettle();
@@ -118,12 +132,16 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(seeAll);
       await tester.pumpAndSettle();
-      expect(router.state.uri.queryParameters['governorate'], scenario.fallback ? 'ذمار' : 'إب');
-      expect(router.state.uri.queryParameters['section'], scenario.fallback ? 'regional' : 'sale');
-      if (scenario.fallback) expect(find.text('عقارات ذمار'), findsOneWidget);
-      expect(listings.queries.last.filters, containsPair('governorate_code', scenario.fallback ? 'DHAMAR' : 'IBB'));
-      expect(listings.queries.last.filters, containsPair('type', 'apartment'));
-      expect(listings.queries.last.filters['purpose'], scenario.fallback ? isNull : 'sale');
+      expect(router.state.uri.queryParameters['governorate'], scenario.location.governorate);
+      expect(router.state.uri.queryParameters['section'], 'regional');
+      expect(find.text('عقارات ${scenario.location.governorate}'), findsOneWidget);
+      expect(listings.queries.last.filters, equals(scopeFilters));
+      expect(listings.queries.last.filters['purpose'], isNull);
+      router.pop();
+      await tester.pumpAndSettle();
+      scope.read(marketplaceSearchControllerProvider.notifier).begin();
+      await tester.pumpAndSettle();
+      expect(heading, findsNothing);
       expect(tester.takeException(), isNull);
       await closeUx(tester);
     });

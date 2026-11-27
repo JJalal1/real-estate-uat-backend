@@ -368,7 +368,7 @@ bool mapSearchRequestedNewProvince(
   String submittedQuery,
 ) {
   final code = after.values['governorate_code'];
-  if (code == null || after.hasMapArea || before.values['governorate_code'] == code) {
+  if (code == null || after.hasMapArea || (!before.hasMapArea && before.values['governorate_code'] == code)) {
     return false;
   }
   return GovernorateSearch.inRequest(submittedQuery)?.filters['governorate_code'] == code;

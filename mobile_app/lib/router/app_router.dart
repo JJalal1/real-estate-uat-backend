@@ -20,7 +20,6 @@ import '../features/admin/presentation/admin_dashboard_screen.dart';
 import '../features/admin/presentation/audit_log_screen.dart';
 import '../features/admin/presentation/platform_settings_screen.dart';
 import '../features/agreements/presentation/agreement_detail_screen.dart';
-import '../features/agreements/presentation/agreements_screen.dart';
 import '../features/agreements/presentation/rental_contract_detail_screen.dart';
 import '../features/app_shell/presentation/app_shell_screen.dart';
 import '../features/broker/presentation/broker_workspaces.dart';
@@ -30,7 +29,6 @@ import '../features/messages/presentation/conversation_reports_screen.dart';
 import '../features/messages/presentation/conversation_screen.dart';
 import '../features/messages/presentation/messages_screen.dart';
 import '../features/messages/presentation/notifications_screen.dart';
-import '../features/properties/domain/saved_property_search.dart';
 import '../features/properties/domain/property_details.dart';
 import '../features/discovery/domain/smart_search_filters.dart';
 import '../features/discovery/presentation/marketplace_categories_screen.dart';
@@ -71,7 +69,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         }),
       ]),
       GoRoute(path: '/smart-search', builder: (context, state) => AssistedSearchScreen(
-        savedSearch: state.extra is SavedPropertySearch ? state.extra as SavedPropertySearch : null,
         // Only an explicit caller copy (for example a temporary map journey)
         // seeds AI. Opening AI from Home never inherits its old text/filters.
         entryFilters: state.extra is SmartSearchFilters
@@ -203,11 +200,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
-        path: '/agreements',
-        builder: (context, state) =>
-            const Stage6AuthGate(child: AgreementsScreen()),
-      ),
+      // Legacy index links lead to the inbox. Individual transactions stay
+      // available to their participants through their own authenticated routes.
+      GoRoute(path: '/agreements', redirect: (_, __) => '/messages'),
       GoRoute(
         path: '/agreements/:id',
         builder: (context, state) {

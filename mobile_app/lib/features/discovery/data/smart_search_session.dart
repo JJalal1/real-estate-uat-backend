@@ -12,6 +12,7 @@ import '../../properties/domain/property_details.dart';
 import '../domain/smart_search_filters.dart';
 import '../domain/governorate_search.dart';
 import 'discovery_location.dart';
+import 'governorate_map_scope.dart';
 import 'ai_repository.dart';
 import 'marketplace_repository.dart';
 
@@ -175,11 +176,17 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     state = state.copyWith(interpreting: true, clearAiError: true, lastRequest: text);
     try {
       // A default city is a starting point, not an explicit map constraint.
-      // Let a city stated in the request override it; retain user-chosen bounds.
-      final input = Map<String, dynamic>.from(filters.values);
+      // Check previously applied map geometry against an explicit new place.
+      var input = Map<String, dynamic>.from(filters.values);
       if (_usingDefaultLocation) { for (final key in _defaultContext.keys) { input.remove(key); } }
       final homeAtStart = _usingDefaultLocation ? defaultLocation?.call() : null;
-      final location = _usingDefaultLocation && GovernorateSearch.inRequest(text) == null
+      final place = GovernorateSearch.inRequest(text);
+      if (place != null && filters.hasMapArea) {
+        final matching = await GovernorateMapScope.reconcile(SmartSearchFilters.fromMap(input), place.code);
+        if (!_acceptInferenceDelivery(request, revision, epoch)) return;
+        input = Map.of(matching.values);
+      }
+      final location = _usingDefaultLocation && place == null
           ? refreshLocation?.call() : null;
       final result = await _ai.refine(text, input, revision);
       if (!_acceptInferenceDelivery(request, revision, epoch)) return;

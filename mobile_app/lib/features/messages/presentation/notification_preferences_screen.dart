@@ -74,10 +74,9 @@ class _NotificationPreferencesScreenState
                 ),
                 const SizedBox(height: AppSpacing.s10),
                 _PreferenceCard(
-                  icon: Icons.saved_search_outlined,
-                  title: 'البحث والمفضلة',
-                  subtitle:
-                      'عقار جديد يطابق بحثًا محفوظًا أو تغيّر سعر عقار في المفضلة.',
+                  icon: Icons.favorite_border,
+                  title: 'المفضلة',
+                  subtitle: 'تغيّر سعر عقار في المفضلة.',
                   value: value.discoveryAlerts,
                   onChanged: _saving ? null : (enabled) => _change(
                     value.copyWith(discoveryAlerts: enabled),

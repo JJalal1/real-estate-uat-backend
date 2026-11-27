@@ -72,8 +72,11 @@ class _BrokerDirectoryScreenState extends ConsumerState<BrokerDirectoryScreen> {
       Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(key: const ValueKey('broker-directory-apply'), onPressed: () => _load(), icon: const Icon(Icons.search), label: const Text('بحث في الدليل'))),
       const SizedBox(height: 14),
       for (final profile in _items) Padding(padding: const EdgeInsets.only(bottom: 14), child: EbrokerAdvertiserCard(
-        name: profile.name, identity: '${profile.typeLabel}${profile.governorate == null ? '' : ' · ${profile.governorate}'}', rating: profile.rating,
-        ratingCount: profile.ratingCount, verified: profile.verified, photoUrl: profile.photoUrl,
+        name: profile.name, identity: [
+          if (profile.marketplaceRoleLabel case final role?) role,
+          if (profile.governorate case final governorate?) governorate,
+        ].join(' · '), rating: profile.rating,
+        ratingCount: profile.ratingCount, verified: profile.marketplaceVerified, photoUrl: profile.photoUrl,
         completedDeals: profile.completedDeals, activeListings: profile.activeListings, action: const ['broker','office'].contains(profile.type) ? BrokerContactButton(brokerId:profile.id) : null, onTap: () async { await context.push('/advertisers/${profile.id}'); if (mounted) _load(); })),
       if (_loading) const AppLoadingState(),
       if (_error != null) AppErrorState(message: _error!, onRetry: () => _load()),

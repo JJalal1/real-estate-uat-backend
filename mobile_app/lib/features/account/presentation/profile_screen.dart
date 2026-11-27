@@ -111,10 +111,15 @@ class _ProfileScreenState extends ConsumerState<_ProfileScreenBody> {
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
-                    if (publicProfile != null && publicProfile.id == user.id) ...[
-                      BrokerPublicProfileSummary(profile: publicProfile),
-                      BrokerPublicProfileActions(
-                        profile: publicProfile,
+                    if (user.isActive) ...[
+                      if (publicProfile != null && publicProfile.id == user.id)
+                        BrokerPublicProfileSummary(profile: publicProfile)
+                      else if (user.publicBio?.isNotEmpty == true)
+                        Text(user.publicBio!),
+                      BrokerPublicProfileActions.forOwner(
+                        key: ValueKey(('self-bio', user.id)),
+                        ownerId: user.id,
+                        profile: publicProfile?.id == user.id ? publicProfile : null,
                         enabled: !_busy,
                       ),
                       const SizedBox(height: 12),

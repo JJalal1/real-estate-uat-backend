@@ -16,7 +16,7 @@ class BackgroundTick extends Command
     {
         $now = now('Asia/Aden');
         foreach ([
-            'broker_reminders' => 1, 'availability' => 60, 'reports' => 1, 'daily_search' => 1,
+            'broker_reminders' => 1, 'availability' => 60, 'reports' => 1,
             'receivables' => 5, 'entitlements' => 5, 'listing_expiry' => 5,
         ] as $feature => $minutes) {
             if (! $queues->enabled($feature)) continue;

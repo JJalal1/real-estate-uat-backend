@@ -58,8 +58,12 @@ jobs:
           tests/Feature/Stage11MessagingNotificationsApiTest.php
           tests/Feature/Branch2RecoveryTest.php
           tests/Feature/ActiveWaveDiscoveryTest.php
+          tests/Feature/ActiveWavePublicationAlertTest.php
+          tests/Feature/ProductExperienceSavedSearchTest.php
+          tests/Feature/NotificationPreferenceTest.php
           tests/Feature/Wave3MarketplaceApiTest.php
           tests/Feature/FinancialV1ApiTest.php
+          tests/Feature/UatFreeServicesHubApiTest.php
           tests/Feature/EmailLoginAndNameTest.php
           tests/Feature/SpokenSearchCityTest.php
           tests/Feature/Phase04GovernoratesTest.php
@@ -81,6 +85,7 @@ jobs:
           tests/Feature/Branch2RecoveryTest.php
           tests/Feature/ActiveWaveDiscoveryTest.php
           tests/Feature/Wave3MarketplaceApiTest.php
+          tests/Feature/UatFreeServicesHubApiTest.php
           tests/Feature/EmailLoginAndNameTest.php
           tests/Feature/SpokenSearchCityTest.php
           tests/Feature/Phase04GovernoratesTest.php
@@ -139,9 +144,12 @@ jobs:
         run: >-
           flutter test --no-pub --reporter expanded
           test/stage6_auth_user_test.dart
+          test/uat_account_types_kyc_models_test.dart
           test/account_tools_integration_test.dart
           test/uat_free_services_account_reorg_test.dart
           test/uat_services_hub_navigation_test.dart
+          test/phase5_notification_destination_test.dart
+          test/phase5_deep_links_test.dart
           test/broker_saved_search_navigation_test.dart
           test/notification_preferences_test.dart
           test/session_lifecycle_race_test.dart
@@ -154,6 +162,8 @@ jobs:
           test/current_wave_contract_test.dart
           test/wave6_product_contract_test.dart
           test/wave2_home_search_test.dart
+          test/home_dhamar_similar_cards_test.dart
+          test/ui_transplant_v3_home_test.dart
           test/wave3_ai_design_ui_test.dart
           test/wave6_product_ui_test.dart
       - name: Upload synthetic screen previews

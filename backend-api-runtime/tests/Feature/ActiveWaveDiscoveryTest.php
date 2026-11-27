@@ -61,7 +61,7 @@ class ActiveWaveDiscoveryTest extends TestCase
         $this->withHeaders($headers)->patchJson('/api/saved-searches/'.$r->json('data.id'), ['filters' => $filters + ['has_elevator' => false]])->assertOk()->assertJsonMissingPath('data.filters.has_elevator'); // Rental apartments have no elevator criterion in schema v8.
     }
 
-    public function test_polygon_and_radius_apply_to_results_counts_and_alerts_without_rectangular_false_matches(): void
+    public function test_polygon_and_radius_limit_result_counts_while_retired_alerts_stay_silent(): void
     {
         [$owner] = $this->actor('geo-owner'); [$searcher, $headers] = $this->actor('geo-search');
         $inside = $this->listing($owner, ['latitude' => 15.1, 'longitude' => 44.1]);
@@ -72,9 +72,8 @@ class ActiveWaveDiscoveryTest extends TestCase
             ->assertCreated()->assertJsonPath('data.matching_count', 1)->assertJsonPath('data.filters.area_polygon', $ring);
         $this->getJson('/api/properties?'.http_build_query($filters))->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $inside->id);
         $this->assertSame(0, app(SavedSearchAlertService::class)->notifyPublishedProperty($outside->id));
-        $this->assertSame(1, app(SavedSearchAlertService::class)->notifyPublishedProperty($inside->id));
         $this->assertSame(0, app(SavedSearchAlertService::class)->notifyPublishedProperty($inside->id));
-        $this->assertDatabaseHas('user_notifications', ['user_id' => $searcher->id, 'type' => 'saved_search_match', 'entity_id' => $inside->id]);
+        $this->assertDatabaseMissing('user_notifications', ['user_id' => $searcher->id, 'type' => 'saved_search_match']);
         $circle = ['latitude' => 15.1, 'longitude' => 44.1, 'radius_km' => 2];
         $this->getJson('/api/properties?'.http_build_query($circle))->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $inside->id);
     }
@@ -211,6 +210,26 @@ class ActiveWaveDiscoveryTest extends TestCase
         $this->withHeaders($headers)->patchJson('/api/broker/profile', [
             'bio' => null,
         ])->assertOk()->assertJsonPath('data.bio', null);
+    }
+
+    public function test_regular_account_can_save_and_clear_an_optional_bio_before_publishing(): void
+    {
+        [$ordinary, $headers] = $this->actor('مستخدم قبل النشر');
+        $profile = '/api/advertisers/'.$ordinary->id.'/profile';
+        $this->getJson($profile)->assertNotFound();
+        $bio = str_repeat('ن', 150);
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['bio' => $bio.'ن'])
+            ->assertUnprocessable()->assertJsonValidationErrors('bio');
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['bio' => $bio])
+            ->assertOk()->assertExactJson(['data' => ['bio' => $bio]]);
+        $this->withHeaders($headers)->getJson('/api/auth/me')->assertOk()->assertJsonPath('data.user.public_bio', $bio);
+        $this->getJson($profile)->assertNotFound();
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['bio' => null, 'is_office' => true])
+            ->assertForbidden();
+        $this->assertSame($bio, $ordinary->fresh()->public_professional_bio);
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', ['bio' => null])
+            ->assertOk()->assertExactJson(['data' => ['bio' => null]]);
+        $this->assertNull($ordinary->fresh()->broker_enrolled_at);
     }
 
     public function test_approved_office_can_opt_out_of_its_historical_public_office_name(): void

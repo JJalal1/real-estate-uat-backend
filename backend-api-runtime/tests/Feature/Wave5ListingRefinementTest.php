@@ -103,14 +103,14 @@ class Wave5ListingRefinementTest extends TestCase
         $this->assertDatabaseHas('property_platform_receivables', ['advertiser_user_id'=>$broker->id, 'amount_total'=>8000]);
     }
 
-    public function test_owner_policy_and_zero_fee_fallback_are_preserved(): void
+    public function test_zero_fee_fallback_applies_to_an_ordinary_advertiser_and_a_broker(): void
     {
         [, $ownerHeaders] = $this->actor('owner', 'owner');
         $id = $this->createListing($ownerHeaders);
         $this->withHeaders($ownerHeaders)->putJson("/api/properties/$id/sai",
-            ['sai_amount_type'=>'fixed', 'fixed_sai_amount'=>30000])->assertUnprocessable();
-        $this->withHeaders($ownerHeaders)->putJson("/api/properties/$id/sai", [])->assertOk()
-            ->assertJsonPath('data.sai.rate_percent', 20);
+            ['broker_sai_rate_percent'=>0])->assertOk()
+            ->assertJsonPath('data.sai.rate_percent', 20)
+            ->assertJsonPath('data.sai_management.source_mode', 'platform_fallback');
         [, $brokerHeaders] = $this->actor('zero');
         $otherId = $this->createListing($brokerHeaders);
         $this->withHeaders($brokerHeaders)->putJson("/api/properties/$otherId/sai",

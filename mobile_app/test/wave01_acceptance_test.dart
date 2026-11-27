@@ -347,7 +347,8 @@ void main() {
         await tester.pumpAndSettle();
         await tester.scrollUntilVisible(find.text('مكتب عقارات'), 180);
         await tester.ensureVisible(find.byType(EbrokerSegmentedButton<String>)); await tester.pumpAndSettle();
-        for (final label in ['مالك', 'دلال', 'مكتب عقارات']) {
+        expect(find.text('مالك'), findsNothing);
+        for (final label in ['دلال', 'مكتب عقارات']) {
           final paragraph = tester.renderObject<RenderParagraph>(find.text(label));
           expect(paragraph.getMaxIntrinsicWidth(double.infinity), lessThanOrEqualTo(paragraph.size.width + 1), reason: label);
         }
