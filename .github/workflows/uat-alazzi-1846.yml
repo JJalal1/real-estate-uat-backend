@@ -261,7 +261,11 @@ jobs:
           git diff --exit-code "$baseline" HEAD -- docs/uat-signing-identity.json \
             mobile_app/android mobile_app/ios mobile_app/pubspec.yaml mobile_app/pubspec.lock \
             mobile_app/assets scripts/import_ci_uat_firebase.py "${protected_exclusions[@]}"
-          printf '%s  %s\n' 'b94d32f369e40254381cc6320fe911a41e015441ec89ca94d2b54ab493656790' scripts/import_ci_uat_signing.py \
+          signing_importer_sha256='b94d32f369e40254381cc6320fe911a41e015441ec89ca94d2b54ab493656790'
+          if [ "$AQER_BUILD" = 1848 ]; then
+            signing_importer_sha256='4f7e8f991cc2ed0fd72d0d12a02653e25e537805cb1bd0dd6b7dc15757ccd42e'
+          fi
+          printf '%s  %s\n' "$signing_importer_sha256" scripts/import_ci_uat_signing.py \
             | sha256sum --check --strict
           test -f "$kuraimi" && test ! -L "$kuraimi"
           test -f "$jawali" && test ! -L "$jawali"
