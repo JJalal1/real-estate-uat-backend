@@ -139,7 +139,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         ? ref.watch(messageUnreadCountProvider)
         : 0;
 
-    final accountScope = '$mode:$actorKey:${_personalWorkspace}:${_actingAsAgent}';
+    final accountScope = '$mode:$actorKey:$_personalWorkspace:$_actingAsAgent';
     if (_lastMode != accountScope) {
       _lastMode = accountScope;
       _index = 0;

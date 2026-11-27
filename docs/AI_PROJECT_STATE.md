@@ -4,7 +4,7 @@ The owner authorized implementation on the UAT 1849 Alazzi source and rollout to
 
 Listing review uses expandable protected images, side-by-side candidate comparison and reasoned image rejection. Approval is for the listing as a whole and continues to enforce rejection of unresolved inappropriate images and the existing property-identity checks. Payment proof review uses the shared support lifecycle with explicit finance permission and governorate routing. Approving payment proof continues through the existing financial ledger service.
 
-Operational roles and scope are decided by Laravel. Team administrators configure governorate teams using active existing accounts. The staff map and support messages use the assigned team scope, and the app can switch to regular-user navigation using the same account. Existing deal registration continues to use the advertiser’s entered amount. Deployment, exact-source APK and physical handset acceptance require their own evidence.
+Operational roles and scope are decided by Laravel. Team administrators configure governorate teams using active existing accounts. Work for an unstaffed governorate stays with the general support team until a local agent is designated, with the governorate preserved on the task. The staff map and support messages use the assigned team scope, and the app can switch to regular-user navigation using the same account. Existing deal registration continues to use the advertiser’s entered amount. Deployment, exact-source APK and physical handset acceptance require their own evidence.
 
 # Listing preparation step 3 — November19
 

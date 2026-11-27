@@ -45,7 +45,8 @@ class UatSupportTeamAdministrationApiTest extends TestCase
     {
         [, $ownerHeaders] = $this->account('owner', '+967740520011', true);
         [$staff, $staffHeaders] = $this->account('regional-worker', '+967740520012');
-        [$fallbackStaff] = $this->account('fallback-worker', '+967740520013');
+        [$fallbackStaff, $fallbackHeaders] = $this->account('fallback-worker', '+967740520013');
+        $fallbackStaff->roles()->attach(Role::query()->where('key', 'support_agent')->value('id'));
         $province = Governorate::query()->create(['code' => 'TEST_SUPPORT_ROUTE', 'name_ar' => 'محافظة التوجيه']);
         $team = SupportTeam::query()->create([
             'code' => 'test-local-support', 'name_ar' => 'فريق المحافظة', 'governorate_id' => $province->id,
@@ -62,12 +63,16 @@ class UatSupportTeamAdministrationApiTest extends TestCase
             'governorate_id' => $province->id, 'assigned_to_user_id' => $fallbackStaff->id, 'claimed_at' => now(),
             'last_activity_at' => now(),
         ]);
+        $inbox = '/api/admin/workspace/tasks?scope=inbox&type=support_ticket';
+        $this->withHeaders($fallbackHeaders)->getJson($inbox)->assertOk()
+            ->assertJsonPath('data.0.id', $queued->id)->assertJsonPath('data.0.governorate_id', $province->id);
         $this->withHeaders($ownerHeaders)->putJson('/api/admin/workspace/teams/'.$team->id.'/membership/'.$staff->id, [
-            'agent' => true, 'manager' => false,
+            'agent' => true, 'manager' => false, 'is_available' => false,
         ])->assertOk();
 
-        $this->withHeaders($staffHeaders)->getJson('/api/admin/workspace/tasks?scope=inbox&type=support_ticket')
+        $this->withHeaders($staffHeaders)->getJson($inbox)
             ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $queued->id);
+        $this->withHeaders($fallbackHeaders)->getJson($inbox)->assertOk()->assertJsonPath('meta.total', 0);
         $this->assertEquals($team->id, $queued->fresh()->support_team_id);
         $this->assertEquals($fallback->id, $claimed->fresh()->support_team_id);
     }

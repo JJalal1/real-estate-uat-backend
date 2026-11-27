@@ -53,7 +53,10 @@ class _TeamAdministration extends ConsumerWidget {
           onRetry: () => ref.invalidate(_teamsProvider),
         ),
         data: (rows) => RefreshIndicator(
-          onRefresh: () async { await ref.refresh(_teamsProvider.future); },
+          onRefresh: () async {
+            ref.invalidate(_teamsProvider);
+            await ref.read(_teamsProvider.future);
+          },
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),

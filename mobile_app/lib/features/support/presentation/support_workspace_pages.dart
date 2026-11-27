@@ -429,7 +429,6 @@ class _DashboardFrame extends ConsumerStatefulWidget {
     required this.title,
     required this.load,
     required this.cards,
-    this.attentionTitle,
     this.topAction,
     this.actingAsAgent = false,
     this.showHero = true,
@@ -438,7 +437,6 @@ class _DashboardFrame extends ConsumerStatefulWidget {
   final String title;
   final Future<SupportWorkspaceDashboard> Function() load;
   final List<_DashboardCardSpec> cards;
-  final String? attentionTitle;
   final Widget? topAction;
   final bool actingAsAgent;
   final bool showHero;
@@ -519,40 +517,6 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
                       );
                     },
                   ),
-                  if (widget.attentionTitle != null) ...[
-                    const SizedBox(height: 22),
-                    _SectionHeader(widget.attentionTitle!),
-                    const SizedBox(height: 8),
-                    if (dashboard.attention.isEmpty)
-                      const Card(
-                        child: Padding(
-                          padding: EdgeInsets.all(18),
-                          child: Text('لا توجد عناصر عاجلة تحتاج انتباهك الآن.'),
-                        ),
-                      )
-                    else
-                      ...dashboard.attention.map(
-                        (task) => Card(
-                          child: ListTile(
-                            leading: CircleAvatar(child: EbrokerIcon(_attentionIcon(task.sourceType))),
-                            title: Text(task.subject, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text('${_attentionType(task.sourceType)} • ${_attentionStatus(task.status)}'),
-                            trailing: task.isOverdue
-                                ? const Badge(label: Text('متأخر'))
-                                : const EbrokerIcon(Icons.chevron_left),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => SupportTasksScreen(
-                                  initialScope: task.isMine ? 'mine' : 'inbox',
-                                  initialType: task.sourceType,
-                                  title: 'تفاصيل المهام',
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
                 ],
               ),
             );
@@ -629,6 +593,7 @@ Future<void> _openAction(BuildContext context, _DashboardAction action, {bool ac
       await context.push<void>('/services');
       return;
   }
+  if (!context.mounted) return;
   await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page!));
 }
 
@@ -832,30 +797,3 @@ enum _DashboardAction {
   regions,
   services,
 }
-
-String _attentionType(String type) => switch (type) {
-      'account_verification' => 'تحقق حساب',
-      'listing_review' => 'تحقيق إعلان',
-      'support_ticket' => 'تذكرة',
-      'report' => 'بلاغ',
-      'contact_followup' => 'متابعة تواصل',
-      _ => type,
-    };
-
-String _attentionStatus(String status) => switch (status) {
-      'new' => 'جديد',
-      'in_progress' => 'قيد العمل',
-      'waiting_user' => 'انتظار المستخدم',
-      'needs_followup' => 'يحتاج متابعة',
-      'escalated' => 'مصعّد',
-      _ => status,
-    };
-
-IconData _attentionIcon(String type) => switch (type) {
-      'account_verification' => Icons.verified_user_outlined,
-      'listing_review' => Icons.fact_check_outlined,
-      'support_ticket' => Icons.support_agent_outlined,
-      'report' => Icons.report_outlined,
-      'contact_followup' => Icons.phone_callback_outlined,
-      _ => Icons.task_alt,
-    };

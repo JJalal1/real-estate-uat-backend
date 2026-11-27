@@ -6,6 +6,7 @@ use App\Models\Governorate;
 use App\Models\Property;
 use App\Models\SupportTask;
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -25,10 +26,8 @@ class SupportTeamRoutingService
     {
         if (!Schema::hasTable('support_teams')) return null;
 
-        $id = $governorateId === null ? null : DB::table('support_teams')
-            ->where('governorate_id', $governorateId)
-            ->where('is_active', true)->where('is_fallback', false)
-            ->orderBy('id')->value('id');
+        $id = $governorateId === null ? null : $this->staffedProvincialTeams()
+            ->where('team.governorate_id', $governorateId)->value('team.id');
 
         return $id === null ? $this->fallbackTeamId() : (int) $id;
     }
@@ -62,19 +61,38 @@ class SupportTeamRoutingService
     {
         if (request()->attributes->get(self::class) || !Schema::hasColumn('support_tasks', 'support_team_id')) return;
 
-        $regionalTeam = DB::table('support_teams as team')->select('team.id')
+        $regionalTeam = $this->staffedProvincialTeams()->select('team.id')
             ->whereColumn('team.governorate_id', 'support_tasks.governorate_id')
-            ->whereRaw('team.is_active AND NOT team.is_fallback')
-            ->orderBy('team.id')->limit(1);
-        DB::table('support_tasks')->whereNull('assigned_to_user_id')->whereNotNull('governorate_id')
-            ->whereIn('status', SupportTaskService::INBOX_STATUSES)
+            ->limit(1);
+        $queued = DB::table('support_tasks')->whereNull('assigned_to_user_id')->whereNotNull('governorate_id')
+            ->whereIn('status', SupportTaskService::INBOX_STATUSES);
+        (clone $queued)
             ->where(function ($queue) use ($regionalTeam): void {
                 $queue->whereNull('support_team_id')->orWhere('support_team_id', '<>', $regionalTeam);
             })
             ->whereExists($regionalTeam)
             ->update(['support_team_id' => DB::raw('('.$regionalTeam->toSql().')')]);
+        if (($fallback = $this->fallbackTeamId()) !== null) {
+            $queued->whereNotExists($regionalTeam)
+                ->where(fn ($queue) => $queue->whereNull('support_team_id')->orWhere('support_team_id', '!=', $fallback))
+                ->update(['support_team_id' => $fallback]);
+        }
 
         request()->attributes->set(self::class, true);
+    }
+
+    private function staffedProvincialTeams(): Builder
+    {
+        return DB::table('support_teams as team')->whereRaw('team.is_active AND NOT team.is_fallback')
+            ->whereExists(function (Builder $staff): void {
+                $staff->selectRaw('1')->from('support_team_members as member')
+                    ->join('users as staff_user', 'staff_user.id', '=', 'member.user_id')
+                    ->join('user_role as role_binding', 'role_binding.user_id', '=', 'member.user_id')
+                    ->join('roles as staff_role', 'staff_role.id', '=', 'role_binding.role_id')
+                    ->whereColumn('member.support_team_id', 'team.id')
+                    // Shared by the correlated bulk UPDATE. These fixed values keep that subquery binding-free.
+                    ->whereRaw("member.member_role = 'agent' AND staff_user.account_status = 'active' AND staff_role.key = 'support_agent'");
+            })->orderBy('team.id');
     }
 
     public function memberTeamIds(User $user, bool $agentsOnly = false): array
