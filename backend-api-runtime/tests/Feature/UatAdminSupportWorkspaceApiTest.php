@@ -144,7 +144,7 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
         $listing=Property::query()->create([
             'user_id'=>$owner->id,'title'=>'إعلان للمراجعة','description'=>'إعلان لا يعتمد على دلال رئيسي أو منطقة حصرية.',
             'purpose'=>'sale','type'=>'house','price'=>50000000,'currency'=>'YER','area_m2'=>200,'address'=>'صنعاء',
-            'latitude'=>15.3694,'longitude'=>44.1910,'status'=>'pending_review','review_status'=>'submitted','submitted_at'=>now(),
+            'latitude'=>15.3694,'longitude'=>44.1910,'status'=>'pending','review_status'=>'submitted','submitted_at'=>now(),
         ]);
         $detail=$this->withHeaders($managerHeaders)->getJson('/api/admin/listing-review/listings/'.$listing->id)->assertOk();
         $detail->assertJsonPath('data.broker_verification.required', false)
