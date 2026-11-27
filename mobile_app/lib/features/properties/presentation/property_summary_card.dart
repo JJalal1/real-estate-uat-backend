@@ -382,17 +382,19 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
       return;
     }
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    bool current() => mounted && Stage6SecureSessionStore.instance.sessionEpoch == epoch &&
+    bool sameActor() => Stage6SecureSessionStore.instance.sessionEpoch == epoch &&
         ref.read(authControllerProvider).asData?.value?.id == user.id;
     setState(() => _busy = true);
     try {
       final repo = ref.read(favoritesRepositoryProvider);
       if (selected) { await repo.remove(widget.propertyId); } else { await repo.add(widget.propertyId); }
-      if (!current()) return;
+      if (!mounted || !sameActor()) return;
       ref.read(favoriteDataRevisionProvider.notifier).state++;
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(selected ? 'تمت إزالة العقار من المفضلة.' : 'تم حفظ العقار في المفضلة.')));
     } catch (e) {
-      if (current()) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e))));
+      if (mounted && sameActor()) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e))));
+      }
     } finally { if (mounted) setState(() => _busy = false); }
   }
   @override
@@ -412,7 +414,9 @@ class _PropertyFavoriteState extends ConsumerState<PropertyFavoriteAction> {
       return ListingCardActionsMenu(details: widget.menuDetails, actions: [
         EbrokerCardAction(status.tooltip, favorite == null ? null : () {
           if (mounted && epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
-              actor == ref.read(authControllerProvider).asData?.value?.id) favorite();
+              actor == ref.read(authControllerProvider).asData?.value?.id) {
+            favorite();
+          }
         }, icon: status.icon,
             key: ValueKey('favorite-property-${widget.propertyId}')),
         EbrokerCardAction(compared ? 'مضاف للمقارنة' : 'أضف للمقارنة',
