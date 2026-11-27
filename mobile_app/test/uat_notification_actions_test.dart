@@ -82,6 +82,12 @@ Future<GoRouter> _mount(
         body: Text('property-${state.pathParameters['id']}'),
       ),
     ),
+    GoRoute(
+      path: '/support/listing-decision/:id',
+      builder: (_, state) => Scaffold(
+        body: Text('decision-${state.pathParameters['id']}'),
+      ),
+    ),
   ]);
   addTearDown(router.dispose);
   await tester.pumpWidget(ProviderScope(
@@ -129,10 +135,24 @@ void main() {
     await _mount(tester, repository);
     expect(find.text(reason), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(TextButton, 'عرض الإعلان السابق'));
+    await tester.tap(find.widgetWithText(TextButton, 'عرض الإعلان المشابه'));
     await tester.pumpAndSettle();
     expect(find.text('property-106'), findsOneWidget);
     expect(find.text('property-107'), findsNothing);
+    expect(repository.singleReads, 1);
+  });
+
+  testWidgets('a similarity correction also opens the affected listing decision for support', (tester) async {
+    final repository = _NotificationsRepository(notification: AppNotificationItem.fromJson({
+      'id': 1, 'type': 'listing_returned_for_correction', 'title': 'أُعيد إعلانك',
+      'body': 'رقم الوحدة يحتاج إلى توضيح.', 'entity_type': 'property', 'entity_id': 107,
+      'data': {'previous_property_id': 106},
+    }));
+    await _mount(tester, repository);
+    expect(find.widgetWithText(TextButton, 'عرض الإعلان المشابه'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'مراجعة الدعم'));
+    await tester.pumpAndSettle();
+    expect(find.text('decision-107'), findsOneWidget);
     expect(repository.singleReads, 1);
   });
 

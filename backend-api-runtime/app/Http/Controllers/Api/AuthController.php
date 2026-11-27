@@ -668,6 +668,8 @@ class AuthController extends Controller
             'broker_enrolled'=>$user->broker_enrolled_at !== null,
             'marketplace_is_office'=>$user->marketplace_is_office === null ? null : (bool) $user->marketplace_is_office,
             'can_create_listing'=>$user->canCreateListings(),
+            'can_manage_existing_listings'=>$user->canManageExistingListings(),
+            'publication_hold_case_id'=>$user->support_publication_hold_case_id,
             'broker_verification_note'=>$user->broker_verification_note,
             'last_login_at'=>$user->last_login_at?->toIso8601String(),
             'created_at'=>$user->created_at?->toIso8601String(),

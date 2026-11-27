@@ -27,6 +27,31 @@ class SupportWorkspaceRepository {
   final AuthRepository _auth;
   final AccountRequestScope? _requestScope;
 
+  Future<Map<String, dynamic>> statistics(String from, String to) async =>
+      (await _workspaceData('GET', '/admin/workspace/team-statistics', query: {'from': from, 'to': to})) as Map<String, dynamic>;
+
+  Future<List<SupportStaffThread>> staffThreads() async {
+    final rows = await _workspaceData('GET', '/admin/workspace/staff-messages');
+    return (rows as List? ?? const []).whereType<Map<String, dynamic>>()
+        .map(SupportStaffThread.fromJson).toList(growable: false);
+  }
+
+  Future<SupportStaffThread> openStaffThread({int? memberId, int? teamId}) async =>
+      SupportStaffThread.fromJson(await _workspaceData('POST', '/admin/workspace/staff-messages', body: {
+        'channel': memberId == null ? 'executive' : 'team',
+        if (memberId != null) 'member_id': memberId,
+        if (teamId != null) 'team_id': teamId,
+      }) as Map<String, dynamic>);
+
+  Future<SupportStaffThread> staffThread(int id, {int? before}) async =>
+      SupportStaffThread.fromJson(await _workspaceData('GET', '/admin/workspace/staff-messages/$id',
+        query: {if (before != null) 'before': before}) as Map<String, dynamic>);
+
+  Future<SupportStaffThread> sendStaffMessage(int id, String body, String clientKey, {int? taskId}) async =>
+      SupportStaffThread.fromJson(await _workspaceData('POST', '/admin/workspace/staff-messages/$id', body: {
+        'body': body, 'client_key': clientKey, if (taskId != null) 'task_id': taskId,
+      }) as Map<String, dynamic>);
+
   Future<SupportWorkspaceDashboard> dashboard() async {
     return _dashboard();
   }
@@ -345,26 +370,6 @@ class SupportWorkspaceRepository {
     return _task(response.data);
   }
 
-  Future<SupportTaskItem> recordContactOutcome(
-    int taskId, {
-    required String outcome,
-    String? note,
-    DateTime? nextFollowUpAt,
-    bool actingAsAgent = false,
-  }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/admin/workspace/tasks/$taskId/contact-outcome',
-      data: {
-        'outcome': outcome,
-        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
-        if (nextFollowUpAt != null)
-          'next_follow_up_at': nextFollowUpAt.toUtc().toIso8601String(),
-        if (actingAsAgent) 'acting_as_agent': true,
-      },
-      options: await _auth.requiredAuthOptions(),
-    );
-    return _task(response.data);
-  }
   Future<List<SupportTaskEventItem>> taskEvents(int taskId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/admin/workspace/tasks/$taskId/events',

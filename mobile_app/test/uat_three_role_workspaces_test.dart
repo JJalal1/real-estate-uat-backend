@@ -11,7 +11,7 @@ void main() {
     expect(shell, contains("label: 'لوحة الفريق'"));
     expect(shell, contains("label: 'الوارد'"));
     expect(shell, contains('SupportMapScreen('));
-    expect(shell, contains('messagesOnly: true'));
+    expect(shell, contains('SupportMessagesScreen('));
     expect(shell, contains('الدخول كمستخدم'));
     expect(shell, isNot(contains("label: 'مهامي'")));
     expect(shell, contains("label: 'الأعمال'"));
@@ -85,8 +85,8 @@ void main() {
     expect(repo, contains('/admin/workspace/tasks/\$taskId/claim'));
     expect(repo, contains('/admin/workspace/dashboard'));
     expect(repo, contains('/admin/workspace/team'));
-    expect(screen, contains('استلام'));
-    expect(screen, contains('غير مسند'));
+    expect(screen, contains('استلم'));
+    expect(screen, isNot(contains('متابعة التواصل')));
     expect(screen, contains('انتظار المستخدم'));
     expect(screen, contains('يحتاج متابعة'));
   });

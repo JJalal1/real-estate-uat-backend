@@ -461,17 +461,22 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     if (_reporting || !await _requireContactAccount() || !mounted) return;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     final repository = ref.read(communityRepositoryProvider);
-    final result = await showCommunityReportDialog(context, label: 'الإعلان');
+    final result = await showCommunityReportDialog(context, label: 'الإعلان', target: property.title);
     if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
     setState(() => _reporting = true);
     try {
-      final receipt = await repository.report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
+      final receipt = await repository.report(targetType: 'listing', targetId: property.id,
+        reason: result.reason, details: result.details, attachment: result.attachment);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message),
-          action: SnackBarAction(label: 'متابعة', onPressed: () => context.push('/support?case=${receipt.id}'))));
+        await showReportReceipt(context, caseId: receipt.id, reference: receipt.reference,
+        alreadyReceived: receipt.alreadyReceived);
       }
-    } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
-    finally { if (mounted) setState(() => _reporting = false); }
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    } finally {
+      await clearReportEvidence(result.attachment);
+      if (mounted) setState(() => _reporting = false);
+    }
   }
 
   Future<void> _toggleFavorite(

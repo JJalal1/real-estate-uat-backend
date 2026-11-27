@@ -145,6 +145,37 @@ class Stage9ListingReviewApiTest extends TestCase
         ]))->assertCreated();
     }
 
+    public function test_return_for_similarity_links_the_exact_candidate_and_one_appeal(): void
+    {
+        [, $originalOwner] = $this->user('s9-return-original@example.test', '+967710000061');
+        [, $advertiser] = $this->user('s9-return-advertiser@example.test', '+967710000062');
+        [, $agent] = $this->user('s9-return-agent@example.test', '+967710000063', ['support_agent']);
+        $previous = $this->createReady($originalOwner, 'Public listing for comparison');
+        $this->withHeaders($originalOwner)->postJson("/api/properties/$previous/submit")->assertOk();
+        $this->withHeaders($agent)->postJson("/api/admin/listing-review/listings/$previous/start")->assertOk();
+        $this->confirmListingImages($previous, $agent);
+        $this->withHeaders($agent)->postJson("/api/admin/listing-review/listings/$previous/approve")->assertOk();
+        $new = $this->createReady($advertiser, 'Listing requiring clarification');
+        $this->withHeaders($advertiser)->postJson("/api/properties/$new/submit")->assertOk();
+        $activity = "/api/admin/listing-review/listings/$new";
+        $this->withHeaders($agent)->postJson("$activity/start")->assertOk();
+        $note = 'وضّح رقم الوحدة لأن العنوان مطابق للإعلان المشابه.';
+        $this->withHeaders($agent)->postJson("$activity/return", [
+            'reason' => $note, 'candidate_property_id' => $new,
+        ])->assertConflict();
+        $this->withHeaders($agent)->postJson("$activity/return", [
+            'reason' => $note, 'candidate_property_id' => $previous,
+        ])->assertOk()->assertJsonPath('data.review_status', 'returned_for_correction');
+        $this->withHeaders($advertiser)->getJson('/api/notifications')->assertOk()
+            ->assertJsonPath('data.0.body', $note)->assertJsonPath('data.0.data.previous_property_id', $previous);
+        $decision = "/api/support/listing-decisions/$new";
+        $this->withHeaders($originalOwner)->getJson($decision)->assertNotFound();
+        $this->withHeaders($advertiser)->getJson($decision)->assertOk()
+            ->assertJsonPath('data.reason', $note)->assertJsonPath('data.previous_property_id', $previous);
+        $appeal = $this->withHeaders($advertiser)->postJson("$decision/review")->assertOk()->json('data.id');
+        $this->withHeaders($advertiser)->postJson("$decision/review")->assertOk()->assertJsonPath('data.id', $appeal);
+    }
+
     #[DataProvider('duplicateAdvertisers')]
     public function test_support_rejects_only_the_new_duplicate_and_notifies_its_advertiser(bool $sameOwner): void
     {

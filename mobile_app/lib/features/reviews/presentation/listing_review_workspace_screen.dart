@@ -434,7 +434,11 @@ class _ListingReviewCaseScreenState
               AppLayout.compactPageGutter, AppSpacing.s16,
             ),
             children: [
-              _listingSummary(item, isClaimed),
+              _listingSummary(item, isClaimed, hasCandidates: bundle.duplicates.isNotEmpty),
+              if (bundle.duplicates.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.s12),
+                _duplicateSection(bundle, isClaimed),
+              ],
               const SizedBox(height: AppSpacing.s16),
               AppSectionHeader(title: 'صور الإعلان (${arabicDigits('${item.images.length}')})'),
               const SizedBox(height: AppSpacing.s8),
@@ -475,8 +479,6 @@ class _ListingReviewCaseScreenState
                 ),
               ],
               const SizedBox(height: AppSpacing.s16),
-              _duplicateSection(bundle, isClaimed),
-              const SizedBox(height: AppSpacing.s12),
               _details(item),
               if (item.proofDocuments.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.s8),
@@ -490,23 +492,6 @@ class _ListingReviewCaseScreenState
                     ),
                 ]),
               ],
-              const SizedBox(height: AppSpacing.s8),
-              _section('سجل المراجعة (${arabicDigits('${item.reviewHistory.length}')})', [
-                for (final event in item.reviewHistory.reversed)
-                  AppListRow(
-                    title: event.actionLabel,
-                    subtitle: [
-                      if (event.actorName case final name?) name,
-                      if (event.displayReason case final reason?) reason,
-                    ].join('\n'),
-                    leading: const EbrokerIcon(Icons.history),
-                  ),
-                if (item.reviewHistory.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('لا توجد مراجعات سابقة.'),
-                  ),
-              ]),
               if (!isClaimed) ...[
                 const SizedBox(height: AppSpacing.s12),
                 const AppInlineMessage(
@@ -542,7 +527,7 @@ class _ListingReviewCaseScreenState
                       AppButton(
                         label: 'إرجاع للتصحيح',
                         style: AppButtonStyle.outlined,
-                        onPressed: _busy ? null : _returnForCorrection,
+                        onPressed: _busy ? null : () => _chooseCorrection(bundle),
                       ),
                       if (!hasConfirmedPublicDuplicate)
                         PopupMenuButton<String>(
@@ -563,10 +548,15 @@ class _ListingReviewCaseScreenState
     );
   }
 
-  Widget _listingSummary(ReviewListingDetail item, bool isClaimed) {
+  Widget _listingSummary(ReviewListingDetail item, bool isClaimed, {required bool hasCandidates}) {
     final area = item.areaValue != null && item.areaUnit != null
         ? item.areaValue : item.areaM2?.toDouble();
     final areaUnit = item.areaValue != null && item.areaUnit != null ? item.areaUnit! : 'sqm';
+    final identityHint = hasCandidates ? null : switch (item.duplicateCheckStatus) {
+      'pending' || 'check_failed' => 'فحص هوية العقار قيد التحقق. حدّث المهمة قبل الاعتماد.',
+      'needs_support' || 'confirmed_duplicate' => 'تحتاج هوية العقار إلى تحقق.',
+      _ => null,
+    };
     return AppSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,6 +573,11 @@ class _ListingReviewCaseScreenState
               ),
             ],
           ),
+          if (identityHint != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.s4),
+              child: Text(identityHint, style: Theme.of(context).textTheme.bodySmall),
+            ),
           const SizedBox(height: AppSpacing.s8),
           Wrap(
             spacing: AppSpacing.s8,
@@ -617,7 +612,11 @@ class _ListingReviewCaseScreenState
               icon: const Icon(Icons.place_outlined),
               label: const Text('عرض على الخريطة'),
               onPressed: () => _openPrivatePage<void>('موقع العقار', (_) =>
-                PropertyLocationScreen(latitude: item.latitude, longitude: item.longitude)),
+                PropertyLocationScreen(
+                  latitude: item.latitude,
+                  longitude: item.longitude,
+                  listingTitle: item.title,
+                )),
             ),
         ],
       ),
@@ -660,30 +659,12 @@ class _ListingReviewCaseScreenState
   Widget _duplicateSection(_ReviewBundle bundle, bool isClaimed) {
     final detection = bundle.detail.duplicateDetection;
     final candidates = bundle.duplicates;
-    if (candidates.isEmpty && detection == null) {
-      final status = bundle.detail.duplicateCheckStatus;
-      if (status == 'pending' || status == 'check_failed') {
-        return const AppInlineMessage(
-          title: 'فحص التكرار',
-          message: 'فحص الهوية غير مكتمل. حدّث التحقيق قبل الاعتماد.',
-        );
-      }
-      if (status == 'needs_support' || status == 'confirmed_duplicate') {
-        return const AppInlineMessage(
-          title: 'فحص التكرار',
-          message: 'تحتاج هوية العقار إلى تحقق.',
-          tone: AppStatusTone.warning,
-        );
-      }
-      return const SizedBox.shrink();
-    }
-
     return AppSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AppSectionHeader(
-            title: candidates.isEmpty ? 'فحص التكرار' : 'اشتباه تكرار (${arabicDigits('${candidates.length}')})',
+            title: 'إعلانات مشابهة (${arabicDigits('${candidates.length}')})',
           ),
           if (detection != null) ...[
             const SizedBox(height: AppSpacing.s4),
@@ -749,6 +730,8 @@ class _ListingReviewCaseScreenState
         await _linkCandidate(candidate);
       case ListingComparisonAction.reject:
         await _rejectDuplicate(candidate);
+      case ListingComparisonAction.returnForCorrection:
+        await _returnForCorrection(candidate: candidate);
       case ListingComparisonAction.openPrevious:
         await context.push('/properties/${candidate.listingId}');
       case null:
@@ -826,16 +809,55 @@ class _ListingReviewCaseScreenState
         ));
   }
 
-  Future<void> _returnForCorrection() async {
+  Future<void> _chooseCorrection(_ReviewBundle bundle) async {
+    final candidates = bundle.duplicates.where((item) => item.canRejectAsDuplicate).toList();
+    if (candidates.isEmpty) {
+      await _returnForCorrection();
+      return;
+    }
+    final scope = ref.read(accountRequestScopeProvider);
+    final selected = await showActorDialog<int>(
+      ref: ref,
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('سبب إرجاع الإعلان'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, 0),
+            child: const Text('تصحيح محتوى الإعلان'),
+          ),
+          for (final candidate in candidates)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, candidate.listingId),
+              child: Text('تشابه مع ${candidate.title} · #${candidate.listingId}'),
+            ),
+        ],
+      ),
+    );
+    if (!mounted || !scope.isCurrent || selected == null) return;
+    if (selected == 0) {
+      await _returnForCorrection();
+      return;
+    }
+    await _openComparison(bundle.detail,
+      candidates.firstWhere((item) => item.listingId == selected), true);
+  }
+
+  Future<void> _returnForCorrection({ListingDuplicateCandidate? candidate}) async {
     final reason = await _askReason(
       title: 'إرجاع الإعلان للتصحيح',
-      hint: 'اكتب للمعلن تحديداً ما الذي يجب تعديله.',
+      hint: candidate == null
+          ? 'اكتب للمعلن تحديداً ما الذي يجب تعديله.'
+          : 'وضّح للمعلن وجه التشابه مع الإعلان رقم ${candidate.listingId} وما الذي يمكن توضيحه أو تصحيحه.',
       minLength: 5,
     );
     if (reason == null || !mounted) return;
-    await _runDecision(
-      () => ref.read(listingReviewRepositoryProvider).returnForCorrection(widget.listingId, reason),
-    );
+    await _runDecision(() {
+      final repository = ref.read(listingReviewRepositoryProvider);
+      return candidate == null
+          ? repository.returnForCorrection(widget.listingId, reason)
+          : repository.returnForCorrectionAgainst(widget.listingId, candidate.listingId, reason);
+    });
   }
 
   Future<void> _reject() async {

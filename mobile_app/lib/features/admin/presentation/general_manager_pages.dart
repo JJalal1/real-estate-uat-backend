@@ -27,7 +27,9 @@ class GeneralManagerHomeScreen extends ConsumerWidget {
         final critical = data.overviewCount('critical_reports');
         final reviewBacklog = data.overviewCount('pending_listing_reviews');
         final verificationBacklog = data.overviewCount('pending_verifications');
-        final urgentAttention = overdue + escalated + critical;
+        final urgentAttention = data.overview.containsKey('support_intervention_count')
+            ? data.overviewCount('support_intervention_count')
+            : overdue + escalated + critical;
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),

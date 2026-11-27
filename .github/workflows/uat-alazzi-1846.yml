@@ -10,6 +10,10 @@ on:
       - work/alazzi-support-1850
       - release/alazzi-1850-support
       - release/alazzi-1851-category-filters
+      - work/alazzi-support-1851
+      - release/alazzi-1851-support
+      - work/alazzi-unified-1852
+      - release/alazzi-1852-unified
 
 permissions:
   contents: read
@@ -20,7 +24,8 @@ concurrency:
 
 env:
   AQER_BUILD: >-
-    ${{ github.ref_name == 'release/alazzi-1851-category-filters' && '1851'
+    ${{ (github.ref_name == 'work/alazzi-unified-1852' || github.ref_name == 'release/alazzi-1852-unified') && '1852'
+      || (github.ref_name == 'release/alazzi-1851-category-filters' || github.ref_name == 'work/alazzi-support-1851' || github.ref_name == 'release/alazzi-1851-support') && '1851'
       || (github.ref_name == 'work/alazzi-support-1850' || github.ref_name == 'release/alazzi-1850-support') && '1850'
       || github.ref_name == 'release/alazzi-1849-ui-parity' && '1849'
       || github.ref_name == 'release/alazzi-1848-account-search' && '1848'
@@ -29,7 +34,8 @@ env:
   AQER_PUBSPEC_BLOB: >-
     ${{ (github.ref_name == 'release/alazzi-1848-account-search' || github.ref_name == 'release/alazzi-1849-ui-parity' ||
          github.ref_name == 'work/alazzi-support-1850' || github.ref_name == 'release/alazzi-1850-support' ||
-         github.ref_name == 'release/alazzi-1851-category-filters')
+         github.ref_name == 'release/alazzi-1851-category-filters' || github.ref_name == 'work/alazzi-support-1851' || github.ref_name == 'release/alazzi-1851-support' ||
+         github.ref_name == 'work/alazzi-unified-1852' || github.ref_name == 'release/alazzi-1852-unified')
       && '09ac4bdf253134411b87d99acd412bb118159e71' || '4583d88e975281d4d55c0622b48ae1249342d99c' }}
 
 jobs:
@@ -41,7 +47,9 @@ jobs:
            (github.actor == github.repository_owner &&
             (github.ref_name == 'work/alazzi-marketplace-1847' || github.ref_name == 'release/alazzi-1848-account-search' ||
              github.ref_name == 'release/alazzi-1849-ui-parity' || github.ref_name == 'work/alazzi-support-1850' ||
-             github.ref_name == 'release/alazzi-1850-support' || github.ref_name == 'release/alazzi-1851-category-filters'))) }}
+             github.ref_name == 'release/alazzi-1850-support' || github.ref_name == 'release/alazzi-1851-category-filters' ||
+             github.ref_name == 'work/alazzi-support-1851' || github.ref_name == 'release/alazzi-1851-support' ||
+             github.ref_name == 'work/alazzi-unified-1852' || github.ref_name == 'release/alazzi-1852-unified'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 27
     services:
@@ -121,7 +129,7 @@ jobs:
           --display-warnings --fail-on-warning --fail-on-risky
 
       - name: Verify support task lifecycles and access on both test databases
-        if: env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
+        if: env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851' || env.AQER_BUILD == '1852'
         run: |
           support_tests=(
             tests/Feature/UatAdminSupportWorkspaceApiTest.php
@@ -133,13 +141,21 @@ jobs:
             tests/Feature/BrokerSupportHttpJourneyTest.php
             tests/Feature/Wave2MediaTrustTest.php
           )
+          if [ "$AQER_BUILD" = 1852 ] || { [ "$AQER_BUILD" = 1851 ] && [ "$GITHUB_REF_NAME" != release/alazzi-1851-category-filters ]; }; then
+            support_tests+=(
+              tests/Feature/Stage10CommunitySupportApiTest.php
+              tests/Feature/Phase4MessagingViewingAcceptanceTest.php
+              tests/Feature/Phase23InboxPaginationTest.php
+              tests/Feature/UatGeneralManagerInsightsApiTest.php
+            )
+          fi
           php artisan test "${support_tests[@]}" --display-warnings --fail-on-warning --fail-on-risky
           APP_ENV=testing DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 \
             DB_DATABASE=real_estate_audit DB_USERNAME=postgres DB_PASSWORD='' DB_URL='' DB_SEARCH_PATH=public,extensions \
             php artisan test "${support_tests[@]}" --display-warnings --fail-on-warning --fail-on-risky
 
       - name: Verify property category filters and their migration on both test databases
-        if: env.AQER_BUILD == '1851'
+        if: github.ref_name == 'release/alazzi-1851-category-filters' || env.AQER_BUILD == '1852'
         run: |
           test_file=tests/Feature/CategoryPropertyFiltersTest.php
           php artisan test "$test_file" --display-warnings --fail-on-warning --fail-on-risky
@@ -155,7 +171,9 @@ jobs:
            (github.actor == github.repository_owner &&
             (github.ref_name == 'work/alazzi-marketplace-1847' || github.ref_name == 'release/alazzi-1848-account-search' ||
              github.ref_name == 'release/alazzi-1849-ui-parity' || github.ref_name == 'work/alazzi-support-1850' ||
-             github.ref_name == 'release/alazzi-1850-support' || github.ref_name == 'release/alazzi-1851-category-filters'))) }}
+             github.ref_name == 'release/alazzi-1850-support' || github.ref_name == 'release/alazzi-1851-category-filters' ||
+             github.ref_name == 'work/alazzi-support-1851' || github.ref_name == 'release/alazzi-1851-support' ||
+             github.ref_name == 'work/alazzi-unified-1852' || github.ref_name == 'release/alazzi-1852-unified'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 28
     steps:
@@ -229,7 +247,7 @@ jobs:
           test/phase3_favorites_screen_test.dart
           test/phase23_favorite_recovery_test.dart
       - name: Test the listing card layouts and both dictation entry points
-        if: env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
+        if: env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851' || env.AQER_BUILD == '1852'
         working-directory: mobile_app
         run: >-
           flutter test --no-pub --reporter expanded
@@ -241,11 +259,12 @@ jobs:
           test/in_app_voice_search_test.dart
           test/wave6_product_ui_test.dart
       - name: Test support workspace navigation and listing review
-        if: env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
+        if: env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851' || env.AQER_BUILD == '1852'
         working-directory: mobile_app
         run: >-
           flutter test --no-pub --reporter expanded
           test/support_completed_inbox_flow_test.dart
+          test/support_case_pagination_test.dart
           test/startup_navigation_layout_test.dart
           test/uat_three_role_workspaces_test.dart
           test/uat_admin_support_interface_contract_test.dart
@@ -256,7 +275,7 @@ jobs:
           test/stage9_review_models_test.dart
           test/financial_v1_contract_test.dart
       - name: Test the Sections tab, category filters and navigation
-        if: env.AQER_BUILD == '1851'
+        if: github.ref_name == 'release/alazzi-1851-category-filters' || env.AQER_BUILD == '1852'
         working-directory: mobile_app
         run: |
           flutter test --no-pub --reporter expanded \
@@ -283,11 +302,12 @@ jobs:
     if: >-
       ${{ github.repository == 'JJalal1/real-estate-uat-backend' && !github.event.deleted &&
           ((github.event.repository.private && !startsWith(github.ref_name, 'release/') &&
-            github.ref_name != 'work/alazzi-support-1850') ||
+            github.ref_name != 'work/alazzi-support-1850' && github.ref_name != 'work/alazzi-support-1851' &&
+            github.ref_name != 'work/alazzi-unified-1852') ||
            (github.actor == github.repository_owner &&
             (github.ref_name == 'work/alazzi-marketplace-1847' || github.ref_name == 'release/alazzi-1848-account-search' ||
              github.ref_name == 'release/alazzi-1849-ui-parity' || github.ref_name == 'release/alazzi-1850-support' ||
-             github.ref_name == 'release/alazzi-1851-category-filters'))) }}
+             github.ref_name == 'release/alazzi-1851-category-filters' || github.ref_name == 'release/alazzi-1851-support' || github.ref_name == 'release/alazzi-1852-unified'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 50
     env:
@@ -342,8 +362,24 @@ jobs:
             test "$tested_source" = "$AQER_SOURCE_SHA"
           elif [ "$AQER_BUILD" = 1851 ]; then
             baseline=520b084f379b9e898c6009dc7e5794b9ae6c1f41
-            tested_source="$(git rev-parse --verify 'refs/remotes/origin/work/alazzi-category-filters-1851^{commit}')"
+            if [ "$GITHUB_REF_NAME" = release/alazzi-1851-category-filters ]; then
+              tested_source="$(git rev-parse --verify 'refs/remotes/origin/work/alazzi-category-filters-1851^{commit}')"
+            else
+              tested_source="$(git rev-parse --verify 'refs/remotes/origin/work/alazzi-support-1851^{commit}')"
+              evidence_picker='mobile_app/android/app/src/main/kotlin/com/example/real_estate_mobile/MainActivity.kt'
+              test -f "$evidence_picker" && test ! -L "$evidence_picker"
+              printf '%s  %s\n' 'ac07430b7c8ebf5a2dc3c9129c53dde98b8303ac3c56c17d4d07de089af2f906' "$evidence_picker" | sha256sum --check --strict
+              protected_exclusions=(":(exclude,top)$evidence_picker")
+            fi
             test "$tested_source" = "$AQER_SOURCE_SHA"
+          elif [ "$AQER_BUILD" = 1852 ]; then
+            baseline=9b2e1027fedbbd9b1555461ca55705946707a60f
+            tested_source="$(git rev-parse --verify 'refs/remotes/origin/work/alazzi-unified-1852^{commit}')"
+            test "$tested_source" = "$AQER_SOURCE_SHA"
+            evidence_picker='mobile_app/android/app/src/main/kotlin/com/example/real_estate_mobile/MainActivity.kt'
+            test -f "$evidence_picker" && test ! -L "$evidence_picker"
+            printf '%s  %s\n' 'ac07430b7c8ebf5a2dc3c9129c53dde98b8303ac3c56c17d4d07de089af2f906' "$evidence_picker" | sha256sum --check --strict
+            protected_exclusions=(":(exclude,top)$evidence_picker")
           fi
           test ! -L mobile_app/pubspec.yaml
           test "$(git hash-object mobile_app/pubspec.yaml)" = "$AQER_PUBSPEC_BLOB"
@@ -363,8 +399,8 @@ jobs:
             signing_importer_sha256='b5e5c80e284d084330028cfdcf847a6b8cfe5d59880533b5c198b806bde399e1'
           elif [ "$AQER_BUILD" = 1850 ]; then
             signing_importer_sha256='0875911c57e233e06ba486b14dc0d0d6b632fcca93e5a9a4c369257741699c30'
-          elif [ "$AQER_BUILD" = 1851 ]; then
-            signing_importer_sha256='ddd6d64eb11f0a410701fbf96be13d9c6ac92937235074f70ee68c7e27718193'
+          elif [ "$AQER_BUILD" = 1851 ] || [ "$AQER_BUILD" = 1852 ]; then
+            signing_importer_sha256='cd9aad3c2a5e8fad5156a7e656508c8abc533d22f34de7f52a274730615ae183'
           fi
           printf '%s  %s\n' "$signing_importer_sha256" scripts/import_ci_uat_signing.py \
             | sha256sum --check --strict
@@ -522,7 +558,7 @@ jobs:
               bundled_assistant = contents.read("assets/flutter_assets/" + assistant_asset)
               assert hashlib.sha256(bundled_assistant).hexdigest() == assistant_digest
               assert bundled_assistant == Path("mobile_app", assistant_asset).read_bytes()
-              if build in (1848, 1849, 1850, 1851):
+              if build in (1848, 1849, 1850, 1851, 1852):
                   governorates_asset = os.environ["AQER_GOVERNORATES_ASSET_PATH"]
                   bundled_governorates = contents.read("assets/flutter_assets/" + governorates_asset)
                   governorates_digest = hashlib.sha256(bundled_governorates).hexdigest()
@@ -554,6 +590,7 @@ jobs:
               1849: (1848, 26293955),
               1850: (1849, 26292412),
               1851: (1850, 26371368),
+              1852: (1851, 26391166),
           }.get(build, (1845, 25938100))
           receipt = {
               "branch": os.environ["GITHUB_REF_NAME"],
@@ -574,7 +611,7 @@ jobs:
               "google_maps_android_configured": True,
               "firebase": firebase,
           }
-          if build in (1848, 1849, 1850, 1851):
+          if build in (1848, 1849, 1850, 1851, 1852):
               receipt["governorates_asset"] = {
                   "path": governorates_asset, "sha256": governorates_digest, "bundled_verified": True,
               }
@@ -600,7 +637,7 @@ jobs:
             '.source == $source and .build == $build and .package == "com.aqer.yemen.uat.offline" and .abis == ["arm64-v8a"]' APK_VERIFICATION.json >/dev/null
           printf '%s  %s\n' "$(jq -r .sha256 APK_VERIFICATION.json)" "$apk" | sha256sum --check --strict
       - name: Seal the installer for the approved recipient
-        if: github.event.repository.private == false || env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
+        if: github.event.repository.private == false || env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851' || env.AQER_BUILD == '1852'
         run: |
           python3 -B - <<'PYTHON'
           import hashlib
@@ -627,7 +664,7 @@ jobs:
           (sealed / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2))
           PYTHON
       - name: Upload recipient-encrypted installer and receipt
-        if: github.event.repository.private == false || env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
+        if: github.event.repository.private == false || env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851' || env.AQER_BUILD == '1852'
         uses: actions/upload-artifact@v4
         with:
           name: AQER-UAT-${{ env.AQER_BUILD }}-sealed-${{ github.run_attempt }}
@@ -638,7 +675,7 @@ jobs:
           compression-level: 0
           retention-days: 30
       - name: Seal the installer for its build-specific one-time chat recipient
-        if: env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
+        if: env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851' || env.AQER_BUILD == '1852'
         env:
           AQER_CHAT_PUBLIC_CERTIFICATE_1848_B64: >-
             LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVURENDQXJTZ0F3SUJBZ0lVTi9zWEZua25W
@@ -762,6 +799,66 @@ jobs:
             QnJLU3F2aDZNaGN6UStZMVk4RkJpMDAvMnBpSUxEcDQKWHlKS01waURaRFJneEluZ1hjUFdGTHdW
             TktkWFNhTT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
           AQER_CHAT_PUBLIC_CERTIFICATE_1851_SHA256: 'ba63d0ec0bf27b689601ba05733becc360e0dd59a1e3872d220a8a714763f30e'
+          AQER_CHAT_PUBLIC_CERTIFICATE_SUPPORT_1851_B64: >-
+            LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVOekNDQXArZ0F3SUJBZ0lVQ2xDTjVHcXcx
+            Ry9NbWdUVGVNV0M1MGFod2dNd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0t6RXBNQ2NHQTFVRUF3d2dR
+            VkZGVWlCVlFWUWdNVGcxTVNCMFpXMXdiM0poY25rZ1pHVnNhWFpsY25rdwpIaGNOTWpZeE1USTNN
+            ak15TnpVeFdoY05Nall4TWpBeU1qTXlOelV4V2pBck1Ta3dKd1lEVlFRRERDQkJVVVZTCklGVkJW
+            Q0F4T0RVeElIUmxiWEJ2Y21GeWVTQmtaV3hwZG1WeWVUQ0NBYUl3RFFZSktvWklodmNOQVFFQkJR
+            QUQKZ2dHUEFEQ0NBWW9DZ2dHQkFPTytET3dCWkV3QTFlRUtBOFhUMEV5Q3FqaFo2OVdVQkgwNjFO
+            dXcxUENuejdRRApybFpNSjBmcjUvS094bVFFbmtqdVFYTWpuOWxWQlNpTU9LMGc0M20vdmxhMjZP
+            ZndUV3ByODI4Y0pYT0RFOHRjClJzZngrOVhMZG5QbEppMUtHd1JrT21talU3c0xWZU5LRm9uaEti
+            NlRmY0poQVN0TTU1eEVHaEtabzdYRjdvNWsKNlpOSE5FY1dtR2Z6UlNIalUxR0hPYU9SRWc4c0Q3
+            MUgvMzdHL1kvTThkVGlOVlF1c0pQc29rMitDSlhVTEVTUwp2bHhQSWdmQ21kSG85V05TeWJYa204
+            SldSbFp3UElBb09sVzZjeHo4aEVLZUcyUjh3M0JqM0VjblRKV1pkdmFNCkZUd0tVOEpNeFg4N2Y1
+            WlVaRGxkWXVFYnkrVHhLeTJUYzJGU3VjNVJvcUZqM0t4S3ZPNkdYdUtidFFKZG5BNm8KU3VzMWMy
+            aC8xVDF2N1RYV3EzWElyUFdtQmRNMHk0TXBGWmJFc3BBdm55ZU5OVUxWRnk0NFRFYjZEZkFOS09s
+            Lwp0TStCTUphcG9Rb0xtUC9rdXJvSUMzZFRZYWtrNUc2UmFRUDZ4NklmN2RFSjNYV3llUkYzYTZz
+            NmtxdmFkbWthCklSZE5sdFFnT1lKQkJPaXIvUUlEQVFBQm8xTXdVVEFkQmdOVkhRNEVGZ1FVeGNi
+            ZkNmUm1kT3RjUXlOaGcrbG4KVjhsTitnSXdId1lEVlIwakJCZ3dGb0FVeGNiZkNmUm1kT3RjUXlO
+            aGcrbG5WOGxOK2dJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QU5CZ2txaGtpRzl3MEJBUXNGQUFP
+            Q0FZRUFxNDF3UENxQW0vWDF5Z0NMemNLRGJRYlNkbXM3Cmg2OVR2T0d3d2JkTnpzTGdoR1lqR1B5
+            cEhSWmcvMy9NdFQvNDFmeWpxaFNGVEtOZEU3VG5Hbk9PcFZkWk1HTEwKd2J6M1dIM2hUN2doaFZj
+            V21RQWx4L0QzSGdqc0dpNlQzRWgwVXZ1b0t2Z0t6di83eG54RXN1b2dlUk5jMFYzSAp0TnYzSUFJ
+            MGlHeGtsTndIMFBJQzRmM3AxSGg4SUNzVlBGNUVMTmtaaStnK0t6Mi9GcEt6SUJ2UmdhVnZjVWdr
+            CmhCZFkwREY4b1VyVWJobTRiazEyY0ZDc0hmcFd4UzFqM3JZSUV1QUthamRWQmFIUkZ5QkRsckMz
+            Q2xES3VUNkgKQm1oZjNnNjZ0a3dLQ2dnN1ZZbEp5OVBFMXhYVk9UbXI3S0QwMDZBRnI4dEF5LzM1
+            MVBpclVEU1Z4R1JuQnZSegovT2VUNmduR3JZV0NSaTJlMTQ2bEhpRmc1ZEZxNHh0YnV2SlVHbG5M
+            ZUdoWVM0aDB3b1VNbWwzQllwbUp0YVNUCmtIZ0s0bXNRbkJ6bW5FbDJESjlSTnkvVVZEMXBSbHAy
+            OHAxU1g3RkZPeEI5bXptN1RWQkhWajNncFB1ZzNZYW4KY2hHWWR6OUVjRUFHa3l0bE1UWklHejdX
+            eFBMQXJWM0ptVGhvCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+          AQER_CHAT_PUBLIC_CERTIFICATE_SUPPORT_1851_SHA256: '694eb639802d5316be9fb1221b000489b61743e687425b54c8eb8cd57a985863'
+          AQER_CHAT_PUBLIC_CERTIFICATE_1852_B64: >-
+            LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVOekNDQXArZ0F3SUJBZ0lVTHNoRmxX
+            TFBoUHh5ZTNSY215RzBHMlV5MGtBd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0t6RXBNQ2NHQTFV
+            RUF3d2dRVkZGVWlCVlFWUWdNVGcxTWlCMFpXMXdiM0poY25rZ1pHVnNhWFpsY25rdwpIaGNO
+            TWpZeE1USTNNak0xTlRNeFdoY05Nall4TWpBME1qTTFOVE14V2pBck1Ta3dKd1lEVlFRRERD
+            QkJVVVZTCklGVkJWQ0F4T0RVeUlIUmxiWEJ2Y21GeWVTQmtaV3hwZG1WeWVUQ0NBYUl3RFFZ
+            SktvWklodmNOQVFFQkJRQUQKZ2dHUEFEQ0NBWW9DZ2dHQkFNaWhBZmVidi9Wd201cTRwdm4v
+            VUVJaXBQREszMHJPSW9vTTU5eWcxaWJkcldLNQpxVndqeE0xS21DSEd5SHRnR1ArL0Q3eUtz
+            L255MXc0QzBFcDlJbXNzVHFxY0pDZHBJdEd2VHRpRkFqOE9RaDdIClR5NjlMYm5mandteXhz
+            R0FYeVFKTlF1VFltTmR0S2VzSTNNY2t3ZDVtWFFUVWdGYVJUR21LOG8yNHJ6Nk5UeXQKblZs
+            YnQyZTFVMU5ZQzFMRTJ1djBJdXQ5dkoyQkp1aEZkbVFLN29JeDdMbUhuOUZtVFZENDVFVCtM
+            dE5WNFV3NQpNNFV1VVNPRXZESlY5cVB4dy9KZmRTM2xQcVMwUmsvRFM1dW1YdEx2RkJRMWNq
+            Wms0ZW4reTNLRDZzd1JOWGVlClcyb1Y5RVowZFpnb3pma1RTSm5nSHp3RVMyUkpaZFNiUDc1
+            U1pvaEIxWlhwbTdhckRSM1QxS1BEdjhwYkQ3eXUKTzZ5MVQxbnMvNmQ0ZnI1VzVoTzFMWHdy
+            ckZLeUlqNW1ZQ1pvSDFRNFJleFk0SHdtN0NZUW1GWGZ6VmE2eG5FVwpVYVM5citxRStyT044
+            dnltWUhpeEdzWnhNeERmVm1TLzdvQ1phRGJhaHBacStXUXVmZGlqOUdlTXBsL0F5eU1BCnk2
+            VGh1SkxNWWwyc0VFWlU5d0lEQVFBQm8xTXdVVEFkQmdOVkhRNEVGZ1FVTHZLeURCaFNVRmh0
+            TzZGZnhxWHgKMDBxblJzOHdId1lEVlIwakJCZ3dGb0FVTHZLeURCaFNVRmh0TzZGZnhxWHgw
+            MHFuUnM4d0R3WURWUjBUQVFILwpCQVV3QXdFQi96QU5CZ2txaGtpRzl3MEJBUXNGQUFPQ0FZ
+            RUFEbW16eXkyam5aNUs4SER6eWxPQmNZRzZQdkZtCjBkMzZVSlVEWVlNS3pSemd0SS8yRnhV
+            K0RwaWNZSnI0M25kS2N5aTdRUVRNeDVQdXRHTzBINHU5S2I3YzlDUjkKUFAyOGk5REp6ME1L
+            NXVrZzcweEZhelpIZEFrRXZMdmp2UUVNS0FjVzZ3c05mWjhaZzArOUl1ckRiNWRXN0lYeQpm
+            d0dSSzdTelhZREtGaHk5ak5YVW84VWF3d1oyWEtub3JUUlNxTC9iM3RFb2FXVUNXUm9OcUgx
+            VVZMZnI5elVPCmQ2cE56Mk8xdzB6QjZpbFRIbXVlWHNZVWRZZ2dKNkx4SUZRYlo1USt2OWdO
+            Nm1iYko3b2N1ZGdWbzBQWk8zR3kKRU5uRzJ1RGlyc3BqZU1zZ0Jkc2tUVXovbG9ia3JVRWts
+            aDBrbDMvRmora3ZlTEM4dGdHbmczSTRtNGRUOUtHZQpPZ29BZlpLSCtpWDk1UmJXMnMxN25I
+            WUpoejZIU2JSU1ZTSVVGL3hBUHdqdmVNeVNzZ1YxUGNaSjFmYWwxeEorCnlxTC9wZkNBcHNX
+            RlFkY3VBa2Z5WkYzMXVjMks0aFhFbytpU1dxTUdTbmZUYWI4QjR6TlFJdElLbFJFQWZOcWQK
+            N3BXVWFXQk90NjBHNEV6TTVjY28ramJueFpUR0J0QjNkTlh1Ci0tLS0tRU5EIENFUlRJRklD
+            QVRFLS0tLS0K
+          AQER_CHAT_PUBLIC_CERTIFICATE_1852_SHA256: '056db1d9b2d78f0cd103de0a68918458da0b4e17588cb79fe1fb54f3a2c97dd6'
         run: |
           python3 -B - <<'PYTHON'
           import base64
@@ -781,16 +878,17 @@ jobs:
           assert receipt["source"] == os.environ["AQER_SOURCE_SHA"]
           assert receipt["run_id"] == os.environ["GITHUB_RUN_ID"]
           build = int(os.environ["AQER_BUILD"])
-          assert build in (1848, 1849, 1850, 1851) and receipt["build"] == build and receipt["abis"] == ["arm64-v8a"]
+          assert build in (1848, 1849, 1850, 1851, 1852) and receipt["build"] == build and receipt["abis"] == ["arm64-v8a"]
           assert receipt["package"] == identity["package"] == "com.aqer.yemen.uat.offline"
           assert receipt["certificate_sha256"] == identity["certificate_sha256"]
           apk = original / f"AQER-UAT-{build}-Alazzi-ARM64.apk"
           assert not apk.is_symlink() and apk.stat().st_size == receipt["bytes"]
           assert hashlib.sha256(apk.read_bytes()).hexdigest() == receipt["sha256"]
 
-          encoded = "".join(os.environ[f"AQER_CHAT_PUBLIC_CERTIFICATE_{build}_B64"].split())
+          delivery_key = "SUPPORT_1851" if receipt["branch"] == "release/alazzi-1851-support" else str(build)
+          encoded = "".join(os.environ[f"AQER_CHAT_PUBLIC_CERTIFICATE_{delivery_key}_B64"].split())
           certificate = base64.b64decode(encoded, validate=True)
-          fingerprint = os.environ[f"AQER_CHAT_PUBLIC_CERTIFICATE_{build}_SHA256"]
+          fingerprint = os.environ[f"AQER_CHAT_PUBLIC_CERTIFICATE_{delivery_key}_SHA256"]
           assert hashlib.sha256(certificate).hexdigest() == fingerprint
           output = Path("uat-private-chat")
           output.mkdir(mode=0o700)
@@ -802,7 +900,7 @@ jobs:
           (output / "APK_VERIFICATION.json").write_text(json.dumps(receipt, indent=2) + "\n")
           PYTHON
       - name: Upload the temporary encrypted owner delivery
-        if: env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851'
+        if: env.AQER_BUILD == '1848' || env.AQER_BUILD == '1849' || env.AQER_BUILD == '1850' || env.AQER_BUILD == '1851' || env.AQER_BUILD == '1852'
         uses: actions/upload-artifact@v4
         with:
           name: AQER-UAT-${{ env.AQER_BUILD }}-private-chat-${{ github.run_attempt }}
@@ -813,7 +911,7 @@ jobs:
           compression-level: 0
           retention-days: 1
       - name: Upload the verified APK and receipt
-        if: github.event.repository.private == true && env.AQER_BUILD != '1848' && env.AQER_BUILD != '1849' && env.AQER_BUILD != '1850' && env.AQER_BUILD != '1851'
+        if: github.event.repository.private == true && env.AQER_BUILD != '1848' && env.AQER_BUILD != '1849' && env.AQER_BUILD != '1850' && env.AQER_BUILD != '1851' && env.AQER_BUILD != '1852'
         uses: actions/upload-artifact@v4
         with:
           name: AQER-UAT-${{ env.AQER_BUILD }}-Alazzi-ARM64-${{ github.run_attempt }}
@@ -824,7 +922,7 @@ jobs:
           compression-level: 0
           retention-days: 30
       - name: Attach the verified installer to a private draft
-        if: github.event.repository.private == true && env.AQER_BUILD != '1848' && env.AQER_BUILD != '1849' && env.AQER_BUILD != '1850' && env.AQER_BUILD != '1851'
+        if: github.event.repository.private == true && env.AQER_BUILD != '1848' && env.AQER_BUILD != '1849' && env.AQER_BUILD != '1850' && env.AQER_BUILD != '1851' && env.AQER_BUILD != '1852'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

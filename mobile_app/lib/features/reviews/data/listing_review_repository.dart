@@ -170,6 +170,9 @@ class ListingReviewRepository {
   Future<void> returnForCorrection(int id, String reason) =>
       _action(id, 'return', reason: reason);
 
+  Future<void> returnForCorrectionAgainst(int id, int candidateId, String reason) =>
+      _action(id, 'return', reason: reason, candidateId: candidateId);
+
   Future<void> rejectFinal(int id, String reason) =>
       _action(id, 'reject-final', reason: reason);
 
@@ -201,10 +204,13 @@ class ListingReviewRepository {
     _requestScope?.verify();
   }
 
-  Future<void> _action(int id, String action, {String? reason}) async {
+  Future<void> _action(int id, String action, {String? reason, int? candidateId}) async {
     await _dio.post<void>(
       '/admin/listing-review/listings/$id/$action',
-      data: reason == null ? null : <String, dynamic>{'reason': reason.trim()},
+      data: reason == null ? null : <String, dynamic>{
+        'reason': reason.trim(),
+        if (candidateId != null) 'candidate_property_id': candidateId,
+      },
       options: await _sessionOptions(),
     );
     _requestScope?.verify();

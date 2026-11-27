@@ -7,6 +7,10 @@ import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_property_card.dart';
 import '../../../core/widgets/ebroker_screen_sections.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../account/data/auth_controller.dart';
+import '../../community/data/community_repository.dart';
+import '../../community/presentation/community_dialogs.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import '../data/broker_repository.dart';
@@ -113,6 +117,35 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
       setState(() { if (!next) _properties.clear(); _properties.addAll(rows.$1); _more = rows.$2; _page = next ? _page + 1 : 1; _loading = false; });
     } catch (e) { if (mounted && request == _request) setState(() { _loading = false; _error = friendlyApiError(e); }); }
   }
+  Future<void> _report(BrokerProfile profile) async {
+    final actor = ref.read(authControllerProvider).asData?.value;
+    if (actor == null) {
+      await context.push('/auth');
+      return;
+    }
+    if (!actor.isActive || actor.id == profile.id) return;
+    final scope = ref.read(accountRequestScopeProvider);
+    final result = await showCommunityReportDialog(context, label: 'بلاغ عن معلن', target: profile.name);
+    if (result == null) return;
+    try {
+      if (!mounted || !scope.isCurrent || widget.id != profile.id) return;
+      final receipt = await ref.read(communityRepositoryProvider).report(
+        targetType: 'advertiser', targetId: profile.id, reason: result.reason,
+        details: result.details, attachment: result.attachment,
+      );
+      if (mounted && scope.isCurrent) {
+        await showReportReceipt(context,
+        caseId: receipt.id, reference: receipt.reference, alreadyReceived: receipt.alreadyReceived);
+      }
+    } catch (error) {
+      if (mounted && scope.isCurrent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyApiError(error))));
+      }
+    } finally {
+      await clearReportEvidence(result.attachment);
+    }
+  }
   @override
   Widget build(BuildContext context) => BrokerScaffold(appBar: const AppAppBar(title: 'الملف العام'), body: ref.watch(brokerProfileProvider(widget.id)).when(
     loading: () => const AppLoadingState(), error: (e, _) => AppErrorState(message: friendlyApiError(e), onRetry: () => ref.invalidate(brokerProfileProvider(widget.id))),
@@ -124,6 +157,12 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
             : null,
       ),
       BrokerPublicProfileActions(profile: profile),
+      if (ref.watch(authControllerProvider).asData?.value?.id != profile.id)
+        Align(alignment: AlignmentDirectional.centerStart, child: TextButton.icon(
+          icon: const Icon(Icons.flag_outlined),
+          label: const Text('إبلاغ عن المعلن'),
+          onPressed: () => _report(profile),
+        )),
       const SizedBox(height: 20), Text('العقارات النشطة', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 8),
       Wrap(spacing: 8, children: [for (final item in const [('الكل', null), ('للبيع', 'sale'), ('للإيجار', 'rent')])

@@ -30,7 +30,7 @@ class BrokerAvailabilityService
 
     public function change(User $actor, array $ids, string $state, Request $request, ?User $auditActor = null): array
     {
-        abort_unless($actor->canCreateListings(), 403);
+        abort_unless($actor->canManageExistingListings(), 403);
         return DB::transaction(function () use ($actor, $ids, $state, $request, $auditActor): array {
             $rows = Property::query()->withoutGlobalScopes()->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
             abort_unless($rows->count() === count(array_unique($ids)), 404);

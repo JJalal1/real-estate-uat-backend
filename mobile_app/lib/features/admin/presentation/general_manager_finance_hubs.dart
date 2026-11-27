@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -107,6 +108,12 @@ class GeneralManagerAdministrationFinancialHubScreen extends StatelessWidget {
                   )),
                 ),
               ),
+              Card(child: ListTile(
+                leading: const EbrokerIcon(Icons.chat_bubble_outline),
+                title: const Text('مراسلات فرق الدعم'),
+                trailing: const EbrokerIcon(Icons.chevron_left),
+                onTap: () => context.push('/support/internal'),
+              )),
               Card(
                 child: ListTile(
                   leading: const EbrokerIcon(Icons.account_balance_wallet_outlined),

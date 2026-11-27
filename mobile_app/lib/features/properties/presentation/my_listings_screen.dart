@@ -575,11 +575,12 @@ class _ListingCard extends StatelessWidget {
       authenticatedImages: property.status != 'published',
       actionsMenu: actions.isEmpty ? null : ListingCardActionsMenu(actions: actions),
       badge: state == null ? null : AppStatusBadge(label: state.$1, tone: state.$2),
-      footer: inlineEdit || reason?.isNotEmpty == true
+      footer: reviewIssue
           ? _ListingReviewRow(
               reason: reason,
               correction: correction,
               onEdit: inlineEdit ? onEdit : null,
+              onReviewDecision: () => context.push('/support/listing-decision/${property.id}'),
             )
           : null,
     );
@@ -591,11 +592,13 @@ class _ListingReviewRow extends StatelessWidget {
     required this.reason,
     required this.correction,
     required this.onEdit,
+    required this.onReviewDecision,
   });
 
   final String? reason;
   final bool correction;
   final VoidCallback? onEdit;
+  final VoidCallback onReviewDecision;
 
   @override
   Widget build(BuildContext context) {
@@ -611,8 +614,11 @@ class _ListingReviewRow extends StatelessWidget {
         children: [
           Expanded(
             child: reviewText == null
-                ? const SizedBox.shrink()
-                : Tooltip(
+                ? TextButton(onPressed: onReviewDecision, child: const Text('قرار المراجعة'))
+                : InkWell(
+                    onTap: onReviewDecision,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Tooltip(
                     message: reviewText,
                     excludeFromSemantics: true,
                     child: DecoratedBox(
@@ -638,11 +644,12 @@ class _ListingReviewRow extends StatelessWidget {
                                 fontSize: 11,
                               ),
                             )),
+                            Icon(Icons.chevron_left, size: 16, color: scheme.onErrorContainer),
                           ],
                         ),
                       ),
                     ),
-                  ),
+                  )),
           ),
           if (onEdit != null) ...[
             const SizedBox(width: 6),

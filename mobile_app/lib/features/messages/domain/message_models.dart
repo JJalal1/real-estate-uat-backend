@@ -208,8 +208,11 @@ class AppNotificationItem {
   int? get agreementId => _asInt(data['agreement_id']);
   int? get rentalContractId => _asInt(data['rental_contract_id']);
   int? get supportTaskId => _asInt(data['task_id']);
+  bool get isListingReviewDecision => const {
+    'listing_duplicate_rejected', 'listing_returned_for_correction', 'listing_rejected',
+  }.contains(type) && entityType == 'property' && entityId != null;
   int? get previousPropertyId {
-    if (type != 'listing_duplicate_rejected') return null;
+    if (type != 'listing_duplicate_rejected' && type != 'listing_returned_for_correction') return null;
     final id = _asInt(data['previous_property_id']);
     return id != null && id > 0 && id != entityId ? id : null;
   }
@@ -243,6 +246,7 @@ class ConversationReportSummary {
     required this.reasonCode,
     required this.status,
     this.supportCaseId,
+    this.reference,
     this.propertyTitle,
     this.createdAt,
   });
@@ -250,6 +254,7 @@ class ConversationReportSummary {
   final int id;
   final int threadId;
   final int? supportCaseId;
+  final String? reference;
   final String reporterName;
   final String reasonCode;
   final String status;
@@ -261,6 +266,7 @@ class ConversationReportSummary {
       id: _asInt(json['id']) ?? 0,
       threadId: _asInt(json['thread_id']) ?? 0,
       supportCaseId: _asInt(json['support_case_id']),
+      reference: _nullable(json['reference']),
       reporterName: json['reporter_name']?.toString() ?? 'مستخدم',
       reasonCode: json['reason_code']?.toString() ?? 'other',
       status: json['status']?.toString() ?? 'open',

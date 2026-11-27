@@ -152,6 +152,11 @@ class User extends Authenticatable
 
     public function canCreateListings(): bool
     {
+        return $this->support_publication_hold_case_id === null && $this->canManageExistingListings();
+    }
+
+    public function canManageExistingListings(): bool
+    {
         // Earlier registration stored the account name without a completion timestamp.
         return $this->isActive() && ((int) $this->identity_policy_version < 2
             || $this->profile_completed_at !== null || $this->hasApprovedVerificationProfile());

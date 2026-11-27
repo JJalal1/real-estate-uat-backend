@@ -34,8 +34,7 @@ class EnsureSupportTaskOwnership
     private function assertSupportCaseOwned(User $actor,int $caseId): void
     {
         $case=SupportCase::query()->find($caseId);if(!$case)return;
-        if((int)($case->assigned_to_user_id??0)!==(int)$actor->id)throw new ConflictHttpException('يجب استلام المهمة من مركز الدعم أولاً.');
-        $this->assertOwned($actor,$case->kind==='report'?'report':'support_ticket',$caseId);
+        $this->tasks->assertCaseAccess($actor, $case);
     }
 
     private function assertOwned(User $actor,string $type,int $sourceId): void

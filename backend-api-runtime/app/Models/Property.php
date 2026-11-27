@@ -80,7 +80,8 @@ class Property extends Model
 
     public function scopePubliclyAvailable(Builder $query): Builder
     {
-        return $query->where('status', 'published')->where('availability_status', 'available');
+        return $query->where('status', 'published')->where('availability_status', 'available')
+            ->whereHas('user', fn (Builder $owner) => $owner->whereNull('support_publication_hold_case_id'));
     }
 
     public function scopePubliclyVisible(Builder $query): Builder
@@ -90,7 +91,13 @@ class Property extends Model
 
     public function isPubliclyAvailable(): bool
     {
-        return $this->status === 'published' && ($this->availability_status ?? 'available') === 'available';
+        if ($this->status !== 'published' || ($this->availability_status ?? 'available') !== 'available') return false;
+        $owner = $this->relationLoaded('user') ? $this->getRelation('user') : null;
+        if ($owner && array_key_exists('support_publication_hold_case_id', $owner->getAttributes())) {
+            return $owner->support_publication_hold_case_id === null;
+        }
+
+        return $this->user()->whereNull('support_publication_hold_case_id')->exists();
     }
 
     public function isPubliclyVisible(): bool

@@ -17,6 +17,7 @@ import '../../broker/presentation/broker_activity.dart';
 import '../data/message_repository.dart';
 import '../data/message_typing_repository.dart';
 import '../data/unread_inbox_repository.dart';
+import '../../community/presentation/community_dialogs.dart';
 import '../../account/data/account_safety_repository.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
@@ -280,77 +281,26 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
     } finally { if (mounted && _scope.isCurrent) setState(() => _blocking = false); }
   }
 
-  Future<void> _report() async {
+  Future<void> _report(MessageThreadSummary thread) async {
     if (!mounted || !_scope.isCurrent) return;
-    const reasons = <String, String>{
-      'abuse': 'إساءة',
-      'fraud': 'احتيال',
-      'privacy': 'خصوصية',
-      'harassment': 'مضايقة',
-      'spam': 'إزعاج',
-      'other': 'أخرى'
-    };
-    var reason = 'abuse';
-    final details = TextEditingController();
-    final accepted = await showActorDialog<bool>(
-      context: context, ref: ref,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('بلاغ عن المحادثة'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text(
-                'لن يفتح فريق الدعم محتوى المحادثة إلا ضمن هذا البلاغ وبصلاحية فتح المحادثات الخاصة، وسيتم تسجيل عملية الفتح.'),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-                value: reason,
-                items: reasons.entries
-                    .map((e) =>
-                        DropdownMenuItem(value: e.key, child: Text(e.value)))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) setDialogState(() => reason = value);
-                }),
-            const SizedBox(height: 12),
-            TextField(
-                controller: details,
-                minLines: 3,
-                maxLines: 6,
-                maxLength: 5000,
-                decoration: const InputDecoration(labelText: 'تفاصيل البلاغ')),
-          ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('إلغاء')),
-            EbrokerFilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('إرسال البلاغ')),
-          ],
-        ),
-      ),
-    );
-    final text = details.text.trim();
-    details.dispose();
-    if (accepted != true || !mounted || !_scope.isCurrent) return;
-    if (text.length < 5) {
-      if (mounted && _scope.isCurrent) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('اكتب تفاصيل واضحة للبلاغ لا تقل عن 5 أحرف.')));
-      }
-      return;
-    }
+    final input = await showCommunityReportDialog(context, label: 'المحادثة',
+      target: thread.otherUserName, property: thread.propertyTitle, conversation: true);
+    if (input == null) return;
     try {
-      await ref
-          .read(messageRepositoryProvider)
-          .report(widget.threadId, reason: reason, details: text);
       if (!mounted || !_scope.isCurrent) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إرسال البلاغ إلى الدعم.')));
+      final report = await ref.read(messageRepositoryProvider).report(widget.threadId,
+        reason: input.reason, details: input.details, attachment: input.attachment);
+      if (mounted && _scope.isCurrent) {
+        await showReportReceipt(context,
+        caseId: report.supportCaseId ?? 0, reference: report.reference);
+      }
     } catch (error) {
       if (mounted && _scope.isCurrent) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyApiError(error))));
       }
+    } finally {
+      await clearReportEvidence(input.attachment);
     }
   }
 
@@ -388,7 +338,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
                   tooltip: 'تحديث',
                   icon: const EbrokerIcon(Icons.refresh)),
               IconButton(
-                  onPressed: _loading ? null : _report,
+                  onPressed: _loading || thread == null ? null : () => _report(thread),
                   tooltip: 'بلاغ',
                   icon: const EbrokerIcon(Icons.flag_outlined)),
               if (thread != null && thread.otherUserId > 0) PopupMenuButton<String>(tooltip: 'خيارات المحادثة', enabled: !_blocking,

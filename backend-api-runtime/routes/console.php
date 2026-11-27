@@ -2,7 +2,6 @@
 
 use App\Services\CloudAssetStorageService;
 use App\Services\SupportCaseService;
-use App\Services\SupportTaskService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -16,12 +15,6 @@ Artisan::command('support:escalate-overdue', function (SupportCaseService $suppo
     $count=$support->escalateOverdue();
     $this->info("Escalated {$count} overdue support case(s).");
 })->purpose('Escalate Stage 10 support cases that exceeded the 48-hour SLA.');
-
-
-Artisan::command('support:process-contact-followups', function (SupportTaskService $tasks) {
-    $result=$tasks->processContactFollowupDeadlines();
-    $this->info("Contact follow-ups: {$result['overdue_notified']} overdue notification(s), {$result['escalated']} escalation(s).");
-})->purpose('Notify overdue contact follow-ups and auto-escalate them after an additional 24 hours.');
 
 
 Artisan::command('uat:video-storage-probe', function (CloudAssetStorageService $storage): int {
@@ -141,7 +134,7 @@ Artisan::command('uat:ai-check', function (\App\Services\GeminiClient $client): 
         return 0;
     } catch (\Throwable) { $this->warn('Gemini UAT connection probe unavailable ('.$client->probeFailure().'); manual workflows remain available.'); return 1; }
 })->purpose('Check Gemini from UAT without logging keys, prompts, or provider error details.');
-Schedule::command('support:process-contact-followups')->hourly();
+
 
 \Illuminate\Support\Facades\Artisan::command('broker:refresh-availability', function (): void {
     app(\App\Services\BrokerAvailabilityService::class)->sweep(500);

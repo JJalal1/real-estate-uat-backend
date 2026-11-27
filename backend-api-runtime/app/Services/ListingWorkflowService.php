@@ -353,11 +353,19 @@ class ListingWorkflowService
         });
     }
 
-    public function returnForCorrection(User $actor, Property $listing, string $reason, Request $request): Property
+    public function returnForCorrection(User $actor, Property $listing, string $reason, Request $request, ?int $candidateId = null): Property
     {
-        return DB::transaction(function () use ($actor, $listing, $reason, $request) {
+        return DB::transaction(function () use ($actor, $listing, $reason, $request, $candidateId) {
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
             $this->assertReviewable($locked, $actor);
+            $details = [];
+            if ($candidateId !== null) {
+                $previous = $this->publicDuplicateCandidate($locked, $candidateId);
+                $details = [
+                    'previous_property_id' => (int) $previous->id,
+                    'previous_listing_same_owner' => (int) $previous->user_id === (int) $locked->user_id,
+                ];
+            }
             $from = $locked->review_status;
             $locked->forceFill([
                 'status' => 'draft',
@@ -368,12 +376,12 @@ class ListingWorkflowService
                 'review_assigned_at' => null,
             ])->save();
 
-            $this->review($actor, $locked, 'returned_for_correction', $from, 'returned_for_correction', $reason);
+            $this->review($actor, $locked, 'returned_for_correction', $from, 'returned_for_correction', $reason, $details);
             $this->audit->record(
                 $actor,
                 'listing.returned_for_correction',
                 $locked,
-                ['reason' => $reason],
+                ['reason' => $reason] + $details,
                 $request,
                 $locked->user_id,
             );
@@ -384,7 +392,7 @@ class ListingWorkflowService
                 $reason,
                 'property',
                 (int) $locked->id,
-                ['review_status' => 'returned_for_correction'],
+                ['review_status' => 'returned_for_correction'] + $details,
             );
 
             return $locked->fresh();
@@ -512,12 +520,7 @@ class ListingWorkflowService
                 throw new ConflictHttpException('الإعلان الجديد لا ينتظر قرار النشر.');
             }
 
-            $previous = Property::query()->publiclyAvailable()
-                ->whereKeyNot($locked->id)->whereKey($candidateId)->lockForUpdate()->first();
-            $evidence = $this->duplicates->evidence($locked, $this->assets->likelyDuplicates($locked));
-            if (! $previous || ! in_array($candidateId, array_column($evidence['likely_duplicate_candidates'], 'listing_id'), true)) {
-                throw new ConflictHttpException('الإعلان السابق لم يعد متاحاً ضمن المقارنة. حدّث بيانات المراجعة.');
-            }
+            $previous = $this->publicDuplicateCandidate($locked, $candidateId);
 
             $sameOwner = (int) $previous->user_id === (int) $locked->user_id;
             $message = $sameOwner ? 'سبق نشره من قبلك. ' . $reason : $reason;
@@ -549,6 +552,18 @@ class ListingWorkflowService
 
             return $locked->fresh();
         });
+    }
+
+    private function publicDuplicateCandidate(Property $locked, int $candidateId): Property
+    {
+        $previous = Property::query()->publiclyAvailable()
+            ->whereKeyNot($locked->id)->whereKey($candidateId)->lockForUpdate()->first();
+        $evidence = $this->duplicates->evidence($locked, $this->assets->likelyDuplicates($locked));
+        if (!$previous || !in_array($candidateId, array_column($evidence['likely_duplicate_candidates'], 'listing_id'), true)) {
+            throw new ConflictHttpException('الإعلان السابق لم يعد متاحًا ضمن المقارنة. حدّث بيانات المراجعة.');
+        }
+
+        return $previous;
     }
 
     public function finalRejectAndBlock(User $actor, Property $listing, string $reason, Request $request): Property
