@@ -67,7 +67,11 @@ void main() {
     expect(shell, contains("label: 'العقارات'"));
     expect(shell, contains("label: 'الرسائل'"));
     expect(shell, contains("label: 'إعلاناتي'"));
-    expect(shell, contains('requireListingEligible: true'));
+    final router = read('lib/router/app_router.dart');
+    final addProperty = router.split("path: '/add-property'")[1].split("path: '/my-listings'")[0];
+    expect(addProperty, contains('Stage6AuthGate('));
+    expect(addProperty, contains('requireListingEligible: true'));
+    expect(shell, contains('Stage6AuthGate(guestIcon: Icons.chat_bubble_outline, child: MessagesScreen())'));
     expect(File('lib/features/account/presentation/account_screen.dart').readAsStringSync(), isNot(contains("context.push('/bookings')")));
     expect(shell, contains("label: 'إعلاناتي'"));
     expect(shell, contains("label: 'حسابي'"));
