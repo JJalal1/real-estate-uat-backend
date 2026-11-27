@@ -83,6 +83,7 @@ class AuthUser {
     required this.permissions,
     this.emailVerifiedAt,
     this.brokerEnrolled = false,
+    this.marketplaceIsOffice,
     this.listingEligible,
   });
 
@@ -102,6 +103,7 @@ class AuthUser {
   final String? brokerVerificationNote;
   final VerificationProfileSummary verificationProfile;
   final bool brokerEnrolled;
+  final bool? marketplaceIsOffice;
   final bool? listingEligible;
   final bool isPlatformOwner;
   final List<String> roles;
@@ -133,6 +135,14 @@ class AuthUser {
   bool get canEditPublicProfile => hasMarketplaceProfessionalProfile || hasVerifiedPublishingProfile;
   bool get canCreateListing => isActive && (listingEligible ?? !needsProfileCompletion);
   String get accountTypeLabel => brokerEnrolled ? 'دلال' : verificationProfile.typeLabel;
+
+  String? get marketplaceRoleLabel {
+    if (!isBroker && !isOffice) return null;
+    final office = marketplaceIsOffice ??
+        (verificationProfile.type == 'office' &&
+            (!brokerEnrolled || verificationProfile.isApproved));
+    return office ? 'مكتب عقاري' : 'دلال';
+  }
 
   bool hasRole(String key) => roles.contains(key);
   bool hasPermission(String key) =>
@@ -177,6 +187,7 @@ class AuthUser {
         verificationProfile:
             VerificationProfileSummary.fromJson(json['verification_profile']),
         brokerEnrolled: json['broker_enrolled'] == true,
+        marketplaceIsOffice: json['marketplace_is_office'] as bool?,
         listingEligible: json['can_create_listing'] is bool
             ? json['can_create_listing'] as bool
             : null,

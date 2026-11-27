@@ -96,14 +96,15 @@ void main() {
     expect(scope.read(smartSearchSessionProvider).filters.values, {'governorate': 'ذمار', 'governorate_code': 'YE-DH'});
     expect(scope.read(smartSearchSessionProvider).started, isFalse);
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
-    expect(tester.widget<TextField>(field).decoration!.hintText, contains('ذمار'));
-    expect(find.text('أرض في ذمار'), findsOneWidget);
+    expect(tester.widget<TextField>(field).decoration!.hintText, 'شقة للإيجار في صنعاء، ثلاث غرف…');
+    expect(find.text('أرض في ذمار'), findsNothing);
+    expect(find.byKey(const ValueKey('smart-search-map')), findsNothing);
     expect(identical(scope.read(homeSearchResultsProvider), parent), isTrue);
     await tester.enterText(field, 'أريد شقة في عدن');
     scope.read(homeLocationProvider.notifier).state = _taiz;
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(field).controller!.text, 'أريد شقة في عدن');
-    expect(tester.widget<TextField>(field).decoration!.hintText, contains('تعز'));
+    expect(tester.widget<TextField>(field).decoration!.hintText, 'شقة للإيجار في صنعاء، ثلاث غرف…');
     expect(ai.requests, isEmpty);
     navigation.pop();
     await tester.pumpAndSettle();
@@ -230,7 +231,7 @@ void main() {
     voice.latest.emit(const VoiceEvent('partial', text: 'خفّض السعر'));
     await tester.pump();
     expect(ai.requests, hasLength(1));
-    final finish = find.byKey(const ValueKey('voice-finish'));
+    final finish = find.byKey(const ValueKey('smart-search-voice'));
     await tester.ensureVisible(finish);
     await tester.tap(finish);
     await tester.pump();
@@ -283,8 +284,12 @@ void main() {
           wave3Property(147),
           if (filters['purpose'] != 'rent') wave3Property(146),
         ], false);
+      final ai = Wave3AiFake()..onRefine = (_, filters, revision) async => {
+        'revision': revision, 'filters': Map.of(filters)..remove('purpose'),
+      };
       final scope = uxContainer(extra: [
         propertyRepositoryProvider.overrideWithValue(properties),
+        aiRepositoryProvider.overrideWithValue(ai),
         homeLocationProvider.overrideWith((ref) => _dhamar),
         homeLocationsProvider.overrideWith((ref) async => const [_dhamar]),
         sharedSearchMapBuilderProvider.overrideWithValue((_, __, ___, ____) => const ColoredBox(color: Colors.teal)),
@@ -320,7 +325,11 @@ void main() {
       expect(listMode, findsOneWidget);
       await tester.tap(listMode);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('smart-chip-remove-purpose')));
+      expect(find.byKey(const ValueKey('smart-chip-remove-purpose')), findsNothing);
+      await tester.enterText(find.byKey(_description), 'اعرض البيع والإيجار');
+      final submit = find.byKey(const ValueKey('smart-search-send'));
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
       await tester.pumpAndSettle();
       final edited = scope.read(smartSearchSessionProvider);
       expect(edited.filters.values.containsKey('purpose'), isFalse);

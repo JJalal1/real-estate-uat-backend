@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../domain/governorate_search.dart';
 
 final aiRepositoryProvider = Provider<AiRepository>((ref) => AiRepository(ref.watch(dioProvider), ref.watch(authRepositoryProvider)));
 
@@ -24,8 +25,32 @@ class AiRepository {
     return Map<String, dynamic>.from(body);
   }
 
-  Future<Map<String, dynamic>> refine(String message, Map<String, dynamic> filters, int revision) =>
-    _post('/ai/search', {'message': message.trim(), 'filters': filters, 'revision': revision});
+  Future<Map<String, dynamic>> refine(String message, Map<String, dynamic> filters, int revision) async {
+    final result = await _post('/ai/search', {'message': message.trim(), 'filters': filters, 'revision': revision});
+    final updated = result['filters'];
+    if (updated is! Map) return result;
+    final next = Map<String, dynamic>.from(updated);
+    final keyword = next['search'] as String?;
+    final interpretedPlace = GovernorateSearch.canonical(keyword);
+    final place = GovernorateSearch.inRequest(message) ??
+        (keyword != null && keyword != filters['search']
+            ? GovernorateSearch.interpreted(keyword, message) : null);
+    // A confirmed location from this request uses the spatial province key,
+    // never a match against a listing title mentioning the place.
+    if (place != null) {
+      next.addAll(place.filters);
+      if (interpretedPlace != null || keyword == filters['search']) next.remove('search');
+    } else if (interpretedPlace != null && keyword != filters['search']) {
+      // Ignore an invented province; ordinary text still inherits the actual
+      // location instead of searching a city suggested by the interpreter.
+      if (filters['search'] == null) {
+        next.remove('search');
+      } else {
+        next['search'] = filters['search'];
+      }
+    }
+    return {...result, 'filters': next};
+  }
 
   Future<Map<String, dynamic>> listingFields(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) =>
     _post('/ai/listing-fields', {'message': message.trim(), 'facts': facts, if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);

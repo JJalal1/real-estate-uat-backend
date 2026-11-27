@@ -155,19 +155,32 @@ class BrokerRepository {
   }
   Future<BrokerDeal> decide(int id, bool confirmed) async => BrokerDeal.fromJson(brokerMap((await _post('/broker/deals/$id/decision', {'confirmed': confirmed}))['data']));
   Future<Map<String, dynamic>> finance() async => brokerMap((await _get('/broker/finance'))['data']);
-  Future<void> updateProfile({required String bio, String? governorate, bool? isOffice, String? officeName}) async {
+  Future<void> updateProfile({String? bio, String? governorate, bool? isOffice, String? officeName}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
-    _requestScope?.verify();
+    _verifyProfileSession(epoch);
     await _dio.patch<void>('/broker/profile', options: options, data: {
-      'bio': bio.trim(),
+      if (bio != null) 'bio': bio.trim().isEmpty ? null : bio.trim(),
       if (governorate != null) 'governorate': governorate,
       if (isOffice != null) 'is_office': isOffice,
       if (isOffice == true) 'office_name': officeName?.trim(),
     });
-    _requestScope?.verify();
+    _verifyProfileSession(epoch);
   }
   Future<void> uploadPhoto(String path) async {
-    await _dio.post<void>('/broker/profile/photo', data: FormData.fromMap({'photo': await MultipartFile.fromFile(path)}), options: await _auth.requiredAuthOptions());
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await (_requestScope?.options() ?? _auth.requiredAuthOptions());
+    final photo = await MultipartFile.fromFile(path);
+    _verifyProfileSession(epoch);
+    await _dio.post<void>('/broker/profile/photo',
+      data: FormData.fromMap({'photo': photo}), options: options);
+    _verifyProfileSession(epoch);
+  }
+  void _verifyProfileSession(int epoch) {
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) {
+      throw StateError('ACCOUNT_CHANGED');
+    }
   }
   Future<void> resolveSupport(int taskId, String decision, String note, {bool actingAsAgent = false}) async {
     await _post('/broker/support/tasks/$taskId/resolution', {'decision': decision, 'note': note, 'acting_as_agent': actingAsAgent});

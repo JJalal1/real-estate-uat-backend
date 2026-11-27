@@ -75,7 +75,7 @@ class _RecentPropertiesState extends ConsumerState<RecentPropertiesScreen> {
                     itemCount: items.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (_, index) =>
-                        PropertySummaryCard(property: items[index]),
+                        PropertySummaryCard(property: items[index], compact: true),
                   ),
                 ),
         ),

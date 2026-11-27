@@ -176,8 +176,8 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }
 
   Future<void> updateProfile({
-    required String name,
-    required String phone,
+    String? name,
+    String? phone,
     String? email,
   }) async {
     final revision = _beginChange();

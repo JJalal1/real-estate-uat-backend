@@ -5,10 +5,11 @@ import 'voice_input.dart';
 enum VoicePhase { idle, preparing, listening, processing }
 
 class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver {
-  VoiceCaptureController(this.input) {
+  VoiceCaptureController(this.input, {this.silenceTimeout}) {
     WidgetsBinding.instance.addObserver(this);
   }
   final VoiceInput input;
+  final Duration? silenceTimeout;
   VoicePhase phase = VoicePhase.idle;
   String transcript = '';
   String preview = '';
@@ -24,6 +25,8 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
   Timer? _timeout;
   Timer? _clock;
   Timer? _maximum, _segmentWait;
+  Timer? _silence;
+  bool _speaking = false;
   Duration elapsed = Duration.zero;
   Completer<String?>? _completion;
   bool _disposed = false;
@@ -38,7 +41,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     final generation = ++_generation;
     final completion = Completer<String?>();
     _completion = completion;
-    _stopRequested = false; _awaitingLiveSegment = false;
+    _stopRequested = false; _awaitingLiveSegment = false; _speaking = false;
     _speechEndAwaitingResult = false; stablePreview = '';
     phase = VoicePhase.preparing; transcript = ''; preview = ''; liveDictation = false; error = null; permissionDenied=false; level = 0;
     elapsed = Duration.zero;
@@ -55,15 +58,21 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
               _clock ??= Timer.periodic(const Duration(seconds: 1), (timer) {
                 if (!_disposed && phase == VoicePhase.listening) { elapsed = Duration(seconds: timer.tick); notifyListeners(); }
               });
+              _armSilenceTimeout(generation);
             }
           case 'level': if (phase == VoicePhase.listening) level = event.level.clamp(0, 1).toDouble();
           case 'mode': liveDictation = event.code == 'dictation';
           case 'speech_start':
             if (phase != VoicePhase.listening || _stopRequested) return;
+            _markSpeech();
             _awaitingLiveSegment = true;
             _speechEndAwaitingResult = false;
             _segmentWait?.cancel(); _segmentWait = null;
           case 'speech_end':
+            if (phase == VoicePhase.listening && !_stopRequested) {
+              _speaking = false;
+              _armSilenceTimeout(generation);
+            }
             // A normal pause ends a recognition segment, not the user's session.
             if (phase != VoicePhase.listening || _stopRequested ||
                 !liveDictation || !_awaitingLiveSegment || _speechEndAwaitingResult) {
@@ -88,6 +97,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
             // A hypothesis can start a segment even if Android omits speech_start.
             // A late hypothesis must not extend its pending result deadline.
             if (event.text.trim().isNotEmpty && !_speechEndAwaitingResult) {
+              _markSpeech();
               _awaitingLiveSegment = true;
             }
           case 'processing': if (!_stopRequested) return; phase = VoicePhase.processing; level = 0;
@@ -107,6 +117,22 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
       onDone: () { if (generation == _generation && active) { error = _message(''); _finish(null); } });
     } catch (_) { error = _message(''); _finish(null); }
     return completion.future;
+  }
+
+  void _markSpeech() {
+    _speaking = true;
+    _silence?.cancel();
+    _silence = null;
+  }
+
+  void _armSilenceTimeout(int generation) {
+    final timeout = silenceTimeout;
+    // Native recognizers can report ready and speech_end again for the same pause.
+    if (timeout == null || _speaking || _silence != null) return;
+    _silence = Timer(timeout, () {
+      _silence = null;
+      if (!_disposed && _generation == generation) stop();
+    });
   }
 
   String _message(String code) => switch (code) {
@@ -140,6 +166,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     phase = VoicePhase.idle; level = 0;
     _speechEndAwaitingResult = false;
     _maximum?.cancel(); _maximum = null;
+    _silence?.cancel(); _silence = null;
     _segmentWait?.cancel(); _segmentWait = null;
     _timeout?.cancel(); _timeout = null;
     _clock?.cancel(); _clock = null;
@@ -165,6 +192,7 @@ class VoiceCaptureController extends ChangeNotifier with WidgetsBindingObserver 
     _stopRequested = true;
     _speechEndAwaitingResult = false;
     _maximum?.cancel(); _maximum = null;
+    _silence?.cancel(); _silence = null;
     _segmentWait?.cancel(); _segmentWait = null;
     phase = VoicePhase.processing; level = 0;
     _clock?.cancel(); _clock = null;

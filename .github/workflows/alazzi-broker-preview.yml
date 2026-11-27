@@ -2,7 +2,7 @@ name: Alazzi broker preview
 
 on:
   push:
-    branches: ['العزي', 'work/alazzi-marketplace-1847']
+    branches: ['العزي', 'work/alazzi-marketplace-1847', 'work/alazzi-account-smart-search-1848']
     paths:
       - 'mobile_app/**'
       - 'backend-api-runtime/**'
@@ -60,6 +60,8 @@ jobs:
           tests/Feature/ActiveWaveDiscoveryTest.php
           tests/Feature/Wave3MarketplaceApiTest.php
           tests/Feature/FinancialV1ApiTest.php
+          tests/Feature/EmailLoginAndNameTest.php
+          tests/Feature/SpokenSearchCityTest.php
           --display-warnings --fail-on-warning --fail-on-risky
       - name: Exercise the broker API on PostgreSQL and PostGIS
         env:
@@ -77,6 +79,8 @@ jobs:
           tests/Feature/Branch2RecoveryTest.php
           tests/Feature/ActiveWaveDiscoveryTest.php
           tests/Feature/Wave3MarketplaceApiTest.php
+          tests/Feature/EmailLoginAndNameTest.php
+          tests/Feature/SpokenSearchCityTest.php
           --display-warnings --fail-on-warning --fail-on-risky
 
   broker-ui:
@@ -125,6 +129,22 @@ jobs:
           test/owner_ux_gallery_filters_test.dart
           test/phase3_favorites_screen_test.dart
           test/wave3_search_only_1393_test.dart
+      - name: Test account preferences, profile editing and regional search
+        run: >-
+          flutter test --no-pub --reporter expanded
+          test/stage6_auth_user_test.dart
+          test/account_tools_integration_test.dart
+          test/uat_free_services_account_reorg_test.dart
+          test/notification_preferences_test.dart
+          test/session_lifecycle_race_test.dart
+          test/assisted_search_entry_1820_test.dart
+          test/in_app_voice_search_test.dart
+          test/live_dictation_test.dart
+          test/search_query_wave_test.dart
+          test/governorate_search_test.dart
+          test/wave2_home_search_test.dart
+          test/wave3_ai_design_ui_test.dart
+          test/wave6_product_ui_test.dart
       - name: Upload synthetic screen previews
         id: preview-artifact
         continue-on-error: true

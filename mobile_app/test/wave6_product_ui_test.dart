@@ -116,7 +116,7 @@ void main(){
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));await tester.tap(find.byKey(const ValueKey('smart-search-send')));await tester.pumpAndSettle();
     final before=container.read(smartSearchSessionProvider).filters.values;
     expect(tester.widget<TextField>(field).controller!.text,'شقة للإيجار في صنعاء');
-    expect(find.byKey(const ValueKey('smart-search-query-summary')),findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-search-query-summary')),findsNothing);
     await tester.enterText(field,'مسودة متابعة لم أرسلها');
     expect(find.byKey(const ValueKey('smart-search-save')),findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('smart-search-map')));await tester.tap(find.byKey(const ValueKey('smart-search-map')));await tester.pumpAndSettle();
@@ -231,7 +231,7 @@ void main(){
       final field=find.byKey(const ValueKey('smart-search-description'));
       await tester.enterText(field,'شقة للإيجار في صنعاء');await tester.ensureVisible(find.byKey(const ValueKey('smart-search-send')));
       await tester.tap(find.byKey(const ValueKey('smart-search-send')));await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('smart-search-manual')),findsOneWidget);
+      expect(find.byKey(const ValueKey('smart-search-manual')),findsNothing);
       expect(tester.widget<TextField>(field).controller!.text,'شقة للإيجار في صنعاء');
       await previewWave6(tester,boundary,'wave6-search-$scale');
       await tester.enterText(field,'أضف شرطًا آخر');

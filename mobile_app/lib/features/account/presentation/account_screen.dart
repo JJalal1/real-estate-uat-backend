@@ -10,6 +10,7 @@ import '../../financial/presentation/financial_account_screen.dart';
 import '../../messages/presentation/notification_preferences_screen.dart';
 import '../../properties/presentation/favorites_screen.dart';
 import '../data/auth_controller.dart';
+import '../domain/auth_user.dart';
 import '../../../core/branding/aqer_brand.dart';
 import '../../broker/data/broker_repository.dart';
 
@@ -35,27 +36,44 @@ class AccountScreen extends ConsumerWidget {
                     user.roles.contains('super_admin') ||
                     user.roles.contains('support_manager') ||
                     user.roles.contains('support_agent'));
+            final hasBrokerTab = user != null &&
+                user.isBroker && user.hasMarketplaceProfessionalProfile;
+            final appearance = _AccountRow(
+              'المظهر',
+              Icons.contrast_outlined,
+              () => showModalBottomSheet<void>(
+                context: context,
+                builder: (_) => const _ThemeModeSheet(),
+              ),
+              subtitle: _themeModeLabel(ref.watch(appThemeModeProvider)),
+            );
             return SafeArea(bottom: false, child: CustomScrollView(slivers: [
               SliverPersistentHeader(pinned: true, delegate: _AccountHeaderDelegate(user: user, scale: MediaQuery.textScalerOf(context).scale(14) / 14)),
               SliverPadding(padding: const EdgeInsetsDirectional.fromSTEB(AppLayout.compactPageGutter, 12, AppLayout.compactPageGutter, AppSpacing.s32),
                 sliver: SliverList.list(children: [
+                const AppSectionHeader(title: 'تصفّح العقارات'),
+                const SizedBox(height: AppSpacing.s8),
                 _AccountGroup(key: const ValueKey('account-preferences-group'), rows: [
                   _AccountRow('البحث الذكي', Icons.auto_awesome_outlined,
                     () => context.push('/smart-search'),
                     key: const ValueKey('account-smart-search'),
                     subtitle: 'ابحث بالنص أو الصوت وعدّل شروطك بسهولة'),
+                  if (!administrativeRole)
+                    _AccountRow('المفضلة', Icons.favorite_border, () {
+                      if (user == null) {
+                        context.push('/favorites');
+                      } else {
+                        Navigator.of(context).push<void>(MaterialPageRoute<void>(
+                          builder: (_) => const FavoritesScreen(),
+                        ));
+                      }
+                    }),
                   _AccountRow('شوهد مؤخرًا', Icons.history_outlined,
                     () => context.push('/recent'), subtitle: 'سجل محلي على هذا الجهاز فقط'),
-                  _AccountRow('المظهر', Icons.contrast_outlined, () => showModalBottomSheet<void>(
-                    context: context,
-                    builder: (_) => const _ThemeModeSheet(),
-                  ), subtitle: _themeModeLabel(ref.watch(appThemeModeProvider))),
+                  if (user == null) appearance,
                 ]),
                 const SizedBox(height: AppSpacing.s12),
                 if (user == null) ...[
-                  AppListRow(title: 'المفضلة', leading: EbrokerImage('heart', color: Theme.of(context).colorScheme.onSurface),
-                    onTap: () => context.push('/favorites')),
-                  const SizedBox(height: 12),
                   AppButton(
                     label: 'تسجيل الدخول أو إنشاء حساب',
                     icon: Icons.login,
@@ -82,22 +100,20 @@ class AccountScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.s12),
                   ],
+                  const AppSectionHeader(title: 'الحساب والتفضيلات'),
+                  const SizedBox(height: AppSpacing.s8),
                   _AccountGroup(
+                    key: const ValueKey('account-profile-group'),
                     rows: [
-                      _AccountRow(
-                        'الأمان والخصوصية',
-                        Icons.security_outlined,
-                        () => context.push('/account-safety'),
-                      ),
                       _AccountRow(
                         'الملف الشخصي',
                         Icons.manage_accounts_outlined,
                         () => context.push('/profile'),
                       ),
                       _AccountRow(
-                        'الإشعارات',
-                        Icons.notifications_outlined,
-                        () => context.push('/notifications'),
+                        'الأمان والخصوصية',
+                        Icons.security_outlined,
+                        () => context.push('/account-safety'),
                       ),
                       _AccountRow(
                         'تفضيلات الإشعارات',
@@ -106,6 +122,18 @@ class AccountScreen extends ConsumerWidget {
                           MaterialPageRoute<void>(builder: (_) => const NotificationPreferencesScreen()),
                         ),
                       ),
+                      appearance,
+                      if (administrativeRole)
+                        _AccountRow('الإشعارات', Icons.notifications_outlined,
+                          () => context.push('/notifications')),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.s12),
+                  const AppSectionHeader(title: 'الخدمات والدعم'),
+                  const SizedBox(height: AppSpacing.s8),
+                  _AccountGroup(
+                    key: const ValueKey('account-payments-support-group'),
+                    rows: [
                       _AccountRow(
                         'مدفوعاتي',
                         Icons.payments_outlined,
@@ -119,20 +147,14 @@ class AccountScreen extends ConsumerWidget {
                       ),
                       if (!administrativeRole)
                         _AccountRow(
-                          'الخدمات والأدوات',
-                          Icons.apps_outlined,
-                          () => context.push('/services'),
-                        ),
-                      if (!administrativeRole)
-                        _AccountRow(
                           'المساعدة والدعم',
                           Icons.help_outline,
                           () => context.push('/support'),
                         ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.s20),
-                  if (administrativeRole)
+                  if (administrativeRole) ...[
+                    const SizedBox(height: AppSpacing.s20),
                     AppInlineMessage(
                       title: 'مساحة العمل منفصلة عن الحساب',
                       message: user.isPlatformOwner || user.roles.contains('super_admin')
@@ -141,18 +163,17 @@ class AccountScreen extends ConsumerWidget {
                               ? 'وظائف الإشراف موجودة في «لوحة الدعم» و«الأعمال» و«الفريق».'
                               : 'وظائف الدعم موجودة في «لوحة الدعم» و«الوارد» و«مهامي».',
                       tone: AppStatusTone.info,
-                    )
-                  else ...[
+                    ),
+                  ] else if (!hasBrokerTab) ...[
                     if (!user.hasMarketplaceProfessionalProfile) ...[
+                      const SizedBox(height: AppSpacing.s20),
                       const AppSectionHeader(title: 'عقاراتي'),
                       const SizedBox(height: AppSpacing.s8),
                       _AccountGroup(rows: [
                         _AccountRow('إعلاناتي', Icons.home_outlined, () => context.push('/my-listings')),
-                        _AccountRow('إضافة عقار', Icons.add_home_outlined, () => context.push('/add-property')),
                         _AccountRow('مستحقات المنصة', Icons.account_balance_wallet_outlined, () => context.push('/broker/finance')),
                       ]),
-                    ],
-                    if (user.hasMarketplaceProfessionalProfile) ...[
+                    ] else ...[
                       const SizedBox(height: AppSpacing.s24),
                       const AppSectionHeader(title: 'إدارة عقاراتي'),
                       const SizedBox(height: AppSpacing.s8),
@@ -165,11 +186,6 @@ class AccountScreen extends ConsumerWidget {
                             'عقاراتي',
                             Icons.inventory_2_outlined,
                             () => context.push('/my-listings'),
-                          ),
-                          _AccountRow(
-                            'إضافة عقار',
-                            Icons.add_home_work_outlined,
-                            () => context.push('/add-property'),
                           ),
                           _AccountRow(
                             'مستحقات المنصة',
@@ -188,15 +204,6 @@ class AccountScreen extends ConsumerWidget {
                           'نتائج الصفقات',
                           Icons.check_circle_outline,
                           () => context.push('/broker/activity'),
-                        ),
-                        _AccountRow(
-                          'المفضلة',
-                          Icons.favorite_border,
-                          () => Navigator.of(context).push<void>(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const FavoritesScreen(),
-                            ),
-                          ),
                         ),
                       ],
                     ),
@@ -223,12 +230,16 @@ class AccountScreen extends ConsumerWidget {
 class _ProfileHeader extends ConsumerWidget {
   const _ProfileHeader({required this.user});
 
-  final dynamic user;
+  final AuthUser? user;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    final photo = user?.canEditPublicProfile == true ? ref.watch(brokerProfileProvider(user.id as int)).asData?.value.photoUrl : null;
+    final account = user;
+    final photo = account != null && account.canEditPublicProfile
+        ? ref.watch(brokerProfileProvider(account.id)).asData?.value.photoUrl
+        : null;
+    final accountType = account?.marketplaceRoleLabel;
     return Container(
       padding: const EdgeInsetsDirectional.all(12),
       decoration: BoxDecoration(
@@ -247,24 +258,42 @@ class _ProfileHeader extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user == null ? 'مرحباً بك' : user.name,
+                  account?.name ?? 'مرحباً بك',
                   maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: AppSpacing.s4),
                 Text(
-                  user == null
+                  account == null
                       ? 'تصفح العقارات بحرية وسجّل الدخول عند الحاجة.'
-                      : (user.email is String && (user.email as String).trim().isNotEmpty ? user.email : (user.phone ?? '')),
+                      : (account.email?.trim().isNotEmpty == true ? account.email! : (account.phone ?? '')),
                   maxLines: 2, overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontSize: 12, color: scheme.onSurfaceVariant,
                       ),
                 ),
+                if (accountType != null) ...[
+                  const SizedBox(height: AppSpacing.s4),
+                  DecoratedBox(
+                    key: const ValueKey('account-type-badge'),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.symmetric(horizontal: 10, vertical: 4),
+                      child: Text(
+                        accountType,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.onPrimaryContainer),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-          if (user != null) IconButton(tooltip: 'تعديل الملف الشخصي', onPressed: () => context.push('/profile'), icon: const EbrokerIcon(Icons.edit_outlined, size: 20)),
         ],
       ),
     );
@@ -273,9 +302,14 @@ class _ProfileHeader extends ConsumerWidget {
 
 class _AccountHeaderDelegate extends SliverPersistentHeaderDelegate {
   _AccountHeaderDelegate({required this.user, required this.scale});
-  final dynamic user;
+  final AuthUser? user;
   final double scale;
-  double get cardHeight => 140 + (scale - 1).clamp(0, 2).toDouble() * 72;
+  double get cardHeight {
+    final extraScale = (scale - 1).clamp(0, 2).toDouble();
+    return user?.marketplaceRoleLabel == null
+        ? 140 + extraScale * 72
+        : 164 + extraScale * 92;
+  }
   @override
   double get minExtent => cardHeight;
   @override
@@ -301,24 +335,27 @@ class _AccountGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurface(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: List.generate(rows.length, (index) {
-          final row = rows[index];
-          return Column(
-            children: [
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final titleColor = theme.brightness == Brightness.light ? Colors.black : scheme.onSurface;
+    return DefaultTextStyle.merge(
+      style: TextStyle(color: titleColor),
+      child: AppSurface(
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: [
+            for (var index = 0; index < rows.length; index++) ...[
               AppListRow(
-                key: row.key,
-                title: row.title,
-                subtitle: row.subtitle,
-                leading: EbrokerIcon(row.icon),
-                onTap: row.onTap,
+                key: rows[index].key,
+                title: rows[index].title,
+                subtitle: rows[index].subtitle,
+                leading: EbrokerIcon(rows[index].icon, color: scheme.primary),
+                onTap: rows[index].onTap,
               ),
               if (index != rows.length - 1) const SizedBox(height: 4),
             ],
-          );
-        }),
+          ],
+        ),
       ),
     );
   }

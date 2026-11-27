@@ -41,7 +41,7 @@ class _DeferredAuth implements AuthRepository {
   @override
   Future<AuthUser> completeProfile(String name) => profile!.future;
   @override
-  Future<AuthUser> updateProfile({required String name, required String phone, String? email}) => profile!.future;
+  Future<AuthUser> updateProfile({String? name, String? phone, String? email}) => profile!.future;
   @override
   Future<AuthUser> verifyPhone(String code) => profile!.future;
   @override

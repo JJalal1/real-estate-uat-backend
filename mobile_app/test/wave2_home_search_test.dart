@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:real_estate_mobile/core/network/api_client.dart';
 import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
+import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_search_session.dart';
 import 'package:real_estate_mobile/features/discovery/data/published_listing_suggestions.dart';
 import 'package:real_estate_mobile/features/discovery/domain/smart_search_filters.dart';
@@ -62,7 +63,10 @@ GoRouter router() => GoRouter(routes: [
 void main() {
   setUpAll(loadUxFixtures);
   test('S07 S08 one literal submit and no implicit GPS or AI interpretation', () async {
-    final properties = Listings(), scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties)]);
+    final properties = Listings(), scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      homeLocationProvider.overrideWith((ref) => const HomeLocation(governorate: 'صنعاء', governorateCode: 'SANAA', manual: true)),
+    ]);
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
     controller.edit('شقة في حدة');
     await controller.submit(); await controller.submit();
@@ -88,7 +92,10 @@ void main() {
   });
 
   test('S14 S17 S20 map viewport and filters keep independent Home spatial snapshot', () async {
-    final properties = Listings(), scope = uxContainer(extra: [propertyRepositoryProvider.overrideWithValue(properties)]);
+    final properties = Listings(), scope = uxContainer(extra: [
+      propertyRepositoryProvider.overrideWithValue(properties),
+      homeLocationProvider.overrideWith((ref) => const HomeLocation(governorate: 'صنعاء', governorateCode: 'SANAA', manual: true)),
+    ]);
     final controller = scope.read(marketplaceSearchControllerProvider.notifier);
     controller.edit('شقة'); await controller.submit(); controller.enterMap(); await Future<void>.delayed(Duration.zero);
     scope.read(marketplaceMapResultsProvider.notifier).updateViewport(south:14,west:43,north:16,east:45);

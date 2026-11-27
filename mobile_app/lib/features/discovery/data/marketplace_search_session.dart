@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/auth_controller.dart';
 import '../../properties/data/property_repository.dart';
+import '../domain/governorate_search.dart';
 import '../domain/smart_search_filters.dart';
 import 'ai_repository.dart';
 import 'marketplace_repository.dart';
@@ -64,24 +65,29 @@ class MarketplaceSearchController extends StateNotifier<MarketplaceSearchUi> {
     state = onMap ? state.copyWith(mapEditor: value) : value;
   }
 
-  Map<String, dynamic> get _homeContext {
-    final place = location(), context = place.searchContext;
-    return context.isEmpty ? {'governorate': place.governorate ?? place.label} : context;
-  }
   SmartSearchFilters _filters({required String text, bool onMap = false}) {
     final editor = uiFor(onMap: onMap);
     final spatial = onMap && map.snapshot.filters.hasMapArea
       ? {for (final e in map.snapshot.filters.values.entries) if (SmartSearchFilters.mapFields.contains(e.key)) e.key: e.value}
       : onMap && map.snapshot.filters.values.keys.any((key) => const ['governorate', 'governorate_code'].contains(key))
         ? {for (final e in map.snapshot.filters.values.entries) if (const ['governorate', 'governorate_code'].contains(e.key)) e.key: e.value}
-        : _homeContext;
+        : location().provinceSearchContext;
     final criteria = Map<String, dynamic>.from(editor.criteria.values);
     if (onMap && map.snapshot.filters.hasMapArea) {
       criteria.remove('governorate'); criteria.remove('governorate_code');
     }
-    return SmartSearchFilters.fromMap({...spatial, ...criteria,
-      if (text.trim().isNotEmpty || editor.landUse.isNotEmpty)
-        'search': [text.trim(), editor.landUse].where((s) => s.isNotEmpty).join(' ')});
+    final query = GovernorateSearch.listingFilters(text);
+    // The editor's explicit type/purpose applies to the ordinary keyword
+    // search. A requested province replaces its inherited province.
+    final keyword = query.remove('search') as String?;
+    final words = [if (keyword != null) keyword, if (editor.landUse.isNotEmpty) editor.landUse].join(' ');
+    final filters = {...spatial, ...query, ...criteria};
+    if (query.containsKey('governorate_code')) {
+      filters['governorate_code'] = query['governorate_code'];
+      filters['governorate'] = query['governorate'];
+    }
+    if (words.isNotEmpty) filters['search'] = words;
+    return SmartSearchFilters.fromMap(filters);
   }
   SmartSearchFilters suggestionFilters({bool onMap = false}) => _filters(text: uiFor(onMap: onMap).draftQuery, onMap: onMap);
   void restoreOfflineHomeCriteria(SmartSearchFilters filters) {

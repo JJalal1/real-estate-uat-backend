@@ -182,6 +182,33 @@ class ActiveWaveDiscoveryTest extends TestCase
             ->assertJsonPath('data.0.verified', false);
     }
 
+    public function test_public_bio_has_its_own_length_limit_and_can_be_cleared_independently(): void
+    {
+        [$broker, $headers] = $this->actor('دلال له نبذة سابقة');
+        $oldBio = str_repeat('ع', 200);
+        $broker->forceFill([
+            'broker_enrolled_at' => now(),
+            'public_professional_bio' => $oldBio,
+        ])->save();
+        $profile = '/api/advertisers/'.$broker->id.'/profile';
+
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', [
+            'governorate' => 'عدن',
+        ])->assertOk();
+        $this->getJson($profile)->assertOk()->assertJsonPath('data.bio', $oldBio);
+
+        $bio = str_repeat('ع', 150);
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', [
+            'bio' => $bio.'ع',
+        ])->assertUnprocessable()->assertJsonValidationErrors('bio');
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', [
+            'bio' => $bio,
+        ])->assertOk()->assertJsonPath('data.bio', $bio)->assertJsonPath('data.governorate', 'عدن');
+        $this->withHeaders($headers)->patchJson('/api/broker/profile', [
+            'bio' => null,
+        ])->assertOk()->assertJsonPath('data.bio', null);
+    }
+
     public function test_approved_office_can_opt_out_of_its_historical_public_office_name(): void
     {
         [$office, $headers] = $this->actor('المعلن', 'office', ['office_name' => 'مكتب سابق', 'governorate' => 'تعز']);

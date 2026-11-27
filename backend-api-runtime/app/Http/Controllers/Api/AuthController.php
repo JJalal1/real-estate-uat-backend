@@ -2,7 +2,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\AccountVerificationProfile;
 use App\Models\User;
 use App\Models\VerificationChallenge;
 use App\Services\AccessControlService;
@@ -308,16 +307,6 @@ class AuthController extends Controller
             $changed=[];
             if (array_key_exists('name',$v)) {
                 $name=trim((string)$v['name']);
-                $profile=$user->verificationProfile();
-                $nameChanged=preg_replace('/\s+/u',' ',$name)!==preg_replace('/\s+/u',' ',trim((string)$user->name));
-                if ($nameChanged && $profile && in_array($profile->status,[
-                    AccountVerificationProfile::STATUS_PENDING,
-                    AccountVerificationProfile::STATUS_APPROVED,
-                ],true)) {
-                    throw ValidationException::withMessages([
-                        'name'=>['لا يمكن تغيير الاسم أثناء مراجعة الهوية أو بعد اعتمادها. اطلب من فريق الدعم إعادة فتح التحقق إذا احتجت تصحيح الاسم.'],
-                    ]);
-                }
                 if ((int) $user->identity_policy_version >= 2 || $user->profile_completed_at === null) {
                     $this->validateUnifiedFullName($name);
                     $user->profile_completed_at = now();
@@ -675,6 +664,7 @@ class AuthController extends Controller
             'broker_verification_submitted_at'=>$user->broker_verification_submitted_at?->toIso8601String(),
             'broker_verified_at'=>$user->broker_verified_at?->toIso8601String(),
             'broker_enrolled'=>$user->broker_enrolled_at !== null,
+            'marketplace_is_office'=>$user->marketplace_is_office === null ? null : (bool) $user->marketplace_is_office,
             'can_create_listing'=>$user->canCreateListings(),
             'broker_verification_note'=>$user->broker_verification_note,
             'last_login_at'=>$user->last_login_at?->toIso8601String(),

@@ -90,13 +90,13 @@ class EbrokerSectionPanel extends StatelessWidget {
 class EbrokerAdvertiserCard extends StatelessWidget {
   const EbrokerAdvertiserCard({required this.name, required this.identity,
     required this.rating, required this.ratingCount, required this.verified,
-    required this.onTap, this.width, this.photoUrl, this.completedDeals, this.activeListings, this.action, this.compact = false, super.key});
+    this.onTap, this.width, this.photoUrl, this.completedDeals, this.activeListings, this.action, this.compact = false, super.key});
   final String name;
   final String identity;
   final double rating;
   final int ratingCount;
   final bool verified;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final double? width;
   final String? photoUrl;
   final int? completedDeals, activeListings;
@@ -107,7 +107,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
     if (compact) {
-      return Semantics(button: true, label: 'الملف العام للمعلن $name', child: Material(
+      return Semantics(button: onTap != null, label: 'الملف العام للمعلن $name', child: Material(
       color: Theme.of(context).colorScheme.surface, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant)),
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12), child: Padding(padding: const EdgeInsets.all(14),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -137,7 +137,7 @@ class EbrokerAdvertiserCard extends StatelessWidget {
     ]);
     final photo = photoUrl;
     final fallbackCover = Image.asset(ebrokerBannerAsset, fit: BoxFit.cover);
-    return Semantics(button: true, label: 'المعلن $name',
+    return Semantics(button: onTap != null, label: 'المعلن $name',
       child: GestureDetector(onTap: onTap,
         child: Container(width: width, padding: EdgeInsets.all(12.rw(context)),
           decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface,

@@ -158,8 +158,13 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
       if (result['revision'] != revision || result['filters'] is! Map) throw StateError('Invalid search session response.');
       final values = Map<String, dynamic>.from(result['filters'] as Map);
       final explicitLocation = values.containsKey('governorate') ||
-        (values['search'] is String && (values['search'] as String).trim().isNotEmpty) || SmartSearchFilters.mapFields.any(values.containsKey);
-      if (_usingDefaultLocation && !explicitLocation) values.addAll(_defaultContext);
+        values.containsKey('governorate_code') || SmartSearchFilters.mapFields.any(values.containsKey);
+      if (_usingDefaultLocation && !explicitLocation) {
+        // The home location can finish resolving after this screen opened.
+        // A neighborhood or keyword is still scoped to that province.
+        _defaultContext = Map.of(defaultLocation?.call().values ?? _defaultContext);
+        values.addAll(_defaultContext);
+      }
       if (explicitLocation) _usingDefaultLocation = false;
       final next = SmartSearchFilters.fromMap(values);
       _replace(next, message: result['message']?.toString() ?? 'حدّثنا شروط بحثك.',
@@ -214,7 +219,7 @@ class SmartSearchSession extends StateNotifier<SmartSearchState> {
     _resultTransfer = null;
     _locationBeforeDrawing = null;
     _defaultContext = useLocation ? Map.of(defaultLocation?.call().values ?? const <String,dynamic>{}) : {};
-    _usingDefaultLocation = _defaultContext.isNotEmpty;
+    _usingDefaultLocation = useLocation && defaultLocation != null;
     state = SmartSearchState(revision: state.revision + 1, filters: SmartSearchFilters.fromMap(_defaultContext));
   }
 
@@ -284,5 +289,5 @@ final smartSearchSessionProvider = StateNotifierProvider<SmartSearchSession, Sma
   ref.watch(authControllerProvider.select((value) =>
     (value.asData?.value?.id, Stage6SecureSessionStore.instance.sessionEpoch)));
   return SmartSearchSession(ref.watch(aiRepositoryProvider), ref.watch(propertyRepositoryProvider),
-    defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).searchContext));
+    defaultLocation: () => SmartSearchFilters.fromMap(ref.read(homeLocationProvider).provinceSearchContext));
 });

@@ -145,7 +145,8 @@ void main() {
     voice.latest.emit(const VoiceEvent('partial', text: 'في صنعاء')); await tester.pump(const Duration(seconds: 12));
     expect(tester.widget<TextField>(input).controller!.text, 'شقة للإيجار في صنعاء');
     expect(ai.requests, isEmpty); expect(voice.latest.stops, 0);
-    await tester.ensureVisible(find.byKey(const ValueKey('voice-finish'))); await tester.tap(find.byKey(const ValueKey('voice-finish'))); await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('smart-search-voice')));
+    await tester.tap(find.byKey(const ValueKey('smart-search-voice'))); await tester.pump();
     voice.latest.emit(const VoiceEvent('final', text: 'في صنعاء ثلاث غرف')); await tester.pumpAndSettle();
     expect(tester.widget<TextField>(input).readOnly, isFalse);
     expect(tester.widget<TextField>(input).controller!.text, 'شقة للإيجار في صنعاء ثلاث غرف');

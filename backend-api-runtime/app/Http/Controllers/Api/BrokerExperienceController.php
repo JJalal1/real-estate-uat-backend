@@ -83,7 +83,7 @@ class BrokerExperienceController extends Controller
     {
         $actor = $this->advertiser($request);
         abort_unless($actor->hasMarketplaceProfessionalProfile() || $actor->hasApprovedVerificationProfile(), 403);
-        $rules = ['bio' => ['sometimes', 'nullable', 'string', 'max:900']];
+        $rules = ['bio' => ['sometimes', 'nullable', 'string', 'max:150']];
         if ($actor->hasMarketplaceProfessionalProfile()) {
             $rules += [
                 'governorate' => ['sometimes', 'required', 'string', Rule::exists('governorates', 'name_ar')->where('is_active', true)],

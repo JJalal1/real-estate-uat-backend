@@ -1,22 +1,20 @@
 import '../../account/data/auth_controller.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/platform/voice_input.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/platform/voice_capture_controller.dart';
-import '../../../core/widgets/inline_voice_capture.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../properties/presentation/property_summary_card.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import '../data/smart_search_session.dart';
 import '../data/marketplace_repository.dart';
-import '../data/assisted_search_suggestions.dart';
 import '../domain/smart_search_filters.dart';
 import 'smart_search_filter_editor.dart';
 import 'smart_search_assistant.dart';
-import 'smart_search_query_summary.dart';
 import 'search_result_pagination.dart';
 import '../../map/presentation/map_discovery_toolbar.dart';
 import '../../map/presentation/map_screen.dart';
@@ -32,12 +30,13 @@ class AssistedSearchScreen extends ConsumerStatefulWidget {
 }
 
 class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
+  static const _initialHint = 'شقة للإيجار في صنعاء، ثلاث غرف…';
+
   final _description = TextEditingController();
   final _scroll = ScrollController();
   final _focus = FocusNode();
   late final VoiceCaptureController _capture;
   String _voiceDraft = '', _voiceRestoration = '', _voiceVisibleText = '';
-  String? _lastVoiceBase, _lastVoiceText;
   int _voiceTurn = 0;
   SmartSearchSession get _session => ref.read(smartSearchSessionProvider.notifier);
   late SmartSearchSession _journeySession;
@@ -71,7 +70,10 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         entryFilters: sameActor ? widget.entryFilters : null);
       setState(() => _ready = true);
     });
-    _capture = VoiceCaptureController(ref.read(voiceInputProvider))..addListener(_voiceChanged);
+    _capture = VoiceCaptureController(
+      ref.read(voiceInputProvider),
+      silenceTimeout: const Duration(seconds: 3),
+    )..addListener(_voiceChanged);
   }
   void _voiceChanged() {
     if (!mounted || _journeyEnded) return;
@@ -139,7 +141,6 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           ? appendDictation(_voiceDraft, _capture.preview) : _voiceRestoration;
     } else if (revision == ref.read(smartSearchSessionProvider).revision && ModalRoute.of(context)?.isCurrent != false) {
       final combined = appendDictation(_voiceDraft, text);
-      _lastVoiceBase = _voiceDraft; _lastVoiceText = combined;
       _description.text = combined; _session.setDraftText(combined);
       if (combined.length > 5000) {
         setState(() => _capture.error = 'النص أطول من 5000 حرف. اختصره قبل البحث.');
@@ -151,26 +152,77 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     }
   }
   void _cancelVoice() { if (_capture.active || _capture.canRetry) { ++_voiceTurn; _capture.cancel(); _description.text = _voiceRestoration; } }
-  void _restartVoice() {
-    if (_capture.active) { _cancelVoice(); }
-    else if (_lastVoiceBase != null && _description.text == _lastVoiceText) { _description.text = _lastVoiceBase!; }
-    unawaited(_voice());
+  void _toggleVoice() {
+    switch (_capture.phase) {
+      case VoicePhase.idle: unawaited(_voice());
+      case VoicePhase.preparing: _cancelVoice();
+      case VoicePhase.listening: _capture.stop();
+      case VoicePhase.processing: break;
+    }
   }
 
-  Widget _voiceOptions() => Wrap(spacing: 8, children: [
-    if (_lastVoiceBase != null && _description.text == _lastVoiceText) TextButton(onPressed: _restartVoice, child: const Text('ابدأ الإملاء من جديد')),
-    if (_capture.canRetry) TextButton(key: const ValueKey('search-voice-retry'),
-      onPressed: () => _voice(retry: true), child: const Text('إعادة محاولة التفريغ')),
-  ]);
+  Widget _voiceButton(SmartSearchState state, {bool compact = false}) {
+    final phase = _capture.phase;
+    final listening = phase == VoicePhase.listening;
+    return SizedBox.square(
+      dimension: compact ? 48 : 56,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (listening)
+            Positioned.fill(child: IgnorePointer(child: CustomPaint(
+              key: const ValueKey('smart-search-voice-ring'),
+              painter: _VoiceRingPainter(Theme.of(context).colorScheme.primary, _capture.level),
+            ))),
+          IconButton.filledTonal(
+            key: const ValueKey('smart-search-voice'),
+            tooltip: switch (phase) {
+              VoicePhase.idle => 'البحث بالصوت',
+              VoicePhase.preparing || VoicePhase.listening => 'إيقاف الإملاء',
+              VoicePhase.processing => 'جارٍ تفريغ الصوت',
+            },
+            onPressed: state.interpreting || phase == VoicePhase.processing ? null : _toggleVoice,
+            icon: const EbrokerIcon(Icons.mic_none_outlined, size: 22),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Future<void> _edit({String? focus, MapSearchActions? mapActions}) async {
+  Widget _voiceFeedback() {
+    final style = Theme.of(context).textTheme.bodySmall;
+    if (_capture.phase == VoicePhase.listening) {
+      final elapsed = _capture.elapsed;
+      final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
+      final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Wrap(spacing: 8, runSpacing: 4, children: [
+          Text('$minutes:$seconds', textDirection: TextDirection.ltr, style: style),
+          Text('اضغط الميكروفون مرة أخرى أو توقّف عن الكلام ٣ ثوانٍ.', style: style),
+        ]),
+      );
+    }
+    if (_capture.phase == VoicePhase.processing) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text('جارٍ تفريغ الصوت…', style: style),
+      );
+    }
+    if (_capture.canRetry) {
+      return TextButton(key: const ValueKey('search-voice-retry'),
+        onPressed: () => _voice(retry: true), child: const Text('إعادة محاولة التفريغ'));
+    }
+    return const SizedBox.shrink();
+  }
+
+  Future<void> _edit({MapSearchActions? mapActions}) async {
     if (_journeyEnded || !_journeySession.isCurrentJourney(_journey)) return;
     if (_capture.active) _cancelVoice();
-    if (focus == 'map_area') { await _openMap(); return; }
     final owner = _session, journey = _journey, epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final next = await AppBottomSheet.show<Object>(context,
       builder: (sheetContext) => SmartSearchFilterEditor(
-        initial: ref.read(smartSearchSessionProvider).filters, focus: focus,
+         initial: ref.read(smartSearchSessionProvider).filters,
         rangesFirst: mapActions != null,
         extraActions: mapActions == null ? null : Wrap(spacing: 8, children: [
           TextButton.icon(key: const ValueKey('map-filter-draw-area'),
@@ -241,7 +293,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     setState(() => _mapEditorOpen = false);
   }
 
-  Widget _mapToolbar(SmartSearchState state, String initialHint, MapSearchActions actions) =>
+  Widget _mapToolbar(SmartSearchState state, MapSearchActions actions) =>
     Column(mainAxisSize: MainAxisSize.min, children: [
       MapDiscoveryToolbar(
         filters: state.filters,
@@ -259,23 +311,22 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
         extraFilters: actions.hasDrawnArea,
       ),
       if (_mapEditorOpen) Padding(padding: const EdgeInsets.only(top: 7),
-        child: _mapEditor(state, initialHint)),
+         child: _mapEditor(state)),
     ]);
 
-  Widget _mapEditor(SmartSearchState state, String initialHint) => Material(elevation:2,borderRadius:BorderRadius.circular(13),
+  Widget _mapEditor(SmartSearchState state) => Material(elevation:2,borderRadius:BorderRadius.circular(13),
     color:Theme.of(context).colorScheme.surface,child:Padding(padding:const EdgeInsets.all(8),child:Column(mainAxisSize:MainAxisSize.min,children:[
       Row(children:[const SmartSearchRobotIcon(size:24),const SizedBox(width:6), Expanded(child:TextField(
         key:const ValueKey('smart-search-description'),controller:_description,focusNode:_focus,readOnly:_capture.active || state.interpreting,
-        minLines:1,maxLines:2,textInputAction:TextInputAction.search,
+         minLines:2,maxLines:2,textInputAction:TextInputAction.search,
         onChanged:_session.setDraftText,onSubmitted:(_)=>_send(),
-        decoration:InputDecoration(hintText:_capture.active ? null : state.started ? 'أضف أو عدّل أي شرط…' : initialHint,isDense:true,border:InputBorder.none))),
-        IconButton(key:const ValueKey('smart-search-voice'),tooltip:'أكمل بحثك بالصوت',onPressed:state.interpreting?null:() => _voice(),icon:const Icon(Icons.mic_none_outlined)),
-        IconButton(key:const ValueKey('smart-search-send'),tooltip:'بحث',onPressed:state.interpreting?null:_send,
+         decoration:InputDecoration(hintText:_capture.active ? null : state.started ? 'أكمل بحثك…' : _initialHint,isDense:true,border:InputBorder.none))),
+         _voiceButton(state, compact: true),
+         IconButton(key:const ValueKey('smart-search-send'),tooltip:'بحث',onPressed:state.interpreting || _capture.active ? null : _send,
           icon:state.interpreting?const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.search)),
         IconButton(tooltip: 'إغلاق البحث', onPressed: _closeMapEditor, icon: const Icon(Icons.close)),
       ]),
-      if(_capture.active) InlineVoiceCapture(capture:_capture,onCancel:_cancelVoice,onRestart:_restartVoice),
-      if (!_capture.active && !state.interpreting) _voiceOptions(),
+       _voiceFeedback(),
       if(_capture.error!=null || state.aiError!=null) Text(_capture.error ?? state.aiError!,style:TextStyle(color:Theme.of(context).colorScheme.error)),
     ])));
 
@@ -289,13 +340,11 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     final state = ref.watch(smartSearchSessionProvider), theme = Theme.of(context);
     final location = ref.watch(homeLocationProvider);
     final regions = ref.watch(homeLocationsProvider).asData?.value ?? const <HomeLocation>[];
-    final suggestions = AssistedSearchSuggestions.forLocation(location, regions: regions);
     ref.listen(authControllerProvider, (previous, next) {
       final actor = next.asData?.value?.id, epoch = Stage6SecureSessionStore.instance.sessionEpoch;
       if (_visibleActor != actor || _visibleEpoch != epoch) {
         _visibleActor = actor; _visibleEpoch = epoch;
         _cancelVoice(); _description.clear();
-        _lastVoiceBase = null; _lastVoiceText = null;
         if (_journey != 0) _journeySession.endJourney(_journey);
         _journey = 0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -309,8 +358,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
     ref.listen<SmartSearchState>(smartSearchSessionProvider, (before, after) {
       if (_journeyEnded) return;
       if (_capture.active && before?.revision != after.revision) _cancelVoice();
-      // Applied criteria belong to the summary. Only consume the exact draft
-      // that was accepted; manual changes and newer unsent text stay intact.
+      // Only consume the exact draft that was accepted. Manual changes and
+      // newer unsent text stay intact.
       if (before != null && before.revision != after.revision &&
           before.draftText.isNotEmpty && after.draftText.isEmpty &&
           _description.text.trim() == before.draftText.trim()) {
@@ -329,7 +378,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       body:SafeArea(bottom: false, child: MapScreen(key: ValueKey(('assisted-search-map', mapActor, mapEpoch, mapJourney)),
         sharedSearchJourney:true, toolbarAboveMap:true, collapseResults: true,
         cameraCenterHint: mapSearchInitialCamera(state.filters, location, regions),
-        searchToolbarBuilder: (_, actions) => _mapToolbar(state, suggestions.hint, actions),
+        searchToolbarBuilder: (_, actions) => _mapToolbar(state, actions),
         onShowList:_showList, onSmartSearch:_focusAssistant,
         onMapInteraction: _closeMapEditor,
         isJourneyCurrent: () => mounted && !_journeyEnded && mapJourney != 0 &&
@@ -342,9 +391,8 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           _cancelVoice(); _capture.clearError(); _description.clear(); controller.reset(useLocation: true);
         }, icon: const Icon(Icons.restart_alt)),
       ]),
-      body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active, onOpenMap: _openMap, onPressed: () {
-        _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut); _focus.requestFocus();
-      }, child: SearchResultPagination(
+      body: SmartSearchAssistantLayer(enabled: state.started && !_capture.active,
+        showAssistantShortcuts: false, child: SearchResultPagination(
         onLoadMore: state.hasRankedResults && state.canLoadMore ? () => controller.loadNextPage(state) : null,
         child: ListView(controller: _scroll, padding: const EdgeInsets.fromLTRB(18, 12, 18, 110), children: [
         if (!state.started) ...[
@@ -354,59 +402,42 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
           const SizedBox(height: 18),
         ],
         AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (state.started || state.interpreting) ...[
-            SmartSearchQuerySummary(
-              filters: state.started ? state.filters : const SmartSearchFilters(),
-              interpreting: state.interpreting,
-              onEdit: (key) => _edit(focus: key),
-              onRemove: (key) { if (_capture.active) { _cancelVoice(); } controller.remove(key); },
-            ),
-            const SizedBox(height: 12),
-          ],
           if (state.started) ...[
-            Wrap(spacing: 12, alignment: WrapAlignment.spaceBetween, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text('أضف أو عدّل أي شرط', style: theme.textTheme.titleSmall),
-              TextButton.icon(key: const ValueKey('smart-search-manual'), onPressed: () => _edit(),
-                icon: const EbrokerIcon(Icons.tune, size: 18), label: const Text('تعديل الفلاتر')),
-            ]),
-            const SizedBox(height: 4),
+            Align(alignment: AlignmentDirectional.centerEnd, child: TextButton.icon(
+              key: const ValueKey('smart-search-map'),
+              onPressed: _capture.active || state.interpreting ? null : _openMap,
+              icon: const Icon(Icons.map_outlined, size: 18), label: const Text('الخريطة'),
+            )),
+            const SizedBox(height: 6),
           ],
           TextField(key: const ValueKey('smart-search-description'), controller: _description, focusNode: _focus,
             readOnly: _capture.active || state.interpreting,
-            minLines: state.started ? 1 : 2, maxLines: 4, maxLength: 5000, textInputAction: TextInputAction.search,
-            onChanged: _session.setDraftText, onSubmitted: (_) => _send(), decoration: InputDecoration(border: InputBorder.none,
-              hintText: _capture.active ? null : !state.started ? suggestions.hint : 'أكمل بحثك… مثل: خفّض السعر أو أزل شرط الغرف', counterText: '')),
-          if (_capture.active) InlineVoiceCapture(capture: _capture, onCancel: _cancelVoice, onRestart: _restartVoice),
-          if (!_capture.active && !state.interpreting) _voiceOptions(),
+             minLines: 2, maxLines: 2, maxLength: 5000, textInputAction: TextInputAction.search,
+             onChanged: _session.setDraftText, onSubmitted: (_) => _send(), decoration: InputDecoration(
+               hintText: _capture.active ? null : state.started ? 'أكمل بحثك…' : _initialHint, counterText: '')),
           const SizedBox(height: 8),
-          if (!_capture.active && !state.started) const Padding(padding: EdgeInsets.only(bottom: 8),
+          if (!state.started) const Padding(padding: EdgeInsets.only(bottom: 8),
             child: Text('اكتب طلبك ثم اضغط البحث، أو أمْلِه ليبدأ البحث بعد اكتمال الإملاء.')),
-          if (!_capture.active) Row(children: [
-            Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: !state.started ? 'ابحث لي' : 'تحديث',
-              icon: Icons.auto_awesome_outlined, loading: state.interpreting,
-              onPressed: state.interpreting ? null : _send)),
+          Row(children: [
+            Expanded(child: AppButton(key: const ValueKey('smart-search-send'), label: 'ابحث لي',
+              loading: state.interpreting,
+              onPressed: _capture.active || state.interpreting ? null : _send)),
             const SizedBox(width: 8),
-            IconButton.filledTonal(key: const ValueKey('smart-search-voice'), tooltip: 'أكمل بحثك بالصوت',
-              onPressed: state.interpreting ? null : () => _voice(),
-              icon: const EbrokerIcon(Icons.mic_none_outlined, size: 22)),
+            _voiceButton(state),
           ]),
+          _voiceFeedback(),
+          if (state.interpreting) Padding(
+            key: const ValueKey('smart-search-query-pending'),
+            padding: const EdgeInsets.only(top: 8),
+            child: Semantics(liveRegion: true,
+              child: Text('نحدّد معايير بحثك…', style: theme.textTheme.bodySmall)),
+          ),
           if (_capture.error != null || state.aiError != null) Padding(padding: const EdgeInsets.only(top: 12),
             child: Text(_capture.error ?? state.aiError!, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error))),
-        const SizedBox(height: 12),
-        Wrap(spacing: 8, children: [
-          TextButton.icon(key: const ValueKey('smart-search-map'), onPressed: _capture.active || state.interpreting ? null : _openMap,
-            icon: const Icon(Icons.map_outlined, size: 18), label: const Text('الخريطة')),
-        ]),
         if (state.message.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: Text(state.message, style: theme.textTheme.bodySmall)),
         const SizedBox(height: 10),
         ])),
-        if (!state.started) ...[
-          const SizedBox(height: 22),
-          const Text('جرّب مثلًا'),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 6, children: [for (final example in suggestions.examples)
-            ActionChip(label: Text(example), onPressed: state.interpreting ? null : () { _description.text = example; _send(); })]),
-        ] else ...[
+        if (state.started) ...[
           const SizedBox(height: 28),
           Row(children: [Expanded(child: Text('عقارات تناسب بحثك', style: theme.textTheme.titleMedium)),
             if (state.loading) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))]),
@@ -432,7 +463,7 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
             ),
           for (final row in state.rows)
             Padding(padding: const EdgeInsets.only(bottom: 12),
-              child: PropertySummaryCard(key: ValueKey('smart-search-result-${row.id}'), property: row)),
+              child: PropertySummaryCard(key: ValueKey('smart-search-result-${row.id}'), property: row, compact: true)),
           if (state.rows.isNotEmpty && controller.isLoadingMore &&
               (state.loading || state.resultsError != null))
             AppRefreshStatus(loading: state.loading, error: state.resultsError,
@@ -443,6 +474,32 @@ class _AssistedSearchState extends ConsumerState<AssistedSearchScreen> {
       ]))),
     ));
   }
+}
+
+class _VoiceRingPainter extends CustomPainter {
+  const _VoiceRingPainter(this.color, this.level);
+
+  final Color color;
+  final double level;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2;
+    final paint = Paint()..strokeCap = StrokeCap.round..strokeWidth = 2;
+    for (var i = 0; i < 18; i++) {
+      final angle = i * math.pi / 9;
+      final variation = .5 + .5 * math.sin(i * 1.8 + level * math.pi);
+      final offset = Offset(math.cos(angle), math.sin(angle));
+      paint.color = color.withValues(alpha: .5 + .5 * level * variation);
+      canvas.drawLine(center + offset * (radius - 5),
+        center + offset * (radius - 2.5 + level * variation * 1.5), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_VoiceRingPainter oldDelegate) =>
+      oldDelegate.level != level || oldDelegate.color != color;
 }
 
 

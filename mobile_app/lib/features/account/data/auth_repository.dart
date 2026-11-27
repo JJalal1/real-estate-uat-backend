@@ -219,14 +219,18 @@ class AuthRepository {
   }
 
   Future<AuthUser> updateProfile({
-    required String name,
-    required String phone,
+    String? name,
+    String? phone,
     String? email,
   }) async {
     final epoch = _store.sessionEpoch;
     final response = await _dio.patch<Map<String, dynamic>>(
       '/auth/profile',
-      data: {'name': name.trim(), 'phone': phone.trim(), if (email?.trim().isNotEmpty == true) 'email': email!.trim()},
+      data: {
+        if (name != null) 'name': name.trim(),
+        if (phone != null) 'phone': phone.trim(),
+        if (email != null) 'email': email.trim(),
+      },
       options: await requiredAuthOptions(),
     );
     _requireSession(epoch);

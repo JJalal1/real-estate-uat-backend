@@ -10,6 +10,7 @@ import '../../broker/domain/broker_models.dart';
 import '../../properties/data/property_repository.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/domain/property_coordinates.dart';
+import '../domain/governorate_search.dart';
 import '../domain/smart_search_filters.dart';
 
 const dhamarPreviewGovernorate = (name: 'ذمار', code: 'DHAMAR');
@@ -35,6 +36,17 @@ class HomeLocation {
     // A manual governorate covers its complete boundary, not a city-center circle.
     if (device) ...{'latitude': latitude, 'longitude': longitude, 'radius_km': 30},
   };
+  /// A listing search covers the confirmed province. The nearby feed keeps
+  /// its distinct GPS circle; a placeholder city is never a location fix.
+  Map<String, dynamic> get provinceSearchContext {
+    if (needsConfirmation) return const {};
+    final province = governorate == null ? null : GovernorateSearch.inRequest(governorate!);
+    return {
+      ...?province?.filters,
+      if (governorate != null && governorate!.isNotEmpty) 'governorate': governorate,
+      if (governorateCode != null && governorateCode!.isNotEmpty) 'governorate_code': governorateCode,
+    };
+  }
   factory HomeLocation.fromJson(Map<String, dynamic> j) => HomeLocation(
     latitude: (j['latitude'] as num).toDouble(), longitude: (j['longitude'] as num).toDouble(),
     governorate: j['governorate']?.toString(), governorateCode: j['governorate_code']?.toString(),

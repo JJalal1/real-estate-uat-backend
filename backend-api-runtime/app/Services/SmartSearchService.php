@@ -57,6 +57,10 @@ class SmartSearchService
             return preg_replace('/^[\s.,،؛:]+|[\s.,،؛:]+$/u', '', preg_replace('/\s+/u', ' ', $name));
         };
         $candidate = preg_replace('/^(?:مدينه|محافظه)\s*/u', '', $key($keyword));
+        $candidate = match ($candidate) {
+            'ذماء' => 'ذمار', 'صنعا' => 'صنعاء', 'سقطري' => 'ارخبيل سقطري',
+            default => $candidate,
+        };
         foreach (Governorate::query()->where('is_active', true)->pluck('name_ar') as $city) {
             if ($candidate === $key($city)) return $city;
         }
@@ -76,11 +80,14 @@ class SmartSearchService
         [, $spokenType, $purpose] = $parts;
         $typeLabels = app(DynamicPropertySchema::class)->definition()['types'];
         $type = $spokenType === 'بيت' ? 'house' : array_search($spokenType, array_map($normalize, $typeLabels), true);
-        if (! in_array($type, self::TYPES, true)) {
+        if (! in_array($type, self::TYPES, true) && ! in_array($spokenType, ['عقار', 'عقارات'], true)) {
             return null;
         }
 
-        $set = ['type' => $type, 'purpose' => $purpose === 'للبيع' ? 'sale' : 'rent'];
+        $set = ['purpose' => $purpose === 'للبيع' ? 'sale' : 'rent'];
+        if ($type !== false) {
+            $set['type'] = $type;
+        }
         if (isset($parts[3])) {
             $city = $this->activeCityName($parts[3]);
             if ($city === null) {

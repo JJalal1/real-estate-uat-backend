@@ -130,8 +130,8 @@ void main() {
       voice.latest.emit(const VoiceEvent('speech_end')); await tester.pump(const Duration(milliseconds: 1500));
       expect(ai.requests, isEmpty); expect(voice.latest.stops, 0);
       await uxPreview(tester, boundary, 'wave01-voice-$dark-live');
-      await _tap(tester, 'voice-finish', settle: false);
-      expect(find.text('نثبّت آخر كلماتك…'), findsOneWidget);
+      await _tap(tester, 'smart-search-voice', settle: false);
+      expect(find.text('جارٍ تفريغ الصوت…'), findsOneWidget);
       expect(ai.requests, isEmpty);
       voice.latest.emit(const VoiceEvent('final', text: 'في صنعاء')); await tester.pumpAndSettle();
       expect(ai.requests.single.message, 'فلل في صنعاء');
@@ -158,10 +158,20 @@ void main() {
       final old = voice.latest;
       old.emit(const VoiceEvent('mode', code: 'dictation')); old.emit(const VoiceEvent('ready'));
       old.emit(const VoiceEvent('partial', text: 'كلام مؤقت')); await tester.pump();
-      if (outcome == 'cancel') { await _tap(tester, 'voice-cancel'); }
+      if (outcome == 'cancel') {
+        final dialog = showDialog<void>(
+          context: tester.element(input),
+          builder: (_) => const AlertDialog(title: Text('صفحة أخرى')),
+        );
+        await tester.pumpAndSettle();
+        Navigator.of(tester.element(find.byType(AlertDialog))).pop();
+        await tester.pumpAndSettle();
+        await dialog;
+        expect(old.cancellations, 1);
+      }
       if (outcome == 'error') { old.emit(const VoiceEvent('error', code: 'SPEECH_NETWORK')); await tester.pump(); }
       if (outcome == 'empty') {
-        await _tap(tester, 'voice-finish', settle: false);
+        await _tap(tester, 'smart-search-voice', settle: false);
         old.emit(const VoiceEvent('final', text: '')); await tester.pump();
       }
       if (outcome == 'account') {
