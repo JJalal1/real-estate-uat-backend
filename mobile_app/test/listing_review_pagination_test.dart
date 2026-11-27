@@ -162,8 +162,9 @@ void main() {
     await tester.tap(compare.hitTestable());
     await tester.pumpAndSettle();
     expect(find.text('مقارنة الإعلانين'), findsOneWidget);
-    final reject = find.text('رفض الإعلان الجديد كمكرر');
+    final reject = find.widgetWithText(AppButton, 'رفض الإعلان الجديد كمكرر');
     await tester.scrollUntilVisible(reject, 180, scrollable: _verticalList.first);
+    await tester.pumpAndSettle();
 
     expect(reject.hitTestable(), findsOneWidget);
     await tester.tap(reject.hitTestable());
