@@ -5,10 +5,10 @@ import 'package:real_estate_mobile/core/theme/app_theme.dart';
 import 'package:real_estate_mobile/core/widgets/app_components.dart';
 
 const _roleLabels = <String, List<String>>{
-  'anonymous': ['العقارات', 'حسابي'],
-  'regular': ['العقارات', 'الأقسام', 'الرسائل', 'حسابي'],
+  'anonymous': ['الرئيسية', 'حسابي'],
+  'regular': ['الرئيسية', 'الأقسام', 'الرسائل', 'حسابي'],
   'broker': ['الرئيسية', 'إعلاناتي', 'الرسائل', 'حسابي'],
-  'advertiser': ['العقارات', 'الخريطة', 'الرسائل', 'حسابي'],
+  'advertiser': ['الرئيسية', 'الخريطة', 'الرسائل', 'حسابي'],
   'agent': ['لوحة الدعم', 'الوارد', 'الخريطة', 'الرسائل', 'حسابي'],
   'manager': ['لوحة الدعم', 'الأعمال', 'الفريق', 'حسابي'],
   'platform': ['لوحة الإدارة', 'المراجعات', 'المستخدمون', 'المنصة', 'حسابي'],

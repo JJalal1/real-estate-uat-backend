@@ -189,7 +189,7 @@ void main() {
       'house filters apply inline and are excluded from other property types',
       (tester) async {
     final listings = Listings()
-      ..respond = (_, _) async => ([row(10, purpose: 'rent')], false);
+      ..respond = (_, __) async => ([row(10, purpose: 'rent')], false);
     final scope = uxContainer(
       extra: [propertyRepositoryProvider.overrideWithValue(listings)],
     );

@@ -107,6 +107,9 @@ class CategoryListingFeatures
                 $query->where($field, $filters[$field]);
             }
         }
+        if (isset($filters['has_majlis_bathroom'])) {
+            $query->where('has_separate_majlis', true);
+        }
 
         foreach (['min_street_width' => 'street_width_m', 'min_office_rooms' => 'office_rooms',
             'min_floors' => 'floors_count', 'min_shop_openings' => 'shop_openings'] as $filter => $field) {
@@ -140,11 +143,12 @@ class CategoryListingFeatures
     {
         $units = 'properties.units_per_floor';
         if ($query->getConnection()->getDriverName() === 'pgsql') {
-            $rows = "json_array_elements_text(CASE WHEN json_typeof({$units}) = 'array' THEN {$units} ELSE '[]'::json END) AS units(value)";
-            $value = "CASE WHEN units.value ~ '^[0-9]{1,3}$' THEN CAST(units.value AS INTEGER) END";
+            $rows = "json_array_elements(CASE WHEN json_typeof({$units}) = 'array' THEN {$units} ELSE '[]'::json END) AS units(value)";
+            $text = 'CAST(units.value AS TEXT)';
+            $value = "CASE WHEN {$text} ~ '^(100|[1-9][0-9]?)$' THEN CAST({$text} AS INTEGER) END";
         } else {
             $rows = "json_each(CASE WHEN json_type({$units}) = 'array' THEN {$units} ELSE '[]' END) AS units";
-            $value = "CASE WHEN units.type = 'integer' THEN units.value END";
+            $value = "CASE WHEN units.type = 'integer' AND units.value BETWEEN 1 AND 100 THEN units.value END";
         }
         // Untyped legacy JSON can contain a scalar or malformed entries.
         // An incomplete set of unit counts cannot satisfy a minimum.

@@ -30,6 +30,7 @@ class CategoryPropertyFiltersTest extends TestCase
         $this->listing($owner, array_replace($facts, ['purpose' => 'sale']));
         $this->listing($owner, array_replace($facts, ['status' => 'draft', 'review_status' => 'draft']));
         $this->listing($owner, array_replace($facts, ['parking_spaces' => 1, 'has_majlis_bathroom' => false]));
+        $this->listing($owner, array_replace($facts, ['has_separate_majlis' => false]));
         $this->listing($owner, array_replace($facts, ['bedrooms' => 2]));
 
         $strict = [
@@ -49,6 +50,9 @@ class CategoryPropertyFiltersTest extends TestCase
         $atLeastTwo = $this->ids(['type' => 'house', 'purpose' => 'rent', 'min_parking_spaces' => 2]);
         $this->assertContains($legacy->id, $atLeastOne);
         $this->assertNotContains($legacy->id, $atLeastTwo);
+        $this->assertSame([$latest->id, $first->id], $this->ids([
+            'type' => 'house', 'purpose' => 'rent', 'min_bedrooms' => 3, 'has_majlis_bathroom' => 1,
+        ]));
     }
 
     public function test_filters_are_type_specific_and_combine_with_shared_facets(): void
@@ -96,11 +100,22 @@ class CategoryPropertyFiltersTest extends TestCase
     {
         $owner = $this->owner();
         $valid = $this->listing($owner, ['type' => 'building', 'units_per_floor' => [3, 3]]);
-        foreach ([null, '6', [7, null], ['oops', 7], ['unit_count' => 7]] as $legacy) {
+        foreach ([null, '6', [7, null], ['oops', 7], ['unit_count' => 7], ['7', '8'], [10000000]] as $legacy) {
             $this->listing($owner, ['type' => 'building', 'units_per_floor' => $legacy]);
         }
 
         $this->assertSame([$valid->id], $this->ids(['type' => 'building', 'min_total_units' => 5]));
+    }
+
+    public function test_section_elevator_can_use_known_historical_availability(): void
+    {
+        $owner = $this->owner();
+        $legacy = $this->listing($owner, ['type' => 'office', 'has_elevator' => true]);
+        $this->listing($owner, ['type' => 'office', 'has_elevator' => true, 'section_elevator' => false]);
+        $this->listing($owner, ['type' => 'office']);
+
+        $this->assertSame([$legacy->id], $this->ids(['type' => 'office', 'has_section_elevator' => 1]));
+        $this->getJson('/api/properties/'. $legacy->id)->assertOk()->assertJsonPath('data.has_elevator', null);
     }
 
     public function test_owner_can_save_read_and_clear_optional_facts_without_changing_older_clients(): void
@@ -111,6 +126,9 @@ class CategoryPropertyFiltersTest extends TestCase
         $newListing = [
             'title' => 'منزل للاختبار', 'type' => 'house', 'purpose' => 'sale', 'price' => 50000000,
             'latitude' => 15.3694, 'longitude' => 44.1910, 'has_parking' => 1,
+            'listing_input_version' => 9, 'tenure_type' => 'freehold', 'area_value' => 180, 'area_unit' => 'sqm',
+            'bedrooms' => 4, 'bathrooms' => 2, 'floors_count' => 1, 'units_per_floor' => [2],
+            'building_facade' => 'east', 'address' => 'صنعاء، شارع الزبيري', 'contact_phone' => '+967777710110',
             'parking_spaces' => 2, 'has_separate_majlis' => 1, 'has_majlis_bathroom' => 1,
             'land_use' => 'commercial',
         ];
