@@ -86,6 +86,7 @@ class FinancialPayment {
     required this.status,
     required this.amount,
     required this.currency,
+    this.receivableReference,
     this.agreementId,
     this.propertyId,
     this.propertyTitle,
@@ -107,6 +108,7 @@ class FinancialPayment {
   final String status;
   final double amount;
   final String currency;
+  final String? receivableReference;
   final int? agreementId;
   final int? propertyId;
   final String? propertyTitle;
@@ -142,6 +144,7 @@ class FinancialPayment {
         status: '${json['status'] ?? ''}',
         amount: _double(json['required_amount'] ?? json['amount']),
         currency: '${json['currency'] ?? 'YER'}',
+        receivableReference: _text(json['receivable_reference']),
         agreementId: _nullableInt(json['agreement_id']),
         propertyId: _nullableInt(json['property_id']),
         propertyTitle: _text(json['property_title']),

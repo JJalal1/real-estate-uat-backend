@@ -35,6 +35,11 @@ class ListingDuplicateCandidate {
     this.bedrooms,
     this.bathrooms,
     this.mainImageId,
+    this.imageUrl,
+    this.price,
+    this.currency,
+    this.areaValue,
+    this.areaUnit,
     this.published,
     this.detection,
   });
@@ -52,6 +57,11 @@ class ListingDuplicateCandidate {
   final int? bedrooms;
   final int? bathrooms;
   final int? mainImageId;
+  final String? imageUrl;
+  final double? price;
+  final String? currency;
+  final double? areaValue;
+  final String? areaUnit;
   final bool? published;
   final ListingDuplicateDetection? detection;
 
@@ -76,6 +86,11 @@ class ListingDuplicateCandidate {
       bedrooms: _nullableInt(json['bedrooms']),
       bathrooms: _nullableInt(json['bathrooms']),
       mainImageId: _nullableInt(json['main_image_id']),
+      imageUrl: _string(json['image_url']),
+      price: double.tryParse('${json['price'] ?? ''}'),
+      currency: _string(json['currency']),
+      areaValue: double.tryParse('${json['area_value'] ?? ''}'),
+      areaUnit: _string(json['area_unit']),
       published: json['published'] is bool ? json['published'] as bool : null,
       detection: ListingDuplicateDetection.fromJson(json),
     );

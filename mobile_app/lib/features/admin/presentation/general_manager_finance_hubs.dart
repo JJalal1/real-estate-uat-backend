@@ -3,6 +3,7 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../financial/data/financial_repository.dart';
+import '../../support/presentation/support_team_administration_screen.dart';
 import 'general_manager_finance_screens.dart';
 import 'general_manager_pages.dart';
 
@@ -92,6 +93,17 @@ class GeneralManagerAdministrationFinancialHubScreen extends StatelessWidget {
                   trailing: const EbrokerIcon(Icons.chevron_left),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const GeneralManagerAdministrationScreen(),
+                  )),
+                ),
+              ),
+              Card(
+                child: ListTile(
+                  leading: const EbrokerIcon(Icons.groups_outlined),
+                  title: const Text('فرق المحافظات', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('إنشاء الفرق وتفويض الأعضاء من الحسابات المسجّلة.'),
+                  trailing: const EbrokerIcon(Icons.chevron_left),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => const SupportTeamAdministrationScreen(),
                   )),
                 ),
               ),

@@ -248,6 +248,7 @@ class ReviewListingDetail {
     required this.type,
     required this.tenureType,
     required this.price,
+    this.currency,
     required this.reviewStatus,
     required this.ownerName,
     required this.ownerEmail,
@@ -287,6 +288,7 @@ class ReviewListingDetail {
   final String type;
   final String? tenureType;
   final double price;
+  final String? currency;
   final String reviewStatus;
   final String ownerName;
   final String ownerEmail;
@@ -337,6 +339,7 @@ class ReviewListingDetail {
       type: json['type']?.toString() ?? '',
       tenureType: _nullable(json['tenure_type']),
       price: _asDouble(json['price']),
+      currency: _nullable(json['currency']),
       reviewStatus: json['review_status']?.toString() ?? '',
       ownerName: ownerMap['name']?.toString() ?? '',
       ownerEmail: ownerMap['email']?.toString() ?? '',
@@ -407,6 +410,9 @@ class ReviewHistoryItem {
     'approved' => 'اعتُمد ونُشر',
     'rejected_blocked' => 'رُفض وحُظر النشر',
     'rejected_duplicate' => 'رُفض الإعلان لتكراره',
+    'duplicate_suspected_after_submission' => 'رُصد اشتباه تكرار',
+    'identity_check_unavailable' => 'تعذّر فحص هوية العقار',
+    'property_identity_linked' => 'رُبطت هوية العقار',
     'duplicate_review_cleared' => 'ثبُت اختلاف العقار',
     'media_relevance_review' => 'مراجعة صلة الصورة بالعقار',
     _ => 'تحديث المراجعة',
@@ -414,6 +420,13 @@ class ReviewHistoryItem {
   final String? fromStatus;
   final String? toStatus;
   final String? reason;
+  String? get displayReason => switch (reason) {
+    'Automated identity evidence requires support review before publication.' =>
+      'تحتاج هوية العقار إلى تحقق الدعم قبل النشر.',
+    'Identity evidence is unavailable; retry the check before approval.' =>
+      'أعد فحص هوية العقار قبل الاعتماد.',
+    _ => reason,
+  };
   final String? actorName;
   final DateTime? createdAt;
   factory ReviewHistoryItem.fromJson(Map<String, dynamic> json) =>

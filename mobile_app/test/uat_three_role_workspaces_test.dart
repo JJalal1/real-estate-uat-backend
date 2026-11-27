@@ -10,7 +10,10 @@ void main() {
     expect(shell, contains("label: 'لوحة الدعم'"));
     expect(shell, contains("label: 'لوحة الفريق'"));
     expect(shell, contains("label: 'الوارد'"));
-    expect(shell, contains("label: 'مهامي'"));
+    expect(shell, contains('SupportMapScreen('));
+    expect(shell, contains('messagesOnly: true'));
+    expect(shell, contains('الدخول كمستخدم'));
+    expect(shell, isNot(contains("label: 'مهامي'")));
     expect(shell, contains("label: 'الأعمال'"));
     expect(shell, contains("label: 'الفريق'"));
     expect(shell, contains("roles.contains('support_agent')"));

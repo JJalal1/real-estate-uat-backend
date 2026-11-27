@@ -385,7 +385,7 @@ class MapSearchActions {
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({this.initialLatitude, this.initialLongitude, this.initialType, this.initialFilters, this.sharedSearchJourney=false, this.searchToolbar, this.onShowList,
     this.searchSessionProvider, this.enforceViewport = false, this.resultsMaxExtent = .84,
-    this.collapseResults = false, this.onMapInteraction, this.searchToolbarBuilder, this.onSmartSearch, this.toolbarAboveMap = false, this.isJourneyCurrent, this.cameraCenterHint, super.key});
+    this.collapseResults = false, this.onMapInteraction, this.searchToolbarBuilder, this.onSmartSearch, this.toolbarAboveMap = false, this.isJourneyCurrent, this.cameraCenterHint, this.lockedGovernorateCode, super.key});
   final double? initialLatitude, initialLongitude;
   final String? initialType;
   final SmartSearchFilters? initialFilters;
@@ -395,6 +395,7 @@ class MapScreen extends ConsumerStatefulWidget {
   final Future<void> Function()? onSmartSearch;
   final bool Function()? isJourneyCurrent;
   final LatLng? cameraCenterHint;
+  final String? lockedGovernorateCode;
   final VoidCallback? onShowList;
   final StateNotifierProvider<SmartSearchSession, SmartSearchState>? searchSessionProvider;
   final bool enforceViewport, collapseResults, toolbarAboveMap;
@@ -470,7 +471,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   bool _cameraRestored = false, _restoringCamera = false;
   String get _offlineCameraKey =>
-      'actor:${ref.read(authControllerProvider).asData?.value?.id ?? 'guest'}:${widget.sharedSearchJourney ? 'shared' : 'map'}';
+      'actor:${ref.read(authControllerProvider).asData?.value?.id ?? 'guest'}:${widget.lockedGovernorateCode == null ? (widget.sharedSearchJourney ? 'shared' : 'map') : 'support:${widget.lockedGovernorateCode}'}';
   String get _cameraCriteria => (widget.sharedSearchJourney
           ? ref.read(_searchSession).filters
           : _currentSmartFilters())
@@ -588,7 +589,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _applySharedFilters(SmartSearchFilters.fromMap({...ref.read(homeLocationProvider).searchContext,
           if (widget.initialType != null) 'type':widget.initialType}));
       }
-      unawaited(_restoreDiscoveryHistory());
+      if (widget.lockedGovernorateCode == null) unawaited(_restoreDiscoveryHistory());
     }
   }
 
@@ -663,7 +664,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       };
 
   void _persistDiscoveryHistory() {
-    if (widget.sharedSearchJourney) return;
+    if (widget.sharedSearchJourney || widget.lockedGovernorateCode != null) return;
     unawaited(
       _historyStore.record(
         query: _searchText,
@@ -1584,6 +1585,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final effective = Map<String, dynamic>.from(_currentSmartFilters().apiFilters)..removeWhere((key, _) => const {
       'purpose','type','min_price','max_price','min_monthly_rent','max_monthly_rent','min_bedrooms','min_bathrooms','min_area_m2','max_area_m2','search',
       'latitude','longitude','radius_km','south','west','north','east'}.contains(key));
+    if (widget.lockedGovernorateCode case final code?) {
+      effective.remove('governorate');
+      effective['governorate_code'] = code;
+    }
     if (bounds != null) effective['viewport'] = 1;
     final query = NearbyQuery(
       center: _center,
@@ -2195,9 +2200,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Material(elevation: 3, color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), child: TextButton.icon(
-            key: const ValueKey('map-smart-search'), onPressed: _openSmartSearch, icon: const SmartSearchRobotIcon(), label: const Text('بحث ذكي'))),
-          const SizedBox(height: 8),
+          if (widget.lockedGovernorateCode == null) ...[
+            Material(elevation: 3, color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(16), child: TextButton.icon(
+              key: const ValueKey('map-smart-search'), onPressed: _openSmartSearch, icon: const SmartSearchRobotIcon(), label: const Text('بحث ذكي'))),
+            const SizedBox(height: 8),
+          ],
           Material(
             elevation: 5,
             color: Theme.of(context).colorScheme.surface,
@@ -2223,14 +2230,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          _MapActionButton(
-            tooltip: 'موقعي',
-            icon: Icons.my_location,
-            onPressed: _userLocation == null
-                ? _loadCurrentLocation
-                : _moveToMyLocation,
-          ),
+          if (widget.lockedGovernorateCode == null) ...[
+            const SizedBox(height: 8),
+            _MapActionButton(
+              tooltip: 'موقعي',
+              icon: Icons.my_location,
+              onPressed: _userLocation == null
+                  ? _loadCurrentLocation
+                  : _moveToMyLocation,
+            ),
+          ],
         ],
       ),
     );

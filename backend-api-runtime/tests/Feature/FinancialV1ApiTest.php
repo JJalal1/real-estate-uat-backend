@@ -10,6 +10,7 @@ use App\Models\PropertySaiTerm;
 use App\Models\Role;
 use App\Models\SupportTask;
 use App\Models\User;
+use App\Services\FinancialSupportTaskService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -302,10 +303,52 @@ class FinancialV1ApiTest extends TestCase
         $taskId=(int)$inbox->json('data.0.id');
         $this->assertSame((int)$projected->id,$taskId);
 
+        [$manager, $managerHeaders] = $this->user('financial-support-manager@example.test', '+967772000044', ['support_manager']);
+        DB::table('support_teams')->where('id', $projected->support_team_id)->update(['manager_user_id' => $manager->id]);
+        $this->withHeaders($managerHeaders)->putJson("/api/admin/workspace/tasks/$taskId/assign", ['user_id' => $agent->id])
+            ->assertOk()->assertJsonPath('data.assignment_source', 'assigned')->assertJsonPath('data.claimed_at', null);
+        $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertForbidden();
+        $this->withHeaders($agentHeaders)->postJson("/api/admin/finance/payments/$paymentId/review", ['decision' => 'confirm'])
+            ->assertForbidden();
+
         $this->withHeaders($agentHeaders)->postJson("/api/admin/workspace/tasks/$taskId/claim")->assertOk()->assertJsonPath('data.is_mine',true);
         $this->withHeaders($agentHeaders)->getJson("/api/admin/finance/payments/$paymentId")->assertOk()->assertJsonPath('data.status','under_review');
         $this->withHeaders($agentHeaders)->postJson("/api/admin/finance/payments/$paymentId/review",['decision'=>'correction','note'=>'صورة الإثبات غير واضحة'])->assertOk()->assertJsonPath('data.status','correction_required');
         $this->assertDatabaseHas('support_tasks',['id'=>$taskId,'source_type'=>'payment_review','status'=>'waiting_user','assigned_to_user_id'=>$agent->id]);
+
+        $payment = PropertyPayment::query()->findOrFail($paymentId);
+        $payment->forceFill(['status' => 'proof_submitted'])->save();
+        $this->assertSame($taskId, app(FinancialSupportTaskService::class)->projectPayment($payment)->id);
+        $this->assertDatabaseHas('support_tasks', ['id' => $taskId, 'status' => 'needs_followup', 'assigned_to_user_id' => $agent->id]);
+    }
+
+    public function test_payment_review_routes_to_the_property_governorate_even_for_legacy_unassigned_proofs(): void
+    {
+        [$agreementId, $property, , $buyer] = $this->acceptedSaleDeal('buyer');
+        $property->forceFill(['address' => 'المحافظة: محافظة ذمار - المدينة: ذمار', 'geo_cell_id' => null])->saveQuietly();
+        $provinceId = (int) DB::table('governorates')->where('code', 'DHAMAR')->value('id');
+        $localTeamId = (int) DB::table('support_teams')->where('governorate_id', $provinceId)->value('id');
+        $fallbackTeamId = (int) DB::table('support_teams')->where('is_fallback', true)->value('id');
+        $payment = PropertyPayment::query()->create([
+            'reference' => 'PAY-REGIONAL-REVIEW',
+            'deal_financial_term_id' => DB::table('property_deal_financial_terms')->where('property_agreement_id', $agreementId)->value('id'),
+            'property_id' => $property->id,
+            'payer_user_id' => $buyer->id,
+            'advertiser_user_id' => $property->user_id,
+            'payment_method_id' => DB::table('property_payment_methods')->value('id'),
+            'mode' => 'platform_sai_only', 'status' => 'proof_submitted', 'required_amount' => 900_000, 'currency' => 'YER',
+            'submitted_at' => now(),
+        ]);
+
+        $service = app(FinancialSupportTaskService::class);
+        $task = $service->projectPayment($payment);
+        $this->assertSame($localTeamId, (int) $task->support_team_id);
+        $this->assertSame($provinceId, (int) $task->governorate_id);
+        $task->forceFill(['support_team_id' => $fallbackTeamId, 'governorate_id' => null])->save();
+        $service->refreshUnassignedRouting();
+        $this->assertDatabaseHas('support_tasks', [
+            'id' => $task->id, 'support_team_id' => $localTeamId, 'governorate_id' => $provinceId,
+        ]);
     }
 
     public function test_batched_overdue_checks_preserve_visibility_and_financial_amounts(): void

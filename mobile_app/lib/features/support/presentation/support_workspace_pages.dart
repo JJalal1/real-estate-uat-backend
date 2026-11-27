@@ -10,34 +10,43 @@ import '../../regions/presentation/platform_regions_screen.dart';
 import '../data/support_workspace_repository.dart';
 import '../domain/support_workspace_models.dart';
 import 'support_tasks_screen.dart';
+import 'support_team_administration_screen.dart';
 
 class SupportAgentHomeScreen extends ConsumerWidget {
-  const SupportAgentHomeScreen({super.key});
+  const SupportAgentHomeScreen({this.actingAsAgent = false, this.returnToManager, super.key});
+  final bool actingAsAgent;
+  final VoidCallback? returnToManager;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return _DashboardFrame(
       title: 'مركز الدعم',
-      load: () => ref.read(supportWorkspaceRepositoryProvider).dashboard(),
+      load: () {
+        final repository = ref.read(supportWorkspaceRepositoryProvider);
+        return actingAsAgent ? repository.agentDashboard() : repository.dashboard();
+      },
+      actingAsAgent: actingAsAgent,
+      showHero: false,
+      topAction: returnToManager == null ? null : EbrokerOutlinedButton.icon(
+        onPressed: returnToManager,
+        icon: const EbrokerIcon(Icons.groups_outlined),
+        label: const Text('العودة إلى لوحة الفريق'),
+      ),
       cards: const [
-        _DashboardCardSpec('my_tasks', 'مهامي', Icons.assignment_ind_outlined, _DashboardAction.mine),
-        _DashboardCardSpec('completed_today', 'المنجزة', Icons.task_alt_outlined, _DashboardAction.completed),
-        _DashboardCardSpec('inbox_new', 'الوارد الجديد', Icons.inbox_outlined, _DashboardAction.inbox),
-        _DashboardCardSpec('account_verifications', 'طلبات التحقق', Icons.verified_user_outlined, _DashboardAction.verifications),
-        _DashboardCardSpec('listing_reviews', 'تحقيق الإعلانات', Icons.fact_check_outlined, _DashboardAction.listings),
-        _DashboardCardSpec('tickets', 'التذاكر', Icons.support_agent_outlined, _DashboardAction.tickets),
-        _DashboardCardSpec('reports', 'البلاغات', Icons.report_outlined, _DashboardAction.reports),
-        _DashboardCardSpec('contact_followups', 'متابعة التواصل', Icons.phone_callback_outlined, _DashboardAction.contactFollowups),
-        _DashboardCardSpec('waiting_user', 'انتظار المستخدم', Icons.hourglass_bottom, _DashboardAction.waitingUser),
-        _DashboardCardSpec('overdue', 'المتأخر', Icons.timer_off_outlined, _DashboardAction.overdue),
+        _DashboardCardSpec('assigned', 'المهام المسندة إليك', Icons.assignment_ind_outlined, _DashboardAction.assigned),
+        _DashboardCardSpec('received', 'المهام المستلمة', Icons.inbox_outlined, _DashboardAction.received),
+        _DashboardCardSpec('open_tickets', 'التذاكر المفتوحة', Icons.chat_bubble_outline, _DashboardAction.openTickets),
+        _DashboardCardSpec('waiting_user', 'بانتظار المستخدم', Icons.hourglass_bottom, _DashboardAction.waitingUser),
+        _DashboardCardSpec('completed', 'المنجزة', Icons.task_alt_outlined, _DashboardAction.completed),
+        _DashboardCardSpec('unreceived_overdue', 'المتأخر', Icons.timer_off_outlined, _DashboardAction.unreceivedOverdue),
       ],
-      attentionTitle: 'يحتاج انتباهك',
     );
   }
 }
 
 class SupportManagerHomeScreen extends ConsumerWidget {
-  const SupportManagerHomeScreen({super.key});
+  const SupportManagerHomeScreen({this.onWorkAsAgent, super.key});
+  final VoidCallback? onWorkAsAgent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,7 +54,7 @@ class SupportManagerHomeScreen extends ConsumerWidget {
       title: 'إدارة الدعم',
       load: () => ref.read(supportWorkspaceRepositoryProvider).dashboard(),
       topAction: EbrokerFilledButton.icon(
-        onPressed: () => Navigator.of(context).push(
+        onPressed: onWorkAsAgent ?? () => Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => const SupportTasksScreen(
               initialScope: 'inbox',
@@ -137,7 +146,17 @@ class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('الفريق وعبء العمل'),
-            actions: [IconButton(onPressed: _refresh, icon: const EbrokerIcon(Icons.refresh))],
+            actions: [
+              if (canAdministerSupportTeams(ref.watch(authControllerProvider).asData?.value))
+                IconButton(
+                  tooltip: 'فرق المحافظات',
+                  icon: const EbrokerIcon(Icons.groups_outlined),
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(builder: (_) => const SupportTeamAdministrationScreen()),
+                  ),
+                ),
+              IconButton(onPressed: _refresh, icon: const EbrokerIcon(Icons.refresh)),
+            ],
           ),
           body: FutureBuilder<(List<SupportTeamMember>, List<SupportTeamSummary>)>(
             future: _future,
@@ -412,6 +431,8 @@ class _DashboardFrame extends ConsumerStatefulWidget {
     required this.cards,
     this.attentionTitle,
     this.topAction,
+    this.actingAsAgent = false,
+    this.showHero = true,
   });
 
   final String title;
@@ -419,6 +440,8 @@ class _DashboardFrame extends ConsumerStatefulWidget {
   final List<_DashboardCardSpec> cards;
   final String? attentionTitle;
   final Widget? topAction;
+  final bool actingAsAgent;
+  final bool showHero;
 
   @override
   ConsumerState<_DashboardFrame> createState() => _DashboardFrameState();
@@ -431,6 +454,9 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
   void initState() {
     super.initState();
     _future = widget.load(); _future.ignore();
+    ref.listenManual(supportWorkspaceRevisionProvider, (_, __) {
+      if (mounted) _refresh();
+    });
   }
 
   Future<void> _refresh() async {
@@ -461,7 +487,7 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
                 children: [
-                  _HeroHeader(mode: dashboard.mode),
+                  if (widget.showHero) _HeroHeader(mode: dashboard.mode),
                   if (widget.topAction != null) ...[
                     const SizedBox(height: 10),
                     SizedBox(width: double.infinity, child: widget.topAction!),
@@ -474,9 +500,9 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      childAspectRatio: 1.55,
+                      mainAxisExtent: 67 + 2.7 * MediaQuery.textScalerOf(context).scale(14),
                       crossAxisSpacing: 9,
                       mainAxisSpacing: 9,
                     ),
@@ -486,7 +512,10 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
                       return _DashboardCard(
                         spec: spec,
                         count: dashboard.count(spec.key),
-                        onTap: () => _openAction(context, spec.action),
+                        onTap: () async {
+                          await _openAction(context, spec.action, actingAsAgent: widget.actingAsAgent);
+                          if (mounted) await _refresh();
+                        },
                       );
                     },
                   ),
@@ -534,44 +563,35 @@ class _DashboardFrameState extends ConsumerState<_DashboardFrame> {
   }
 }
 
-void _openAction(BuildContext context, _DashboardAction action) {
+Future<void> _openAction(BuildContext context, _DashboardAction action, {bool actingAsAgent = false}) async {
   Widget? page;
   switch (action) {
     case _DashboardAction.inbox:
       page = const SupportTasksScreen(initialScope: 'inbox', title: 'الوارد الجديد');
       break;
-    case _DashboardAction.mine:
-      page = const SupportTasksScreen(initialScope: 'mine', title: 'مهامي');
+    case _DashboardAction.assigned:
+      page = SupportTasksScreen(initialScope: 'assigned', title: 'المهام المسندة إليك', actingAsAgent: actingAsAgent);
+      break;
+    case _DashboardAction.received:
+      page = SupportTasksScreen(initialScope: 'received', title: 'المهام المستلمة', actingAsAgent: actingAsAgent);
+      break;
+    case _DashboardAction.openTickets:
+      page = SupportTasksScreen(initialScope: 'open_tickets', title: 'التذاكر المفتوحة', actingAsAgent: actingAsAgent);
       break;
     case _DashboardAction.completed:
-      page = const SupportTasksScreen(initialScope: 'completed', title: 'المهام المنجزة');
+      page = SupportTasksScreen(initialScope: 'completed', title: 'المهام المنجزة', actingAsAgent: actingAsAgent);
       break;
     case _DashboardAction.all:
       page = const SupportTasksScreen(initialScope: 'all', title: 'كل الأعمال');
-      break;
-    case _DashboardAction.verifications:
-      page = const SupportTasksScreen(initialScope: 'inbox', initialType: 'account_verification', title: 'طلبات التحقق');
-      break;
-    case _DashboardAction.listings:
-      page = const SupportTasksScreen(initialScope: 'inbox', initialType: 'listing_review', title: 'تحقيق الإعلانات');
-      break;
-    case _DashboardAction.tickets:
-      page = const SupportTasksScreen(initialScope: 'inbox', initialType: 'support_ticket', title: 'التذاكر');
-      break;
-    case _DashboardAction.reports:
-      page = const SupportTasksScreen(initialScope: 'inbox', initialType: 'report', title: 'البلاغات');
-      break;
-    case _DashboardAction.contactFollowups:
-      page = const SupportTasksScreen(initialScope: 'inbox', initialType: 'contact_followup', title: 'متابعة التواصل');
       break;
     case _DashboardAction.contactFollowupsAll:
       page = const SupportTasksScreen(initialScope: 'all', initialType: 'contact_followup', title: 'متابعات التواصل');
       break;
     case _DashboardAction.waitingUser:
-      page = const SupportTasksScreen(initialScope: 'mine', initialStatus: 'waiting_user', title: 'انتظار المستخدم');
+      page = SupportTasksScreen(initialScope: 'waiting_user', title: 'بانتظار المستخدم', actingAsAgent: actingAsAgent);
       break;
-    case _DashboardAction.overdue:
-      page = const SupportTasksScreen(initialScope: 'mine', overdueOnly: true, title: 'المتأخر');
+    case _DashboardAction.unreceivedOverdue:
+      page = SupportTasksScreen(initialScope: 'unreceived_overdue', title: 'المتأخر', actingAsAgent: actingAsAgent);
       break;
     case _DashboardAction.overdueAll:
       page = const SupportTasksScreen(initialScope: 'all', overdueOnly: true, title: 'الحالات المتأخرة');
@@ -600,16 +620,16 @@ void _openAction(BuildContext context, _DashboardAction action) {
       page = const SupportTasksScreen(initialScope: 'all', initialType: 'account_verification', title: 'طلبات التحقق');
       break;
     case _DashboardAction.users:
-      context.push('/admin/access');
+      await context.push<void>('/admin/access');
       return;
     case _DashboardAction.regions:
       page = const PlatformRegionsScreen();
       break;
     case _DashboardAction.services:
-      context.push('/services');
+      await context.push<void>('/services');
       return;
   }
-  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page!));
+  await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page!));
 }
 
 class _PlatformDailySummary extends StatelessWidget {
@@ -660,7 +680,7 @@ class _DashboardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final urgent = spec.key == 'critical_reports' || spec.key == 'overdue';
+    final urgent = const {'critical_reports', 'overdue', 'unreceived_overdue'}.contains(spec.key);
     return Material(
       color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(8),
@@ -677,10 +697,10 @@ class _DashboardCard extends StatelessWidget {
                 children: [
                   EbrokerIcon(spec.icon, color: urgent && count > 0 ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary),
                   const Spacer(),
-                  Text('$count', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: urgent && count > 0 ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurface)),
+                  Flexible(child: Text('$count', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: urgent && count > 0 ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.onSurface))),
                 ],
               ),
-              Text(spec.label, maxLines: 2, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              Flexible(child: Text(spec.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13))),
             ],
           ),
         ),
@@ -793,17 +813,14 @@ class _DashboardCardSpec {
 
 enum _DashboardAction {
   inbox,
-  mine,
+  assigned,
+  received,
+  openTickets,
   completed,
   all,
-  verifications,
-  listings,
-  tickets,
-  reports,
-  contactFollowups,
   contactFollowupsAll,
   waitingUser,
-  overdue,
+  unreceivedOverdue,
   overdueAll,
   waitingUserAll,
   escalated,

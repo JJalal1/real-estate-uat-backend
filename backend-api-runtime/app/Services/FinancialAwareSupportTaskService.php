@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 
 class FinancialAwareSupportTaskService extends SupportTaskService
 {
+    private bool $routingRefreshed = false;
+
     public function __construct(
         AuditLogService $audit,
         UserNotificationService $notifications,
@@ -22,16 +24,14 @@ class FinancialAwareSupportTaskService extends SupportTaskService
         return $this->financialTasks->projectPayment($payment);
     }
 
-    public function queryFor(User $actor,array $filters): Builder
+    protected function visibleTaskQuery(User $actor, bool $actingAsAgent = false): Builder
     {
-        if (($filters['type']??null)==='payment_review') return $this->financialTasks->queryFor($actor,$filters);
-        $base=parent::queryFor($actor,$filters);
-        if (!empty($filters['type'])) return $base;
-        if ($actor->hasRole('support_agent') && !$actor->hasRole('support_manager') && $actor->hasPermission('payments.review')) {
-            $finance=$this->financialTasks->queryFor($actor,$filters);
-            $base->getQuery()->unionAll($finance->getQuery());
+        $query = parent::visibleTaskQuery($actor, $actingAsAgent);
+        if (!$this->routingRefreshed) {
+            $this->financialTasks->refreshUnassignedRouting();
+            $this->routingRefreshed = true;
         }
-        return $base;
+        return $query;
     }
 
     public function claim(User $actor,SupportTask $task,Request $request,bool $actingAsAgent=false): SupportTask
@@ -55,18 +55,16 @@ class FinancialAwareSupportTaskService extends SupportTaskService
             :parent::releaseTask($actor,$task,$request);
     }
 
-    public function dashboard(User $actor): array
+    public function dashboard(User $actor, bool $actingAsAgent = false, bool $workspaceV2 = false): array
     {
-        $data=parent::dashboard($actor);
-        if ($actor->hasRole('support_agent') && !$actor->hasRole('support_manager') && $actor->hasPermission('payments.review')) {
-            $inbox=$this->financialTasks->queryFor($actor,['scope'=>'inbox'])->count();
-            $mine=$this->financialTasks->queryFor($actor,['scope'=>'mine'])->count();
-            $data['inbox_new']=($data['inbox_new']??0)+$inbox;
-            $data['my_tasks']=($data['my_tasks']??0)+$mine;
-            $data['payment_reviews']=$inbox+$mine;
-        } elseif ($actor->hasRole('support_manager') || $actor->is_platform_owner || $actor->hasRole('super_admin')) {
-            $data['payment_reviews']=SupportTask::query()->where('source_type','payment_review')->whereIn('status',self::ACTIVE_STATUSES)->count();
-        }
+        $data = parent::dashboard($actor, $actingAsAgent, $workspaceV2);
+        $filters = ['type' => 'payment_review', 'acting_as_agent' => $actingAsAgent];
+        $scopes = $data['mode'] === 'agent' ? ['inbox', 'mine'] : ['all'];
+        $data['payment_reviews'] = array_sum(array_map(
+            fn(string $scope) => $this->queryFor($actor, [...$filters, 'scope' => $scope])
+                ->whereIn('status', self::ACTIVE_STATUSES)->count(),
+            $scopes,
+        ));
         return $data;
     }
 
@@ -74,7 +72,8 @@ class FinancialAwareSupportTaskService extends SupportTaskService
     {
         $rows=parent::teamMetrics($actor);
         foreach($rows as &$row){
-            $row['payment_reviews']=SupportTask::query()->where('source_type','payment_review')->where('assigned_to_user_id',$row['id'])->count();
+            $row['payment_reviews']=SupportTask::query()->where('source_type','payment_review')
+                ->where('support_team_id',$row['team_id'])->where('assigned_to_user_id',$row['id'])->count();
         }
         unset($row);
         return $rows;

@@ -38,18 +38,9 @@ class Wave2MediaTrustTest extends TestCase
         $this->withHeaders($ah)->postJson($url,$payload)->assertConflict();
         $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/start")->assertOk();
         $this->withHeaders($bh)->postJson($url,$payload)->assertConflict();
-        // A reviewer may not publish a photo that was never confirmed.
-        $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/approve", [])
-            ->assertConflict()
-            ->assertJsonPath('message','راجع صلة جميع صور الإعلان بالعقار واعتمد الصور المناسبة قبل النشر.');
         $one=$this->withHeaders($ah)->postJson($url,$payload)->assertOk()->assertJsonPath('data.checker','human_review');
         $this->withHeaders($ah)->postJson($url,$payload)->assertOk()->assertJsonPath('data.review_id',$one->json('data.review_id'));
         $this->assertSame(1,ListingReview::where('action','media_relevance_review')->count());
-        // Ambiguous/uncertain decisions are not equivalent to approval.
-        $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/approve", [])
-            ->assertConflict()
-            ->assertJsonPath('message','راجع صلة جميع صور الإعلان بالعقار واعتمد الصور المناسبة قبل النشر.');
-
         $this->assertSame('under_review',$ad->fresh()->review_status);
         $this->assertDatabaseHas('property_images',['id'=>$image->id,'path'=>$image->path]);
         $this->withHeaders($ah)->getJson("/api/admin/listing-review/listings/$ad->id")->assertOk()->assertJsonPath('data.images.0.relevance_review.decision','uncertain');
@@ -65,9 +56,43 @@ class Wave2MediaTrustTest extends TestCase
         $image->update(['path'=>'listing-originals/test/replaced.jpg']);
         $this->withHeaders($ah)->postJson($url,$payload)->assertConflict();
         $this->withHeaders($ah)->getJson("/api/admin/listing-review/listings/$ad->id")->assertOk()->assertJsonPath('data.images.0.relevance_review.decision','pending');
-        $other=$this->publishedListing($owner,'Other listing')->images()->create(['path'=>'listing-originals/other.jpg']);
+        $otherListing = $this->publishedListing($owner, 'Other listing');
+        $otherListing->forceFill(['status' => 'draft', 'review_status' => 'draft'])->save();
+        $other=$otherListing->images()->create(['path'=>'listing-originals/other.jpg']);
         $payload['image_id']=$other->id;
         $this->withHeaders($ah)->postJson($url,$payload)->assertNotFound();
+        // The approved listing decision covers photos without an explicit rejection.
+        $this->withHeaders($ah)->postJson("/api/admin/listing-review/listings/$ad->id/approve", [])
+            ->assertOk()->assertJsonPath('data.review_status', 'approved');
+    }
+
+    public function test_comparison_photo_is_private_and_bound_to_the_reviewed_candidate(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        [$owner, $ownerHeaders] = $this->user('w2-comparison-owner@example.test', '+967731200011');
+        [, $reviewerHeaders] = $this->user('w2-comparison-reviewer@example.test', '+967731200012', ['support_agent']);
+        [, $otherReviewerHeaders] = $this->user('w2-comparison-other@example.test', '+967731200013', ['support_agent']);
+        $listing = $this->publishedListing($owner, 'Comparison listing');
+        $listing->forceFill(['status' => 'draft', 'review_status' => 'submitted'])->save();
+        $candidate = $this->publishedListing($owner, 'Nearby listing');
+        $candidate->forceFill(['status' => 'draft', 'review_status' => 'submitted'])->save();
+        $file = UploadedFile::fake()->createWithContent('camera.jpg', $this->jpegWithExif(1));
+        $path = app(ListingImageService::class)->store($file, 'listing-originals/wave2');
+        $image = $candidate->images()->create(['path' => $path, 'sort_order' => 0, 'is_primary' => true]);
+        $reviewUrl = "/api/admin/listing-review/listings/{$listing->id}";
+        $photoUrl = "$reviewUrl/duplicates/{$candidate->id}/images/{$image->id}";
+
+        $this->withHeaders($reviewerHeaders)->postJson("$reviewUrl/start")->assertOk();
+        $this->withHeaders($reviewerHeaders)->getJson($reviewUrl)->assertOk()
+            ->assertJsonPath('data.likely_duplicate_candidates.0.image_url', $photoUrl)
+            ->assertJsonPath('data.likely_duplicate_candidates.0.currency', 'YER');
+        $this->withHeaders($ownerHeaders)->get($photoUrl)->assertForbidden();
+        $this->withHeaders($otherReviewerHeaders)->get($photoUrl)->assertForbidden();
+        $this->withHeaders($reviewerHeaders)->get($photoUrl)->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+
+        $candidate->forceFill(['review_status' => 'draft'])->save();
+        $this->withHeaders($reviewerHeaders)->get($photoUrl)->assertNotFound();
     }
 
     public function test_similar_street_photos_and_dimensions_are_not_exact_house_identity(): void

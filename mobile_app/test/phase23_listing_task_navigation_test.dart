@@ -47,6 +47,7 @@ class _Tasks implements SupportWorkspaceRepository {
     int perPage = 40,
     String scope = 'inbox',
     String? type,
+    String? category,
     String? status,
     String? priority,
     String? severity,

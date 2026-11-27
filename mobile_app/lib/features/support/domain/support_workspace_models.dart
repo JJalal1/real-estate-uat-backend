@@ -26,6 +26,10 @@ class SupportTaskItem {
     required this.canClaim,
     required this.isOverdue,
     this.sourceReference,
+    this.category,
+    this.assignmentSource,
+    this.isUnreceivedOverdue = false,
+    this.pickupDueAt,
     this.requesterUserId,
     this.requesterName,
     this.severity,
@@ -50,6 +54,10 @@ class SupportTaskItem {
   final String sourceType;
   final int sourceId;
   final String? sourceReference;
+  final String? category;
+  final String? assignmentSource;
+  final bool isUnreceivedOverdue;
+  final DateTime? pickupDueAt;
   final String subject;
   final int? requesterUserId;
   final String? requesterName;
@@ -83,6 +91,10 @@ class SupportTaskItem {
       sourceType: json['source_type']?.toString() ?? '',
       sourceId: _int(json['source_id']),
       sourceReference: _text(json['source_reference']),
+      category: _text(json['category']),
+      assignmentSource: _text(json['assignment_source']),
+      isUnreceivedOverdue: json['is_unreceived_overdue'] == true,
+      pickupDueAt: _date(json['pickup_due_at']),
       subject: json['subject']?.toString() ?? '',
       requesterUserId: _nullableInt(json['requester_user_id']),
       requesterName: _text(json['requester_name']),
@@ -209,6 +221,8 @@ class SupportTeamSummary {
     required this.unassigned,
     this.governorateId,
     this.governorateName,
+    this.managerUserId,
+    this.managerName,
   });
 
   final int id;
@@ -216,6 +230,8 @@ class SupportTeamSummary {
   final String name;
   final int? governorateId;
   final String? governorateName;
+  final int? managerUserId;
+  final String? managerName;
   final bool isFallback;
   final int agents;
   final int availableAgents;
@@ -228,11 +244,63 @@ class SupportTeamSummary {
         name: json['name']?.toString() ?? '',
         governorateId: _nullableInt(json['governorate_id']),
         governorateName: _text(json['governorate_name']),
+        managerUserId: _nullableInt(json['manager_user_id']),
+        managerName: _text(json['manager_name']),
         isFallback: json['is_fallback'] == true,
         agents: _int(json['agents']),
         availableAgents: _int(json['available_agents']),
         openTasks: _int(json['open_tasks']),
         unassigned: _int(json['unassigned']),
+      );
+}
+
+class SupportTeamCandidate {
+  const SupportTeamCandidate({
+    required this.id,
+    required this.name,
+    this.phone,
+    this.email,
+  });
+
+  final int id;
+  final String name;
+  final String? phone;
+  final String? email;
+
+  factory SupportTeamCandidate.fromJson(Map<String, dynamic> json) =>
+      SupportTeamCandidate(
+        id: _int(json['id']),
+        name: _text(json['name']) ?? 'مستخدم',
+        phone: _text(json['phone']),
+        email: _text(json['email']),
+      );
+}
+
+class SupportTeamMembership {
+  const SupportTeamMembership({
+    required this.userId,
+    required this.name,
+    required this.agent,
+    required this.manager,
+    required this.reviewPayments,
+    required this.reviewListings,
+  });
+
+  final int userId;
+  final String name;
+  final bool agent;
+  final bool manager;
+  final bool reviewPayments;
+  final bool reviewListings;
+
+  factory SupportTeamMembership.fromJson(Map<String, dynamic> json) =>
+      SupportTeamMembership(
+        userId: _int(json['user_id']),
+        name: _text(json['name']) ?? 'مستخدم',
+        agent: json['agent'] == true,
+        manager: json['manager'] == true,
+        reviewPayments: json['review_payments'] == true,
+        reviewListings: json['review_listings'] == true,
       );
 }
 
@@ -280,6 +348,14 @@ class SupportWorkspaceDashboard {
   int count(String key) => _int(values[key]);
   int? optionalInt(String key) =>
       values[key] == null ? null : _int(values[key]);
+
+  Set<int> get governorateIds => values['governorate_ids'] is List
+      ? (values['governorate_ids'] as List).map(_int).where((id) => id > 0).toSet()
+      : const <int>{};
+
+  Set<String> get governorateCodes => values['governorate_codes'] is List
+      ? (values['governorate_codes'] as List).whereType<String>().toSet()
+      : const <String>{};
 
   Map<String, dynamic> get today {
     final raw = values['today'];

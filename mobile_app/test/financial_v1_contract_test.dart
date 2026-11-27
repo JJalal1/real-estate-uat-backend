@@ -1,6 +1,65 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:real_estate_mobile/features/financial/data/financial_repository.dart';
+import 'package:real_estate_mobile/features/financial/domain/financial_models.dart';
+import 'package:real_estate_mobile/features/support/presentation/support_payment_review_screen.dart';
+
+import 'support/owner_ux_fixtures.dart';
+
+class _SupportPaymentRepository implements FinancialRepository {
+  final decisions = <(int, String, String?, bool)>[];
+  int proofLoads = 0;
+
+  @override
+  Future<FinancialPayment> adminPayment(
+    int paymentId, {
+    bool actingAsAgent = false,
+  }) async => FinancialPayment(
+        id: paymentId,
+        reference: 'PAY-TEST',
+        receivableReference: 'DUE-TEST',
+        status: 'under_review',
+        amount: 10000,
+        currency: 'YER',
+        propertyTitle: 'شقة اختبار المراجعة',
+        hasProof: true,
+      );
+
+  @override
+  Future<Response<List<int>>> paymentProof(
+    int paymentId, {
+    bool actingAsAgent = false,
+  }) async {
+    proofLoads++;
+    return Response(
+      requestOptions: RequestOptions(path: '/test-proof'),
+      data: uxImage,
+    );
+  }
+
+  @override
+  Future<FinancialPayment> reviewPayment(
+    int paymentId,
+    String decision, {
+    String? note,
+    bool actingAsAgent = false,
+  }) async {
+    decisions.add((paymentId, decision, note, actingAsAgent));
+    return FinancialPayment(
+      id: paymentId,
+      reference: 'PAY-TEST',
+      status: 'correction_required',
+      amount: 10000,
+      currency: 'YER',
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   test('listing editor keeps monthly price and selected rental conditions before settlement', () {
@@ -93,18 +152,59 @@ void main() {
     expect(source, contains('سداد مستحق المنصة'));
   });
 
-  test('support task resolution handles payment proof inside the claimed task', () {
+  test('claimed payment tasks open the actor-bound review screen', () {
     final source = File(
       'lib/features/support/presentation/support_tasks_screen.dart',
     ).readAsStringSync();
 
     expect(source, contains("case 'payment_review':"));
     expect(source, contains('_paymentReviewDialog(task)'));
-    expect(source, contains('التحقق من إثبات الدفع'));
-    expect(source, contains('طلب تصحيح'));
-    expect(source, contains('رفض'));
-    expect(source, contains('تأكيد الدفع'));
+    expect(source, contains('builder: (_) => SupportPaymentReviewScreen('));
+    expect(source, contains('paymentId: task.sourceId'));
     expect(source, contains('actingAsAgent: widget.actingAsAgent'));
+  });
+
+  testWidgets('receipt opens with zoom and correction requires a reason', (tester) async {
+    await tester.runAsync(loadUxFixtures);
+    final payments = _SupportPaymentRepository();
+    final container = uxContainer(
+      user: uxUser(roles: const ['support_agent']),
+      extra: [financialRepositoryProvider.overrideWithValue(payments)],
+    );
+    await pumpUx(tester, container, Scaffold(
+      body: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute(
+            builder: (_) => const SupportPaymentReviewScreen(
+              paymentId: 21, actingAsAgent: true,
+            ),
+          )),
+          child: const Text('فتح الاختبار'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('فتح الاختبار'));
+    await uxFrames(tester);
+    expect(find.textContaining('DUE-TEST'), findsOneWidget);
+    final receipt = find.text('عرض الإيصال');
+    await tester.ensureVisible(receipt);
+    await tester.tap(receipt);
+    await uxFrames(tester);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    await tester.pageBack();
+    await uxFrames(tester);
+    expect(payments.proofLoads, 1);
+    await tester.tap(find.text('طلب تصحيح الإيصال'));
+    await uxFrames(tester);
+    final confirm = find.text('تأكيد');
+    await tester.tap(confirm);
+    await uxFrames(tester);
+    expect(payments.decisions, isEmpty);
+    await tester.enterText(find.byType(TextField), 'أرسل صورة أوضح');
+    await tester.tap(confirm);
+    await uxFrames(tester);
+    expect(payments.decisions, [(21, 'correction', 'أرسل صورة أوضح', true)]);
+    await closeUx(tester);
   });
 
   test('general manager finance workspace exposes complete sections and filters', () {

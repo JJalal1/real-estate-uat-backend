@@ -10,13 +10,17 @@ import '../../../core/local/stage6_secure_session_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../account/presentation/actor_scoped_page.dart';
 import '../../properties/domain/property_field_options.dart';
+import '../../properties/presentation/property_location_preview.dart';
 import '../data/listing_review_repository.dart';
 import '../domain/listing_duplicate_candidate.dart';
 import '../domain/listing_review_models.dart';
 import 'listing_duplicate_notice.dart';
 import 'review_protected_photo.dart';
+import 'review_photo_viewer.dart';
+import 'listing_review_comparison_screen.dart';
 
 final reviewQueueProvider = StateNotifierProvider.autoDispose<
     ReviewPageController<ReviewListingItem>, ReviewPageState<ReviewListingItem>>((ref) =>
@@ -414,311 +418,342 @@ class _ListingReviewCaseScreenState
   Widget _body(_ReviewBundle bundle) {
     final item = bundle.detail;
     final isClaimed = item.reviewStatus == 'under_review';
+    final rejectedPhotos = item.images.where((image) => image.relevance == 'unrelated').length;
     final needsDuplicateReason = item.duplicateCheckStatus == 'needs_support' ||
-        item.duplicateDetection != null ||
-        bundle.duplicates.isNotEmpty;
+        item.duplicateDetection != null || bundle.duplicates.isNotEmpty;
     final hasConfirmedPublicDuplicate = item.duplicateCheckStatus == 'confirmed_duplicate' &&
         bundle.duplicates.any((candidate) => candidate.canRejectAsDuplicate);
 
-    return ListView(
-      padding: const EdgeInsetsDirectional.fromSTEB(
-        AppLayout.compactPageGutter,
-        AppSpacing.s12,
-        AppLayout.compactPageGutter,
-        AppSpacing.s32,
-      ),
+    return Column(
       children: [
-        AppSurface(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        Expanded(
+          child: ListView(
+            key: PageStorageKey<String>('listing-review-${item.id}'),
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              AppLayout.compactPageGutter, AppSpacing.s12,
+              AppLayout.compactPageGutter, AppSpacing.s16,
+            ),
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.title, style: Theme.of(context).textTheme.titleLarge),
+              _listingSummary(item, isClaimed),
+              const SizedBox(height: AppSpacing.s16),
+              AppSectionHeader(title: 'صور الإعلان (${arabicDigits('${item.images.length}')})'),
+              const SizedBox(height: AppSpacing.s8),
+              if (item.images.isEmpty)
+                const AppInlineMessage(message: 'لا توجد صور للإعلان.', tone: AppStatusTone.error)
+              else ...[
+                ReviewPhotoPreview(
+                  photo: item.images.first,
+                  height: 210,
+                  onOpen: () => _openGallery(item.images, 0, canReject: isClaimed),
+                ),
+                if (item.images.length > 1) ...[
                   const SizedBox(height: AppSpacing.s8),
-                  AppStatusBadge(
-                    label: isClaimed ? 'تم الاستلام - قيد التحقيق' : _reviewStatus(item.reviewStatus),
-                    tone: isClaimed ? AppStatusTone.info : AppStatusTone.warning,
+                  SizedBox(
+                    height: 74,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: item.images.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s8),
+                      itemBuilder: (_, index) => SizedBox(
+                        width: 78,
+                        child: ReviewPhotoPreview(
+                          photo: item.images[index],
+                          height: 74,
+                          onOpen: () => _openGallery(item.images, index, canReject: isClaimed),
+                          showExpand: false,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.s8),
-              _InfoRow(label: 'المعلن', value: item.ownerName),
-              _InfoRow(label: 'نوع الحساب', value: _verificationType(item.ownerVerificationType)),
-              _InfoRow(label: 'حالة التحقق', value: _verificationStatus(item.ownerVerificationStatus)),
-              _InfoRow(label: 'الغرض', value: item.purpose == 'sale' ? 'بيع' : 'إيجار'),
-              _InfoRow(label: 'النوع', value: propertyTypeLabels[item.type] ?? 'غير محدد'),
-              _InfoRow(label: 'السعر', value: item.price.toStringAsFixed(0)),
-              _InfoRow(label: 'العنوان', value: item.address),
-              _InfoRow(
-                label: 'الموقع',
-                value: '${item.latitude.toStringAsFixed(6)}, ${item.longitude.toStringAsFixed(6)}',
-              ),
-              if (item.areaValue != null || item.areaM2 != null)
-                _InfoRow(
-                  label: 'المساحة',
-                  value:
-                      '${formatPropertyAreaValue(item.areaValue ?? item.areaM2!.toDouble())} ${propertyAreaUnitLabel(item.areaUnit ?? 'sqm')}',
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.s16),
-        if (item.ownerVerificationType == 'owner') ...[
-          const AppSectionHeader(
-            title: 'علاقة المالك بهذا العقار',
-            subtitle: 'هذه الأدلة خاصة ولا تظهر للعامة.',
-          ),
-          const SizedBox(height: AppSpacing.s8),
-          AppSurface(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _InfoRow(label: 'نوع المستند', value: _ownershipDocumentType(item.ownershipDocumentType)),
-                _InfoRow(label: 'الاسم في المستند', value: item.documentOwnerName ?? '—'),
-                _InfoRow(label: 'صفة الحساب', value: _relationshipType(item.ownerRelationshipType)),
-                if (item.ownerRelationshipNote != null)
-                  _InfoRow(label: 'التوضيح', value: item.ownerRelationshipNote!),
-                AppStatusBadge(
-                  label: item.ownershipDocumentPresent ? 'مستند العلاقة مرفوع' : 'مستند العلاقة مفقود',
-                  tone: item.ownershipDocumentPresent
-                      ? AppStatusTone.success
-                      : AppStatusTone.error,
+              ],
+              if (rejectedPhotos > 0) ...[
+                const SizedBox(height: AppSpacing.s8),
+                AppInlineMessage(
+                  message: 'صور تحتاج تصحيحًا: ${arabicDigits('$rejectedPhotos')}. افتح الصورة لقراءة السبب.',
+                  tone: AppStatusTone.error,
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.s16),
-        ],
-        AppSectionHeader(title: 'صور الإعلان (${item.images.length})'),
-        const SizedBox(height: AppSpacing.s8),
-        if (item.images.isEmpty)
-          const AppInlineMessage(
-            message: 'لا توجد صور للإعلان.',
-            tone: AppStatusTone.error,
-          )
-        else
-          SizedBox(
-            height: 170,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: item.images.length,
-              separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.s8),
-              itemBuilder: (_, index) => SizedBox(
-                width: 220,
-                child: ReviewProtectedPhoto(url: item.images[index].url),
-              ),
-            ),
-          ),
-        const SizedBox(height: AppSpacing.s16),
-        const AppInlineMessage(message: 'راجع صلة كل صورة بالعقار. الأرض الفارغة أو البناء غير المكتمل قد يكونان صحيحين. الاشتباه وحده لا يرفض الإعلان؛ استخدم الإرجاع للتصحيح مع سبب واضح عند الحاجة.'),
-        const SizedBox(height: AppSpacing.s8),
-        for (var index = 0; index < item.images.length; index++) Padding(padding: const EdgeInsets.only(bottom: 8), child: AppSurface(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('الصورة ${index + 1} — ${_mediaDecisionLabel(item.images[index].relevance)}'),
-          if (item.images[index].reviewReason != null) Text(item.images[index].reviewReason!),
-          TextButton.icon(onPressed: _busy || !isClaimed || item.images[index].relevanceToken == null ? null : () => _reviewMedia(item.images[index]), icon: const Icon(Icons.fact_check_outlined), label: const Text('تسجيل المراجعة البشرية')),
-        ]))),
-        AppSectionHeader(title: 'مستندات الإثبات (${item.proofDocuments.length})'),
-        const SizedBox(height: AppSpacing.s8),
-        if (item.proofDocuments.isEmpty)
-          const AppInlineMessage(
-            message: 'لا توجد مستندات إثبات.',
-            tone: AppStatusTone.warning,
-          )
-        else
-          ...item.proofDocuments.map(
-            (media) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.s8),
-              child: AppSurface(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(media.name ?? 'مستند إثبات'),
-                    const SizedBox(height: AppSpacing.s8),
-                    SizedBox(height: 190, child: ReviewProtectedPhoto(url: media.url)),
-                  ],
+              const SizedBox(height: AppSpacing.s16),
+              _duplicateSection(bundle, isClaimed),
+              const SizedBox(height: AppSpacing.s12),
+              _details(item),
+              if (item.proofDocuments.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.s8),
+                _section('مستندات الإثبات (${arabicDigits('${item.proofDocuments.length}')})', [
+                  for (final (index, media) in item.proofDocuments.indexed)
+                    ListTile(
+                      leading: const Icon(Icons.description_outlined),
+                      title: Text(media.name ?? 'مستند إثبات'),
+                      trailing: const Icon(Icons.open_in_new),
+                      onTap: () => _openGallery(item.proofDocuments, index, title: 'مستند الإثبات'),
+                    ),
+                ]),
+              ],
+              const SizedBox(height: AppSpacing.s8),
+              _section('سجل المراجعة (${arabicDigits('${item.reviewHistory.length}')})', [
+                for (final event in item.reviewHistory.reversed)
+                  AppListRow(
+                    title: event.actionLabel,
+                    subtitle: [
+                      if (event.actorName case final name?) name,
+                      if (event.displayReason case final reason?) reason,
+                    ].join('\n'),
+                    leading: const EbrokerIcon(Icons.history),
+                  ),
+                if (item.reviewHistory.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('لا توجد مراجعات سابقة.'),
+                  ),
+              ]),
+              if (!isClaimed) ...[
+                const SizedBox(height: AppSpacing.s12),
+                const AppInlineMessage(
+                  title: 'استلم الطلب أولًا',
+                  message: 'تتوفر إجراءات المراجعة بعد الاستلام.',
+                  tone: AppStatusTone.info,
                 ),
-              ),
-            ),
-          ),
-        const SizedBox(height: AppSpacing.s16),
-        _duplicateSection(bundle, isClaimed: isClaimed),
-        const SizedBox(height: AppSpacing.s16),
-        AppSectionHeader(title: 'سجل المراجعة (${item.reviewHistory.length})'),
-        const SizedBox(height: AppSpacing.s8),
-        AppSurface(
-          padding: EdgeInsets.zero,
-          child: item.reviewHistory.isEmpty
-              ? const Padding(
-                  padding: EdgeInsetsDirectional.all(AppLayout.surfacePadding),
-                  child: Text('لا توجد مراجعات سابقة.'),
-                )
-              : Column(
-                  children: [
-                    for (var i = 0; i < item.reviewHistory.length; i++) ...[
-                      AppListRow(
-                        title: item.reviewHistory[i].actionLabel,
-                        subtitle: [
-                          if (item.reviewHistory[i].actorName != null)
-                            item.reviewHistory[i].actorName!,
-                          if (item.reviewHistory[i].reason != null)
-                            item.reviewHistory[i].reason!,
-                        ].join('\n'),
-                        leading: const EbrokerIcon(Icons.history),
-                      ),
-                      if (i != item.reviewHistory.length - 1) const Divider(height: 1),
-                    ],
-                  ],
-                ),
-        ),
-        const SizedBox(height: AppSpacing.s20),
-        if (!isClaimed)
-          AppInlineMessage(
-            title: 'استلم الطلب أولاً',
-            message: 'قرارات القبول والإرجاع والرفض لا تتاح لموظف الدعم قبل امتلاك المهمة.',
-            tone: AppStatusTone.warning,
-          )
-        else
-          Wrap(
-            spacing: AppSpacing.s8,
-            runSpacing: AppSpacing.s8,
-            children: [
-              AppButton(
-                label: 'قبول ونشر',
-                icon: Icons.check_circle_outline,
-                loading: _busy,
-                onPressed: _busy ? null : () => _approve(needsDuplicateReason),
-              ),
-              AppButton(
-                label: 'إرجاع للتصحيح',
-                icon: Icons.edit_note_outlined,
-                style: AppButtonStyle.outlined,
-                onPressed: _busy ? null : _returnForCorrection,
-              ),
-              if (!hasConfirmedPublicDuplicate)
-                AppButton(
-                  label: 'رفض نهائي وحظر',
-                  icon: Icons.block_outlined,
-                  style: AppButtonStyle.tonal,
-                  onPressed: _busy ? null : _reject,
-                ),
+              ],
             ],
+          ),
+        ),
+        if (isClaimed)
+          Material(
+            color: Theme.of(context).colorScheme.surface,
+            elevation: 3,
+            child: SafeArea(
+              top: false,
+              child: SizedBox(
+                width: double.infinity,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: AppSpacing.s8,
+                    runSpacing: AppSpacing.s4,
+                    children: [
+                      AppButton(
+                        label: 'قبول ونشر',
+                        loading: _busy,
+                        onPressed: _busy || rejectedPhotos > 0 ? null : () => _approve(needsDuplicateReason),
+                      ),
+                      AppButton(
+                        label: 'إرجاع للتصحيح',
+                        style: AppButtonStyle.outlined,
+                        onPressed: _busy ? null : _returnForCorrection,
+                      ),
+                      if (!hasConfirmedPublicDuplicate)
+                        PopupMenuButton<String>(
+                          tooltip: 'المزيد',
+                          enabled: !_busy,
+                          onSelected: (_) => _reject(),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 'block', child: Text('رفض نهائي وحظر')),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
       ],
     );
   }
 
-  Widget _duplicateSection(_ReviewBundle bundle, {required bool isClaimed}) {
-    final duplicates = bundle.duplicates;
+  Widget _listingSummary(ReviewListingDetail item, bool isClaimed) {
+    final area = item.areaValue != null && item.areaUnit != null
+        ? item.areaValue : item.areaM2?.toDouble();
+    final areaUnit = item.areaValue != null && item.areaUnit != null ? item.areaUnit! : 'sqm';
+    return AppSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: AppSpacing.s8,
+            runSpacing: AppSpacing.s8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(item.title, style: Theme.of(context).textTheme.titleLarge),
+              AppStatusBadge(
+                label: isClaimed ? 'قيد التحقيق' : _reviewStatus(item.reviewStatus),
+                tone: isClaimed ? AppStatusTone.info : AppStatusTone.neutral,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s8),
+          Wrap(
+            spacing: AppSpacing.s8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(item.ownerName),
+              AppStatusBadge(
+                label: [
+                  _verificationType(item.ownerVerificationType),
+                  _verificationStatus(item.ownerVerificationStatus),
+                ].join(' · '),
+                tone: AppStatusTone.neutral,
+              ),
+            ],
+          ),
+          const Divider(),
+          _InfoRow(
+            label: 'السعر',
+            value: item.currency == null ? formatMoneyAmount(item.price) : moneyLabel(item.price, item.currency!),
+          ),
+          if (area != null)
+            _InfoRow(
+              label: 'المساحة',
+              value: '${formatPropertyAreaValue(area)} ${propertyAreaUnitLabel(areaUnit)}',
+            ),
+          if (item.address.isNotEmpty)
+            Text(item.address, maxLines: 1, overflow: TextOverflow.ellipsis),
+          if (item.latitude.isFinite && item.longitude.isFinite &&
+              item.latitude.abs() <= 90 && item.longitude.abs() <= 180 &&
+              (item.latitude != 0 || item.longitude != 0))
+            TextButton.icon(
+              icon: const Icon(Icons.place_outlined),
+              label: const Text('عرض على الخريطة'),
+              onPressed: () => _openPrivatePage<void>('موقع العقار', (_) =>
+                PropertyLocationScreen(latitude: item.latitude, longitude: item.longitude)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(String title, List<Widget> children) => AppSurface(
+    padding: EdgeInsets.zero,
+    child: ExpansionTile(title: Text(title), children: children),
+  );
+
+  Widget _details(ReviewListingDetail item) => _section('تفاصيل الإعلان', [
+    Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _InfoRow(label: 'الغرض', value: item.purpose == 'sale' ? 'بيع' : 'إيجار'),
+          _InfoRow(label: 'النوع', value: propertyTypeLabels[item.type] ?? 'غير محدد'),
+          if (item.address.isNotEmpty) _InfoRow(label: 'العنوان', value: item.address),
+          if (item.description.isNotEmpty) _InfoRow(label: 'الوصف', value: item.description),
+          if (item.ownerVerificationType == 'owner') ...[
+            const Divider(),
+            const Text('علاقة المالك بهذا العقار'),
+            _InfoRow(label: 'نوع المستند', value: _ownershipDocumentType(item.ownershipDocumentType)),
+            _InfoRow(label: 'الاسم في المستند', value: item.documentOwnerName ?? '—'),
+            _InfoRow(label: 'صفة الحساب', value: _relationshipType(item.ownerRelationshipType)),
+            if (item.ownerRelationshipNote case final note?)
+              _InfoRow(label: 'التوضيح', value: note),
+            AppStatusBadge(
+              label: item.ownershipDocumentPresent ? 'مستند العلاقة مرفوع' : 'مستند العلاقة مفقود',
+              tone: item.ownershipDocumentPresent ? AppStatusTone.success : AppStatusTone.warning,
+            ),
+          ],
+        ],
+      ),
+    ),
+  ]);
+
+  Widget _duplicateSection(_ReviewBundle bundle, bool isClaimed) {
     final detection = bundle.detail.duplicateDetection;
-    if (duplicates.isEmpty && detection == null) {
-      if (const ['pending', 'check_failed'].contains(bundle.detail.duplicateCheckStatus)) {
+    final candidates = bundle.duplicates;
+    if (candidates.isEmpty && detection == null) {
+      final status = bundle.detail.duplicateCheckStatus;
+      if (status == 'pending' || status == 'check_failed') {
         return const AppInlineMessage(
           title: 'فحص التكرار',
-          message: 'فحص الهوية غير مكتمل. حدّث التحقيق للتحقق من الحالة قبل الاعتماد.',
-          tone: AppStatusTone.info,
+          message: 'فحص الهوية غير مكتمل. حدّث التحقيق قبل الاعتماد.',
         );
       }
-      if (bundle.detail.duplicateCheckStatus == 'needs_support') {
+      if (status == 'needs_support' || status == 'confirmed_duplicate') {
         return const AppInlineMessage(
           title: 'فحص التكرار',
-          message: 'تحتاج هوية العقار إلى تحقق. راجع بياناته وسجّل سبب قرارك قبل الاعتماد.',
+          message: 'تحتاج هوية العقار إلى تحقق.',
           tone: AppStatusTone.warning,
         );
       }
-      return const AppInlineMessage(
-        title: 'فحص التكرار',
-        message: 'لم تظهر مرشحات تشابه قوية وفق الموقع والعنوان والمواصفات الحالية. يبقى فحص هوية العقار الخادمي فعالاً عند النشر.',
-        tone: AppStatusTone.success,
-      );
+      return const SizedBox.shrink();
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppSectionHeader(
-          title: duplicates.isEmpty ? 'فحص التكرار' : 'اشتباه تكرار (${duplicates.length})',
-          subtitle: 'افحص أدلة التشابه قبل اتخاذ القرار.',
-        ),
-        const SizedBox(height: AppSpacing.s8),
-        if (detection != null && !duplicates.any((candidate) => candidate.detection != null)) ...[
-          ListingDuplicateNotice(detection: detection),
-          const SizedBox(height: AppSpacing.s8),
-        ],
-        for (final candidate in duplicates)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.s8),
-            child: AppSurface(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(candidate.title, style: Theme.of(context).textTheme.titleMedium),
-                      ),
-                      if (candidate.detection == null)
-                        AppStatusBadge(
-                          label: candidate.severityLabel,
-                          tone: candidate.score >= 8
-                              ? AppStatusTone.warning
-                              : AppStatusTone.info,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.s8),
-                  if (candidate.detection case final candidateDetection?) ...[
-                    ListingDuplicateNotice(detection: candidateDetection),
-                    const SizedBox(height: AppSpacing.s8),
-                  ],
-                  if (candidate.listingId > 0)
-                    _InfoRow(label: 'رقم الإعلان', value: candidate.listingId.toString()),
-                  _InfoRow(label: 'هوية العقار', value: candidate.propertyAssetId.toString()),
-                  _InfoRow(label: 'المسافة', value: '${candidate.distanceM} متر'),
-                  if (candidate.address != null)
-                    _InfoRow(label: 'العنوان', value: candidate.address!),
-                  Wrap(
-                    spacing: AppSpacing.s4,
-                    runSpacing: AppSpacing.s4,
-                    children: candidate.signalLabels
-                        .map((signal) => AppStatusBadge(label: signal, tone: AppStatusTone.neutral))
-                        .toList(growable: false),
-                  ),
-                  const SizedBox(height: AppSpacing.s8),
-                  Wrap(
-                    spacing: AppSpacing.s8,
-                    runSpacing: AppSpacing.s8,
-                    children: [
-                      if (candidate.canRejectAsDuplicate)
-                        AppButton(
-                          label: 'عرض الإعلان السابق',
-                          icon: Icons.visibility_outlined,
-                          style: AppButtonStyle.outlined,
-                          onPressed: _busy ? null : () => context.push('/properties/${candidate.listingId}'),
-                        ),
-                      if (isClaimed && candidate.canRejectAsDuplicate)
-                        AppButton(
-                          label: 'رفض الإعلان الجديد كمكرر',
-                          icon: Icons.content_copy_outlined,
-                          style: AppButtonStyle.tonal,
-                          onPressed: _busy ? null : () => _rejectDuplicate(candidate),
-                        ),
-                      if (candidate.propertyAssetId > 0)
-                        AppButton(
-                          label: 'ربط الإعلان بهوية هذا العقار',
-                          icon: Icons.link,
-                          style: AppButtonStyle.outlined,
-                          onPressed: _busy ? null : () => _linkCandidate(candidate),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+    return AppSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            title: candidates.isEmpty ? 'فحص التكرار' : 'اشتباه تكرار (${arabicDigits('${candidates.length}')})',
           ),
-      ],
+          if (detection != null) ...[
+            const SizedBox(height: AppSpacing.s4),
+            ListingDuplicateNotice(detection: detection),
+          ],
+          for (final candidate in candidates)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(candidates.length == 1 ? 'قارن الإعلانين' : candidate.title),
+              subtitle: Text(candidates.length == 1
+                  ? '${candidate.title} · ${arabicDigits('${candidate.distanceM}')} متر'
+                  : '${arabicDigits('${candidate.distanceM}')} متر'),
+              trailing: const Icon(Icons.compare_arrows),
+              onTap: _busy ? null : () => _openComparison(bundle.detail, candidate, isClaimed),
+            ),
+        ],
+      ),
     );
+  }
+
+  Future<T?> _openPrivatePage<T>(String title, WidgetBuilder builder) {
+    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final scope = ref.read(accountRequestScopeProvider);
+    if (actor == null || !scope.isCurrent) return Future<T?>.value();
+    return Navigator.of(context).push<T>(MaterialPageRoute<T>(
+      builder: (_) => ActorBoundPage(
+        title: title,
+        actorId: actor,
+        sessionEpoch: epoch,
+        requestScope: scope,
+        builder: builder,
+      ),
+    ));
+  }
+
+  Future<void> _openGallery(List<ReviewMediaItem> photos, int index, {
+    bool canReject = false, String title = 'صورة الإعلان',
+  }) async {
+    final scope = ref.read(accountRequestScopeProvider);
+    final result = await _openPrivatePage<(ReviewMediaItem, String)>(title, (_) =>
+      ReviewPhotoViewer(photos: photos, initialIndex: index, title: title, canReject: canReject));
+    if (result != null && mounted && scope.isCurrent) {
+      await _rejectPhoto(result.$1, result.$2);
+    }
+  }
+
+  Future<void> _openComparison(
+    ReviewListingDetail listing, ListingDuplicateCandidate candidate, bool isClaimed,
+  ) async {
+    final scope = ref.read(accountRequestScopeProvider);
+    final decision = await _openPrivatePage<ListingComparisonAction>('مقارنة الإعلانين', (_) =>
+      ListingReviewComparisonScreen(
+        listing: listing,
+        candidate: candidate,
+        canDecide: isClaimed,
+        onPhoto: (photo) => _openGallery([photo], 0),
+      ));
+    if (!mounted || !scope.isCurrent) return;
+
+    switch (decision) {
+      case ListingComparisonAction.link:
+        await _linkCandidate(candidate);
+      case ListingComparisonAction.reject:
+        await _rejectDuplicate(candidate);
+      case ListingComparisonAction.openPrevious:
+        await context.push('/properties/${candidate.listingId}');
+      case null:
+        break;
+    }
   }
 
   Future<void> _approve(bool needsDuplicateReason) async {
@@ -901,19 +936,25 @@ class _ListingReviewCaseScreenState
     );
   }
 
-  Future<void> _reviewMedia(ReviewMediaItem image) async {
+  Future<void> _rejectPhoto(ReviewMediaItem image, String reason) async {
     final token = image.relevanceToken;
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
-    final repository = ref.read(listingReviewRepositoryProvider);
     if (_busy || token == null) return;
-    final result = await showActorDialog<(String,String)>(ref: ref, context: context, builder: (_) => _MediaReviewDialog(image: image));
-    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
     setState(() => _busy = true);
     try {
-      await repository.reviewMedia(widget.listingId, image.id, token, result.$1, result.$2);
-      if (mounted) { _reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حُفظت المراجعة البشرية. لم يتغير قرار نشر الإعلان.'))); }
-    } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
-    finally { if (mounted) setState(() => _busy = false); }
+      await ref.read(listingReviewRepositoryProvider).reviewMedia(
+        widget.listingId, image.id, token, 'unrelated', reason,
+      );
+      if (mounted) {
+        _reload();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('حُفظ سبب رفض الصورة.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _runDecision(Future<void> Function() action) async {
@@ -934,37 +975,6 @@ class _ListingReviewCaseScreenState
       if (mounted) setState(() => _busy = false);
     }
   }
-}
-
-String _mediaDecisionLabel(String decision) => switch (decision) {
-  'relevant' => 'مرتبطة بالعقار', 'uncertain' => 'تحتاج توضيحًا', 'unrelated' => 'غير مرتبطة', _ => 'بانتظار المراجعة البشرية',
-};
-class _MediaReviewDialog extends StatefulWidget {
-  const _MediaReviewDialog({required this.image});
-  final ReviewMediaItem image;
-  @override
-  State<_MediaReviewDialog> createState() => _MediaReviewDialogState();
-}
-class _MediaReviewDialogState extends State<_MediaReviewDialog> {
-  final _form = GlobalKey<FormState>();
-  late final TextEditingController _reason;
-  late String _decision;
-  @override
-  void initState() {
-    super.initState(); _reason = TextEditingController(text: widget.image.reviewReason);
-    _decision = const ['relevant','uncertain','unrelated'].contains(widget.image.relevance) ? widget.image.relevance : 'uncertain';
-  }
-  @override
-  void dispose() { _reason.dispose(); super.dispose(); }
-  @override
-  Widget build(BuildContext context) => AlertDialog(scrollable: true, title: const Text('مراجعة صلة الصورة بالعقار'),
-    content: Form(key: _form, child: Column(mainAxisSize: MainAxisSize.min, children: [
-      SizedBox(height: 170, child: ReviewProtectedPhoto(url: widget.image.url)),
-      const SizedBox(height: 12),
-      DropdownButtonFormField<String>(value: _decision, isExpanded: true, items: [for (final value in ['relevant','uncertain','unrelated']) DropdownMenuItem(value: value, child: Text(_mediaDecisionLabel(value)))], onChanged: (value) => setState(() => _decision = value ?? 'uncertain')),
-      const SizedBox(height: 12), TextFormField(controller: _reason, minLines: 2, maxLines: 5, maxLength: 2000, decoration: const InputDecoration(labelText: 'سبب المراجعة'), validator: (value) => (value?.trim().length ?? 0) < 5 ? 'أضف سببًا واضحًا من خمسة أحرف على الأقل.' : null),
-    ])), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
-      FilledButton(onPressed: () { if (_form.currentState!.validate()) Navigator.pop(context, (_decision, _reason.text.trim())); }, child: const Text('حفظ المراجعة'))]);
 }
 
 class _PublicationBlocks extends ConsumerWidget {

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\GeneralManagerDashboardController;
 use App\Http\Controllers\Api\GeneralManagerInsightsController;
+use App\Http\Controllers\Api\SupportTeamController;
 use App\Http\Controllers\Api\SupportWorkspaceController;
 use Illuminate\Support\Facades\Route;
 
@@ -10,6 +11,7 @@ Route::get('/general-manager/insights', GeneralManagerDashboardController::class
 Route::get('/general-manager/team', [GeneralManagerInsightsController::class, 'team']);
 Route::get('/general-manager/place-search', [GeneralManagerInsightsController::class, 'placeSearch']);
 Route::get('/tasks', [SupportWorkspaceController::class, 'index']);
+Route::get('/support-messages', [SupportWorkspaceController::class, 'messages']);
 Route::get('/tasks/{taskId}', [SupportWorkspaceController::class, 'show'])->whereNumber('taskId');
 Route::post('/tasks/{task}/claim', [SupportWorkspaceController::class, 'claim']);
 Route::post('/tasks/{task}/release', [SupportWorkspaceController::class, 'release']);
@@ -25,5 +27,13 @@ Route::post('/tasks/{task}/contact-outcome', [SupportWorkspaceController::class,
 Route::get('/tasks/{task}/events', [SupportWorkspaceController::class, 'events']);
 Route::get('/team', [SupportWorkspaceController::class, 'team']);
 Route::get('/teams', [SupportWorkspaceController::class, 'teams']);
+Route::get('/teams/candidates', [SupportTeamController::class, 'candidates'])
+    ->middleware(['permission:users.view', 'permission:users.manage_roles', 'throttle:30,1,team-candidates']);
+Route::get('/teams/governorates', [SupportTeamController::class, 'governorates'])->middleware('permission:users.manage_roles');
+Route::post('/teams', [SupportTeamController::class, 'store'])->middleware('permission:users.manage_roles');
+Route::get('/teams/{team}/members', [SupportTeamController::class, 'members'])
+    ->whereNumber('team')->middleware('permission:users.manage_roles');
+Route::put('/teams/{team}/membership/{user}', [SupportTeamController::class, 'setMember'])
+    ->whereNumber(['team', 'user'])->middleware(['permission:users.manage_roles', 'permission:users.manage_permissions']);
 Route::put('/team/members/{user}', [SupportWorkspaceController::class, 'updateMember']);
 Route::post('/team/members/{user}/redistribute', [SupportWorkspaceController::class, 'redistributeMember']);
