@@ -14,7 +14,7 @@ void main() {
   setUpAll(loadUxFixtures);
 
   testWidgets(
-      'an active verified broker opens owned saved searches from Account through the authenticated hub',
+      'the authenticated services route still opens a broker’s owned saved searches',
       (tester) async {
     final auth = UxAuth(uxUser(id: 28, type: 'broker'));
     final scope = uxContainer(auth: auth, extra: [
@@ -44,11 +44,11 @@ void main() {
       GoRoute(path: services.path, builder: services.builder),
     ]);
     addTearDown(navigation.dispose);
-    await pumpUx(tester, scope, const SizedBox(), router: navigation);
-    final entry = find.text('الخدمات والأدوات');
-    await tester.scrollUntilVisible(entry, 240,
-        scrollable: find.byType(Scrollable).first);
-    await tester.tap(entry);
+    await pumpUx(tester, scope, const SizedBox(), router: navigation,
+      size: const Size(412, 1320));
+    expect(find.text('الخدمات والدعم'), findsOneWidget);
+    expect(find.text('الخدمات والأدوات'), findsNothing);
+    navigation.go('/services');
     await tester.pumpAndSettle();
     final saved = find.text('البحوث المحفوظة والتنبيهات');
     await tester.ensureVisible(saved);
@@ -66,7 +66,7 @@ void main() {
   });
 
   testWidgets(
-      'the broker account entry stays hidden in the administrative account layout',
+      'the services shortcut stays absent in the administrative account layout',
       (tester) async {
     final scope =
         uxContainer(user: uxUser(type: 'broker', roles: ['support_agent']));

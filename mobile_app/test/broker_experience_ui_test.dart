@@ -275,15 +275,25 @@ void main() {
     expect(find.text('العقارات النشطة'), findsNothing);
     final name = find.byKey(const ValueKey('profile-field-fullName'));
     final edit = find.byKey(const ValueKey('profile-edit-fullName'));
-    await tester.scrollUntilVisible(edit, 120, scrollable: find.byType(Scrollable).first);
-    expect(tester.widget<TextField>(find.descendant(of: name, matching: find.byType(TextField))).readOnly, isTrue);
+    final editableName = find.descendant(of: name, matching: find.byType(TextField));
+    final scrollable = find.byType(Scrollable).first;
+    final save = find.ancestor(of: find.text('حفظ'), matching: find.byType(MaterialButton));
+    await tester.scrollUntilVisible(edit, 120, scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(editableName).readOnly, isTrue);
     await tester.tap(edit);
     await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(editableName).readOnly, isFalse);
     await tester.enterText(name, 'محمد أحمد علي صالح');
-    await tester.scrollUntilVisible(find.text('حفظ'), 120, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(editableName).controller?.text, 'محمد أحمد علي صالح');
+    await tester.scrollUntilVisible(save, 120, scrollable: scrollable);
+    await tester.pumpAndSettle();
+    expect(save.hitTestable(), findsOneWidget);
+    expect(tester.widget<MaterialButton>(save).onPressed, isNotNull);
     final ref = ProviderScope.containerOf(tester.element(find.byType(ProfileScreen)));
     final auth = ref.read(authControllerProvider.notifier) as BrokerTestAuth;
-    await tester.tap(find.text('حفظ'));
+    await tester.tap(save);
     await tester.pumpAndSettle();
     expect(auth.savedPrivateProfile, {'name': 'محمد أحمد علي صالح'});
   });
@@ -293,10 +303,14 @@ void main() {
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
     expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'إعلاناتي', 'الرسائل', 'حسابي']);
     expect(nav.onCreate, isNotNull);
+    Future<void> openTab(String label) async {
+      final tab = find.descendant(of: find.byType(AppNavigationBar), matching: find.byTooltip(label));
+      await tester.tap(tab);
+      await tester.pumpAndSettle();
+    }
     expect(find.text('مهام تحتاج إجراء'), findsNothing);
     expect(find.byKey(const ValueKey('home-search')), findsOneWidget);
-    nav.onSelected(1);
-    await tester.pumpAndSettle();
+    await openTab('إعلاناتي');
     expect(find.byType(BrokerDashboardScreen), findsOneWidget);
     expect(find.byKey(const ValueKey('broker-achievement-carousel')), findsOneWidget);
     expect(find.text('أدوات عملك'), findsOneWidget);
@@ -304,18 +318,18 @@ void main() {
     expect(find.text('مشاركة إعلان منشور'), findsNothing);
     expect(find.byKey(const ValueKey('broker-tool-badge-الصفقات')), findsNothing);
     expect(find.byKey(const ValueKey('broker-tool-badge-المستحقات')), findsNothing);
-    nav.onSelected(2);
-    await tester.pumpAndSettle();
+    await openTab('حسابي');
+    final account = find.byType(AccountScreen);
+    expect(account, findsOneWidget);
+    expect(find.descendant(of: account, matching: find.text('تصفّح العقارات')), findsOneWidget);
+    expect(find.descendant(of: account, matching: find.text('لوحة العمل')), findsNothing);
+    expect(find.descendant(of: account, matching: find.text('إدارة العملاء')), findsNothing);
+    await openTab('الرسائل');
     expect(find.byType(TabBar), findsNothing);
     expect(find.text('كل الحالات'), findsOneWidget);
     expect(find.text('عميل تجريبي'), findsOneWidget);
     expect(find.text('إدارة العملاء'), findsNothing);
-    nav.onSelected(3); await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('لوحة العمل'), 300,
-      scrollable: find.descendant(of: find.byType(AccountScreen), matching: find.byType(Scrollable)).first);
-    await tester.pumpAndSettle();
-    expect(find.text('لوحة العمل'), findsOneWidget);
-    expect(find.text('إدارة العملاء'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
   testWidgets('regular account opens categories from the old messages slot', (tester) async {
     await _pump(tester, const AppShellScreen(), BrokerTestRepository(viewerId: 2), userId: 2);

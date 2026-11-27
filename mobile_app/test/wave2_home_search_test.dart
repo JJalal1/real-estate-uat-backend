@@ -142,11 +142,16 @@ void main() {
     controller.edit('أرض'); controller.applyFilters(SmartSearchFilters.fromMap({'type':'land','min_bedrooms':3,'min_area_m2':100}));
     controller.setLandUse('تجاري'); await Future<void>.delayed(Duration.zero);
     expect(scope.read(homeSearchResultsProvider).filters.values.containsKey('min_bedrooms'), isFalse);
-    expect(scope.read(homeSearchResultsProvider).filters.values['search'], 'أرض تجاري');
+    final land = scope.read(homeSearchResultsProvider).filters.values;
+    expect(land['type'], 'land');
+    expect(land['search'], 'تجاري');
     expect(scope.read(marketplaceSearchControllerProvider).draftQuery, 'أرض');
     controller.setChoice('type', 'apartment'); await Future<void>.delayed(Duration.zero);
     expect(scope.read(marketplaceSearchControllerProvider).landUse, isEmpty);
-    expect(scope.read(homeSearchResultsProvider).filters.values['search'], 'أرض');
+    final apartment = scope.read(homeSearchResultsProvider).filters.values;
+    expect(apartment['type'], 'apartment');
+    expect(apartment.containsKey('search'), isFalse);
+    expect(controller.uiFor().draftQuery, 'أرض');
   });
 
   test('S22 retain rows on 503, retry exact failed page and deduplicate pagination', () async {

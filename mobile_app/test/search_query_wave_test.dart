@@ -144,7 +144,8 @@ void main() {
     expect(ai.requests.last.filters, {'search': 'إب'});
     expect(session.state.filters.values, {'search': 'إب', 'min_price': 100000000, 'currency': 'YER'});
     expect(_draft(tester), 'السعر أكثر من ١٠٠ مليون');
-    expect(find.text('من 100 مليون ريال يمني'), findsOneWidget);
+    expect(find.byKey(const ValueKey('smart-chip-budget')), findsNothing);
+    expect(find.byKey(const ValueKey('smart-search-result-11')), findsOneWidget);
     expect(properties.queries.last.filters['min_price'], 100000000);
 
     await _submit(tester, 'خلها أرض للبيع');

@@ -67,7 +67,7 @@ void main() {
     expect(model, contains('bool can(String key)'));
   });
 
-  test('projects stay removed and services remain under account in accepted IA', () {
+  test('projects and the Account services shortcut stay removed while the hub remains routed', () {
     final shell = File(
       'lib/features/app_shell/presentation/app_shell_screen.dart',
     ).readAsStringSync();
@@ -83,11 +83,13 @@ void main() {
     expect(shell, contains("label: 'إعلاناتي'"));
     final addRoute = router.substring(router.indexOf("path: '/add-property'"), router.indexOf("path: '/my-listings'"));
     expect(addRoute, contains('requireListingEligible: true'));
-    expect(File('lib/features/account/presentation/account_screen.dart').readAsStringSync(), isNot(contains("context.push('/bookings')")));
+    expect(account, isNot(contains("context.push('/bookings')")));
     expect(shell, contains("label: 'حسابي'"));
     expect(shell, isNot(contains("label: 'الخدمات'")));
-    expect(account, contains("context.push('/services')"));
-    expect(account, contains('الخدمات والأدوات'));
+    expect(account, contains('الخدمات والدعم'));
+    expect(account, isNot(contains("context.push('/services')")));
+    expect(account, isNot(contains('الخدمات والأدوات')));
+    expect(router, contains("path: '/services'"));
 
     expect(router, isNot(contains("path: '/developments'")));
     expect(router, isNot(contains("path: '/developments/:id'")));
