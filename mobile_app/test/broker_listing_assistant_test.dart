@@ -203,6 +203,7 @@ void main() {
       expect(ring, findsNothing);
       await tester.tap(mic);
       await tester.pump();
+      expect(tester.getRect(mic), initialMic, reason: 'Preparing must keep the idle scroll position.');
       voice.latest.emit(const VoiceEvent('mode', code: 'dictation'));
       voice.latest.emit(const VoiceEvent('ready'));
       await tester.pump();
