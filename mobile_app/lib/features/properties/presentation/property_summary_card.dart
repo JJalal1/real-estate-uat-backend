@@ -20,16 +20,20 @@ import 'property_compare_actions.dart';
 import 'property_compare_screen.dart';
 import 'property_favorite_status.dart';
 
-List<AppPropertyFact> summaryPropertyFacts(PropertySummary property, {bool essentialsOnly = false}) {
+List<AppPropertyFact> summaryPropertyFacts(PropertySummary property, {
+  bool essentialsOnly = false,
+  bool abbreviateArea = false,
+}) {
   final scope = {'type': property.type, 'purpose': property.purpose};
   bool applies(String key) => DynamicPropertySchema.applies(key, scope);
+  final areaUnit = propertyAreaUnitLabel(property.areaUnit);
   return [
     if (applies('bedrooms') && property.bedrooms != null && property.bedrooms! > 0)
       AppPropertyFact(icon: Icons.bed_outlined, label: '${arabicDigits('${property.bedrooms}')} غرف'),
     if (applies('bathrooms') && property.bathrooms != null && property.bathrooms! > 0)
       AppPropertyFact(icon: Icons.bathtub_outlined, label: '${arabicDigits('${property.bathrooms}')} حمام'),
     if (applies('area_value') && (property.areaValue ?? property.areaM2?.toDouble() ?? 0) > 0)
-      AppPropertyFact(icon: Icons.square_foot_rounded, label: '${formatMoneyAmount(property.areaValue ?? property.areaM2!)} ${propertyAreaUnitLabel(property.areaUnit)}'),
+      AppPropertyFact(icon: Icons.square_foot_rounded, label: '${formatMoneyAmount(property.areaValue ?? property.areaM2!)} ${abbreviateArea && areaUnit == 'متر مربع' ? 'م²' : areaUnit}'),
     if (!essentialsOnly && applies('floor_number') && property.floorNumber?.isNotEmpty == true)
       AppPropertyFact(icon: Icons.layers_outlined, label: 'الدور ${DynamicPropertySchema.floorLabel(property.floorNumber)}'),
     if (!essentialsOnly && applies('has_parking') && property.hasParking == true)
@@ -62,17 +66,32 @@ String _publicationAgeLabel(int count, String singular, String dual, String plur
   _ => 'قبل ${arabicDigits('$count')} ${count <= 10 ? plural : '$singularً'}',
 };
 
+enum HomePropertySection { latest, nearby, recent }
+
 class PropertySummaryCard extends StatelessWidget {
   const PropertySummaryCard({required this.property, this.imageFirst = false,
-    this.preview = false, this.compactPreview = false, this.compact = false, this.knownFavorite = false, this.onTap, super.key});
+    this.preview = false, this.compactPreview = false, this.compact = false, this.knownFavorite = false,
+    this.homeSection, this.nearbyDistance, this.onTap, super.key});
   final PropertySummary property;
   final bool imageFirst, preview, compactPreview, compact, knownFavorite;
+  final HomePropertySection? homeSection;
+  final String? nearbyDistance;
   final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) {
     final p = property, monthly = property.purpose == 'rent' && property.monthlyRent != null;
     final publishedAt = p.publishedAt;
     final age = publishedAt == null ? null : propertyPublicationAge(publishedAt, DateTime.now());
+    final homeRail = homeSection != null;
+    final location = homeRail
+        ? p.address?.split(RegExp(r'[,،]')).map((part) => part.trim())
+            .where((part) => part.isNotEmpty).take(2).join('، ')
+        : p.address;
+    final locationDetail = switch (homeSection) {
+      HomePropertySection.latest => age,
+      HomePropertySection.nearby => nearbyDistance,
+      _ => null,
+    };
     final supportingText = [
       if (!preview && monthly && p.price != p.monthlyRent)
         '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
@@ -96,14 +115,15 @@ class PropertySummaryCard extends StatelessWidget {
       );
     }
     return EbrokerPropertyHorizontalCard(title: p.title, price: (monthly ? p.monthlyRent! : p.price).toString(), currency: p.currency,
-      imageFirst: imageFirst, preview: preview, compactPreview: compactPreview,
+      imageFirst: imageFirst, preview: preview, compactPreview: compactPreview, homeRail: homeRail,
       imageUrl: p.mainImage, imageUrls: p.imageUrls, isSpotlight: p.isSpotlight,
-      propertyType: p.type, categoryLabel: ebrokerPropertyTypeLabel(p.type), location: p.address,
+      propertyType: p.type, categoryLabel: ebrokerPropertyTypeLabel(p.type), location: location,
+      locationDetail: locationDetail,
       purposeLabel: p.purpose == 'rent' ? 'للإيجار' : 'للبيع', priceSuffix: monthly ? 'شهريًا' : null,
-      publicationAge: age,
-      facts: summaryPropertyFacts(p, essentialsOnly: preview),
+      publicationAge: homeRail ? null : age,
+      facts: summaryPropertyFacts(p, essentialsOnly: preview, abbreviateArea: homeRail),
       trailing: PropertyFavoriteAction(propertyId: p.id, enabled: p.status == 'published'),
-      action: PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published'),
+      action: PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published', compact: homeRail),
       supportingText: supportingText, onTap: open);
   }
 }

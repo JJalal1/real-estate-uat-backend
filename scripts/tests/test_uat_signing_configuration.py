@@ -126,6 +126,7 @@ class SigningConfigurationTests(unittest.TestCase):
             (signing.ALAZZI_CATEGORY_RELEASE_BRANCH, 'work/alazzi-category-filters-1851', '1851'),
             (signing.ALAZZI_SUPPORT_WAVE_RELEASE_BRANCH, 'work/alazzi-support-1851', '1851'),
             (signing.ALAZZI_UNIFIED_1852_RELEASE_BRANCH, 'work/alazzi-unified-1852', '1852'),
+            (signing.ALAZZI_POLISH_1853_RELEASE_BRANCH, 'work/alazzi-polish-1853', '1853'),
         ):
             env = dict(self.env, GITHUB_REF=release, AQER_BUILD=build,
                        GITHUB_ACTOR='JJalal1', GITHUB_REPOSITORY_OWNER='JJalal1')

@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:real_estate_mobile/core/theme/app_theme.dart';
+import 'package:real_estate_mobile/core/theme/ebroker_design.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_category_filter_sheet.dart';
 
 Finder _filter(String key) => find.byKey(ValueKey('section-filter-$key'));
 
 Future<void> _mount(
   WidgetTester tester, {
-  required String type,
-  required String typeLabel,
+  required String? type,
+  required String? typeLabel,
   required ValueChanged<Map<String, Object>?> onResult,
   String purpose = 'rent',
   Map<String, Object> initial = const {},
@@ -54,28 +55,52 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
-  testWidgets('house filter sends minimum counts and a private majlis bath',
+  testWidgets('house filters use the advertised property specifications',
       (tester) async {
     final results = <Map<String, Object>?>[];
     await _mount(tester,
-        type: 'house', typeLabel: 'منازل', onResult: results.add);
+        type: 'house',
+        typeLabel: 'منازل',
+        initial: const {
+          'min_parking_spaces': 1,
+          'has_separate_majlis': 1,
+          'has_majlis_bathroom': 1,
+        },
+        onResult: results.add);
     expect(find.text('تصفية المنازل'), findsOneWidget);
     expect(find.text('منازل للإيجار'), findsOneWidget);
     expect(find.text('نوع الأرض'), findsNothing);
+    expect(_filter('min_parking_spaces'), findsNothing);
+    expect(_filter('has_separate_majlis'), findsNothing);
+    expect(_filter('has_majlis_bathroom'), findsNothing);
 
+    await tester.enterText(_filter('min_area_m2'), '١٠٠');
+    await tester.enterText(_filter('max_area_m2'), '٣٠٠');
     await _tap(tester, _filter('min_bedrooms-3'));
-    await _tap(tester, _filter('min_parking_spaces-1'));
-    await _tap(tester, _filter('has_majlis_bathroom'));
+    final chosenBedrooms = _filter('min_bedrooms-3');
+    expect(tester.widget<ChoiceChip>(chosenBedrooms).selected, isTrue);
+    final decoration = tester
+        .widget<DecoratedBox>(
+          find
+              .ancestor(of: chosenBedrooms, matching: find.byType(DecoratedBox))
+              .first,
+        )
+        .decoration as BoxDecoration;
+    expect(decoration.gradient, EbrokerDesign.propertyTypeSelectionGradient);
+    await _tap(tester, _filter('min_bathrooms-2'));
+    await _tap(tester, _filter('has_parking'));
+    await _tap(tester, _filter('select-building_facade'));
+    await _tap(tester, find.text('جنوبية').last);
     expect(results, isEmpty);
-    expect(tester.widget<SwitchListTile>(_filter('has_separate_majlis')).value,
-        isTrue);
     await _tap(tester, _filter('apply'));
     expect(results, [
       {
+        'min_area_m2': 100,
+        'max_area_m2': 300,
         'min_bedrooms': 3,
-        'min_parking_spaces': 1,
-        'has_separate_majlis': 1,
-        'has_majlis_bathroom': 1,
+        'min_bathrooms': 2,
+        'has_parking': 1,
+        'building_facade': 'south',
       }
     ]);
   });
@@ -121,8 +146,8 @@ void main() {
       (tester) async {
     final initial = <String, Object>{
       'min_bedrooms': 3,
-      'has_separate_majlis': 1,
-      'has_majlis_bathroom': 1,
+      'min_bathrooms': 2,
+      'has_parking': 1,
     };
     final results = <Map<String, Object>?>[];
     await _mount(tester,
@@ -132,9 +157,9 @@ void main() {
         onResult: results.add);
     expect(
         tester.widget<ChoiceChip>(_filter('min_bedrooms-3')).selected, isTrue);
-    await _tap(tester, _filter('has_separate_majlis'));
-    expect(tester.widget<SwitchListTile>(_filter('has_majlis_bathroom')).value,
-        isFalse);
+    await _tap(tester, _filter('has_parking'));
+    expect(
+        tester.widget<SwitchListTile>(_filter('has_parking')).value, isFalse);
     await _tap(tester, find.byTooltip('إغلاق التصفية'));
     expect(results, [null]);
     expect(initial.length, 3);
@@ -151,11 +176,24 @@ void main() {
   });
 
   const types = {
+    'house': (
+      'منازل',
+      [
+        'area',
+        'min_bedrooms',
+        'min_bathrooms',
+        'has_parking',
+        'building_facade'
+      ]
+    ),
     'apartment': (
       'شقق',
       ['floor_number', 'has_section_elevator', 'has_parking']
     ),
-    'villa': ('فلل', ['has_yard', 'has_separate_majlis', 'min_parking_spaces']),
+    'villa': (
+      'فلل',
+      ['has_yard', 'min_bathrooms', 'has_parking', 'building_facade']
+    ),
     'building': (
       'عمائر',
       ['min_floors', 'min_total_units', 'has_section_elevator']

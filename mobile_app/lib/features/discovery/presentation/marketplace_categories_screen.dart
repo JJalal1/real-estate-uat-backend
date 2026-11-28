@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'marketplace_category_filter_sheet.dart';
@@ -101,50 +102,15 @@ class _MarketplaceCategoriesScreenState
                     for (final entry in _purposeLabels.entries) ...[
                       if (entry.key == 'sale') const SizedBox(width: 6),
                       Expanded(
-                        child: Semantics(
+                        child: _PurposeButton(
+                          key: ValueKey(
+                              'marketplace-category-purpose-${entry.key}'),
                           selected: _purpose == entry.key,
-                          child: OutlinedButton(
-                            key: ValueKey(
-                                'marketplace-category-purpose-${entry.key}'),
-                            onPressed: () =>
-                                setState(() => _purpose = entry.key),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 48),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 10),
-                              foregroundColor: _purpose == entry.key
-                                  ? scheme.primary
-                                  : scheme.onSurface,
-                              backgroundColor: _purpose == entry.key
-                                  ? scheme.primaryContainer
-                                  : scheme.surface,
-                              shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadii.control),
-                              ),
-                              side: BorderSide(
-                                color: _purpose == entry.key
-                                    ? scheme.primary
-                                    : scheme.outlineVariant,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  entry.key == 'rent'
-                                      ? Icons.key_outlined
-                                      : Icons.sell_outlined,
-                                  color: scheme.primary,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                    child: Text(entry.value,
-                                        textAlign: TextAlign.center)),
-                              ],
-                            ),
-                          ),
+                          label: entry.value,
+                          icon: entry.key == 'rent'
+                              ? Icons.key_outlined
+                              : Icons.sell_outlined,
+                          onPressed: () => setState(() => _purpose = entry.key),
                         ),
                       ),
                     ],
@@ -175,7 +141,6 @@ class _MarketplaceCategoriesScreenState
                           icon: type == null ? '' : ebrokerCategoryIcon(type),
                           iconOverride:
                               type == null ? Icons.grid_view_outlined : null,
-                          tonalSelection: true,
                           selected: _type == type,
                           onTap: () => setState(() => _type = type),
                         ),
@@ -196,27 +161,29 @@ class _MarketplaceCategoriesScreenState
                       child:
                           Text(resultsTitle, style: theme.textTheme.titleLarge),
                     ),
-                    if (_type != null) ...[
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        key: const ValueKey('marketplace-category-filters'),
-                        onPressed: _editFilters,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          foregroundColor: scheme.primary,
-                          backgroundColor: filters.isEmpty
-                              ? scheme.surface
-                              : scheme.primaryContainer,
-                          side: BorderSide(color: scheme.primary),
-                          shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(AppRadii.control),
-                          ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      key: const ValueKey('marketplace-category-filters'),
+                      onPressed: _editFilters,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(48, 30),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        textStyle: theme.textTheme.labelSmall,
+                        visualDensity: VisualDensity.standard,
+                        tapTargetSize: MaterialTapTargetSize.padded,
+                        foregroundColor: scheme.primary,
+                        backgroundColor: filters.isEmpty
+                            ? scheme.surface
+                            : scheme.primaryContainer,
+                        side: BorderSide(color: scheme.primary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        icon: const Icon(Icons.tune_rounded, size: 19),
-                        label: const Text('تصفية'),
                       ),
-                    ],
+                      icon: const Icon(Icons.tune_rounded, size: 14),
+                      label: const Text('تصفية'),
+                    ),
                   ],
                 ),
               ),
@@ -228,6 +195,60 @@ class _MarketplaceCategoriesScreenState
                   emptyMessage: 'جرّب تغيير النوع أو شروط التصفية.',
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PurposeButton extends StatelessWidget {
+  const _PurposeButton({
+    super.key,
+    required this.selected,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final bool selected;
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(AppRadii.control);
+
+    return Semantics(
+      selected: selected,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          gradient:
+              selected ? EbrokerDesign.propertyTypeSelectionGradient : null,
+        ),
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            foregroundColor: selected ? Colors.white : scheme.onSurface,
+            backgroundColor: selected ? Colors.transparent : scheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: radius),
+            side: BorderSide(
+              color: selected ? Colors.transparent : scheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  color: selected ? Colors.white : scheme.primary, size: 20),
+              const SizedBox(width: 6),
+              Flexible(child: Text(label, textAlign: TextAlign.center)),
             ],
           ),
         ),

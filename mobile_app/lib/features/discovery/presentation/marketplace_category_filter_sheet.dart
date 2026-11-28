@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/ebroker_design.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../properties/domain/category_property_facts.dart';
 import '../../properties/domain/property_schema.dart';
@@ -61,11 +63,15 @@ class _MarketplaceCategoryFilterSheetState
     extends State<_MarketplaceCategoryFilterSheet> {
   static const _areaMin = 'min_area_m2';
   static const _areaMax = 'max_area_m2';
-  static const _majlis = 'has_separate_majlis';
-  static const _majlisBathroom = 'has_majlis_bathroom';
+  static const _retiredFilters = {
+    'has_separate_majlis',
+    'has_majlis_bathroom',
+    'min_parking_spaces',
+  };
   // Preserve TextField focus when the keyboard changes the sheet layout.
   final _optionsKey = GlobalKey();
-  late final Map<String, Object> _draft = Map.of(widget.initial);
+  late final Map<String, Object> _draft = Map.of(widget.initial)
+    ..removeWhere((key, _) => _retiredFilters.contains(key));
   late final _minimum = TextEditingController(text: _initialNumber(_areaMin));
   late final _maximum = TextEditingController(text: _initialNumber(_areaMax));
   String? _error;
@@ -137,10 +143,8 @@ class _MarketplaceCategoryFilterSheetState
     setState(() {
       if (value == null) {
         _draft.remove(key);
-        if (key == _majlis) _draft.remove(_majlisBathroom);
       } else {
         _draft[key] = value;
-        if (key == _majlisBathroom) _draft[_majlis] = 1;
       }
     });
   }
@@ -164,35 +168,51 @@ class _MarketplaceCategoryFilterSheetState
     Map<T?, String> options,
   ) {
     final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(AppRadii.control);
     return _fieldGroup(
         key,
         label,
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: [
-            for (final option in options.entries)
-              ChoiceChip(
+          children: options.entries.map((option) {
+            final selected = _draft[key] == option.key;
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: selected
+                    ? EbrokerDesign.propertyTypeSelectionGradient
+                    : null,
+                borderRadius: radius,
+              ),
+              child: ChoiceChip(
                 key: ValueKey('section-filter-$key-${option.key ?? 'all'}'),
                 label: Text(option.value),
-                selected: _draft[key] == option.key,
+                labelStyle:
+                    selected ? const TextStyle(color: Colors.white) : null,
+                selected: selected,
                 showCheckmark: false,
-                selectedColor: scheme.primaryContainer,
+                selectedColor: Colors.transparent,
+                shape: RoundedRectangleBorder(borderRadius: radius),
                 side: BorderSide(
-                  color: _draft[key] == option.key
-                      ? scheme.primary
-                      : scheme.outlineVariant,
+                  color: selected ? Colors.transparent : scheme.outlineVariant,
                 ),
                 onSelected: (_) => _update(key, option.key),
               ),
-          ],
+            );
+          }).toList(),
         ));
   }
 
-  Widget _count(String key, String label, List<int> thresholds) =>
+  Widget _count(
+    String key,
+    String label,
+    List<int> thresholds, {
+    bool explicitMinimum = false,
+  }) =>
       _choice<int>(key, label, {
-        null: 'أي عدد',
-        for (final count in thresholds) count: '${arabicDigits('$count')}+',
+        null: explicitMinimum ? 'الكل' : 'أي عدد',
+        for (final count in thresholds)
+          count: '${arabicDigits('$count')}${explicitMinimum ? ' فأكثر' : '+'}',
       });
 
   Widget _switch(String key, String label) => SwitchListTile(
@@ -277,11 +297,14 @@ class _MarketplaceCategoryFilterSheetState
     final type = widget.type;
     return switch (type) {
       'house' || 'villa' => [
-          _count('min_bedrooms', 'عدد الغرف', [2, 3, 4, 5]),
-          _count('min_parking_spaces', 'مواقف السيارات', [1, 2, 3]),
+          _area(),
+          _count('min_bedrooms', 'غرف النوم', [2, 3, 4, 5],
+              explicitMinimum: true),
+          _count('min_bathrooms', 'الحمامات', [1, 2, 3], explicitMinimum: true),
+          _switch('has_parking', 'موقف سيارة'),
+          _dropdown(
+              'building_facade', 'واجهة المبنى', SmartSearchFilters.facades),
           if (type == 'villa') _switch('has_yard', 'حوش'),
-          _switch(_majlis, 'مجلس مستقل'),
-          _switch(_majlisBathroom, 'حمام خاص بالمجلس'),
         ],
       'land' => [
           _choice<String>(

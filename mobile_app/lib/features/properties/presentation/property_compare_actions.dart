@@ -35,10 +35,10 @@ void togglePropertyComparison(BuildContext context, WidgetRef ref, int propertyI
 }
 
 class PropertyCompareAction extends ConsumerWidget {
-  const PropertyCompareAction({required this.propertyId, this.enabled = true, this.overlay = false, super.key});
+  const PropertyCompareAction({required this.propertyId, this.enabled = true, this.overlay = false, this.compact = false, super.key});
   final int propertyId;
   final bool enabled;
-  final bool overlay;
+  final bool overlay, compact;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(propertyCompareSelectionProvider).contains(propertyId);
@@ -47,12 +47,18 @@ class PropertyCompareAction extends ConsumerWidget {
     return Align(alignment: AlignmentDirectional.centerStart, child: Semantics(selected: selected,
       child: TextButton(key: ValueKey('compare-property-$propertyId'), onPressed: enabled ? () => togglePropertyComparison(context, ref, propertyId) : null,
         style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(48, 48),
+          visualDensity: compact ? VisualDensity.standard : null,
           foregroundColor: scheme.onSurfaceVariant),
-        child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        child: Container(
+          key: compact ? const ValueKey('home-compare-outline') : null,
+          padding: compact
+            ? const EdgeInsets.symmetric(horizontal: 6, vertical: 3)
+            : const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(color: selected ? scheme.primaryContainer : scheme.surface,
-            border: Border.all(color: selected ? scheme.primary : scheme.outline), borderRadius: BorderRadius.circular(8)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(selected ? Icons.check : Icons.add, size: 13),
-            const SizedBox(width: 3), Flexible(child: Text(label, style: const TextStyle(fontSize: 11)))])))));
+            border: Border.all(color: selected ? scheme.primary : scheme.outline), borderRadius: BorderRadius.circular(compact ? 6 : 8)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(selected ? Icons.check : Icons.add,
+            size: compact ? 10 : 13, color: compact && enabled ? scheme.primary : null),
+            SizedBox(width: compact ? 2 : 3), Flexible(child: Text(label, style: TextStyle(fontSize: compact ? 9 : 11)))])))));
   }
 }
 

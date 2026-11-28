@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:real_estate_mobile/core/theme/ebroker_design.dart';
 import 'package:real_estate_mobile/features/discovery/presentation/marketplace_categories_screen.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
@@ -13,6 +14,20 @@ import 'wave2_home_search_test.dart' show Listings, PageResult, row;
 Finder _type(String type) =>
     find.byKey(ValueKey('marketplace-category-type-$type'));
 
+Finder _purpose(String purpose) =>
+    find.byKey(ValueKey('marketplace-category-purpose-$purpose'));
+
+Finder _homeGradient(Finder receiver) => find.descendant(
+      of: receiver,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is DecoratedBox &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration as BoxDecoration).gradient ==
+                EbrokerDesign.propertyTypeSelectionGradient,
+      ),
+    );
+
 Finder _resultsScroll() => find.descendant(
       of: find.byKey(const ValueKey('marketplace-listing-results')),
       matching: find.byType(Scrollable),
@@ -22,12 +37,80 @@ Finder get _filters =>
     find.byKey(const ValueKey('marketplace-category-filters'));
 Finder get _rooms =>
     find.byKey(const ValueKey('section-filter-min_bedrooms-3'));
+Finder get _parking => find.byKey(const ValueKey('section-filter-has_parking'));
 Finder get _majlis =>
     find.byKey(const ValueKey('section-filter-has_separate_majlis'));
 Finder get _apply => find.byKey(const ValueKey('section-filter-apply'));
 
 void main() {
   setUpAll(loadUxFixtures);
+
+  testWidgets(
+      'all uses the Home selection gradient and a compact, fully tappable filter',
+      (tester) async {
+    final listings = Listings()
+      ..respond = (_, __) async => ([row(10, purpose: 'rent')], false);
+    final scope = uxContainer(
+      extra: [propertyRepositoryProvider.overrideWithValue(listings)],
+    );
+    await pumpUx(tester, scope, const MarketplaceCategoriesScreen());
+
+    expect(_homeGradient(_purpose('rent')), findsOneWidget);
+    expect(_homeGradient(_purpose('sale')), findsNothing);
+    expect(_homeGradient(_type('all')), findsOneWidget);
+    expect(_homeGradient(_type('apartment')), findsNothing);
+    expect(tester.widget<Icon>(find.byIcon(Icons.key_outlined)).color,
+        Colors.white);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.grid_view_outlined)).color,
+      Colors.white,
+    );
+    expect(
+      DefaultTextStyle.of(tester.element(find.text('للإيجار'))).style.color,
+      Colors.white,
+    );
+
+    final target = tester.getRect(_filters);
+    final outline = tester.getRect(
+      find.descendant(of: _filters, matching: find.byType(Material)),
+    );
+    expect(target.height, greaterThanOrEqualTo(48));
+    expect(outline.height, lessThan(target.height));
+    await tester.tapAt(Offset(target.center.dx, target.top + 2));
+    await tester.pumpAndSettle();
+    expect(find.text('تصفية العقارات'), findsOneWidget);
+    expect(_rooms, findsNothing);
+    final minimumArea =
+        find.byKey(const ValueKey('section-filter-min_area_m2'));
+    await tester.enterText(minimumArea, '١٢٠');
+    await tester.tap(_apply);
+    await tester.pumpAndSettle();
+    expect(listings.calls.last, {
+      'ranked_search': 0,
+      'purpose': 'rent',
+      'min_area_m2': 120,
+      'page': 1,
+    });
+
+    await tester.tap(_purpose('sale'));
+    await tester.pumpAndSettle();
+    expect(_homeGradient(_purpose('sale')), findsOneWidget);
+    expect(_homeGradient(_purpose('rent')), findsNothing);
+    expect(_homeGradient(_type('all')), findsOneWidget);
+    expect(_filters, findsOneWidget);
+    expect(listings.calls.last,
+        {'ranked_search': 0, 'purpose': 'sale', 'page': 1});
+    await tester.tap(_type('apartment'));
+    await tester.pumpAndSettle();
+    expect(_homeGradient(_type('all')), findsNothing);
+    expect(_homeGradient(_type('apartment')), findsOneWidget);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.apartment_rounded).first).color,
+      Colors.white,
+    );
+    expect(tester.takeException(), isNull);
+    await closeUx(tester);
+  });
 
   testWidgets(
       'categories switch inline, preserve type and paginate compact listing cards',
@@ -69,7 +152,7 @@ void main() {
     expect(listings.calls.single,
         {'ranked_search': 0, 'purpose': 'rent', 'page': 1});
     expect(find.text('عقارات للإيجار'), findsOneWidget);
-    expect(_filters, findsNothing);
+    expect(_filters, findsOneWidget);
     expect(tester.getCenter(_type('apartment')).dy,
         tester.getCenter(_type('house')).dy);
     expect(tester.getCenter(_type('apartment')).dx,
@@ -204,9 +287,10 @@ void main() {
     await tester.ensureVisible(_rooms);
     await tester.pump();
     await tester.tap(_rooms);
-    await tester.ensureVisible(_majlis);
+    expect(_majlis, findsNothing);
+    await tester.ensureVisible(_parking);
     await tester.pump();
-    await tester.tap(_majlis);
+    await tester.tap(_parking);
     expect(listings.calls, hasLength(requestsBeforeFilter));
 
     await tester.tap(_apply);
@@ -219,7 +303,7 @@ void main() {
       'purpose': 'rent',
       'type': 'house',
       'min_bedrooms': 3,
-      'has_separate_majlis': 1,
+      'has_parking': 1,
       'page': 1,
     });
 
@@ -241,7 +325,7 @@ void main() {
     await tester.tap(_type('house'));
     await tester.pumpAndSettle();
     expect(listings.calls.last['min_bedrooms'], 3);
-    expect(listings.calls.last['has_separate_majlis'], 1);
+    expect(listings.calls.last['has_parking'], 1);
     await tester
         .tap(find.byKey(const ValueKey('marketplace-category-purpose-sale')));
     await tester.pumpAndSettle();
@@ -251,7 +335,7 @@ void main() {
         .tap(find.byKey(const ValueKey('marketplace-category-purpose-rent')));
     await tester.pumpAndSettle();
     expect(listings.calls.last['min_bedrooms'], 3);
-    expect(listings.calls.last['has_separate_majlis'], 1);
+    expect(listings.calls.last['has_parking'], 1);
     expect(tester.takeException(), isNull);
     await closeUx(tester);
   });

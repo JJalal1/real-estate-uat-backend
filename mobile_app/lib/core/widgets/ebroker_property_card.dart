@@ -9,15 +9,16 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
   const EbrokerPropertyHorizontalCard({required this.title, required this.price, required this.currency,
     required this.onTap, this.imageUrl, this.location, this.purposeLabel, this.categoryLabel = 'عقار',
     this.facts = const [], this.trailing, this.action, this.unavailable = false, this.embedded = false, this.imageFirst = false, this.preview = false, this.compactPreview = false,
-    this.imageUrls = const [], this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, this.supportingText = const [], this.priceSuffix, this.publicationAge, super.key});
+    this.imageUrls = const [], this.isSpotlight = false, this.authenticatedImages = false, this.propertyType, this.supportingText = const [], this.priceSuffix, this.publicationAge,
+    this.homeRail = false, this.locationDetail, super.key});
   final String title, price, currency, categoryLabel;
   final VoidCallback onTap;
-  final String? imageUrl, location, purposeLabel, propertyType, priceSuffix, publicationAge;
+  final String? imageUrl, location, purposeLabel, propertyType, priceSuffix, publicationAge, locationDetail;
   final List<String> imageUrls, supportingText;
   final List<AppPropertyFact> facts;
   final Widget? trailing, action;
   final bool unavailable, embedded, imageFirst, preview, isSpotlight, authenticatedImages;
-  final bool compactPreview;
+  final bool compactPreview, homeRail;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
@@ -25,11 +26,25 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 21;
     final vertical = preview || imageFirst || largeText;
     final compact = preview && compactPreview;
+    final inline = homeRail && !largeText;
+    final hasLocation = location?.trim().isNotEmpty == true;
+    final hasInlineAction = inline && action != null;
     final inset = compact ? const EdgeInsets.all(8) : const EdgeInsets.all(10);
-    final titleStyle = compact ? AppTypography.propertyName.copyWith(fontSize: 16) : AppTypography.propertyName;
+    final titleStyle = compact
+      ? AppTypography.propertyName.copyWith(fontSize: 16, height: inline ? 1.28 : null)
+      : AppTypography.propertyName;
     final secondaryStyle = AppTypography.propertySecondary.copyWith(
-      fontSize: compact ? 13 : null, color: scheme.onSurfaceVariant);
+      fontSize: compact ? 13 : null, height: inline ? 1.3 : null, color: scheme.onSurfaceVariant);
+    final factStyle = inline
+      ? secondaryStyle.copyWith(fontSize: 11, height: 1.25)
+      : (preview ? secondaryStyle : theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: scheme.onSurfaceVariant));
     final money = AppPropertyPrice(price: price, currency: currency, suffix: priceSuffix);
+    Widget factItem(AppPropertyFact fact) => Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(fact.icon, size: inline ? 12 : 14, color: scheme.onSurfaceVariant),
+      const SizedBox(width: 3),
+      Flexible(child: Text(fact.label, style: factStyle, maxLines: inline ? 1 : null,
+        overflow: inline ? TextOverflow.ellipsis : null)),
+    ]);
     Widget priceWithPurpose({bool fillWidth = true}) {
       final label = purposeLabel;
       if (label == null) return money;
@@ -69,35 +84,60 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
         propertyType: propertyType ?? propertyTypeFromLabel(categoryLabel)));
     final detail = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
       if (!imageFirst && !preview) ...[priceWithPurpose(), const SizedBox(height: 4)],
-      Text(title, maxLines: largeText ? null : 2, overflow: largeText ? null : TextOverflow.ellipsis,
+      Text(title, maxLines: largeText ? null : (inline ? 1 : 2), overflow: largeText ? null : TextOverflow.ellipsis,
         style: titleStyle),
-      if (location?.trim().isNotEmpty == true) ...[SizedBox(height: compact ? 3 : 4), Text(location!,
-        maxLines: largeText ? null : 1, overflow: largeText ? null : TextOverflow.ellipsis,
-        style: secondaryStyle)],
+      if (hasLocation || locationDetail != null) ...[
+        SizedBox(height: compact ? 3 : 4),
+        if (inline && hasLocation && locationDetail != null)
+          Row(children: [
+            Flexible(child: Text(location!, maxLines: 1, overflow: TextOverflow.ellipsis, style: secondaryStyle)),
+            Text(' · ', style: secondaryStyle, semanticsLabel: ' '),
+            Text(locationDetail!, style: secondaryStyle),
+          ])
+        else ...[
+          if (hasLocation) Text(location!, maxLines: largeText ? null : 1,
+            overflow: largeText ? null : TextOverflow.ellipsis, style: secondaryStyle),
+          if (locationDetail != null) Text(locationDetail!, style: secondaryStyle),
+        ],
+      ],
       if (publicationAge != null) Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Text(publicationAge!, style: theme.textTheme.bodySmall?.copyWith(
           fontSize: compact ? 10 : 11, color: scheme.onSurfaceVariant)),
       ),
-      if (preview) ...[SizedBox(height: compact ? 4 : 6), money],
+      if (preview)
+        if (hasInlineAction)
+          Row(children: [
+            Expanded(child: money),
+            const SizedBox(width: 8),
+            action!,
+          ])
+        else ...[SizedBox(height: compact ? 4 : 6), money],
       if (!preview) ...[const SizedBox(height: 4), Row(mainAxisSize: MainAxisSize.min, children: [
         PropertyTypeIcon(type: propertyType, label: categoryLabel, size: 15, color: scheme.onSurfaceVariant),
         const SizedBox(width: 4), Flexible(child: Text(categoryLabel,
           style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, color: scheme.onSurfaceVariant))),
       ])],
-      if (facts.isNotEmpty) ...[SizedBox(height: compact ? 4 : 6), Wrap(spacing: 9, runSpacing: 4, children: [
-        for (final fact in facts) Row(mainAxisSize: MainAxisSize.min, children: [Icon(fact.icon, size: 14, color: scheme.onSurfaceVariant),
-          const SizedBox(width: 3), Flexible(child: Text(fact.label, style: (preview
-            ? secondaryStyle
-            : theme.textTheme.bodySmall?.copyWith(fontSize: 10))?.copyWith(color: scheme.onSurfaceVariant)))]),
-      ])],
+      if (facts.isNotEmpty) ...[
+        SizedBox(height: inline ? 0 : (compact ? 4 : 6)),
+        if (inline)
+          Row(children: [
+            for (final (index, fact) in facts.indexed) ...[
+              if (index > 0) const SizedBox(width: 7),
+              Flexible(child: factItem(fact)),
+            ],
+          ])
+        else Wrap(spacing: 9, runSpacing: 4, children: facts.map(factItem).toList()),
+      ],
       for (final line in supportingText) Padding(padding: const EdgeInsets.only(top: 4),
         child: Text(line, style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, color: scheme.onSurfaceVariant))),
-      if (action != null) action!,
+      if (action != null && !hasInlineAction) action!,
     ]);
     final content = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (vertical) ...[
-        gallery(imageFirst ? (compact ? 156 : 168) : 150),
+        gallery(homeRail
+          ? ((constraints.maxWidth - inset.horizontal) / 2.7).clamp(96.0, 128.0).toDouble()
+          : (imageFirst ? (compact ? 156 : 168) : 150)),
         SizedBox(height: compact ? 7 : 9),
         detail,
       ]

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -16,6 +17,7 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import '../../map/presentation/map_screen.dart';
 import '../../messages/presentation/unread_inbox_badge.dart';
 import '../../properties/data/recent_properties_store.dart';
+import '../../properties/domain/property_coordinates.dart';
 import '../../properties/domain/property_details.dart';
 import '../../properties/presentation/property_details_screen.dart';
 import '../data/marketplace_repository.dart';
@@ -268,7 +270,7 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           data: (rows) => rows.isEmpty ? const SizedBox.shrink() : Column(children: [
             EbrokerTitleHeader(title: 'بالقرب منك', compact: true, onSeeAll: () =>
               _section('regional', regionalFilters.values['governorate'] as String, filters: regionalFilters)),
-            _propertyRail('regional', rows),
+            _propertyRail('regional', rows, location: location),
           ]),
         )),
          if (recent != null && recent.isNotEmpty)
@@ -281,8 +283,14 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
     );
   }
 
-  Widget _propertyRail(String section, Iterable<PropertySummary> rows) {
+  Widget _propertyRail(String section, Iterable<PropertySummary> rows, {HomeLocation? location}) {
     final width = (MediaQuery.sizeOf(context).width - 78).clamp(220, 366).toDouble();
+    final homeSection = switch (section) {
+      'latest' => HomePropertySection.latest,
+      'regional' => HomePropertySection.nearby,
+      'recent' => HomePropertySection.recent,
+      _ => null,
+    };
     // Keep intrinsic height for large Arabic text. ViewportMedia gates the images.
     return SingleChildScrollView(
       key: PageStorageKey('home-properties-$section'),
@@ -293,9 +301,27 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
           Padding(padding: const EdgeInsetsDirectional.only(end: 12),
             child: SizedBox(width: width, child: PropertySummaryCard(
               key: ValueKey('home-property-${row.id}'), property: row,
-              imageFirst: true, preview: true, compactPreview: true))),
+              imageFirst: true, preview: true, compactPreview: true,
+              homeSection: homeSection,
+              nearbyDistance: _nearbyDistance(location, row)))),
       ]),
     );
+  }
+
+  String? _nearbyDistance(HomeLocation? location, PropertySummary property) {
+    if (location == null || !location.device || location.needsConfirmation ||
+        !hasValidPropertyCoordinates(location.latitude, location.longitude) ||
+        !hasValidPropertyCoordinates(property.latitude, property.longitude) ||
+        property.latitude == 0 || property.longitude == 0) {
+      return null;
+    }
+    final distance = Geolocator.distanceBetween(
+      location.latitude, location.longitude, property.latitude, property.longitude);
+    if (!distance.isFinite) return null;
+    if (distance < 50) return 'أقل من ٥٠ م';
+    return distance < 950
+        ? '${formatMoneyAmount((distance / 50).round() * 50)} م'
+        : '${formatMoneyAmount((distance / 1000).toStringAsFixed(1))} كم';
   }
 
   Widget _feedSliver(MarketplaceFeed data, AsyncValue<List<PropertySummary>>? regional) {
