@@ -70,12 +70,11 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
 
   bool get isSale => widget.purpose == 'sale';
   bool get historicalFixed => management.hasHistoricalFixedTerms;
-  double? get maxProfessionalRate => management.brokerMaxRatePercent;
   double get enteredRate => parseSaiNumber(_rateController.text) ?? double.nan;
   double get enteredAmount => parseSaiNumber(_amountController.text) ?? double.nan;
   bool get fixed => !historicalFixed && _amountType == 'fixed';
   PropertySaiQuote? get quote => PropertySaiQuote.calculate(management, historicalFixed ? (management.effectiveFixedRate ?? double.nan) : enteredRate, widget.basis,
-      fixedAmount: fixed ? enteredAmount : null);
+      fixedAmount: fixed ? enteredAmount : null, purpose: widget.purpose);
   bool get custom => !historicalFixed && quote != null && !quote!.fallback;
 
   @override
@@ -199,10 +198,6 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
   }
 
   Future<void> _save(String? decision) async {
-    if (historicalFixed) {
-      Navigator.pop(context, true);
-      return;
-    }
     final payer = _payer;
     if (payer == null) {
       setState(() => _error = 'يجب تحديد الطرف الذي يتحمل السعي.');
@@ -210,13 +205,25 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
     }
 
     final rate = enteredRate;
-    if (quote == null) {
-      setState(() => _error = fixed
-          ? 'أدخل مبلغ سعي صحيحًا ضمن الحد الذي تسمح به سياسة الإعلان.'
-          : 'أدخل نسبة سعي صحيحة من 0 إلى ${maxProfessionalRate == null ? '—' : _formatRate(maxProfessionalRate!)}%.');
+    final validation = validatePropertySaiInput(
+      purpose: widget.purpose,
+      fixed: fixed,
+      value: historicalFixed ? (management.effectiveFixedRate?.toString() ?? '') :
+          fixed ? _amountController.text : _rateController.text,
+      basis: widget.basis,
+      policyMaximumPercent: management.brokerMaxRatePercent,
+      currency: widget.currency,
+      zeroFallbackRate: management.effectiveFixedRate,
+    );
+    if (validation != null || quote == null) {
+      setState(() => _error = validation ?? 'تعذر حساب السعي، راجع سياسة الإعلان.');
       return;
     }
 
+    if (historicalFixed) {
+      Navigator.pop(context, true);
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;

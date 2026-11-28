@@ -53,6 +53,8 @@ class _Recovery extends ListingRecoveryStore {
 }
 
 class _Properties implements PropertyRepository {
+  _Properties({this.configuredTerms});
+  final PropertySaiManagement? configuredTerms;
   final writes = <String>[];
   Map<String, dynamic>? lastInput, lastQuery;
   String? payer;
@@ -76,7 +78,7 @@ class _Properties implements PropertyRepository {
     'latitude': 15.3694, 'longitude': 44.1910, 'status': 'draft', 'images': []});
   @override
   Future<PropertySaiEnvelope> saiForEditor(int id) async => PropertySaiEnvelope(management:
-    PropertySaiManagement(configured: true, advertiserType: 'broker', purpose: 'sale',
+    configuredTerms ?? PropertySaiManagement(configured: true, advertiserType: 'broker', purpose: 'sale',
       requestedBrokerRatePercent: rate ?? 2, saiRatePercent: rate ?? 2, brokerMaxRatePercent: 5,
       platformSharePercent: rate == null ? 20 : 10, professionalPlatformSharePercent: 10,
       platformTermsStatus: 'accepted'));
@@ -441,6 +443,61 @@ void main() {
       expect(saved.requestedBrokerRatePercent, edited ? 3 : 2);
       expect(saved.platformSharePercent, edited ? 10 : 20);
       expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final (fixed, serverTerms) in [(false, false), (true, false), (false, true), (true, true)]) {
+    testWidgets('an over-limit sale commission must be corrected before preview, save and submit (fixed=$fixed, existing=$serverTerms)', (tester) async {
+      final mode = fixed ? 'fixed' : 'percentage';
+      final repository = _Properties(configuredTerms: serverTerms ? PropertySaiManagement(
+        configured: true, advertiserType: 'broker', purpose: 'sale', amountType: mode,
+        saiRatePercent: 55, fixedAmount: fixed ? 500000 : null, fixedCurrency: fixed ? 'SAR' : null,
+        brokerMaxRatePercent: 80, platformSharePercent: 20, professionalPlatformSharePercent: 10,
+      ) : null);
+      final recovery = _snapshot(step: 3)
+        ..['currency'] = 'SAR'
+        ..['sai_amount_type'] = mode
+        ..['sai_touched'] = !serverTerms
+        ..['server_property_id'] = 77;
+      final fields = recovery['fields'] as Map;
+      fields['price'] = '1000000';
+      fields[fixed ? 'fixed_sai_amount' : 'broker_sai_rate_percent'] = fixed ? '500000' : '55';
+      final router = GoRouter(routes: [
+        GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
+        GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing'))),
+      ]);
+      addTearDown(router.dispose);
+      await _pump(tester, const SizedBox(), snapshot: recovery, properties: repository, router: router);
+
+      final fee = find.byKey(ValueKey(fixed ? 'listing-sai-amount' : 'listing-sai-rate'));
+      String? fieldError() => tester.widget<TextField>(fee).decoration!.errorText;
+      expect(fieldError(), contains('5%'));
+      if (fixed) expect(fieldError(), contains('50,000 ريال سعودي'));
+      expect(find.byKey(const ValueKey('listing-sai-total')), findsNothing);
+      for (final action in ['معاينة', 'حفظ مسودة', 'نشر الإعلان']) {
+        if (action != 'نشر الإعلان') {
+          await tester.tap(find.byTooltip('خيارات المسودة'));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.text(action));
+        await tester.pumpAndSettle();
+        expect(find.text('معاينة قبل الإرسال'), findsNothing);
+        expect(find.byKey(const ValueKey('listing-copy-text')), findsNothing);
+        expect(find.text('القسم قبل الإرسال'), findsNothing);
+        expect(repository.writes, isEmpty);
+      }
+      await tester.ensureVisible(fee);
+      await tester.enterText(fee, fixed ? '50000' : '5');
+      await tester.pumpAndSettle();
+      expect(fieldError(), isNull);
+      expect(find.text('حصة المنصة 10% وهي 5,000 ريال سعودي من سعي المعلن الذي هو 50,000 ريال سعودي'), findsOneWidget);
+      await tester.tap(find.byTooltip('خيارات المسودة'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('حفظ مسودة'));
+      await tester.pumpAndSettle();
+      expect(repository.writes, ['draft', 'sai']);
+      expect(fixed ? repository.fixedAmount : repository.rate, fixed ? 50000 : 5);
+      expect(find.text('saved listing'), findsOneWidget);
     });
   }
 

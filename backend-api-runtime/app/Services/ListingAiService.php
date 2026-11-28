@@ -58,7 +58,30 @@ class ListingAiService
         return $schema->validateStructure($schema->validateApartmentFloor($schema->facts($facts), 'facts.floor_number'));
     }
 
-    public function extract(string $message, array $current): array
+    /** Only propose commission that can be checked against the same listing and currency. */
+    public function reviewableSai(array $fields, array $current = []): array
+    {
+        $terms = array_intersect_key($fields, array_flip(['sai_amount_type', 'fixed_sai_amount', 'broker_sai_rate_percent']));
+        if ($terms === []) return $fields;
+        $fixed = isset($terms['fixed_sai_amount']);
+        $percentage = isset($terms['broker_sai_rate_percent']);
+        $mode = $terms['sai_amount_type'] ?? ($fixed === $percentage ? null : ($fixed ? 'fixed' : 'percentage'));
+        if ((isset($fields['currency']) && $fields['currency'] !== ($current['currency'] ?? 'YER'))
+            || (isset($fields['purpose']) && $fields['purpose'] !== ($current['purpose'] ?? null))) {
+            unset($current['price'], $current['monthly_rent']);
+        }
+        $context = $fields + $current;
+        if (!in_array($mode, ['percentage', 'fixed'], true)
+            || !isset($terms[$mode === 'fixed' ? 'fixed_sai_amount' : 'broker_sai_rate_percent'])
+            || !app(PropertySaiService::class)->draftAmountFits($context, $mode)) {
+            return array_diff_key($fields, $terms);
+        }
+        $fields['sai_amount_type'] = $mode;
+        unset($fields[$mode === 'fixed' ? 'broker_sai_rate_percent' : 'fixed_sai_amount']);
+        return $fields;
+    }
+
+    public function extract(string $message, array $current, ?array $literal = null): array
     {
         $properties = [];
         foreach (array_keys($this->rules()) as $key) if (!str_contains($key,'.') && $key !== 'has_elevator') $properties[$key] = ['type' => 'string'];
@@ -93,11 +116,14 @@ class ListingAiService
         try {
             Validator::make($result, ['fields' => ['present', 'array:'.implode(',', array_keys($this->rules()))]])->validate();
             if (array_diff(array_keys($result), ['fields']) !== []) $this->gemini->unavailable();
-            $fields = $this->facts($result['fields']);
+            $explicit = app(ExplicitListingFacts::class);
+            $literal ??= $explicit->extract($message, $current['currency'] ?? 'YER');
+            $money = array_intersect_key($literal, array_flip(['purpose', 'price', 'monthly_rent', 'currency',
+                'sai_amount_type', 'fixed_sai_amount', 'broker_sai_rate_percent']));
+            $fields = $this->facts($this->reviewableSai(array_replace($result['fields'], $money), $current));
             // A unit identifier affects property identity. Accept it only from
             // a distinct explicit unit label, never a model's floor inference.
             unset($fields['unit_number']);
-            $explicit = app(ExplicitListingFacts::class);
             if ($explicit->hasMixedCurrencies($message)) {
                 unset($fields['price'], $fields['monthly_rent'], $fields['currency'], $fields['fixed_sai_amount']);
                 if (($fields['sai_amount_type'] ?? null) === 'fixed') unset($fields['sai_amount_type']);
@@ -105,8 +131,6 @@ class ListingAiService
             $unit = $explicit->unitNumber($message);
             if ($unit !== null) $fields['unit_number'] = $unit;
             if (isset($fields['floor_number'])) $fields['floor_number']=app(DynamicPropertySchema::class)->normalizeFloor($fields['floor_number']);
-            if (isset($fields['broker_sai_rate_percent']) && !isset($fields['fixed_sai_amount'])) $fields['sai_amount_type']='percentage';
-            if (isset($fields['fixed_sai_amount']) && !isset($fields['broker_sai_rate_percent'])) $fields['sai_amount_type']='fixed';
             $effective=array_merge($current,$fields);
             $effective=app(DynamicPropertySchema::class)->validateApartmentFloor($effective,'facts.floor_number');
             $fields=array_intersect_key(app(DynamicPropertySchema::class)->facts($effective),$fields);
@@ -208,7 +232,7 @@ class ListingAiService
     /** Copy is composed on the server from the facts the advertiser selected. */
     public function draftCopy(array $facts): array
     {
-        $facts = $this->facts($facts);
+        $facts = $this->facts($this->reviewableSai($facts));
         $type = $facts['type'] ?? null;
         $purpose = $facts['purpose'] ?? null;
         $facts=app(DynamicPropertySchema::class)->facts($facts);

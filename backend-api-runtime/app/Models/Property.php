@@ -60,11 +60,15 @@ class Property extends Model
 
             /** @var User $advertiser */
             $advertiser = $property->user()->firstOrFail();
-            if (! $advertiser->hasApprovedVerificationProfile() && $advertiser->broker_enrolled_at === null
-                && (int) $advertiser->identity_policy_version === 0) return;
+            // Loaded models can predate an independent pricing or term update.
+            $policyProperty = static::query()->findOrFail($property->getKey());
+            foreach (['purpose', 'price', 'monthly_rent', 'advance_months', 'currency', 'listing_input_version', 'current_sai_term_id'] as $field) {
+                if ($property->isDirty($field)) $policyProperty->$field = $property->$field;
+            }
+            if (! $policyProperty->current_sai_term_id && (int) $advertiser->identity_policy_version === 0
+                && $advertiser->broker_enrolled_at === null && ! $advertiser->hasApprovedVerificationProfile()
+                && ! PropertySaiTerm::query()->where('property_id', $property->id)->exists()) return;
 
-            $policyProperty = Property::query()->findOrFail($property->getKey());
-            $policyProperty->purpose = $property->purpose;
             app(PropertySaiService::class)->assertReadyForSubmission($policyProperty, $advertiser);
         });
 

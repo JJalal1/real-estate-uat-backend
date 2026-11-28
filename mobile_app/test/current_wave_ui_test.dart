@@ -132,7 +132,7 @@ void main() {
       final percentage=find.byKey(const ValueKey('listing-sai-percentage'));
       await tester.ensureVisible(percentage);await tester.tap(percentage);await tester.pumpAndSettle();
       final rate=find.byKey(const ValueKey('listing-sai-rate'));await tester.ensureVisible(rate);await tester.enterText(rate,'101');await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('listing-sai-amount')),findsNothing);expect(find.text('أقصى نسبة للسعي 100%'),findsOneWidget);
+      expect(find.byKey(const ValueKey('listing-sai-amount')),findsNothing);expect(find.text('أقصى نسبة للسعي 5% من سعر البيع.'),findsOneWidget);
       await previewWave6(tester,boundary,'wave6-current-rate-limit-$scale');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
     testWidgets('current wave apartment floor selector contains exactly ground through seven at scale $scale',(tester)async {

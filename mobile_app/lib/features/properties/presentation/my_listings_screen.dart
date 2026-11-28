@@ -237,6 +237,17 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
     WidgetRef ref,
     PropertyDetails item,
   ) async {
+    final basis = item.saiCalculationBasis;
+    if (basis == null || basis <= 0) {
+      final priceLabel = item.purpose == 'rent' ? 'الإيجار الشهري' : 'سعر البيع';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('أكمل $priceLabel في الإعلان قبل تأكيد السعي.'),
+        action: item.canEdit ? SnackBarAction(
+          label: 'تعديل', onPressed: () => _edit(context, ref, item),
+        ) : null,
+      ));
+      return;
+    }
     final confirmed = await AppDialog.show<bool>(
           context,
           title: item.reviewStatus == 'returned_for_correction'
@@ -268,7 +279,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         repository: repository,
         propertyId: item.id,
         purpose: item.purpose,
-        basis: item.purpose == 'rent' ? (item.monthlyRent ?? item.editablePrice) : item.editablePrice,
+        basis: basis,
         currency: item.currency,
       );
       if (!context.mounted) return;

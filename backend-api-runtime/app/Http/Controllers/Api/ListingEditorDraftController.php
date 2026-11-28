@@ -83,7 +83,7 @@ class ListingEditorDraftController extends Controller
                 $incoming=$this->drafts->clean($v['payload']);
                 if (($draft->payload['draft_kind'] ?? null)==='saved') $incoming['draft_kind']='saved';
                 if (isset($incoming['checkpoint_key']) && ($draft->payload['checkpoint_key'] ?? null)===$incoming['checkpoint_key']) {
-                    abort_unless($draft->payload == $incoming,409,'مفتاح الحفظ مستخدم لتعديل مختلف.');
+                    abort_unless($this->drafts->reviewSaiConsent($draft->payload) == $incoming,409,'مفتاح الحفظ مستخدم لتعديل مختلف.');
                     return $draft;
                 }
                 $this->drafts->assertRevision($draft,$v['expected_revision']);

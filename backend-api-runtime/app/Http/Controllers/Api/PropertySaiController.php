@@ -59,7 +59,7 @@ class PropertySaiController extends Controller
             'sai_payer' => ['sometimes', 'string', Rule::in(['seller', 'buyer', 'landlord', 'tenant'])],
             'broker_sai_rate_percent' => ['nullable', 'numeric', 'min:0', 'max:100', 'decimal:0,2'],
             'sai_amount_type' => ['sometimes', Rule::in(['percentage', 'fixed'])],
-            'fixed_sai_amount' => ['nullable', 'required_if:sai_amount_type,fixed', 'prohibited_unless:sai_amount_type,fixed', 'numeric', 'min:0', 'max:999999999999.99', 'decimal:0,2'],
+            'fixed_sai_amount' => ['nullable', 'required_if:sai_amount_type,fixed', 'prohibited_unless:sai_amount_type,fixed', 'numeric', 'min:0', 'max:'.PropertySaiService::MAX_FIXED_AMOUNT, 'decimal:0,2'],
             'defer_platform_terms' => ['sometimes', 'boolean'],
             'platform_terms_decision' => ['nullable', 'string', Rule::in(['accept', 'reject'])],
         ]);

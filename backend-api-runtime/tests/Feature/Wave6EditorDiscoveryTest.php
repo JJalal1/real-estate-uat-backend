@@ -52,6 +52,32 @@ class Wave6EditorDiscoveryTest extends TestCase
         $this->assertCount(0,Storage::disk('local')->allFiles('editor-drafts'));
     }
 
+    public function test_recovery_keeps_entered_sai_without_restoring_consent_for_an_invalid_or_unpriced_amount(): void
+    {
+        [, $headers] = $this->actor('recovery-sai', 'broker');
+        $key = (string) Str::uuid();
+        $url = '/api/listing-editor-drafts/'.$key;
+        $payload = ['purpose' => 'sale', 'sai_touched' => true, 'sai_terms_accepted' => true,
+            'sai_amount_type' => 'fixed', 'fields' => ['fixed_sai_amount' => '500']];
+        $this->withHeaders($headers)->putJson($url, ['expected_revision' => 0, 'payload' => $payload])
+            ->assertOk()->assertJsonPath('data.payload.fields.fixed_sai_amount', '500')->assertJsonPath('data.payload.sai_terms_accepted', false);
+        $payload['fields']['price'] = '9,999.99';
+        $this->withHeaders($headers)->putJson($url, ['expected_revision' => 1, 'payload' => $payload])
+            ->assertOk()->assertJsonPath('data.payload.sai_terms_accepted', false);
+        $payload['fields']['price'] = '10,000';
+        $this->withHeaders($headers)->putJson($url, ['expected_revision' => 2, 'payload' => $payload])
+            ->assertOk()->assertJsonPath('data.payload.sai_terms_accepted', true);
+        // Existing snapshots can predate enforcement of the price-based cap.
+        $snapshot = \App\Models\ListingEditorDraft::where('client_key', $key)->firstOrFail();
+        $legacy = $snapshot->payload;
+        $legacy['fields']['fixed_sai_amount'] = '900';
+        $snapshot->update(['payload' => $legacy]);
+        $this->withHeaders($headers)->getJson($url)->assertOk()
+            ->assertJsonPath('data.payload.fields.fixed_sai_amount', '900')->assertJsonPath('data.payload.sai_terms_accepted', false);
+        $this->assertDatabaseCount('properties', 0);
+        $this->assertDatabaseCount('property_sai_terms', 0);
+    }
+
     public function test_multiple_drafts_keep_previous_progress_for_brokers_and_personal_accounts(): void
     {
         [, $broker]=$this->actor('multi','broker');[, $owner]=$this->actor('personal','owner');
