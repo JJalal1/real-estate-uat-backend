@@ -3,6 +3,8 @@ import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../account/data/account_request_scope.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 import '../../financial/data/financial_repository.dart';
 import '../../financial/domain/financial_models.dart';
 import '../../regions/data/region_repository.dart';
@@ -426,20 +428,69 @@ class _GeneralManagerFinanceWorkspaceScreenState
                   dense: true,
                   title: Text(_rowTitle(row, key)),
                   subtitle: Text(_rowSubtitle(row, key), maxLines: 4, overflow: TextOverflow.ellipsis),
+                  trailing: const Icon(Icons.chevron_left),
+                  onTap: () => _openRecord(row, key),
                 )).toList(growable: false),
       ),
     );
   }
 
+  void _openRecord(Map<String, dynamic> row, String key) {
+    final pageTitle = key == 'audit_log' ? 'تفاصيل إجراء مالي' : 'تفاصيل المعاملة';
+    final scope = ref.read(accountRequestScopeProvider);
+    Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => ActorBoundPage(
+      title: pageTitle,
+      requestScope: scope,
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(pageTitle)),
+        body: ListView(padding: const EdgeInsets.all(16), children: [
+          Card(child: ListTile(
+            leading: const Icon(Icons.receipt_long_outlined),
+            title: Text(_rowTitle(row, key), style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(_rowSubtitle(row, key)),
+          )),
+          if (row['created_at'] != null && key != 'audit_log')
+            ListTile(title: const Text('تاريخ التسجيل'), subtitle: Text(row['created_at'].toString())),
+          if (row['confirmed_at'] != null)
+            ListTile(title: const Text('تاريخ التأكيد'), subtitle: Text(row['confirmed_at'].toString())),
+        ]),
+      ),
+    )));
+  }
+
+  String _status(Object? value) => switch (value) {
+    'confirmed' || 'paid' || 'succeeded' => 'مؤكدة',
+    'pending' || 'proof_submitted' || 'under_review' => 'بانتظار التحقق',
+    'approved' => 'مقبولة',
+    'rejected' => 'مرفوضة',
+    'failed' => 'تعذرت',
+    'cancelled' => 'ملغاة',
+    'open' => 'مفتوحة',
+    'resolved' || 'closed' => 'مغلقة',
+    _ => 'حالة المعاملة',
+  };
+
+  String _auditAction(Object? action) => switch (action) {
+    'finance.payment_created' => 'أُنشئ طلب الدفع',
+    'finance.payment_method_changed' => 'عُدّلت طريقة الدفع',
+    'finance.payment_proof_submitted' => 'رُفع إثبات الدفع',
+    'finance.payment_reviewed' => 'رُوجعت الدفعة',
+    'listing.sai_attested' => 'أُقرّت شروط السعي',
+    'support_task.payment_assigned' => 'أُسندت مراجعة السداد',
+    'support_task.payment_claimed' => 'استُلمت مراجعة السداد',
+    'support_task.payment_released' => 'عادت مراجعة السداد للوارد',
+    _ => 'إجراء مالي',
+  };
+
   String _rowTitle(Map<String, dynamic> row, String key) {
     if (key == 'deals') return '${row['property_title'] ?? 'صفقة'} • ${row['transaction_type'] == 'rent' ? 'إيجار' : 'بيع'}';
-    if (key == 'payments') return '${row['reference'] ?? 'دفعة'} • ${row['status'] ?? ''}';
+    if (key == 'payments') return '${row['reference'] ?? 'دفعة'} • ${_status(row['status'])}';
     if (key == 'payouts') return '${row['reference'] ?? 'تحويل'} • ${row['advertiser_name'] ?? ''}';
     if (key == 'receivables' || key == 'overdue') return '${row['reference'] ?? 'مستحق'} • ${row['advertiser_name'] ?? ''}';
     if (key == 'holds') return '${row['advertiser_name'] ?? 'معلن'} • ${row['released_at'] == null ? 'قيد نشط' : 'مرفوع'}';
-    if (key == 'refunds') return '${row['reference'] ?? 'استرداد'} • ${row['status'] ?? ''}';
-    if (key == 'disputes') return '${row['reference'] ?? 'نزاع'} • ${row['status'] ?? ''}';
-    if (key == 'audit_log') return '${row['action'] ?? 'إجراء مالي'}';
+    if (key == 'refunds') return '${row['reference'] ?? 'استرداد'} • ${_status(row['status'])}';
+    if (key == 'disputes') return '${row['reference'] ?? 'نزاع'} • ${_status(row['status'])}';
+    if (key == 'audit_log') return _auditAction(row['action']);
     return '${row['reference'] ?? row['id'] ?? 'سجل'}';
   }
 

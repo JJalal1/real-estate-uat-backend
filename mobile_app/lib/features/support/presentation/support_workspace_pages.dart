@@ -12,7 +12,7 @@ import '../../regions/presentation/platform_regions_screen.dart';
 import '../data/support_workspace_repository.dart';
 import '../domain/support_workspace_models.dart';
 import 'support_tasks_screen.dart';
-import 'support_team_administration_screen.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 
 class SupportAgentHomeScreen extends ConsumerWidget {
   const SupportAgentHomeScreen({this.actingAsAgent = false, this.returnToManager, super.key});
@@ -213,193 +213,218 @@ class SupportTeamScreen extends ConsumerStatefulWidget {
 }
 
 class _SupportTeamScreenState extends ConsumerState<SupportTeamScreen> {
-  late Future<(List<SupportTeamMember>, List<SupportTeamSummary>)> _future;
+  late final AccountRequestScope _scope;
+  late Future<List<SupportTeamMember>> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = _load(); _future.ignore();
+    _scope = ref.read(accountRequestScopeProvider);
+    _future = _load();
   }
 
-  Future<(List<SupportTeamMember>, List<SupportTeamSummary>)> _load() async {
-    final repo = ref.read(supportWorkspaceRepositoryProvider);
-    final values = await Future.wait<dynamic>([repo.team(), repo.teams()]);
-    return (values[0] as List<SupportTeamMember>, values[1] as List<SupportTeamSummary>);
-  }
+  Future<List<SupportTeamMember>> _load() =>
+      ref.read(supportWorkspaceRepositoryProvider).team();
 
   Future<void> _refresh() async {
-    setState(() { _future = _load(); _future.ignore(); });
-    try { await _future; } catch (_) { /* The view renders failure and retry. */ }
+    if (!mounted || !_scope.isCurrent) return;
+    setState(() => _future = _load());
+    try { await _future; } catch (_) { /* The view shows the retry action. */ }
   }
 
   @override
-  Widget build(BuildContext context) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('الفريق وعبء العمل'),
-            actions: [
-              if (canAdministerSupportTeams(ref.watch(authControllerProvider).asData?.value))
-                IconButton(
-                  tooltip: 'فرق المحافظات',
-                  icon: const EbrokerIcon(Icons.groups_outlined),
-                  onPressed: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(builder: (_) => const SupportTeamAdministrationScreen()),
-                  ),
-                ),
-              IconButton(onPressed: _refresh, icon: const EbrokerIcon(Icons.refresh)),
-            ],
-          ),
-          body: FutureBuilder<(List<SupportTeamMember>, List<SupportTeamSummary>)>(
-            future: _future,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              if (snapshot.hasError) return _ErrorState(error: snapshot.error!, onRetry: _refresh);
-              final members = snapshot.data?.$1 ?? const <SupportTeamMember>[];
-              final teams = snapshot.data?.$2 ?? const <SupportTeamSummary>[];
-              return RefreshIndicator(
-                onRefresh: _refresh,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
-                  children: [
-                    const _SectionHeader('الفرق'),
-                    const SizedBox(height: 8),
-                    if (teams.isEmpty)
-                      const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('لا توجد فرق دعم ضمن نطاقك.')))
-                    else
-                      ...teams.map((team) => Card(
-                            child: ListTile(
-                              leading: CircleAvatar(child: EbrokerIcon(team.isFallback ? Icons.all_inbox_outlined : Icons.location_on_outlined)),
-                              title: Text(team.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                              subtitle: Text('${team.availableAgents}/${team.agents} متاح • ${team.openTasks} مفتوحة • ${team.unassigned} غير مستلمة'),
-                              trailing: team.isFallback ? const Chip(label: Text('وارد عام')) : null,
-                            ),
-                          )),
-                    const SizedBox(height: 18),
-                    const _SectionHeader('الموظفون'),
-                    const SizedBox(height: 8),
-                    if (members.where((m) => m.role == 'support_agent').isEmpty)
-                      const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('لا يوجد موظفو دعم ضمن فرقك.')))
-                    else
-                      ...members.where((m) => m.role == 'support_agent').map((member) =>
-                        Card(child: ListTile(
-                          leading: const EbrokerIcon(Icons.person_outline),
-                          title: Text(member.name),
-                          subtitle: Text('${member.openTasks} مهام مفتوحة'),
-                          trailing: Text(member.isAvailable ? 'متاح' : 'غير متاح'),
-                          onTap: () => _openMember(member, teams),
-                        ))),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      );
-
-  Future<void> _openMember(SupportTeamMember member, List<SupportTeamSummary> teams) async {
-    final scope = ref.read(accountRequestScopeProvider);
-    await Navigator.of(context).push<void>(MaterialPageRoute(
-      builder: (pageContext) => Scaffold(
-        appBar: const AppAppBar(title: 'تفاصيل الموظف'),
-        body: ListView(padding: const EdgeInsets.all(12), children: [
-          Card(child: ListTile(leading: const EbrokerIcon(Icons.person_outline),
-            title: Text(member.name),
-            subtitle: Text('${member.teamName ?? 'موظف دعم'} · ${member.isAvailable ? 'متاح' : 'غير متاح'}'),
-            trailing: TextButton.icon(icon: const Icon(Icons.chat_bubble_outline),
-              label: const Text('مراسلة'), onPressed: () async {
-                try {
-                  final thread = await ref.read(supportWorkspaceRepositoryProvider)
-                    .openStaffThread(memberId: member.id, teamId: member.teamId);
-                  if (pageContext.mounted && scope.isCurrent) {
-                    await pageContext.push<void>('/support/internal/${thread.id}');
-                  }
-                } catch (error) {
-                  if (pageContext.mounted && scope.isCurrent) {
-                    ScaffoldMessenger.of(pageContext).showSnackBar(
-                    SnackBar(content: Text(friendlyApiError(error))));
-                  }
-                }
-              }),
-          )),
-          Card(child: ListTile(title: const Text('المهام المفتوحة'),
-            trailing: Text('${member.openTasks} من ${member.capacity}'))),
-          Card(child: ListTile(leading: const Icon(Icons.list_alt_outlined), title: const Text('عرض مهامه'),
-            onTap: () => Navigator.of(pageContext).push<void>(MaterialPageRoute(builder: (_) =>
-              SupportTasksScreen(initialScope: 'active', initialAssigneeId: member.id, title: 'مهام ${member.name}'))))),
-          Card(child: ListTile(leading: const Icon(Icons.toggle_on_outlined), title: const Text('تعديل التوفر'),
-            onTap: () async {
-              await _manageMember(member, teams);
-              if (pageContext.mounted) Navigator.pop(pageContext);
-            })),
-          if (member.openTasks > 0)
-            Card(child: ListTile(leading: const Icon(Icons.move_to_inbox_outlined), title: const Text('إعادة توزيع المهام'),
-              onTap: () async {
-                await _redistribute(member);
-                if (pageContext.mounted) Navigator.pop(pageContext);
-              })),
+  Widget build(BuildContext context) {
+    ref.watch(accountRequestScopeProvider);
+    if (!_scope.isCurrent) return const SizedBox.shrink();
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppAppBar(title: 'أعضاء فريقي', actions: [
+          IconButton(tooltip: 'تحديث', icon: const Icon(Icons.refresh), onPressed: _refresh),
         ]),
-      ),
-    ));
-  }
-
-  Future<void> _manageMember(SupportTeamMember member, List<SupportTeamSummary> teams) async {
-    if (teams.isEmpty) return;
-    var teamId = member.teamId ?? teams.first.id;
-    var available = member.isAvailable;
-    var capacity = member.capacity.clamp(1, 50);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: Text('إدارة ${member.name}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<int>(
-                value: teams.any((t) => t.id == teamId) ? teamId : teams.first.id,
-                decoration: const InputDecoration(labelText: 'الفريق / النطاق'),
-                items: teams.map((t) => DropdownMenuItem(value: t.id, child: Text(t.name))).toList(),
-                onChanged: (value) { if (value != null) setLocal(() => teamId = value); },
-              ),
-              const SizedBox(height: 12),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('متاح لاستلام مهام جديدة'),
-                value: available,
-                onChanged: (value) => setLocal(() => available = value),
-              ),
-              Row(
+        body: FutureBuilder<List<SupportTeamMember>>(
+          future: _future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const AppLoadingState(label: 'جارٍ تحميل أعضاء الفريق…');
+            }
+            if (snapshot.hasError) return _ErrorState(error: snapshot.error!, onRetry: _refresh);
+            final members = (snapshot.data ?? const <SupportTeamMember>[])
+                .where((member) => member.role == 'support_agent').toList();
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
                 children: [
-                  const Expanded(child: Text('الحد الأقصى للمهام المفتوحة')),
-                  IconButton(onPressed: capacity <= 1 ? null : () => setLocal(() => capacity--), icon: const EbrokerIcon(Icons.remove_circle_outline)),
-                  Text('$capacity', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  IconButton(onPressed: capacity >= 50 ? null : () => setLocal(() => capacity++), icon: const EbrokerIcon(Icons.add_circle_outline)),
+                  if (members.isEmpty)
+                    const Padding(padding: EdgeInsets.all(16), child: Text('لا يوجد موظفو دعم ضمن فريقك.')),
+                  for (final member in members)
+                    Card(child: ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(member.name),
+                      subtitle: Text([
+                        if (member.teamName != null) member.teamName!,
+                        member.isAvailable ? 'متاح' : 'غير متاح',
+                        '${member.openTasks} مفتوحة · ${member.completedInPeriod} منجزة اليوم',
+                        _lastActivity(context, member),
+                      ].join('\n')),
+                      trailing: IconButton(
+                        tooltip: 'مراسلة ${member.name}',
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        onPressed: () => _messageMember(context, member),
+                      ),
+                      onTap: () => _openMember(member),
+                    )),
                 ],
               ),
-            ],
-          ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _lastActivity(BuildContext context, SupportTeamMember member) {
+    final date = member.lastActivityAt?.toLocal();
+    if (date == null) return 'لم يُسجّل نشاط بعد';
+    final local = MaterialLocalizations.of(context);
+    return 'آخر نشاط: ${local.formatShortDate(date)} · ${local.formatTimeOfDay(TimeOfDay.fromDateTime(date))}';
+  }
+
+  Future<void> _messageMember(BuildContext pageContext, SupportTeamMember member) async {
+    try {
+      final thread = await ref.read(supportWorkspaceRepositoryProvider)
+          .openStaffThread(memberId: member.id, teamId: member.teamId);
+      if (pageContext.mounted && _scope.isCurrent) {
+        await pageContext.push<void>('/support/internal/${thread.id}');
+      }
+    } catch (error) {
+      if (pageContext.mounted && _scope.isCurrent) {
+        ScaffoldMessenger.of(pageContext).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      }
+    }
+  }
+
+  Future<SupportTeamMember?> _memberActivity(SupportTeamMember member, String period) async {
+    final rows = await ref.read(supportWorkspaceRepositoryProvider).teamActivity(period: period);
+    for (final row in rows) {
+      if (row.id == member.id && row.teamId == member.teamId && row.role == 'support_agent') return row;
+    }
+    return null;
+  }
+
+  Future<void> _openMember(SupportTeamMember member) async {
+    var period = 'day';
+    Future<SupportTeamMember?> activity = Future.value(member);
+    await Navigator.of(context).push<void>(MaterialPageRoute(
+      builder: (_) => ActorBoundPage(
+        title: 'تفاصيل الموظف',
+        requestScope: _scope,
+        builder: (_) => StatefulBuilder(builder: (pageContext, update) => Scaffold(
+          appBar: AppAppBar(title: member.name, actions: [
+            IconButton(tooltip: 'مراسلة', icon: const Icon(Icons.chat_bubble_outline),
+              onPressed: () => _messageMember(pageContext, member)),
+          ]),
+          body: ListView(padding: const EdgeInsets.all(14), children: [
+            if (member.teamName case final team?) AppSectionHeader(title: team),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final entry in const {'day': 'اليوم', '7d': '٧ أيام', '30d': '٣٠ يومًا'}.entries)
+                ChoiceChip(label: Text(entry.value), selected: period == entry.key,
+                  onSelected: (selected) {
+                    if (!selected || !_scope.isCurrent) return;
+                    update(() {
+                      period = entry.key;
+                      activity = _memberActivity(member, period);
+                    });
+                  }),
+            ]),
+            FutureBuilder<SupportTeamMember?>(
+              future: activity,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()));
+                }
+                if (snapshot.hasError) {
+                  return ListTile(title: Text(friendlyApiError(snapshot.error!)),
+                    trailing: IconButton(tooltip: 'إعادة المحاولة', icon: const Icon(Icons.refresh),
+                      onPressed: () => update(() => activity = _memberActivity(member, period))));
+                }
+                final value = snapshot.data;
+                if (value == null) return const ListTile(title: Text('العضو غير متاح ضمن فريقك الآن.'));
+                return Card(child: Column(children: [
+                  ListTile(title: const Text('المهام المفتوحة'), trailing: Text('${value.openTasks} من ${value.capacity}')),
+                  ListTile(title: const Text('المهام المنجزة في الفترة'), trailing: Text('${value.completedInPeriod}')),
+                  ListTile(title: const Text('المهام التي عمل عليها في الفترة'), trailing: Text('${value.activeInPeriod}')),
+                  ListTile(title: Text(_lastActivity(context, value))),
+                ]));
+              },
+            ),
+            Card(child: ListTile(leading: const Icon(Icons.list_alt_outlined), title: const Text('عرض مهامه المفتوحة'),
+              onTap: () => Navigator.of(pageContext).push<void>(MaterialPageRoute(builder: (_) =>
+                SupportTasksScreen(initialScope: 'active', initialAssigneeId: member.id, title: 'مهام ${member.name}'))))),
+            if (member.teamId != null) Card(child: ListTile(
+              leading: const Icon(Icons.toggle_on_outlined), title: const Text('تعديل التوفر'),
+              onTap: () async {
+                await _manageMember(member);
+                if (pageContext.mounted) update(() => activity = _memberActivity(member, period));
+              })),
+            if (member.openTasks > 0)
+              Card(child: ListTile(leading: const Icon(Icons.move_to_inbox_outlined), title: const Text('إعادة توزيع المهام'),
+                onTap: () async {
+                  await _redistribute(member);
+                  if (pageContext.mounted) update(() => activity = _memberActivity(member, period));
+                })),
+          ]),
+        )),
+      ),
+    ));
+    await _refresh();
+  }
+
+  Future<void> _manageMember(SupportTeamMember member) async {
+    final teamId = member.teamId;
+    if (teamId == null) return;
+    var available = member.isAvailable;
+    var capacity = member.capacity.clamp(1, 50);
+    final ok = await showActorDialog<bool>(
+      context: context,
+      ref: ref,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text('إدارة توفر ${member.name}'),
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('متاح لاستلام مهام جديدة'),
+              value: available,
+              onChanged: (value) => setLocal(() => available = value),
+            ),
+            Row(children: [
+              const Expanded(child: Text('الحد الأقصى للمهام المفتوحة')),
+              IconButton(onPressed: capacity <= 1 ? null : () => setLocal(() => capacity--), icon: const Icon(Icons.remove)),
+              Text('$capacity'),
+              IconButton(onPressed: capacity >= 50 ? null : () => setLocal(() => capacity++), icon: const Icon(Icons.add)),
+            ]),
+          ])),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('إلغاء')),
-            EbrokerFilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حفظ')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('حفظ')),
           ],
         ),
       ),
     );
-    if (ok != true || !mounted) return;
+    if (ok != true || !mounted || !_scope.isCurrent) return;
     try {
       await ref.read(supportWorkspaceRepositoryProvider).updateTeamMember(
-            member.id,
-            teamId: teamId,
-            isAvailable: available,
-            capacity: capacity,
-          );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث الفريق وحالة الموظف.')));
+        member.id, teamId: teamId, isAvailable: available, capacity: capacity,
+      );
+      if (!mounted || !_scope.isCurrent) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث توفر الموظف.')));
       await _refresh();
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && _scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     }
   }
 

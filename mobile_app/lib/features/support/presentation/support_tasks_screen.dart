@@ -572,7 +572,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 title: const Text('سجل المهمة'),
                 onTap: () => Navigator.pop(sheetContext, 'history'),
               ),
-              if (manager && !task.isClosed)
+              if (manager && !task.isClosed && !task.awaitingExecutiveDecision)
                 ListTile(
                   leading: const EbrokerIcon(Icons.person_add_alt_1_outlined),
                   title: Text(task.assignedToUserId == null
@@ -580,11 +580,15 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       : 'إعادة الإسناد'),
                   onTap: () => Navigator.pop(sheetContext, 'assign'),
                 ),
-              if (manager && ref.read(authControllerProvider).asData?.value?.roles.contains('support_manager') == true)
+              if (manager && !task.isClosed &&
+                  ref.read(authControllerProvider).asData?.value?.hasRole('support_manager') == true)
                 ListTile(
-                  leading: const EbrokerIcon(Icons.chat_bubble_outline),
-                  title: const Text('إرسال المهمة للمدير العام'),
-                  onTap: () => Navigator.pop(sheetContext, 'executive'),
+                  leading: EbrokerIcon(task.awaitingExecutiveDecision
+                      ? Icons.chat_bubble_outline : Icons.flag_outlined),
+                  title: Text(task.awaitingExecutiveDecision
+                      ? 'مراسلة المدير العام بشأن الحالة' : 'رفع الحالة للمدير العام'),
+                  onTap: () => Navigator.pop(sheetContext,
+                      task.awaitingExecutiveDecision ? 'executive' : 'forward_executive'),
                 ),
               if (manager)
                 ListTile(
@@ -603,7 +607,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                       'للحالات غير الاعتيادية فقط، وليس للموافقة اليومية.'),
                   onTap: () => Navigator.pop(sheetContext, 'escalate'),
                 ),
-              if (manager && task.status == 'escalated')
+              if (manager && task.status == 'escalated' && !task.awaitingExecutiveDecision)
                 ListTile(
                   leading: const EbrokerIcon(Icons.check_circle_outline),
                   title: const Text('معالجة التصعيد وإعادته للموظف'),
@@ -667,6 +671,14 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     if (!mounted || action == null) return;
     try {
       switch (action) {
+        case 'forward_executive':
+          final reason = await _textDialog(
+            'رفع الحالة للمدير العام', 'اكتب سبب التصعيد والقرار المطلوب.');
+          if (reason != null && mounted) {
+            await ref.read(supportWorkspaceRepositoryProvider).forwardToExecutive(task.id, reason);
+            _message('أُرسلت الحالة إلى قائمة قرارات المدير العام.');
+          }
+          break;
         case 'executive':
           final scope = ref.read(accountRequestScopeProvider);
           final thread = await ref.read(supportWorkspaceRepositoryProvider).openStaffThread(teamId: task.supportTeamId);

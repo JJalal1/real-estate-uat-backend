@@ -68,9 +68,9 @@ class FinancialAwareSupportTaskService extends SupportTaskService
         return $data;
     }
 
-    public function teamMetrics(User $actor): array
+    public function teamMetrics(User $actor, ?string $period = null): array
     {
-        $rows=parent::teamMetrics($actor);
+        $rows=parent::teamMetrics($actor, $period);
         foreach($rows as &$row){
             $row['payment_reviews']=SupportTask::query()->where('source_type','payment_review')
                 ->where('support_team_id',$row['team_id'])->where('assigned_to_user_id',$row['id'])->count();

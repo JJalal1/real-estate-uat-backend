@@ -45,6 +45,7 @@ import '../features/support/presentation/support_admin_screen.dart';
 import '../features/support/presentation/support_center_screen.dart';
 import '../features/support/presentation/support_help_screen.dart';
 import '../features/support/presentation/support_staff_messages.dart';
+import '../features/admin/presentation/general_manager_operations_screen.dart';
 import '../features/support/presentation/support_tasks_screen.dart';
 import '../features/support/presentation/support_users_screen.dart';
 import '../features/support/presentation/support_work_log_screen.dart';
@@ -235,8 +236,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/notifications',
-        builder: (context, state) =>
-            const Stage6AuthGate(child: NotificationsScreen()),
+        builder: (context, state) => Stage6AuthGate(
+          child: NotificationsScreen(workOnly: state.uri.queryParameters['work'] == '1')),
       ),
       GoRoute(
         path: '/admin/message-reports',
@@ -275,6 +276,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return id > 0 ? Stage6AuthGate(child: SupportStaffChatScreen(
           threadId: id, linkedTaskId: int.tryParse(state.uri.queryParameters['task'] ?? '')))
           : const _RouteErrorScreen();
+      }),
+      GoRoute(path: '/admin/general-manager/decisions/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return id > 0 ? Stage6AuthGate(child: GeneralManagerDecisionScreen(taskId: id))
+            : const _RouteErrorScreen();
       }),
       GoRoute(
         path: '/admin/support',

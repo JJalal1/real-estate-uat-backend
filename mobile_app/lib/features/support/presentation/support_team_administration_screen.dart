@@ -23,12 +23,17 @@ final _membersProvider = FutureProvider.autoDispose.family<List<SupportTeamMembe
 );
 
 class SupportTeamAdministrationScreen extends StatelessWidget {
-  const SupportTeamAdministrationScreen({super.key});
+  const SupportTeamAdministrationScreen({this.teamId, this.teamName, super.key});
+
+  final int? teamId;
+  final String? teamName;
 
   @override
   Widget build(BuildContext context) => ActorBoundPage(
-    title: 'فرق المحافظات',
-    builder: (_) => const _TeamAdministration(),
+    title: teamName ?? 'فرق المحافظات',
+    builder: (_) => teamId == null
+        ? const _TeamAdministration()
+        : _TeamMemberships(teamId: teamId!, teamName: teamName ?? 'إدارة التعيينات'),
   );
 }
 
@@ -81,7 +86,7 @@ class _TeamAdministration extends ConsumerWidget {
                     onTap: () => Navigator.of(context).push<void>(
                       MaterialPageRoute(builder: (_) => ActorBoundPage(
                         title: team.name,
-                        builder: (_) => _TeamMemberships(team: team),
+                        builder: (_) => _TeamMemberships(teamId: team.id, teamName: team.name),
                       )),
                     ),
                   ),
@@ -151,25 +156,26 @@ class _TeamAdministration extends ConsumerWidget {
 }
 
 class _TeamMemberships extends ConsumerWidget {
-  const _TeamMemberships({required this.team});
-  final SupportTeamSummary team;
+  const _TeamMemberships({required this.teamId, required this.teamName});
+  final int teamId;
+  final String teamName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!canAdministerSupportTeams(ref.watch(authControllerProvider).asData?.value)) {
       return Scaffold(
-        appBar: AppBar(title: Text(team.name)),
+        appBar: AppBar(title: Text(teamName)),
         body: const Center(child: Text('إدارة أعضاء الفريق تحتاج صلاحية التفويض.')),
       );
     }
-    final members = ref.watch(_membersProvider(team.id));
+    final members = ref.watch(_membersProvider(teamId));
     return Scaffold(
-      appBar: AppBar(title: Text(team.name)),
+      appBar: AppBar(title: Text(teamName)),
       body: members.when(
         loading: () => const AppLoadingState(),
         error: (error, _) => AppErrorState(
           message: friendlyApiError(error),
-          onRetry: () => ref.invalidate(_membersProvider(team.id)),
+          onRetry: () => ref.invalidate(_membersProvider(teamId)),
         ),
         data: (rows) => ListView(
           padding: const EdgeInsets.all(16),
@@ -252,10 +258,10 @@ class _TeamMemberships extends ConsumerWidget {
     );
     if (save != true || !context.mounted) return;
     try {
-      await repo.setTeamMembership(team.id, id, agent: agent, manager: manager,
+      await repo.setTeamMembership(teamId, id, agent: agent, manager: manager,
         reviewPayments: payments, reviewListings: listings);
       if (!context.mounted) return;
-      ref.invalidate(_membersProvider(team.id));
+      ref.invalidate(_membersProvider(teamId));
       ref.invalidate(_teamsProvider);
     } catch (error) {
       if (context.mounted) _showError(context, error);

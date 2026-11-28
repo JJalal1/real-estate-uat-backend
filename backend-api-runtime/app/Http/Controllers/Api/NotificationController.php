@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
+    private const WORK_ENTITIES = ['support_task', 'support_staff_thread', 'executive_support_task'];
+
     public function index(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
@@ -20,9 +22,10 @@ class NotificationController extends Controller
             'per_page'=>['sometimes','integer','between:1,200'],
             'platform_history'=>['sometimes','boolean'],
             'unread_only'=>['sometimes','boolean'],
+            'work_only'=>['sometimes','boolean'],
         ]);
         $platformHistory = $request->boolean('platform_history');
-        $query = $this->notificationsFor($user, $platformHistory, now());
+        $query = $this->notificationsFor($user, $platformHistory, now(), $request->boolean('work_only'));
         if ($platformHistory) {
             $unreadCount = (clone $query)->whereNull('read_at')->count();
             $query->latest('created_at');
@@ -65,15 +68,19 @@ class NotificationController extends Controller
     public function readAllHistory(Request $request): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
+        $request->validate(['work_only' => ['sometimes', 'boolean']]);
         $now = now();
-        $count = $this->notificationsFor($user, true, $now)
+        $count = $this->notificationsFor($user, true, $now, $request->boolean('work_only'))
             ->whereNull('read_at')->update(['read_at'=>$now]);
         return response()->json(['message'=>'Notifications marked read.','data'=>['updated'=>$count]]);
     }
 
-    private function notificationsFor(User $user, bool $platformHistory, CarbonInterface $now): Builder
+    private function notificationsFor(User $user, bool $platformHistory, CarbonInterface $now, bool $workOnly = false): Builder
     {
         $query = UserNotification::query()->where('user_id', $user->id);
+        if ($workOnly) {
+            $query->whereIn('entity_type', self::WORK_ENTITIES);
+        }
         if ($platformHistory) {
             $query->where('type', '<>', 'message_received')->where('created_at', '>=', $now->copy()->subDays(7));
         }

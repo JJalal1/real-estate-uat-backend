@@ -16,19 +16,22 @@ class SupportTeamController extends Controller
 
     public function candidates(Request $request): JsonResponse
     {
+        $this->authorizeAdministration($request);
         $data = $request->validate(['q' => ['nullable', 'string', 'max:120']]);
 
         return response()->json(['data' => $this->teams->candidates($data['q'] ?? '')]);
     }
 
-    public function governorates(): JsonResponse
+    public function governorates(Request $request): JsonResponse
     {
+        $this->authorizeAdministration($request);
         return response()->json(['data' => Governorate::query()->where('is_active', true)->orderBy('name_ar')
             ->get(['id', 'name_ar', 'code', 'is_active'])]);
     }
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorizeAdministration($request);
         $data = $request->validate([
             'governorate_id' => ['required', 'integer', 'exists:governorates,id'],
             'name' => ['required', 'string', 'min:2', 'max:160'],
@@ -47,8 +50,9 @@ class SupportTeamController extends Controller
         ]], $team->wasRecentlyCreated ? 201 : 200);
     }
 
-    public function members(SupportTeam $team): JsonResponse
+    public function members(Request $request, SupportTeam $team): JsonResponse
     {
+        $this->authorizeAdministration($request);
         abort_unless($team->is_active, 404);
 
         return response()->json(['data' => $this->teams->members($team)]);
@@ -56,6 +60,7 @@ class SupportTeamController extends Controller
 
     public function setMember(Request $request, SupportTeam $team, User $user): JsonResponse
     {
+        $this->authorizeAdministration($request);
         $validated = $request->validate([
             'agent' => ['required', 'boolean'],
             'manager' => ['required', 'boolean'],
@@ -71,5 +76,11 @@ class SupportTeamController extends Controller
         if (array_key_exists('capacity', $validated)) $data['capacity'] = $request->integer('capacity');
 
         return response()->json(['data' => $this->teams->setMember($request->user(), $team, $user, $data, $request)]);
+    }
+
+    private function authorizeAdministration(Request $request): void
+    {
+        $actor = $request->user();
+        abort_if($actor->hasRole('support_manager') && !$actor->is_platform_owner && !$actor->hasRole('super_admin'), 403);
     }
 }

@@ -70,6 +70,10 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
   Timer? _timeout;
   int _attempt = 0;
   bool _ready = false, _failed = false;
+  bool _alternate = false;
+  bool _slow = false;
+  Timer? _slowTimer;
+  bool get _isReview => widget.listingTitle != null;
   @override
   void initState() {
     super.initState();
@@ -77,15 +81,28 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
   }
   void _startTimeout() {
     _timeout?.cancel();
+    _slowTimer?.cancel();
+    if (_isReview) {
+      _slowTimer = Timer(const Duration(seconds: 6), () {
+        if (mounted && !_ready) setState(() => _slow = true);
+      });
+    }
     _timeout = Timer(const Duration(seconds: 20), () {
       if (mounted && !_ready) setState(() => _failed = true);
     });
   }
   @override
-  void dispose() { _timeout?.cancel(); super.dispose(); }
+  void dispose() { _timeout?.cancel(); _slowTimer?.cancel(); super.dispose(); }
 
-  void _retry() {
-    setState(() { _attempt++; _ready = false; _failed = false; _controller = null; });
+  void _retry({bool changeRenderer = false}) {
+    setState(() {
+      _attempt++;
+      _ready = false;
+      _failed = false;
+      _slow = false;
+      _controller = null;
+      if (changeRenderer) _alternate = !_alternate;
+    });
     _startTimeout();
   }
 
@@ -104,7 +121,7 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
         const markerName = 'reviewed-listing-location';
         final image = await _listingMarker(title);
         if (!mounted || attempt != _attempt || _controller != controller) return;
-        await controller.addImage(markerName, image);
+        await controller.addImage(markerName, image).timeout(const Duration(seconds: 5));
         if (!mounted || attempt != _attempt || _controller != controller) return;
         await controller.addSymbols([
           SymbolOptions(geometry: location, iconImage: markerName, iconAnchor: 'bottom', iconSize: .85),
@@ -117,7 +134,12 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
       if (mounted && attempt == _attempt && _controller == controller) {
         setState(() => _failed = true);
       }
-    } finally { if (attempt == _attempt && _controller == controller) _timeout?.cancel(); }
+    } finally {
+      if (attempt == _attempt && _controller == controller) {
+        _timeout?.cancel();
+        _slowTimer?.cancel();
+      }
+    }
   }
 
   @override
@@ -125,6 +147,7 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
     final attempt = _attempt;
     return Stack(fit: StackFit.expand, children: [
     AqerMap(key: ValueKey(attempt),
+      useAlternateRenderer: _alternate,
       initialCameraPosition: CameraPosition(
         target: LatLng(widget.latitude, widget.longitude),
         zoom: widget.interactive ? 17 : 15,
@@ -136,7 +159,7 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
           _ready = false;
           _failed = false;
         });
-        _startTimeout();
+        if (!_isReview) _startTimeout();
       },
       onStyleLoadedCallback: () => _styleLoaded(attempt),
       scrollGesturesEnabled: widget.interactive, zoomGesturesEnabled: widget.interactive,
@@ -146,10 +169,33 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
       child: Center(child: Padding(padding: const EdgeInsets.all(12),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('تعذّر عرض الخريطة الآن.', textAlign: TextAlign.center),
-          TextButton(onPressed: _retry, child: const Text('إعادة تحميل الخريطة')),
+          TextButton(onPressed: () => _retry(), child: const Text('إعادة تحميل الخريطة')),
         ])))),
-    if (!_ready && !_failed) const IgnorePointer(child: Center(child: SizedBox.square(dimension: 22,
-      child: CircularProgressIndicator(strokeWidth: 2)))),
+    if (!_ready && !_failed) IgnorePointer(child: Center(child: _isReview
+      ? Card(child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 12),
+            Text(_slow ? 'تأخر تحميل الخريطة…' : 'جارٍ تحميل موقع العقار…'),
+          ]),
+        ))
+      : const SizedBox.square(dimension: 22, child: CircularProgressIndicator(strokeWidth: 2)))),
+    if (_isReview && AqerMap.supportsGoogle)
+      PositionedDirectional(start: 12, end: 12, top: 12,
+        child: SafeArea(bottom: false, child: Wrap(spacing: 8, children: [
+          ActionChip(
+            avatar: const Icon(Icons.layers_outlined, size: 18),
+            label: Text(_alternate ? 'خرائط Google' : 'خريطة بديلة'),
+            onPressed: () => _retry(changeRenderer: true),
+          ),
+          if (_ready)
+            ActionChip(
+              avatar: const Icon(Icons.refresh, size: 18),
+              label: const Text('إعادة التحميل'),
+              onPressed: () => _retry(),
+            ),
+        ]))),
   ]);
   }
 }

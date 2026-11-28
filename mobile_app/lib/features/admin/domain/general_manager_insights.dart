@@ -1,3 +1,34 @@
+class GeneralManagerOperations {
+  const GeneralManagerOperations(this.teams, this.totals, this.journey, this.decisions, this.unreadMessages);
+
+  final List<ExecutiveTeamStats> teams;
+  final Map<String, dynamic> totals;
+  final Map<String, dynamic> journey;
+  final int decisions;
+  final int unreadMessages;
+
+  factory GeneralManagerOperations.fromJson(Map<String, dynamic> json) => GeneralManagerOperations(
+    _listOfMaps(json['teams']).map(ExecutiveTeamStats.new).toList(),
+    Map<String, dynamic>.from(json['totals'] as Map),
+    Map<String, dynamic>.from(json['journey'] as Map),
+    (json['decisions'] as num).toInt(),
+    (json['unread_messages'] as num).toInt(),
+  );
+}
+
+class ExecutiveTeamStats {
+  const ExecutiveTeamStats(this.values);
+  final Map<String, dynamic> values;
+
+  int get id => (values['id'] as num).toInt();
+  int? get governorateId => (values['governorate_id'] as num?)?.toInt();
+  String get name => values['name'].toString();
+  String? get governorateName => values['governorate_name'] as String?;
+  String? get managerName => values['manager_name'] as String?;
+  int get members => count('members');
+  int count(String key) => (values[key] as num?)?.toInt() ?? 0;
+}
+
 class GeneralManagerInsights {
   const GeneralManagerInsights({
     required this.overview,

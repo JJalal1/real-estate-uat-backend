@@ -11,19 +11,23 @@ import '../data/message_repository.dart';
 import '../data/unread_inbox_repository.dart';
 import '../domain/message_models.dart';
 import '../domain/notification_destination.dart';
+import 'notification_preferences_screen.dart';
 
 class NotificationsScreen extends ConsumerWidget {
-  const NotificationsScreen({super.key});
+  const NotificationsScreen({this.workOnly = false, super.key});
+  final bool workOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final actor = ref.watch(authControllerProvider).asData?.value?.id;
     return actor == null ? const Scaffold(body: Center(child: Text('سجّل الدخول للمتابعة.')))
-      : _NotificationsBody(key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch)));
+      : _NotificationsBody(workOnly: workOnly,
+          key: ValueKey((actor, Stage6SecureSessionStore.instance.sessionEpoch, workOnly)));
   }
 }
 class _NotificationsBody extends ConsumerStatefulWidget {
-  const _NotificationsBody({super.key});
+  const _NotificationsBody({required this.workOnly, super.key});
+  final bool workOnly;
   @override
   ConsumerState<_NotificationsBody> createState() => _NotificationsScreenState();
 }
@@ -149,7 +153,9 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     try {
       final repo = ref.read(messageRepositoryProvider);
       final now = DateTime.now();
-      Future<NotificationPage> loadPage(int number) => repo.notificationsPage(
+      Future<NotificationPage> loadPage(int number) => widget.workOnly
+        ? repo.workNotificationsPage(page: number, unreadOnly: query)
+        : repo.notificationsPage(
         page: number, platformHistory: true, unreadOnly: query,
       );
       List<AppNotificationItem> visible(NotificationPage page) => page.items.where((item) =>
@@ -240,8 +246,12 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     var allRead = false;
     try {
       final repo = ref.read(messageRepositoryProvider);
-      if (_serverUnread != null) {
-        await repo.readAllPlatformNotifications();
+      if (_serverUnread != null || widget.workOnly) {
+        if (widget.workOnly) {
+          await repo.readAllWorkNotifications();
+        } else {
+          await repo.readAllPlatformNotifications();
+        }
         marked.addAll(_items.where((item) => !item.isRead));
         allRead = true;
         return;
@@ -352,8 +362,13 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppAppBar(
-          title: 'الإشعارات',
+          title: widget.workOnly ? 'إشعارات العمل' : 'الإشعارات',
           actions: [
+            if (widget.workOnly)
+              AppIconButton(icon: Icons.tune, tooltip: 'تفضيلات الإشعارات',
+                onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute(
+                  builder: (_) => const NotificationPreferencesScreen(),
+                ))),
             if (MediaQuery.textScalerOf(context).scale(14) > 20)
               AppIconButton(icon: Icons.mark_email_read_outlined, tooltip: 'قراءة الكل',
                 onPressed: canReadAll ? _readAll : null)

@@ -287,6 +287,9 @@ class SupportTaskService
             $locked=SupportTask::query()->lockForUpdate()->findOrFail($task->id);
             $this->assertTaskInActorScope($actor,$locked);
             if (!$locked->isActive()) throw new ConflictHttpException('المهمة مغلقة.');
+            if ($locked->status === 'escalated' && isset($locked->metadata['executive_escalation'])) {
+                throw new ConflictHttpException('الحالة بانتظار قرار المدير العام.');
+            }
             $before=$locked->assigned_to_user_id;
             $this->assignSource($locked,$assignee);
             $from=$locked->status;
@@ -524,7 +527,7 @@ class SupportTaskService
         if ((int)($task->assigned_to_user_id??0)!==(int)$actor->id || $task->isAwaitingAssignedReception()) throw new ConflictHttpException('يجب استلام المهمة أولاً قبل تنفيذ هذا الإجراء.');
     }
 
-    public function teamMetrics(User $actor): array
+    public function teamMetrics(User $actor, ?string $period = null): array
     {
         $this->assertManager($actor);
         $this->ensureSupportStaffMemberships();
@@ -538,14 +541,29 @@ class SupportTaskService
             ->orderBy('u.name')->get();
         $ids=$members->pluck('user_id')->map(fn($id)=>(int)$id)->unique()->values();
         $tasks=SupportTask::query()->whereIn('support_team_id',$teamIds)->where('source_type', '!=', 'contact_followup')->whereIn('assigned_to_user_id',$ids)
-            ->get(['assigned_to_user_id','source_type','status','priority','sla_due_at','claimed_at','completed_at','created_at','last_activity_at'])
-            ->groupBy('assigned_to_user_id');
+            ->get(['support_team_id','assigned_to_user_id','source_type','status','priority','sla_due_at','claimed_at','completed_at','created_at','last_activity_at'])
+            ->groupBy(fn ($task) => "$task->support_team_id:$task->assigned_to_user_id");
         $responses=SupportCase::query()->whereIn('assigned_to_user_id',$ids)
             ->whereIn('id', SupportTask::query()->select('source_id')->whereIn('support_team_id', $teamIds)
                 ->whereIn('source_type', ['support_ticket', 'report']))->whereNotNull('first_response_at')
             ->latest('id')->limit(1000)->get(['assigned_to_user_id','created_at','first_response_at'])->groupBy('assigned_to_user_id');
-        return $members->map(function($member)use($tasks,$responses):array{
-            $rows=$tasks->get($member->user_id,collect());
+        $dayEnd = now('Asia/Aden')->startOfDay()->addDay();
+        $periodStart = $dayEnd->copy()->subDays(match ($period) { '7d' => 7, '30d' => 30, default => 1 })->utc();
+        $periodEnd = $dayEnd->utc();
+        $activity = DB::table('support_task_events as event')
+            ->join('support_tasks as task', 'task.id', '=', 'event.support_task_id')
+            ->whereIn('task.support_team_id', $teamIds)->whereIn('event.actor_user_id', $ids)
+            ->where('task.source_type', '!=', 'contact_followup')
+            ->select('task.support_team_id', 'event.actor_user_id')
+            ->selectRaw('MAX(event.created_at) AS last_activity_at')
+            ->selectRaw('COUNT(DISTINCT CASE WHEN event.created_at >= ? AND event.created_at < ? THEN event.support_task_id END) AS active_in_period',
+                [$periodStart, $periodEnd])
+            ->groupBy('task.support_team_id', 'event.actor_user_id')->get()
+            ->keyBy(fn ($row) => "$row->support_team_id:$row->actor_user_id");
+        return $members->map(function($member)use($tasks,$responses,$periodStart,$periodEnd,$activity):array{
+            $key = "$member->support_team_id:$member->user_id";
+            $rows=$tasks->get($key,collect());
+            $recordedActivity = $activity->get($key);
             $active=$rows->whereIn('status',self::ACTIVE_STATUSES);
             $claims=$rows->filter(fn($t)=>$t->claimed_at!==null);
             $completed=$rows->filter(fn($t)=>$t->completed_at!==null);
@@ -559,12 +577,15 @@ class SupportTaskService
                 'team_id'=>(int)$member->support_team_id,'team_name'=>$member->team_name,'is_available'=>(bool)$member->is_available,'capacity'=>$capacity,
                 'open_tasks'=>$active->count(),'closed_tasks'=>$rows->whereIn('status',['completed','rejected'])->count(),
                 'completed_today'=>$rows->filter(fn($t)=>$t->completed_at&&Carbon::parse($t->completed_at)->isToday())->count(),
+                'completed_in_period'=>$completed->filter(fn ($task) => in_array($task->status, self::CLOSED_STATUSES, true)
+                    && $task->completed_at->gte($periodStart) && $task->completed_at->lt($periodEnd))->count(),
+                'active_in_period'=>(int) ($recordedActivity?->active_in_period ?? 0),
                 'overdue_tasks'=>$active->filter(fn($t)=>$t->sla_due_at&&Carbon::parse($t->sla_due_at)->lte(now()))->count(),
                 'urgent_tasks'=>$active->where('priority','urgent')->count(),'workload_percent'=>(int)round(min(100,$active->count()/$capacity*100)),
                 'average_claim_minutes'=>$avgClaim,'average_response_minutes'=>$avgResponse,'average_completion_minutes'=>$avgCompletion,
                 'tickets'=>$rows->where('source_type','support_ticket')->count(),'verifications'=>$rows->where('source_type','account_verification')->count(),
                 'listing_reviews'=>$rows->where('source_type','listing_review')->count(),'reports'=>$rows->where('source_type','report')->count(),
-                'last_activity_at'=>$rows->max('last_activity_at'),
+                'last_activity_at'=>$recordedActivity?->last_activity_at,
             ];
         })->values()->all();
     }
@@ -845,6 +866,15 @@ class SupportTaskService
         $task=SupportTask::query()->firstOrNew(['source_type'=>$sourceType,'source_id'=>$sourceId]);
         $isNew=!$task->exists;$oldStatus=$task->status;
         $current=$task->metadata??[];$manual=($current['manual_classification']??false)===true;
+        if ($oldStatus === 'escalated' && isset($current['executive_escalation'])) {
+            if (in_array($status, self::ACTIVE_STATUSES, true)) {
+                $status = 'escalated';
+                $priority = $task->priority;
+                $releaseAssignment = false;
+            } else {
+                unset($current['executive_escalation']);
+            }
+        }
         $task->source_reference=$sourceReference;$task->subject=$subject;
         $task->requester_user_id=$requester?->id;$task->requester_name_snapshot=$requester?->name;
         $task->status=$status;
@@ -1106,17 +1136,80 @@ class SupportTaskService
     }
 
 
-    public function resolveEscalation(User $actor, SupportTask $task, string $note, Request $request): SupportTask
+    public function resolveEscalation(User $actor, SupportTask $task, string $note, Request $request, bool $executiveOnly = false): SupportTask
     {
         $this->assertManager($actor);$this->assertTaskInActorScope($actor,$task);
-        return DB::transaction(function()use($actor,$task,$note,$request):SupportTask{
+        return DB::transaction(function()use($actor,$task,$note,$request,$executiveOnly):SupportTask{
             $locked=SupportTask::query()->lockForUpdate()->findOrFail($task->id);$this->assertTaskInActorScope($actor,$locked);
             if($locked->status!=='escalated')throw new ConflictHttpException('المهمة ليست في حالة تصعيد.');
-            $metadata=$locked->metadata??[];$metadata['escalation_resolution']=$note;$metadata['escalation_resolved_at']=now()->toIso8601String();
+            $metadata = $locked->metadata ?? [];
+            $executive = $metadata['executive_escalation'] ?? null;
+            if ($executiveOnly && $executive === null) {
+                throw new ConflictHttpException('الحالة ليست بانتظار قرار المدير العام.');
+            }
+            if ($executive !== null) {
+                abort_unless($actor->is_platform_owner || $actor->hasRole('super_admin'), 403);
+                unset($metadata['executive_escalation']);
+            }
+            $metadata['escalation_resolution'] = $note;
+            $metadata['escalation_resolved_at'] = now()->toIso8601String();
             $next=$locked->assigned_to_user_id?'in_progress':'new';$locked->forceFill(['status'=>$next,'metadata'=>$metadata,'last_activity_at'=>now()])->save();
             if(in_array($locked->source_type,['support_ticket','report'],true))SupportCase::query()->whereKey($locked->source_id)->update(['escalated_at'=>null,'last_activity_at'=>now(),'updated_at'=>now()]);
             $this->event($locked,$actor,'escalation_resolved','escalated',$next,['note'=>$note]);$this->audit->record($actor,'support_task.escalation_resolved',$locked,['note'=>$note],$request,$locked->requester_user_id);
             if($locked->assigned_to_user_id)$this->notifications->create((int)$locked->assigned_to_user_id,'support_escalation_resolved','تمت معالجة التصعيد',$note,'support_task',$locked->id,['task_id'=>$locked->id]);
+            if (is_array($executive) && $locked->support_team_id) {
+                $manager = (int) ($executive['manager_id'] ?? 0);
+                $recipient = User::query()->find($manager);
+                if ($recipient?->isActive() && $recipient->hasRole('support_manager')
+                    && in_array((int) $locked->support_team_id, $this->managedTeamIds($recipient), true)
+                    && $manager !== (int) $locked->assigned_to_user_id) {
+                    $this->notifications->create($manager, 'support_escalation_resolved',
+                        'وصل قرار المدير العام', $note, 'support_task', $locked->id, ['task_id' => $locked->id]);
+                }
+            }
+            return $locked->fresh(['team','governorate']);
+        });
+    }
+
+    public function forwardToExecutive(User $actor, SupportTask $task, string $reason, Request $request): SupportTask
+    {
+        abort_unless($actor->isActive() && $actor->hasRole('support_manager'), 403);
+        return DB::transaction(function () use ($actor, $task, $reason, $request): SupportTask {
+            $locked = SupportTask::query()->lockForUpdate()->findOrFail($task->id);
+            $this->assertTaskInActorScope($actor, $locked);
+            abort_unless(in_array((int) $locked->support_team_id, $this->managedTeamIds($actor), true), 403);
+            if (!$locked->isActive()) throw new ConflictHttpException('المهمة مغلقة.');
+            $metadata = $locked->metadata ?? [];
+            if (isset($metadata['executive_escalation'])) {
+                throw new ConflictHttpException('الحالة بانتظار قرار المدير العام.');
+            }
+            $from = $locked->status;
+            $metadata['executive_escalation'] = [
+                'manager_id' => (int) $actor->id,
+                'reason' => $reason,
+                'requested_at' => now()->toIso8601String(),
+            ];
+            $locked->forceFill([
+                'status' => 'escalated', 'priority' => 'urgent',
+                'escalated_by_user_id' => $actor->id, 'escalated_at' => now(),
+                'escalation_reason' => $reason, 'last_activity_at' => now(), 'metadata' => $metadata,
+            ])->save();
+            if (in_array($locked->source_type, ['support_ticket', 'report'], true)) {
+                SupportCase::query()->whereKey($locked->source_id)->update([
+                    'escalated_at' => now(), 'priority' => 'urgent', 'last_activity_at' => now(),
+                ]);
+            }
+            $this->event($locked, $actor, 'escalated_to_executive', $from, 'escalated', ['reason' => $reason]);
+            $this->audit->record($actor, 'support_task.escalated_to_executive', $locked, ['reason' => $reason],
+                $request, $locked->requester_user_id);
+            $executives = User::query()->where('account_status', User::STATUS_ACTIVE)
+                ->whereKeyNot($actor->id)->where(fn ($query) => $query->where('is_platform_owner', true)
+                    ->orWhereHas('roles', fn ($roles) => $roles->where('key', 'super_admin')))->pluck('id');
+            foreach ($executives as $recipient) {
+                $this->notifications->create((int) $recipient, 'executive_support_decision', 'حالة تحتاج قرارك',
+                    $locked->subject, 'executive_support_task', $locked->id);
+            }
+
             return $locked->fresh(['team','governorate']);
         });
     }
@@ -1145,7 +1238,9 @@ class SupportTaskService
     {
         abort_unless($this->isManager($actor) || $actor->hasPermission('users.manage_roles'), 403);
         $this->ensureSupportStaffMemberships();
-        $ids = $actor->hasPermission('users.manage_roles')
+        $canSeeAll = $actor->is_platform_owner || $actor->hasRole('super_admin')
+            || (!$actor->hasRole('support_manager') && $actor->hasPermission('users.manage_roles'));
+        $ids = $canSeeAll
             ? DB::table('support_teams')->where('is_active', true)->pluck('id')->all()
             : $this->managedTeamIds($actor);
         $memberCounts=DB::table('support_team_members')->whereIn('support_team_id',$ids)->where('member_role','agent')->selectRaw('support_team_id, count(*) as agents, sum(case when is_available then 1 else 0 end) as available_agents')->groupBy('support_team_id')->get()->keyBy('support_team_id');

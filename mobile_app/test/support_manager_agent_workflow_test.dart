@@ -18,10 +18,12 @@ void main() {
       'can_claim': false,
       'is_overdue': false,
       'escalation_reason': 'حالة غير اعتيادية',
+      'metadata': {'executive_escalation': {'manager_id': 9}},
     });
     expect(task.supportTeamName, 'دعم صنعاء');
     expect(task.governorateName, 'صنعاء');
     expect(task.escalationReason, 'حالة غير اعتيادية');
+    expect(task.awaitingExecutiveDecision, isTrue);
   });
 
   test('support team member parses capacity and workload', () {
@@ -40,6 +42,8 @@ void main() {
       'is_available': true,
       'capacity': 8,
       'completed_today': 3,
+      'completed_in_period': 7,
+      'active_in_period': 9,
       'workload_percent': 50,
       'team_id': 1,
       'team_name': 'فريق الدعم العام',
@@ -47,5 +51,7 @@ void main() {
     expect(member.capacity, 8);
     expect(member.workloadPercent, 50);
     expect(member.isAvailable, isTrue);
+    expect(member.completedInPeriod, 7);
+    expect(member.activeInPeriod, 9);
   });
 }

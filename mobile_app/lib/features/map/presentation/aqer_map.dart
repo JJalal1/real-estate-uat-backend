@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as google;
+import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../core/network/api_client.dart';
@@ -64,6 +65,7 @@ class AqerMap extends ConsumerStatefulWidget {
     this.scrollGesturesEnabled = true,
     this.zoomGesturesEnabled = true,
     this.doubleClickZoomEnabled = true,
+    this.useAlternateRenderer = false,
     super.key,
   });
 
@@ -75,6 +77,7 @@ class AqerMap extends ConsumerStatefulWidget {
   final MinMaxZoomPreference minMaxZoomPreference;
   final EdgeInsets padding;
   final bool rememberCameraAcrossRenderers;
+  final bool useAlternateRenderer;
   final bool myLocationEnabled,
       rotateGesturesEnabled,
       tiltGesturesEnabled,
@@ -84,6 +87,22 @@ class AqerMap extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<AqerMap> createState() => _AqerMapState();
+
+  static bool get supportsGoogle =>
+      const bool.fromEnvironment('AQER_GOOGLE_MAPS_UAT') &&
+      ApiEnvironmentConfig.isUat &&
+      !kIsWeb &&
+      defaultTargetPlatform == TargetPlatform.android;
+
+  static Future<void>? _warmup;
+
+  static void warmUpGoogle() {
+    if (!supportsGoogle) return;
+    _warmup ??= GoogleMapsFlutterAndroid().warmup().then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stackTrace) { _warmup = null; },
+    );
+  }
 }
 
 class _AqerMapState extends ConsumerState<AqerMap> {
@@ -109,11 +128,7 @@ class _AqerMapState extends ConsumerState<AqerMap> {
     final initialPosition =
         (widget.rememberCameraAcrossRenderers ? _lastPosition : null) ??
             widget.initialCameraPosition;
-    if (const bool.fromEnvironment('AQER_GOOGLE_MAPS_UAT') &&
-        ApiEnvironmentConfig.isUat &&
-        !kIsWeb &&
-        defaultTargetPlatform == TargetPlatform.android &&
-        online) {
+    if (AqerMap.supportsGoogle && online && !widget.useAlternateRenderer) {
       return _GoogleCanvas(
         options: widget,
         position: initialPosition,

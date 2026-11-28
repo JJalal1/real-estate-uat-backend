@@ -274,7 +274,8 @@ class _SupportReportTaskScreenState
               const SizedBox(height: 8),
               if (!summary.isClosed)
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  if (widget.manager && widget.task.status == 'escalated')
+                  if (widget.manager && widget.task.status == 'escalated' &&
+                      !widget.task.awaitingExecutiveDecision)
                     AppButton(
                         label: 'إعادة للموظف مع توجيه',
                         onPressed: _busy
