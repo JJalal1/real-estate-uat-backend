@@ -215,6 +215,9 @@ void main() {
     final hubs = File(
       'lib/features/admin/presentation/general_manager_finance_hubs.dart',
     ).readAsStringSync();
+    final operations = File(
+      'lib/features/admin/presentation/general_manager_operations_screen.dart',
+    ).readAsStringSync();
 
     expect(source, contains('إدارة طرق الدفع'));
     expect(source, contains('السماح بالدفع الكامل للصفقة'));
@@ -232,8 +235,13 @@ void main() {
     expect(source, contains("labelText: 'نوع الصفقة'"));
     expect(source, contains("labelText: 'نوع المعلن'"));
     expect(source, contains("labelText: 'المحافظة'"));
-    expect(hubs, contains('GeneralManagerHomeFinancialOverlay'));
     expect(hubs, contains('GeneralManagerAdministrationFinancialHubScreen'));
-    expect(hubs, contains('GeneralManagerReportsFinancialHubScreen'));
+    expect(hubs, contains('const GeneralManagerPaymentMethodsScreen()'));
+    for (final section in ['home', 'reports']) {
+      final actions = operations
+          .split('case GeneralManagerSection.$section:')[1]
+          .split('case GeneralManagerSection.')[0];
+      expect(actions, contains('const GeneralManagerFinanceWorkspaceScreen()'));
+    }
   });
 }
