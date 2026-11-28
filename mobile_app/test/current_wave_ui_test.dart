@@ -144,18 +144,28 @@ void main() {
       expect(field.value,'7');expect(tester.takeException(),isNull);await finishWave6(tester);
     });
   }
-  testWidgets('explicit home location permission updates the real feed query and manual city persists',(tester)async {
+  testWidgets('Home requests location on first entry, reuses the grant and restores a manual city',(tester)async {
     final store=MemoryLocationStore(),access=FakeLocationAccess()..decision=LocationPermission.whileInUse;
     final repository=_LocationMarketplace();
     await pumpWave6(tester,const MarketplaceHomeScreen(),allowLocation:true,locationStore:store,locationAccess:access,marketplace:repository);
-    expect(access.requests,0);expect(repository.queries.last.device,false);
+    expect(access.requests, 1);
+    expect(access.fixes, 1);
+    expect(repository.queries.last.device, isTrue);
+    expect(repository.queries.last.latitude, 12.8);
+    expect(repository.queries.last.governorate, 'عدن');
     expect(find.byKey(const ValueKey('location-introduction-device')), findsNothing);
     expect(find.text('عقارات في منطقتك'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('home-location')));await tester.pumpAndSettle();
     await tester.tap(find.text('استخدم موقعي'));await tester.pumpAndSettle();
-    expect(access.requests,1);expect(repository.queries.last.device,true);expect(repository.queries.last.latitude,12.8);expect(find.text('عدن'),findsOneWidget);
+    expect(access.requests,1);expect(access.fixes,2);expect(repository.queries.last.device,true);expect(repository.queries.last.latitude,12.8);expect(find.text('عدن'),findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('home-location')));await tester.pumpAndSettle();await tester.tap(find.text('تعز'));await tester.pumpAndSettle();
     expect(repository.queries.last.governorate,'تعز');expect(store.value.manual!.governorate,'تعز');expect(access.requests,1);
+    await finishWave6(tester);
+    await pumpWave6(tester,const MarketplaceHomeScreen(),allowLocation:true,locationStore:store,locationAccess:access,marketplace:repository);
+    expect(repository.queries.last.governorate, 'تعز');
+    expect(repository.queries.last.device, isFalse);
+    expect(access.requests, 1);
+    expect(access.fixes, 2);
     expect(tester.takeException(),isNull);await finishWave6(tester);
   });
 }
