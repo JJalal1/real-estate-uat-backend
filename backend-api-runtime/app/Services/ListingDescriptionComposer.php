@@ -93,10 +93,10 @@ class ListingDescriptionComposer
             $requirements = app(RentalConditionService::class)->sentences($facts['rental_conditions']);
         }
         $fee = '';
-        if (($facts['sai_amount_type'] ?? '') === 'percentage' && isset($facts['broker_sai_rate_percent'])) {
+        if (($facts['sai_amount_type'] ?? '') === 'percentage' && ($facts['broker_sai_rate_percent'] ?? 0) > 0) {
             $read('sai_amount_type');
             $fee = 'السعي بنسبة '.$this->number($read('broker_sai_rate_percent')).'%';
-        } elseif (($facts['sai_amount_type'] ?? '') === 'fixed' && isset($facts['fixed_sai_amount'])) {
+        } elseif (($facts['sai_amount_type'] ?? '') === 'fixed' && ($facts['fixed_sai_amount'] ?? 0) > 0) {
             $read('sai_amount_type');
             $fee = 'السعي '.$this->number($read('fixed_sai_amount')).(isset($facts['currency']) ? ' '.(['YER'=>'ريال', 'USD'=>'دولار أمريكي', 'SAR'=>'ريال سعودي'][$facts['currency']] ?? $facts['currency']) : '');
         }

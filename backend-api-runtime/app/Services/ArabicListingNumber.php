@@ -37,9 +37,10 @@ class ArabicListingNumber
         return $token.'(?:\s+(?:و\s*)?'.$token.')*';
     }
 
-    public function parse(string $text): ?float
+    public function parse(string $text, bool $allowZero = false): ?float
     {
         $text = trim(self::normalize($text));
+        if ($allowZero && preg_match('/^(?:0+(?:\.0+)?|صفر)$/uD', $text)) return 0.0;
         $tokens = preg_split('/\s+(?:و\s*)?/u', $text);
         $total = 0.0; $part = 0.0; $previous = null; $lastScale = INF;
         foreach ($tokens as $token) {

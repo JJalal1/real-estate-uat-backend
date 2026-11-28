@@ -228,6 +228,7 @@ class PropertyDetails {
     this.priceDisplayMode,
     this.priceDisplayNote,
     this.rentalConditions = const [],
+    this.listingInputVersion,
     this.monthlyRent,
     this.rentalTermMonths,
     this.advanceMonths,
@@ -298,6 +299,7 @@ class PropertyDetails {
   final String? priceDisplayMode;
   final String? priceDisplayNote;
   final List<Map<String, dynamic>> rentalConditions;
+  final int? listingInputVersion;
   final double? monthlyRent;
   final int? rentalTermMonths;
   final int? advanceMonths;
@@ -356,6 +358,13 @@ class PropertyDetails {
   String? get mainImage => images.isEmpty ? null : images.first.url;
   List<String> get imageUrls => images.map((image) => image.galleryUrl).take(12).toList(growable: false);
   double get editablePrice => basePrice ?? price;
+  double? get saiCalculationBasis {
+    if (purpose != 'rent') return editablePrice;
+    if (monthlyRent != null) return monthlyRent;
+    // Only legacy, single-month rentals stored one month's rent in the price.
+    return listingInputVersion != null && listingInputVersion! < 6 &&
+        (advanceMonths ?? 1) == 1 ? editablePrice : null;
+  }
 
   factory PropertyDetails.fromJson(Map<String, dynamic> json) {
     json = DynamicPropertySchema.sanitize(json);
@@ -387,6 +396,7 @@ class PropertyDetails {
       priceDisplayMode: _nullableString(json['price_display_mode']),
       priceDisplayNote: _nullableString(json['price_display_note']),
       rentalConditions: (json['rental_conditions'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(),
+      listingInputVersion: _asInt(json['listing_input_version']),
       monthlyRent: _asDouble(json['monthly_rent']),
       rentalTermMonths: _asInt(json['rental_term_months']),
       advanceMonths: _asInt(json['advance_months']),

@@ -14,9 +14,6 @@ use App\Services\RegionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class FinancialPropertyController extends PropertyController
@@ -59,87 +56,18 @@ class FinancialPropertyController extends PropertyController
 
     public function store(Request $request): JsonResponse
     {
-        $this->prepareFinancialListingInput($request,null);
-        $response=parent::store($request);
-        $this->persistFinancialFieldsFromResponse($request,$response);
-        return $this->enrich($response);
+        return $this->enrich(parent::store($request));
     }
 
     public function update(Request $request, Property $property): JsonResponse
     {
-        $this->prepareFinancialListingInput($request,$property);
-        $response=parent::update($request,$property);
-        $this->persistFinancialFieldsFromResponse($request,$response);
-        return $this->enrich($response);
+        return $this->enrich(parent::update($request, $property));
     }
 
     public function submit(Request $request, Property $property): JsonResponse
     {
         $this->assertFinancialListingComplete($property);
         return $this->enrich(parent::submit($request,$property));
-    }
-
-    private function prepareFinancialListingInput(Request $request, ?Property $existing): void
-    {
-        if ((int) $request->input('listing_input_version', $existing?->listing_input_version ?? 1) >= 6) {
-            $purpose = (string) $request->input('purpose', $existing?->purpose ?? '');
-            if ($purpose === 'rent') {
-                $v = Validator::make(['monthly_rent' => $request->input('monthly_rent', $existing?->monthly_rent)], ['monthly_rent' => ['required', 'numeric', 'gt:0', 'max:9999999999999']])->validate();
-                $request->merge(['monthly_rent' => $v['monthly_rent'], 'price' => round((float) $v['monthly_rent'], 2)]);
-            }
-            $request->merge(['price_display_mode' => 'excludes_sai']);
-            return;
-        }
-        $purpose=(string)$request->input('purpose',$existing?->purpose??'');
-        $hasRentFinance=$request->hasAny(['monthly_rent','rental_term_months','advance_months']);
-        $rules=['price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])]];
-        if($purpose==='rent' && $hasRentFinance){
-            $rules += [
-                'monthly_rent'=>['required','numeric','gt:0','max:9999999999999'],
-                'rental_term_months'=>['required','integer','min:1','max:24'],
-                'advance_months'=>['required','integer','min:1','max:24'],
-            ];
-        }
-        $v=Validator::make($request->all(),$rules)->validate();
-        if($purpose==='rent' && $hasRentFinance){
-            $monthly=(float)($v['monthly_rent']??$existing?->monthly_rent??0);
-            $term=(int)($v['rental_term_months']??$existing?->rental_term_months??0);
-            $advance=(int)($v['advance_months']??$existing?->advance_months??0);
-            if($advance>$term)throw ValidationException::withMessages(['advance_months'=>['عدد أشهر المقدم لا يمكن أن يتجاوز مدة التأجير.']]);
-            $request->merge(['price'=>round($monthly*$advance,2)]);
-        }
-    }
-
-    private function persistFinancialFieldsFromResponse(Request $request, JsonResponse $response): void
-    {
-        if($response->getStatusCode()>=400)return;
-        $body=$response->getData(true);$id=(int)($body['data']['id']??0);if(!$id)return;
-        $property=Property::query()->withoutGlobalScopes()->find($id);if(!$property)return;
-        if ((int) $property->listing_input_version >= 6) {
-            $rent = $property->purpose === 'rent';
-            $conditions = collect($property->rental_conditions ?? []);
-            $monthly = $rent ? (float) $request->input('monthly_rent', $property->monthly_rent) : null;
-            $property->forceFill(['monthly_rent' => $monthly,
-                'rental_term_months' => $rent ? ($conditions->firstWhere('kind', 'duration')['months'] ?? null) : null,
-                'advance_months' => $rent ? ($conditions->firstWhere('kind', 'advance')['months'] ?? null) : null,
-                'price_display_mode' => 'excludes_sai']);
-            if ($rent) $property->price = round($monthly, 2);
-            $property->saveQuietly();
-            return;
-        }
-        $purpose=(string)$property->purpose;
-        $hasRentFinance=$request->hasAny(['monthly_rent','rental_term_months','advance_months'])
-            || $property->monthly_rent!==null || $property->rental_term_months!==null || $property->advance_months!==null;
-        if($purpose==='rent' && $hasRentFinance){
-            $monthly=(float)$request->input('monthly_rent',$property->monthly_rent);
-            $term=(int)$request->input('rental_term_months',$property->rental_term_months);
-            $advance=(int)$request->input('advance_months',$property->advance_months);
-            $property->forceFill(['monthly_rent'=>$monthly,'rental_term_months'=>$term,'advance_months'=>$advance,'price'=>round($monthly*$advance,2)]);
-        }elseif($purpose!=='rent'){
-            $property->forceFill(['monthly_rent'=>null,'rental_term_months'=>null,'advance_months'=>null]);
-        }
-        if($request->has('price_display_mode'))$property->price_display_mode=$request->input('price_display_mode');
-        $property->saveQuietly();
     }
 
     private function assertFinancialListingComplete(Property $property): void

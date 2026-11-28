@@ -328,6 +328,91 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         ])->assertConflict();
     }
 
+    public function test_fractional_sale_cap_is_floored_and_price_edit_invalidates_only_the_current_reference(): void
+    {
+        [$owner, $headers] = $this->advertiser('broker', 'sale-cap-cents');
+        $listing = $this->property($owner, 'sale', 100.20);
+        $url = "/api/properties/{$listing->id}";
+        $fixed = ['sai_amount_type'=>'fixed', 'fixed_sai_amount'=>5.01, 'platform_terms_decision'=>'accept'];
+        $oldId = $this->withHeaders($headers)->putJson("$url/sai", $fixed)
+            ->assertOk()->json('data.sai_management.term_id');
+        $listing->refresh()->update(['status'=>'published', 'review_status'=>'approved', 'published_at'=>now()]);
+
+        $this->withHeaders($headers)->postJson($url, ['price'=>100.10])
+            ->assertOk()->assertJsonPath('data.status', 'draft');
+        $this->assertNull($listing->fresh()->current_sai_term_id);
+        $this->assertDatabaseHas('property_sai_terms', ['id'=>$oldId, 'fixed_sai_amount'=>5.01]);
+        $this->withHeaders($headers)->putJson("$url/sai", $fixed)
+            ->assertUnprocessable()->assertJsonValidationErrors('fixed_sai_amount');
+        $fixed['fixed_sai_amount'] = 5.00;
+        $newId = $this->withHeaders($headers)->putJson("$url/sai", $fixed)
+            ->assertOk()->json('data.sai_management.term_id');
+        $this->assertNotSame($oldId, $newId);
+        $this->withHeaders($headers)->postJson($url, ['price'=>101])->assertOk();
+        $this->assertEquals($newId, $listing->fresh()->current_sai_term_id);
+    }
+
+    public function test_rent_cap_uses_one_month_through_config_and_editor_price_updates(): void
+    {
+        [$owner, $headers] = $this->advertiser('broker', 'rent-cap-month');
+        $listing = $this->property($owner, 'rent', 36000);
+        $url = "/api/properties/{$listing->id}";
+        $rent = ['monthly_rent'=>1000.01, 'advance_months'=>3, 'rental_term_months'=>12];
+        $this->withHeaders($headers)->patchJson("$url/financial-config", $rent)->assertOk();
+        $fixed = ['sai_amount_type'=>'fixed', 'fixed_sai_amount'=>1000.02, 'platform_terms_decision'=>'accept'];
+        $this->withHeaders($headers)->putJson("$url/sai", $fixed)
+            ->assertUnprocessable()->assertJsonValidationErrors('fixed_sai_amount');
+        $fixed['fixed_sai_amount'] = 1000.01;
+        $this->withHeaders($headers)->putJson("$url/sai", $fixed)->assertOk();
+        $rent['monthly_rent'] = 1000;
+        $this->withHeaders($headers)->patchJson("$url/financial-config", $rent)->assertOk();
+        $this->assertNull($listing->fresh()->current_sai_term_id);
+        $fixed['fixed_sai_amount'] = 1000;
+        $this->withHeaders($headers)->putJson("$url/sai", $fixed)->assertOk();
+        $rent['monthly_rent'] = 999.99;
+        $this->withHeaders($headers)->postJson($url, $rent)->assertOk();
+        $this->assertDatabaseHas('properties', [
+            'id'=>$listing->id, 'monthly_rent'=>999.99, 'price'=>2999.97, 'current_sai_term_id'=>null,
+        ]);
+
+        // Neither a legacy advance nor a modern price without its monthly basis
+        // is sufficient evidence of a one-month ceiling.
+        foreach ([1, 6] as $version) {
+            $listing->refresh()->forceFill(['listing_input_version'=>$version, 'monthly_rent'=>null])->saveQuietly();
+            $fixed['fixed_sai_amount'] = 1;
+            $this->withHeaders($headers)->putJson("$url/sai", $fixed)->assertUnprocessable();
+        }
+    }
+
+    public function test_legacy_review_transitions_reject_existing_over_limit_terms_until_corrected(): void
+    {
+        [$owner, $headers] = $this->user('legacy-over-cap');
+        $owner->forceFill(['identity_policy_version'=>0])->save();
+        $listing = $this->property($owner, 'sale', 10000);
+        $url = "/api/properties/{$listing->id}/sai";
+        $id = $this->withHeaders($headers)->putJson($url, [
+            'broker_sai_rate_percent'=>5, 'platform_terms_decision'=>'accept',
+        ])->assertOk()->json('data.sai_management.term_id');
+        $legacyTerm = PropertySaiTerm::query()->findOrFail($id)->replicate();
+        // Older terms can have an excessive request even when their effective
+        // rate satisfies the database constraint. Review must check both.
+        $legacyTerm->fill(['version'=>2, 'requested_broker_rate_percent'=>5.01])->save();
+        $listing->update(['current_sai_term_id'=>$legacyTerm->id]);
+        foreach ([['pending','submitted'], ['published','approved']] as [$status,$review]) {
+            try {
+                $listing->refresh()->forceFill(['status'=>$status, 'review_status'=>$review])->save();
+                $this->fail('Over-limit terms must block review and approval.');
+            } catch (ConflictHttpException $exception) {
+                $this->assertStringContainsString('الحد المسموح', $exception->getMessage());
+            }
+        }
+        $this->withHeaders($headers)->putJson($url, [
+            'broker_sai_rate_percent'=>4.99, 'platform_terms_decision'=>'accept',
+        ])->assertOk();
+        $listing->refresh()->update(['status'=>'pending', 'review_status'=>'submitted']);
+        $this->assertDatabaseHas('properties', ['id'=>$listing->id, 'review_status'=>'submitted']);
+    }
+
     private function advertiser(string $type, string $key): array
     {
         [$user, $headers] = $this->user($key);

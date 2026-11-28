@@ -20,12 +20,14 @@ use App\Services\RegionService;
 use App\Services\ListingWorkflowService;
 use App\Services\PropertyAssetService;
 use App\Services\PropertyIdentityService;
+use App\Services\PropertySaiService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -440,6 +442,7 @@ class PropertyController extends Controller
             $draft=app(\App\Services\ListingEditorDraftService::class)->owned($user,$request->input('editor_draft_key'));
             if ($draft->property_id) return $this->update($request,Property::query()->findOrFail($draft->property_id));
         }
+        $this->prepareFinancialListingInput($request, null);
         $validated=$request->validate($this->listingRules(false));
         $validated=$this->normalizeListingFields($validated,null,false);
         $validated = app(CategoryListingFeatures::class)->normalizeWrite($validated);
@@ -456,7 +459,9 @@ class PropertyController extends Controller
                     // The initial lookup happens before this account lock. Recheck after waiting for a concurrent create.
                     abort_if($lockedDraft->property_id !== null,409,'أُنشئ الإعلان بالفعل. أعد فتح المسودة الحالية.');
                 }
-                $property=Property::query()->create(array_merge($this->listingPayload($validated,false),['user_id'=>$user->id,'property_asset_id'=>$asset->id,'geo_cell_id'=>$cell?->id,'owner_key'=>null,'status'=>'draft','review_status'=>'draft']));
+                $property=new Property(array_merge($this->listingPayload($validated,false),['user_id'=>$user->id,'property_asset_id'=>$asset->id,'geo_cell_id'=>$cell?->id,'owner_key'=>null,'status'=>'draft','review_status'=>'draft']));
+                $this->applyFinancialListingFields($request, $property);
+                $property->save();
                 $this->syncLocation($property);$this->storeImages($request,$property,0,$storedPublic);app(\App\Services\ListingEditorDraftService::class)->attach($request,$property);$this->storeProofDocuments($request,$property,$user,$storedPrivate);
                 $this->audit->record($user,'listing.created',$property,['purpose'=>$property->purpose,'status'=>'draft','property_asset_id'=>$asset->id],$request,$user->id);
                 return $property->fresh(['images','documents','propertyAsset']);
@@ -473,16 +478,26 @@ class PropertyController extends Controller
     {
         /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);$this->assertAdvertiserCanCreateDraft($user);
         if(in_array($property->review_status,['submitted','under_review','rejected_blocked','rejected_duplicate'],true)) abort(409,'This listing cannot be edited in its current review state.');
-        $validated=$request->validate($this->listingRules(true));$validated=$this->normalizeListingFields($validated,$property,true);$replaceImages=$request->boolean('replace_images');$incomingCount=count($request->file('images',[]));$existingCount=$property->images()->count();
-        if(!$replaceImages&&$existingCount+$incomingCount>12)throw ValidationException::withMessages(['images'=>['A listing may contain at most 12 images.']]);
-        if($property->documents()->count()+count($request->file('proof_documents',[]))>5)throw ValidationException::withMessages(['proof_documents'=>['A listing may contain at most 5 proof documents.']]);
-        $storedPublic=[];$storedPrivate=[];$oldImages=$replaceImages?$property->images()->get():collect();
-        try{$property=DB::transaction(function()use($request,$property,$validated,$replaceImages,$user,&$storedPublic,&$storedPrivate){
+        $replaceImages=$request->boolean('replace_images');
+        $storedPublic=[];$storedPrivate=[];$oldImages=collect();
+        try{$property=DB::transaction(function()use($request,$property,$replaceImages,$user,&$storedPublic,&$storedPrivate,&$oldImages){
             User::query()->lockForUpdate()->findOrFail($user->id);$property=Property::query()->lockForUpdate()->findOrFail($property->id);
             abort_if($property->status === 'archived' || in_array($property->review_status,['submitted','under_review','rejected_blocked','rejected_duplicate'],true),409);
+            $this->prepareFinancialListingInput($request, $property);
+            $validated = $request->validate($this->listingRules(true));
+            if (!$replaceImages && $property->images()->count() + count($request->file('images', [])) > 12) {
+                throw ValidationException::withMessages(['images'=>['A listing may contain at most 12 images.']]);
+            }
+            if ($property->documents()->count() + count($request->file('proof_documents', [])) > 5) {
+                throw ValidationException::withMessages(['proof_documents'=>['A listing may contain at most 5 proof documents.']]);
+            }
+            if ($replaceImages) $oldImages = $property->images()->get();
+            $validated = $this->normalizeListingFields($validated, $property, true);
             $validated = app(CategoryListingFeatures::class)->normalizeWrite($validated, $property);
             $this->assertV2ListingCompleteness(array_merge($this->listingState($property), $validated));
             $wasPublished=$property->status==='published';$property->fill($this->listingPayload($validated,true));
+            $this->applyFinancialListingFields($request, $property);
+            app(PropertySaiService::class)->detachInvalidDraftTerm($property);
             $cell=$this->regions->assertListingAllowed($user,(float)$property->latitude,(float)$property->longitude);$property->geo_cell_id=$cell?->id;
             $identity=array_merge(['purpose'=>$property->purpose,'type'=>$property->type,'latitude'=>$property->latitude,'longitude'=>$property->longitude,'area_m2'=>$property->area_m2,'bedrooms'=>$property->bedrooms,'bathrooms'=>$property->bathrooms,'address'=>$property->address],$validated);
             if ((int) $property->listing_input_version >= 6) $identity = array_merge($this->listingState($property), $validated);
@@ -559,6 +574,64 @@ class PropertyController extends Controller
     private function filterRules(): array
     {
         return app(\App\Services\PropertyDiscoveryFilterService::class)->rules();
+    }
+
+    private function prepareFinancialListingInput(Request $request, ?Property $existing): void
+    {
+        if ((int) $request->input('listing_input_version', $existing?->listing_input_version ?? 1) >= 6) {
+            $purpose = (string) $request->input('purpose', $existing?->purpose ?? '');
+            if ($purpose === 'rent') {
+                $v = Validator::make(['monthly_rent' => $request->input('monthly_rent', $existing?->monthly_rent)], ['monthly_rent' => ['required', 'numeric', 'gt:0', 'max:9999999999999']])->validate();
+                $request->merge(['monthly_rent' => $v['monthly_rent'], 'price' => round((float) $v['monthly_rent'], 2)]);
+            }
+            $request->merge(['price_display_mode' => 'excludes_sai']);
+            return;
+        }
+        $purpose=(string)$request->input('purpose',$existing?->purpose??'');
+        $hasRentFinance=$request->hasAny(['monthly_rent','rental_term_months','advance_months']);
+        $rules=['price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])]];
+        if($purpose==='rent' && $hasRentFinance){
+            $rules += [
+                'monthly_rent'=>['required','numeric','gt:0','max:9999999999999'],
+                'rental_term_months'=>['required','integer','min:1','max:24'],
+                'advance_months'=>['required','integer','min:1','max:24'],
+            ];
+        }
+        $v=Validator::make($request->all(),$rules)->validate();
+        if($purpose==='rent' && $hasRentFinance){
+            $monthly=(float)($v['monthly_rent']??$existing?->monthly_rent??0);
+            $term=(int)($v['rental_term_months']??$existing?->rental_term_months??0);
+            $advance=(int)($v['advance_months']??$existing?->advance_months??0);
+            if($advance>$term)throw ValidationException::withMessages(['advance_months'=>['عدد أشهر المقدم لا يمكن أن يتجاوز مدة التأجير.']]);
+            $request->merge(['price'=>round($monthly*$advance,2)]);
+        }
+    }
+
+    private function applyFinancialListingFields(Request $request, Property $property): void
+    {
+        if ((int) $property->listing_input_version >= 6) {
+            $rent = $property->purpose === 'rent';
+            $conditions = collect($property->rental_conditions ?? []);
+            $monthly = $rent ? (float) $request->input('monthly_rent', $property->monthly_rent) : null;
+            $property->forceFill(['monthly_rent' => $monthly,
+                'rental_term_months' => $rent ? ($conditions->firstWhere('kind', 'duration')['months'] ?? null) : null,
+                'advance_months' => $rent ? ($conditions->firstWhere('kind', 'advance')['months'] ?? null) : null,
+                'price_display_mode' => 'excludes_sai']);
+            if ($rent) $property->price = round($monthly, 2);
+            return;
+        }
+        $purpose=(string)$property->purpose;
+        $hasRentFinance=$request->hasAny(['monthly_rent','rental_term_months','advance_months'])
+            || $property->monthly_rent!==null || $property->rental_term_months!==null || $property->advance_months!==null;
+        if($purpose==='rent' && $hasRentFinance){
+            $monthly=(float)$request->input('monthly_rent',$property->monthly_rent);
+            $term=(int)$request->input('rental_term_months',$property->rental_term_months);
+            $advance=(int)$request->input('advance_months',$property->advance_months);
+            $property->forceFill(['monthly_rent'=>$monthly,'rental_term_months'=>$term,'advance_months'=>$advance,'price'=>round($monthly*$advance,2)]);
+        }elseif($purpose!=='rent'){
+            $property->forceFill(['monthly_rent'=>null,'rental_term_months'=>null,'advance_months'=>null]);
+        }
+        if($request->has('price_display_mode'))$property->price_display_mode=$request->input('price_display_mode');
     }
 
     private function listingRules(bool $partial): array
@@ -1038,6 +1111,7 @@ class PropertyController extends Controller
         $property->loadMissing(['images', 'documents']);
         return array_merge($this->summaryData($property, $request), [
             'description' => $property->description,
+            'listing_input_version' => (int) ($property->listing_input_version ?? 1),
             'rental_conditions' => $property->rental_conditions ?? [],
             'contact_phone' => $property->contact_phone,
             'contact_whatsapp' => $property->contact_whatsapp,

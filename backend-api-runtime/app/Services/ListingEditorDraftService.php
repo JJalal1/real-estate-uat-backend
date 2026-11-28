@@ -102,6 +102,20 @@ class ListingEditorDraftService
         $payload['step']=max(0,min(3,(int)($payload['step'] ?? 0)));
         $payload['image_order']=array_values(array_unique(array_filter((array)($payload['image_order'] ?? []),fn($key)=>is_string($key) && (Str::isUuid($key) || preg_match('/^property-[1-9][0-9]*$/D',$key)))));
         $payload['fields']=$fields;
+        return $this->reviewSaiConsent($payload);
+    }
+
+    /** Preserve incomplete input for recovery, but only carry consent for a verifiable amount. */
+    public function reviewSaiConsent(array $payload): array
+    {
+        if (empty($payload['sai_terms_accepted'])) return $payload;
+        $facts = ['purpose' => $payload['purpose'] ?? null];
+        foreach (['price', 'monthly_rent', 'fixed_sai_amount', 'broker_sai_rate_percent'] as $key) {
+            $value = $payload['fields'][$key] ?? null;
+            if (is_scalar($value)) $facts[$key] = ArabicListingNumber::normalize(trim((string) $value));
+        }
+        $payload['sai_terms_accepted'] = ($payload['purpose_confirmed'] ?? true)
+            && app(PropertySaiService::class)->draftAmountFits($facts, $payload['sai_amount_type'] ?? 'percentage');
         return $payload;
     }
 
@@ -182,7 +196,7 @@ class ListingEditorDraftService
 
     public function present(ListingEditorDraft $draft): array
     {
-        $payload = $draft->payload; $fields = $payload['fields'] ?? [];
+        $payload = $this->reviewSaiConsent($draft->payload); $fields = $payload['fields'] ?? [];
         $title=trim((string)($fields['title'] ?? ''));
         if ($title === '') {
             $knownType=($payload['type_confirmed'] ?? true) ? ($payload['type'] ?? '') : '';

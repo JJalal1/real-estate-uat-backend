@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\CloudAssetStorageService;
 use App\Services\PropertyFinancialService;
+use App\Services\PropertySaiService;
 use App\Services\SupportTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -149,34 +150,39 @@ class PropertyFinancialController extends Controller
     {
         /** @var User $user */ $user=$request->user();
         abort_unless((int)$property->user_id===(int)$user->id,403);
-        if($property->status==='published'||in_array($property->review_status,['submitted','under_review','approved','rejected_blocked'],true)){
-            throw new ConflictHttpException('عدّل البيانات المالية أثناء المسودة أو بعد إعادتها للتصحيح.');
-        }
-        if ((int) $property->listing_input_version >= 6) throw new ConflictHttpException('عدّل السعر وشروط الإيجار من محرر الإعلان؛ عرض السعر والسعي تلقائي.');
-        $validated=$request->validate([
-            'price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])],
-            'monthly_rent'=>['nullable','numeric','gt:0','max:9999999999999'],
-            'rental_term_months'=>['nullable','integer','min:1','max:24'],
-            'advance_months'=>['nullable','integer','min:1','max:24'],
-        ]);
-        if($property->purpose==='rent'){
-            $monthly=(float)($validated['monthly_rent']??$property->monthly_rent??0);
-            $term=(int)($validated['rental_term_months']??$property->rental_term_months??0);
-            $advance=(int)($validated['advance_months']??$property->advance_months??0);
-            if($monthly<=0||$term<1||$term>24||$advance<1||$advance>24){
-                throw ValidationException::withMessages(['financial'=>['أكمل الإيجار الشهري ومدة التأجير وأشهر المقدم.']]);
+        $property = DB::transaction(function () use ($request, $property, $user) {
+            $property = Property::query()->lockForUpdate()->findOrFail($property->id);
+            if($property->status==='published'||in_array($property->review_status,['submitted','under_review','approved','rejected_blocked'],true)){
+                throw new ConflictHttpException('عدّل البيانات المالية أثناء المسودة أو بعد إعادتها للتصحيح.');
             }
-            if($advance>$term)throw ValidationException::withMessages(['advance_months'=>['عدد أشهر المقدم لا يمكن أن يتجاوز مدة التأجير.']]);
-            $property->monthly_rent=$monthly;$property->rental_term_months=$term;$property->advance_months=$advance;$property->price=round($monthly*$advance,2);
-        }else{
-            $property->monthly_rent=null;$property->rental_term_months=null;$property->advance_months=null;
-        }
-        if($request->exists('price_display_mode'))$property->price_display_mode=$validated['price_display_mode']??null;
-        $property->saveQuietly();
-        $this->audit->record($user,'listing.financial_config_updated',$property,[
-            'price_display_mode'=>$property->price_display_mode,'monthly_rent'=>$property->monthly_rent,
-            'rental_term_months'=>$property->rental_term_months,'advance_months'=>$property->advance_months,
-        ],$request,$user->id);
+            if ((int) $property->listing_input_version >= 6) throw new ConflictHttpException('عدّل السعر وشروط الإيجار من محرر الإعلان؛ عرض السعر والسعي تلقائي.');
+            $validated=$request->validate([
+                'price_display_mode'=>['nullable',Rule::in(['includes_sai','excludes_sai'])],
+                'monthly_rent'=>['nullable','numeric','gt:0','max:9999999999999'],
+                'rental_term_months'=>['nullable','integer','min:1','max:24'],
+                'advance_months'=>['nullable','integer','min:1','max:24'],
+            ]);
+            if($property->purpose==='rent'){
+                $monthly=(float)($validated['monthly_rent']??$property->monthly_rent??0);
+                $term=(int)($validated['rental_term_months']??$property->rental_term_months??0);
+                $advance=(int)($validated['advance_months']??$property->advance_months??0);
+                if($monthly<=0||$term<1||$term>24||$advance<1||$advance>24){
+                    throw ValidationException::withMessages(['financial'=>['أكمل الإيجار الشهري ومدة التأجير وأشهر المقدم.']]);
+                }
+                if($advance>$term)throw ValidationException::withMessages(['advance_months'=>['عدد أشهر المقدم لا يمكن أن يتجاوز مدة التأجير.']]);
+                $property->monthly_rent=$monthly;$property->rental_term_months=$term;$property->advance_months=$advance;$property->price=round($monthly*$advance,2);
+            }else{
+                $property->monthly_rent=null;$property->rental_term_months=null;$property->advance_months=null;
+            }
+            if($request->exists('price_display_mode'))$property->price_display_mode=$validated['price_display_mode']??null;
+            app(PropertySaiService::class)->detachInvalidDraftTerm($property);
+            $property->saveQuietly();
+            $this->audit->record($user,'listing.financial_config_updated',$property,[
+                'price_display_mode'=>$property->price_display_mode,'monthly_rent'=>$property->monthly_rent,
+                'rental_term_months'=>$property->rental_term_months,'advance_months'=>$property->advance_months,
+            ],$request,$user->id);
+            return $property;
+        });
         return response()->json(['message'=>'تم تحديث بيانات السعر والتسوية.','data'=>[
             'property_id'=>$property->id,'price'=>(float)$property->price,'price_display_mode'=>$property->price_display_mode,
             'monthly_rent'=>$property->monthly_rent!==null?(float)$property->monthly_rent:null,

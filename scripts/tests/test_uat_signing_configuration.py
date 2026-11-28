@@ -127,6 +127,7 @@ class SigningConfigurationTests(unittest.TestCase):
             (signing.ALAZZI_SUPPORT_WAVE_RELEASE_BRANCH, 'work/alazzi-support-1851', '1851'),
             (signing.ALAZZI_UNIFIED_1852_RELEASE_BRANCH, 'work/alazzi-unified-1852', '1852'),
             (signing.ALAZZI_POLISH_1853_RELEASE_BRANCH, 'work/alazzi-polish-1853', '1853'),
+            (signing.ALAZZI_SAI_1856_RELEASE_BRANCH, 'work/alazzi-sai-limits-1856', '1856'),
             (signing.ALAZZI_LISTING_1855_RELEASE_BRANCH, 'work/alazzi-listings-1855', '1855'),
             (signing.ALAZZI_MANAGER_1854_RELEASE_BRANCH, 'work/alazzi-manager-1854', '1854'),
         ):

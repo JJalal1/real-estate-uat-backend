@@ -17,6 +17,7 @@ class PropertySaiService
     public const OWNER_RENT_RATE = 20.0;
     public const BROKER_SALE_MAX = 5.0;
     public const BROKER_RENT_MAX = 100.0;
+    public const MAX_FIXED_AMOUNT = 999999999999.99;
     public const PLATFORM_BROKER_SHARE = 10.0;
     private const PREVIOUS_PLATFORM_SHARE = 20.0;
     public const BROKER_NET_SHARE = 100.0 - self::PLATFORM_BROKER_SHARE;
@@ -66,6 +67,9 @@ class PropertySaiService
             if ($noAmountRequested && $current && ($current->advertiser_type === 'owner' || $legacyPersonalRequest)
                 && $current->purpose === $purpose
                 && ($current->payer === $payer || ! $request->has('sai_payer'))) {
+                if (! $this->termFitsListing($current, $locked)) {
+                    throw new ConflictHttpException('تغيرت حدود السعي. أدخل السعي من جديد قبل المتابعة.');
+                }
                 return $current;
             }
             // Older ordinary clients sent only the payer. Keep that API
@@ -202,6 +206,9 @@ class PropertySaiService
             throw new ConflictHttpException('تغير نوع الإعلان أو صفة المعلن. أعد تأكيد شروط السعي قبل المتابعة.');
         }
 
+        if (! $this->termFitsListing($term, $property)) {
+            throw new ConflictHttpException('السعي خارج الحد المسموح لسعر الإعلان أو عملته. عدّل السعي قبل المتابعة.');
+        }
         $this->validatePayer($term->purpose, $term->payer);
         $fixed = $this->fixedRate($term->purpose);
 
@@ -217,9 +224,7 @@ class PropertySaiService
         }
 
         if ($term->sai_amount_type === 'fixed') {
-            if ($term->source_mode !== 'broker_custom' || (float) $term->fixed_sai_amount <= 0
-                || (float) $term->fixed_sai_amount > $this->fixedAmountLimit($property)
-                || $term->fixed_sai_currency !== $property->currency
+            if ($term->source_mode !== 'broker_custom'
                 || ! $this->hasValidCustomShare($term)
                 || ! in_array($term->platform_terms_status, ['accepted', 'pending'], true)) {
                 throw new ConflictHttpException('راجع مبلغ السعي الثابت وعملته وحدوده قبل إرسال الإعلان.');
@@ -228,8 +233,8 @@ class PropertySaiService
         }
 
         $requested = (float) ($term->requested_broker_rate_percent ?? -1);
-        if ($requested < 0 || $requested > $this->brokerMaxRate($term->purpose)) {
-            throw new ConflictHttpException('نسبة السعي خارج الحد المسموح.');
+        if ($requested < 0) {
+            throw new ConflictHttpException('حدد نسبة السعي قبل إرسال الإعلان.');
         }
 
         if ($requested > 0) {
@@ -406,17 +411,69 @@ class PropertySaiService
         return $purpose === 'rent' ? self::OWNER_RENT_RATE : self::OWNER_SALE_RATE;
     }
 
+    public function maximumFixedAmount(string $purpose, float $basis): float
+    {
+        if (! is_finite($basis) || $basis <= 0) return 0.0;
+        // Prices are persisted to two decimals. Integer division floors the cap
+        // at a whole minor unit, including at the largest supported price.
+        $basis = min($basis, 9999999999999.99);
+        $basisCents = (int) round($basis * 100);
+        if ($basisCents / 100 > $basis) $basisCents--;
+        $maximumCents = intdiv($basisCents * (int) $this->brokerMaxRate($purpose), 100);
+        return min(self::MAX_FIXED_AMOUNT, $maximumCents / 100);
+    }
+
     private function fixedAmountLimit(Property $property): float
     {
-        $basis = $property->purpose === 'rent'
-            ? (float) ($property->monthly_rent ?: $property->price)
-            : (float) $property->price;
-        return round($basis * $this->brokerMaxRate((string) $property->purpose) / 100, 2);
+        $basis = $property->price;
+        if ($property->purpose === 'rent') {
+            // A legacy price represents one month only when there was no multi-month advance.
+            $legacyMonthly = (int) $property->listing_input_version < 6 && (int) ($property->advance_months ?? 1) === 1;
+            $basis = $property->monthly_rent ?? ($legacyMonthly ? $property->price : 0);
+        }
+        return $this->maximumFixedAmount((string) $property->purpose, (float) $basis);
+    }
+
+    private function termFitsListing(PropertySaiTerm $term, Property $property): bool
+    {
+        if ($term->purpose !== $property->purpose || (int) $term->property_id !== (int) $property->id) return false;
+        if ($term->sai_amount_type === 'fixed') {
+            return $term->fixed_sai_currency === $property->currency
+                && (float) $term->fixed_sai_amount > 0
+                && (float) $term->fixed_sai_amount <= $this->fixedAmountLimit($property);
+        }
+        $max = $this->brokerMaxRate($property->purpose);
+        return $term->sai_amount_type === 'percentage'
+            && $term->sai_rate_percent !== null && $term->sai_rate_percent >= 0 && $term->sai_rate_percent <= $max
+            && ($term->requested_broker_rate_percent === null
+                || ($term->requested_broker_rate_percent >= 0 && $term->requested_broker_rate_percent <= $max));
+    }
+
+    public function detachInvalidDraftTerm(Property $property): void
+    {
+        $term = $this->currentTerm($property);
+        if ($term && ! $this->termFitsListing($term, $property)) {
+            // Previous contacts and settlements retain the immutable term ID.
+            $property->current_sai_term_id = null;
+        }
     }
 
     public function brokerMaxRate(string $purpose): float
     {
         return $purpose === 'rent' ? self::BROKER_RENT_MAX : self::BROKER_SALE_MAX;
+    }
+
+    /** Unsubmitted editor values require a known sale price or one month's rent. */
+    public function draftAmountFits(array $facts, string $mode): bool
+    {
+        $purpose = $facts['purpose'] ?? null;
+        if (!in_array($purpose, ['sale', 'rent'], true) || !in_array($mode, ['fixed', 'percentage'], true)) return false;
+        $basis = $facts[$purpose === 'rent' ? 'monthly_rent' : 'price'] ?? null;
+        $amount = $facts[$mode === 'fixed' ? 'fixed_sai_amount' : 'broker_sai_rate_percent'] ?? null;
+        if (!is_numeric($basis) || !is_finite((float) $basis) || (float) $basis <= 0 || !is_numeric($amount)
+            || !preg_match('/^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/D', (string) $amount)) return false;
+        $maximum = $mode === 'fixed' ? $this->maximumFixedAmount($purpose, (float) $basis) : $this->brokerMaxRate($purpose);
+        return (float) $amount <= $maximum;
     }
 
     private function validatePayer(string $purpose, string $payer, bool $newConfiguration = false): void

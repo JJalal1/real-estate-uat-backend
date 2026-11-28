@@ -122,12 +122,13 @@ class ExplicitListingFacts
         }
         if ($this->positive('(?:ضمانه\s*تجاريه|ضامن\s*تجاري|كفيل)', $text)) $conditions[] = ['kind'=>'guarantor'];
         if ($conditions !== []) $fields['rental_conditions'] = $conditions;
-        $rate = $this->one('/(?<!\pL)(?:و)?(?:نسبه\s*)?(?:السعي|العموله)\s*[:=]?\s*('.$number.')\s*(?:%|بالمئه)(?!\pL)/u', $text);
-        if ($rate !== null && $rate <= 100) { $fields['sai_amount_type']='percentage'; $fields['broker_sai_rate_percent']=$rate; }
-        $feePattern = '/(?<!\pL)(?:مبلغ\s*)?(?:السعي|العموله)\s*[:=]?\s*('.$number.')\s*(ريال(?:\s*(?:يمني|سعودي))?|دولار|سعودي)(?!\pL)/u';
+        $feeNumber = '(?:'.$number.'|صفر)';
+        $rate = $this->one('/(?<!\pL)(?:و)?(?:نسبه\s*)?(?:السعي|العموله)\s*[:=]?\s*('.$feeNumber.')\s*(?:%|بالمئه)(?!\pL)/u', $text, true);
+        if ($rate !== null) { $fields['sai_amount_type']='percentage'; $fields['broker_sai_rate_percent']=$rate; }
+        $feePattern = '/(?<!\pL)(?:و)?(?:مبلغ\s*)?(?:السعي|العموله)\s*[:=]?\s*('.$feeNumber.')\s*(ريال(?:\s*(?:يمني|سعودي))?|دولار|سعودي)(?!\pL)/u';
         if ($rate === null && preg_match_all($feePattern, $text, $fees, PREG_SET_ORDER) === 1) {
             $match = $fees[0];
-            $fee = $this->numbers->parse($match[1]);
+            $fee = $this->numbers->parse($match[1], true);
             $currency = $this->currencyCode($match[2]);
             if ($fee !== null && !$this->negated($text, $match[0]) && !$this->alternativeAfter($text, $match[0])
                 && (!isset($fields['currency']) || $fields['currency'] === $currency)) {
@@ -181,10 +182,10 @@ class ExplicitListingFacts
         return count(array_unique(array_map($this->currencyCode(...), $units[0]))) > 1;
     }
 
-    private function one(string $pattern, string $text): ?float
+    private function one(string $pattern, string $text, bool $allowZero = false): ?float
     {
         if (preg_match_all($pattern, $text, $matches, PREG_SET_ORDER) !== 1 || $this->negated($text, $matches[0][0]) || $this->alternativeAfter($text, $matches[0][0])) return null;
-        return $this->numbers->parse($matches[0][1]);
+        return $this->numbers->parse($matches[0][1], $allowZero);
     }
 
     private function originalPhrase(string $value, string $message): string

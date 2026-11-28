@@ -16,7 +16,7 @@ class ListingDraftService
         $source = 'ai';
         $notice = 'راجع التفاصيل والنص قبل تطبيقها على مسودتك.';
         try {
-            $fields = (array) $this->listing->extract($message, $current)['fields'];
+            $fields = (array) $this->listing->extract($message, $current, $literal)['fields'];
         } catch (HttpResponseException $error) {
             if (! in_array($error->getResponse()->getStatusCode(), [429, 503], true)) throw $error;
             $fields = $literal;
@@ -30,7 +30,12 @@ class ListingDraftService
             $literal['rental_conditions'] = array_merge(array_values(array_filter($fields['rental_conditions'],
                 fn ($row) => !in_array($row['kind'], $kinds, true))), $literal['rental_conditions']);
         }
-        $fields = $this->listing->facts(array_replace($fields, $literal));
+        $proposed = array_replace($fields, $literal);
+        $fields = $this->listing->facts($this->listing->reviewableSai($proposed, $current));
+        if ((isset($proposed['fixed_sai_amount']) || isset($proposed['broker_sai_rate_percent']))
+            && !isset($fields['sai_amount_type'])) {
+            $notice .= ' راجع قيمة السعي وحدّه حسب سعر البيع أو إيجار الشهر الأول.';
+        }
         // Older editors and the rent form accept only YER.
         $sale = ($fields['purpose'] ?? $current['purpose'] ?? null) === 'sale';
         $foreign = isset($fields['currency']) && $fields['currency'] !== 'YER';

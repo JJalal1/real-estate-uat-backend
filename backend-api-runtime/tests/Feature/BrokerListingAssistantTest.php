@@ -269,6 +269,43 @@ class BrokerListingAssistantTest extends TestCase
         $this->assertDatabaseHas('ai_daily_usage', ['day' => now('UTC')->toDateString(), 'request_count' => 2]);
     }
 
+    public function test_proposed_commission_is_bounded_in_literal_copy_and_model_extraction(): void
+    {
+        [, $headers] = $this->actor('commission-review', 'broker');
+        config(['gemini.enabled' => false]);
+        $sale = ['purpose' => 'sale', 'price' => 1000.19, 'currency' => 'YER'];
+        $rent = ['purpose' => 'rent', 'monthly_rent' => 1000, 'currency' => 'YER'];
+        foreach ([
+            ['السعي 5.01%', $sale], ['السعي 50.01 ريال', $sale],
+            ['السعي 100.01%', $rent], ['السعي 1000.01 ريال', $rent],
+            ['السعي 1.005%', $sale], ['السعي 20 ريال', ['purpose' => 'sale']],
+            ['السعي 20 دولار', $sale],
+        ] as [$brief, $facts]) {
+            $response = $this->prepare($headers, $brief, $facts, ['supports_sale_currencies' => true])->assertOk()
+                ->assertJsonMissingPath('data.fields.sai_amount_type')->assertJsonMissingPath('data.fields.fixed_sai_amount')
+                ->assertJsonMissingPath('data.fields.broker_sai_rate_percent');
+            $this->assertStringNotContainsString('السعي', $response->json('data.copy.description'));
+        }
+        $this->travel(1)->minutes();
+        $this->prepare($headers, 'السعي 50 ريال', $sale)->assertOk()->assertJsonPath('data.fields.fixed_sai_amount', 50);
+        $this->prepare($headers, 'السعي 100%', $rent)->assertOk()->assertJsonPath('data.fields.broker_sai_rate_percent', 100);
+        $zero = $this->prepare($headers, 'السعي صفر ريال', $sale)->assertOk()->assertJsonPath('data.fields.fixed_sai_amount', 0);
+        $this->assertStringNotContainsString('السعي', $zero->json('data.copy.description'));
+        $response = $this->withHeaders($headers)->postJson('/api/ai/listing-draft', [
+            'mode' => 'copy', 'facts' => $sale + ['sai_amount_type' => 'percentage', 'broker_sai_rate_percent' => 7],
+        ])->assertOk();
+        $this->assertStringNotContainsString('السعي', $response->json('data.copy.description'));
+
+        config(['gemini.enabled' => true]);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response($this->response([
+            'district' => 'حدة', 'fixed_sai_amount' => 10,
+        ]))]);
+        $this->withHeaders($headers)->postJson('/api/ai/listing-fields', ['message' => 'في حدة والسعي 800 ريال', 'facts' => $sale])
+            ->assertOk()->assertJsonPath('data.fields.district', 'حدة')->assertJsonMissingPath('data.fields.fixed_sai_amount')
+            ->assertJsonMissingPath('data.fields.sai_amount_type');
+        $this->assertDatabaseCount('property_sai_terms', 0);
+    }
+
     public function test_budget_prevents_retry_and_subsequent_outbound_cost_while_preserving_draft_help(): void
     {
         [, $headers] = $this->actor('budget', 'broker');

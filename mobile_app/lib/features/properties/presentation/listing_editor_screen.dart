@@ -111,7 +111,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   final _categoryChoices = <String, String>{};
   final _editedCategoryFields = <String>{};
   ListingContactPolicy _contactPolicy = const ListingContactPolicy();
-  bool _validateContacts = false;
+  bool _validateContacts = false, _showSaiError = false;
   final _phone = TextEditingController();
   final _whatsapp = TextEditingController();
   final _editorScroll = ScrollController();
@@ -572,6 +572,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     onSaveDraft:() => _persist(submit:false),onSubmit:_reviewCompletedDraft);
 
   void _reviewCompletedDraft() {
+    if (_rejectInvalidEnteredSai()) return;
     FocusScope.of(context).unfocus();
     final validation = _validateForSubmit();
     if (validation != null) {
@@ -773,6 +774,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         await _clearCurrentRecovery();
         if (mounted) _leaveEditor();
       } else if (choice=='save') {
+        if (_rejectInvalidEnteredSai()) return;
         _draftSavedExplicitly = true;
         // Save on exit is explicit; connectivity alone never starts uploading.
         _persistStarting = !_offline;
@@ -935,26 +937,34 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   double get _enteredSaiAmount => parseSaiNumber(_saiAmount.text) ?? double.nan;
   bool get _fixedSai => _saiAmountType == 'fixed' && _displayedSaiPolicy?.hasHistoricalFixedTerms != true;
   double get _activeSaiValue => _fixedSai ? _enteredSaiAmount : _enteredSaiRate;
-  String? get _inlineSaiValidation {
+  String get _activeSaiInput {
     final policy = _displayedSaiPolicy;
-    if (policy == null) return 'تعذر تحميل سياسة السعي. أعد تحميلها قبل الإرسال.';
-    if (_preservesHistoricalSai && policy.hasHistoricalFixedTerms) return null;
+    if (_preservesHistoricalSai && policy?.hasHistoricalFixedTerms == true) {
+      return policy?.effectiveFixedRate?.toString() ?? '';
+    }
+    return _fixedSai ? _saiAmount.text : _saiRate.text;
+  }
+  String? get _saiInputError => validatePropertySaiInput(
+    purpose: _purpose, fixed: _fixedSai, value: _activeSaiInput, basis: _effectivePrice,
+    policyMaximumPercent: _displayedSaiPolicy?.brokerMaxRatePercent, currency: _currency,
+    zeroFallbackRate: _displayedSaiPolicy?.effectiveFixedRate,
+  );
+  String? get _inlineSaiValidation {
+    if (_displayedSaiPolicy == null) return 'تعذر تحميل سياسة السعي. أعد تحميلها قبل الإرسال.';
     if (_isEditing && !_existingSaiLoaded && !_saiTouched && !_hasRecoveredSai) return 'انتظر تحميل السعي الحالي أو حدد النسبة بنفسك.';
-    if (_fixedSai) {
-      final amount = _enteredSaiAmount, basis = _effectivePrice;
-      final maximum = basis == null ? null : (basis * (policy.brokerMaxRatePercent ?? -1)).round() / 100;
-      if (!amount.isFinite || amount < 0 || maximum == null || amount > maximum ||
-          (amount * 100 - (amount * 100).round()).abs() > .000001) {
-        return 'أدخل مبلغ سعي صحيحًا ضمن الحد المسموح وبدقتين عشريتين على الأكثر.';
-      }
-      return null;
-    }
-    final rate = _enteredSaiRate, maximum = policy.brokerMaxRatePercent;
-    if (rate.isFinite && rate > 100) return 'أقصى نسبة للسعي 100%';
-    if (!rate.isFinite || rate < 0 || maximum == null || rate > maximum || (rate * 100 - (rate * 100).round()).abs() > .000001) {
-      return 'أدخل نسبة سعي صحيحة ضمن الحد المسموح وبدقتين عشريتين على الأكثر.';
-    }
-    return null;
+    return _saiInputError;
+  }
+
+  // Partial drafts can omit the commission. Once entered, its value must fit
+  // the current price before it can be previewed, explicitly saved or sent.
+  String? get _enteredSaiError =>
+      _activeSaiInput.trim().isEmpty && !_preservesHistoricalSai ? null : _saiInputError;
+
+  bool _rejectInvalidEnteredSai() {
+    if (_enteredSaiError == null) return false;
+    if (_completionOnly || _step != 3) _showFullStep(3);
+    setState(() { _stepError = null; _showSaiError = true; });
+    return true;
   }
   String get _saiDisplayText {
     final policy = _displayedSaiPolicy;
@@ -962,9 +972,9 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_fixedSai && _enteredSaiAmount.isFinite && _enteredSaiAmount > 0) {
       return 'السعي ${formatMoneyAmount(_enteredSaiAmount, englishDigits: true)} ${currencyLabel(_currency)}';
     }
-    final rate = _preservesHistoricalSai ? policy.saiRatePercent :
-        _activeSaiValue == 0 ? policy.effectiveFixedRate : _enteredSaiRate;
-    return 'السعي ${rate ?? '—'}%';
+    final rate = policy.hasHistoricalFixedTerms || _activeSaiValue == 0
+        ? policy.effectiveFixedRate : _enteredSaiRate;
+    return 'السعي ${rate == null ? '—' : formatMoneyAmount(rate, englishDigits: true)}%';
   }
   Map<String, dynamic> get _schemaContext => {'type': _type, 'purpose': _purpose, 'unit_occupies_entire_floor': _wholeFloor, 'sai_amount_type': _saiAmountType};
   bool _applies(String key) => DynamicPropertySchema.applies(key, _schemaContext);
@@ -1210,6 +1220,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
         });
       }
     });
+    final stepError = _stepError ?? (_showSaiError ? _enteredSaiError : null);
     final correctionReason =
         _existing?.reviewStatus == 'returned_for_correction'
             ? _existing?.lastReviewReason
@@ -1293,8 +1304,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
                   ),
                 ),
               ),
-              if (_stepError != null) Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                child: Semantics(liveRegion: true, child: Text(_stepError!, style: TextStyle(color: Theme.of(context).colorScheme.error)))),
+              if (stepError != null) Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Semantics(liveRegion: true, child: Text(stepError, style: TextStyle(color: Theme.of(context).colorScheme.error)))),
             ],
           ),
         ),
@@ -1846,7 +1857,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           amountController: _saiAmount, amountType: _saiAmountType,
           currency: _currency, keepConfiguredShare: _preservesHistoricalSai, onEditHistoricalTerms: _editHistoricalSai,
           onAmountTypeChanged: (value) => setState(() { _saiAmountType = value; _saiTouched = true; }),
-          basis: _purpose == 'rent' ? parseSaiNumber(_monthlyRent.text.trim()) : _effectivePrice,
+          basis: _effectivePrice,
           accepted: _saiAccepted, error: _saiPolicyError, enabled: !_busy,
           onRetry: () => unawaited(_loadSaiPolicy()),
           onChanged: () => setState(() => _saiTouched = true),
@@ -2000,7 +2011,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   void _showFullStep(int step) {
     FocusScope.of(context).unfocus();
-    setState(() { if (_completionOnly) _reviewingCompleted = true; _completionOnly = false; _step = step.clamp(0, 3).toInt(); _stepError = null; });
+    setState(() { if (_completionOnly) _reviewingCompleted = true; _completionOnly = false; _step = step.clamp(0, 3).toInt(); _stepError = null; _showSaiError = false; });
     if (_editorScroll.hasClients) _editorScroll.jumpTo(0);
   }
 
@@ -2156,6 +2167,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _copyListingText() async {
+    if (_rejectInvalidEnteredSai()) return;
     final text = [
       _title.text.trim(),
       '${_typeLabels[_type] ?? _type} ${_purpose == 'rent' ? 'للإيجار' : 'للبيع'}',
@@ -2174,7 +2186,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (_typeConfirmed) 'type': _type, if (_purposeConfirmed) 'purpose': _purpose, 'currency': _currency,
     if (_requiresSaleTenure && _tenureType != null) 'tenure_type': _tenureType,
     if (_applies('unit_number') && _unitNumber.text.trim().isNotEmpty) 'unit_number': _unitNumber.text.trim(),
-    if (_saiTouched) ...{'sai_amount_type': _saiAmountType, if (_fixedSai && _enteredSaiAmount.isFinite) 'fixed_sai_amount': _enteredSaiAmount, if (!_fixedSai && _enteredSaiRate.isFinite) 'broker_sai_rate_percent': _enteredSaiRate},
+    if (_saiTouched && _saiInputError == null) ...{'sai_amount_type': _saiAmountType, if (_fixedSai && _enteredSaiAmount.isFinite) 'fixed_sai_amount': _enteredSaiAmount, if (!_fixedSai && _enteredSaiRate.isFinite) 'broker_sai_rate_percent': _enteredSaiRate},
     if (_purpose == 'rent' && _rentalConditions.isNotEmpty) 'rental_conditions': _rentalConditions,
     if (_title.text.trim().isNotEmpty) 'title': _title.text.trim(),
     if (_composedAddress.trim().isNotEmpty) 'address': _composedAddress,
@@ -2328,12 +2340,14 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
 
   Future<void> _persist({required bool submit}) async {
     if (_persistStarting || _busy || !_sessionValid) return;
-    if (!submit) _draftSavedExplicitly = true;
     _persistStarting=true;
     try { await _persistOnce(submit:submit); } finally { _persistStarting=false; }
   }
 
   Future<void> _persistOnce({required bool submit}) async {
+    if (!_recoveryReady || !_offline && !await _resolveRecoveredDraft()) return;
+    if (!mounted || !_sessionValid || _rejectInvalidEnteredSai()) return;
+    if (!submit) _draftSavedExplicitly = true;
     if (_offline) {
       _offlinePrepared = true;
       _draftSavedExplicitly = true;
@@ -2344,8 +2358,6 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
             : 'تعذر الحفظ على الجهاز. بياناتك باقية هنا؛ أعد المحاولة.'); }
       return;
     }
-    if (!_recoveryReady || !await _resolveRecoveredDraft()) return;
-    if (!mounted || !_sessionValid) return;
     final validation = submit ? _validateForSubmit() : _validateCore();
     if (validation != null) {
       if (!submit) { await _saveRecovery(retryFailed:true,manual:true); if (mounted && _sessionValid) _message(_accountSaved ? 'حُفظت المسودة على حسابك. يمكنك إكمالها لاحقًا.' : 'لم يكتمل الحفظ على الحساب. أعد المحاولة قبل الخروج.'); } else { setState(() => _stepError = validation); }
@@ -2485,7 +2497,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
   }
 
   Future<void> _preview() async {
-    if (_previewOpen || _busy || !_sessionValid) return;
+    if (_previewOpen || _busy || !_sessionValid || _rejectInvalidEnteredSai()) return;
     final validation = _validateCore();
     if (validation != null) {
       setState(() => _stepError = validation);
@@ -2617,7 +2629,7 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
     if (!_isRentalApartment && _area.text.trim().isNotEmpty) _SummaryRow(
         label: 'المساحة',
         value: '${_area.text.trim()} ${propertyAreaUnitLabel(_areaUnit)}'),
-    _SummaryRow(label: 'السعي', value: _saiDisplayText),
+    if (_isSaiReady) _SummaryRow(label: 'السعي', value: _saiDisplayText),
     _SummaryRow(label: 'الموقع', value: _composedAddress),
     if (_description.text.trim().isNotEmpty) ...[
       const SizedBox(height: AppSpacing.s12),
@@ -2680,7 +2692,8 @@ class _ListingEditorScreenState extends ConsumerState<ListingEditorScreen> with 
           _historicalSai = management.configured ? management : null;
           _saiAmountType = management.configured ? management.amountType : 'fixed';
           _saiAmount.text = management.fixedAmount?.toString() ?? '';
-          _saiRate.text = management.requestedBrokerRatePercent?.toString() ?? '';
+          final recordedRate = management.requestedBrokerRatePercent ?? (management.configured ? management.saiRatePercent : null);
+          _saiRate.text = recordedRate?.toString() ?? '';
           _saiAccepted = management.platformTermsStatus == 'accepted';
         }
       }); }
