@@ -394,7 +394,9 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
             'broker_sai_rate_percent'=>5, 'platform_terms_decision'=>'accept',
         ])->assertOk()->json('data.sai_management.term_id');
         $legacyTerm = PropertySaiTerm::query()->findOrFail($id)->replicate();
-        $legacyTerm->fill(['version'=>2, 'requested_broker_rate_percent'=>5.01, 'sai_rate_percent'=>5.01])->save();
+        // Older terms can have an excessive request even when their effective
+        // rate satisfies the database constraint. Review must check both.
+        $legacyTerm->fill(['version'=>2, 'requested_broker_rate_percent'=>5.01])->save();
         $listing->update(['current_sai_term_id'=>$legacyTerm->id]);
         foreach ([['pending','submitted'], ['published','approved']] as [$status,$review]) {
             try {
