@@ -17,6 +17,9 @@ class AuthRepository {
   final OfflineStore? _offlineStore;
 
   final Dio _dio;
+  CancelToken _sessionReads = CancelToken();
+  bool _restoredFromSnapshot = false;
+  bool get restoredFromSnapshot => _restoredFromSnapshot;
   final _store = Stage6SecureSessionStore.instance;
 
   void _requireSession(int epoch) {
@@ -32,9 +35,12 @@ class AuthRepository {
       final response = await _dio.get<Map<String, dynamic>>(
         '/auth/me',
         options: _bearer(token),
+        cancelToken: _sessionReads,
       );
       _requireSession(epoch);
-      return _userFromData(response.data);
+      final user = _userFromData(response.data);
+      _restoredFromSnapshot = response.extra['offline_snapshot'] == true;
+      return user;
     } on DioException catch (error) {
       _requireSession(epoch);
       if (error.response?.statusCode == 401 ||
@@ -318,6 +324,19 @@ class AuthRepository {
     );
   }
 
+  Future<AuthUser> acceptSubmissionUser(Map<String, dynamic> raw,
+      {required int expectedUserId, required int epoch}) async {
+    _requireSession(epoch);
+    final user = AuthUser.fromJson(raw);
+    if (user.id != expectedUserId || user.id <= 0) throw StateError('ACCOUNT_CHANGED');
+    final token = await _store.readToken();
+    _requireSession(epoch);
+    if (token == null) throw StateError('ACCOUNT_CHANGED');
+    await _checkpointUser(raw, token, epoch);
+    _requireSession(epoch);
+    return user;
+  }
+
   Future<AuthUser> _checkpointCurrentUser(Map<String, dynamic>? body, int epoch) async {
     final user = _userFromData(body);
     final data = body?['data'] as Map<String, dynamic>;
@@ -330,6 +349,10 @@ class AuthRepository {
   }
 
   Future<void> _checkpointUser(Map<String, dynamic> user, String token, int epoch) async {
+    // A GET started before this authoritative write must not restore older roles.
+    _restoredFromSnapshot = false;
+    _sessionReads.cancel('Session profile updated');
+    _sessionReads = CancelToken();
     final cache = _offlineStore;
     if (cache == null) { return; }
     final request = RequestOptions(path: '/auth/me', baseUrl: _dio.options.baseUrl,

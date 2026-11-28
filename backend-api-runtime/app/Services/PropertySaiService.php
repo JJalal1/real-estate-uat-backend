@@ -17,8 +17,9 @@ class PropertySaiService
     public const OWNER_RENT_RATE = 20.0;
     public const BROKER_SALE_MAX = 5.0;
     public const BROKER_RENT_MAX = 100.0;
-    public const PLATFORM_BROKER_SHARE = 20.0;
-    public const BROKER_NET_SHARE = 80.0;
+    public const PLATFORM_BROKER_SHARE = 10.0;
+    private const PREVIOUS_PLATFORM_SHARE = 20.0;
+    public const BROKER_NET_SHARE = 100.0 - self::PLATFORM_BROKER_SHARE;
 
     public function __construct(private readonly AuditLogService $audit) {}
 
@@ -219,8 +220,7 @@ class PropertySaiService
             if ($term->source_mode !== 'broker_custom' || (float) $term->fixed_sai_amount <= 0
                 || (float) $term->fixed_sai_amount > $this->fixedAmountLimit($property)
                 || $term->fixed_sai_currency !== $property->currency
-                || (float) $term->platform_share_percent !== self::PLATFORM_BROKER_SHARE
-                || (float) $term->broker_share_percent !== self::BROKER_NET_SHARE
+                || ! $this->hasValidCustomShare($term)
                 || ! in_array($term->platform_terms_status, ['accepted', 'pending'], true)) {
                 throw new ConflictHttpException('راجع مبلغ السعي الثابت وعملته وحدوده قبل إرسال الإعلان.');
             }
@@ -235,8 +235,7 @@ class PropertySaiService
         if ($requested > 0) {
             if ($term->source_mode !== 'broker_custom'
                 || abs((float) $term->sai_rate_percent - $requested) > 0.001
-                || (float) $term->platform_share_percent !== self::PLATFORM_BROKER_SHARE
-                || (float) $term->broker_share_percent !== self::BROKER_NET_SHARE
+                || ! $this->hasValidCustomShare($term)
                 || ! in_array($term->platform_terms_status, ['accepted', 'pending'], true)) {
                 throw new ConflictHttpException('يجب قبول شرط نسبة التطبيق من مبلغ السعي قبل نشر الإعلان.');
             }
@@ -290,7 +289,7 @@ class PropertySaiService
             'broker_max_rate_percent' => $this->brokerMaxRate($purpose),
             'professional_platform_share_percent' => self::PLATFORM_BROKER_SHARE,
             'fallback_platform_share_percent' => 100.0,
-            'platform_terms_message' => 'للتطبيق نسبة مقدارها '.$this->formatRate(self::PLATFORM_BROKER_SHARE).'% من مبلغ السعي عند إتمام الصفقة.',
+            'platform_terms_message' => $this->platformTermsMessage(self::PLATFORM_BROKER_SHARE),
             'requires_configuration' => true,
             'amount_types' => ['percentage', 'fixed'],
         ];
@@ -329,7 +328,7 @@ class PropertySaiService
             'requires_platform_terms_acceptance' => $term->source_mode === 'broker_custom'
                 && ! $this->hasPlatformConsent($term),
             'platform_terms_message' => $term->source_mode === 'broker_custom'
-                ? 'للتطبيق نسبة مقدارها 20% من مبلغ السعي عند إتمام الصفقة.'
+                ? $this->platformTermsMessage((float) $term->platform_share_percent)
                 : null,
             'public_display_text' => $this->publicData($property)['display_text'] ?? null,
             'created_at' => optional($term->created_at)->toIso8601String(),
@@ -373,6 +372,19 @@ class PropertySaiService
             'platform_share' => $platform,
             'broker_share' => round($total - $platform, 2),
         ];
+    }
+
+    private function hasValidCustomShare(PropertySaiTerm $term): bool
+    {
+        // Existing terms are immutable and may still be awaiting editorial approval.
+        $share = (float) $term->platform_share_percent;
+        return in_array($share, [self::PLATFORM_BROKER_SHARE, self::PREVIOUS_PLATFORM_SHARE], true)
+            && (float) $term->broker_share_percent === 100.0 - $share;
+    }
+
+    private function platformTermsMessage(float $share): string
+    {
+        return 'حصة المنصة تحسب على ناشر الإعلان بنسبة '.$this->formatRate($share).'% من مبلغ السعي عند إتمام الصفقة.';
     }
 
     private function termAdvertiserType(User $user, PropertySaiTerm $term): string

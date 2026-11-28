@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/ebroker_design.dart';
@@ -89,6 +90,7 @@ class AppTextField extends StatelessWidget {
     this.onSubmitted,
     this.keyboardType,
     this.textInputAction,
+    this.inputFormatters,
     this.enabled = true,
     this.maxLines = 1,
     super.key,
@@ -105,6 +107,7 @@ class AppTextField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final List<TextInputFormatter>? inputFormatters;
   final bool enabled;
   final int maxLines;
 
@@ -118,6 +121,7 @@ class AppTextField extends StatelessWidget {
         onSubmitted: onSubmitted,
         keyboardType: keyboardType,
         textInputAction: textInputAction,
+        inputFormatters: inputFormatters,
         enabled: enabled,
         maxLines: maxLines,
         decoration: InputDecoration(

@@ -56,7 +56,7 @@ class Wave5ListingRefinementTest extends TestCase
             $this->withHeaders($headers)->putJson("/api/properties/$id/sai", $bad)->assertUnprocessable();
         }
         $term = PropertySaiTerm::findOrFail($termId);
-        $this->assertSame(['total_sai'=>30000.0, 'platform_share'=>6000.0, 'broker_share'=>24000.0],
+        $this->assertSame(['total_sai'=>30000.0, 'platform_share'=>3000.0, 'broker_share'=>27000.0],
             app(PropertySaiService::class)->calculateSaiAmount($term, 80000));
         Property::findOrFail($id)->forceFill(['status'=>'published', 'review_status'=>'approved', 'published_at'=>now()])->save();
         $this->withHeaders(['Authorization'=>''])->getJson("/api/properties/$id/sai")->assertOk()
@@ -96,11 +96,11 @@ class Wave5ListingRefinementTest extends TestCase
         $this->assertDatabaseCount('property_deal_financial_terms', 1);
         $this->assertDatabaseMissing('broker_deal_outcomes', ['id'=>$deal, 'status'=>'pending_customer']);
         $this->assertDatabaseHas('property_deal_financial_terms', ['broker_deal_outcome_id'=>$deal,
-            'sai_total_amount'=>40000, 'platform_share_amount'=>8000, 'advertiser_sai_share_amount'=>32000]);
+            'sai_total_amount'=>40000, 'platform_share_amount'=>4000, 'advertiser_sai_share_amount'=>36000]);
         $this->assertDatabaseHas('properties', ['id'=>$id, 'current_sai_term_id'=>$currentId]);
         $this->assertDatabaseHas('message_threads', ['id'=>$thread, 'sai_term_id'=>$old->id]);
         $this->assertSame($oldRaw, $old->fresh()->getRawOriginal());
-        $this->assertDatabaseHas('property_platform_receivables', ['advertiser_user_id'=>$broker->id, 'amount_total'=>8000]);
+        $this->assertDatabaseHas('property_platform_receivables', ['advertiser_user_id'=>$broker->id, 'amount_total'=>4000]);
     }
 
     public function test_zero_fee_fallback_applies_to_an_ordinary_advertiser_and_a_broker(): void
@@ -147,6 +147,36 @@ class Wave5ListingRefinementTest extends TestCase
                 ->assertJsonPath('data.sai.fixed_amount', $maximum);
             $this->withHeaders($headers)->putJson("/api/properties/$id/sai",
                 array_merge($input, ['fixed_sai_amount'=>$maximum + 0.01]))->assertUnprocessable();
+        }
+    }
+
+    public function test_foreign_sale_currency_reaches_the_advertiser_receivable_and_ledger(): void
+    {
+        [, $customer] = $this->actor('currency-buyer', null);
+        foreach (['USD'=>'fixed', 'SAR'=>'percentage'] as $currency=>$mode) {
+            [$advertiser, $headers] = $this->actor('currency-'.strtolower($currency));
+            $id = $this->createListing($headers, [
+                'purpose'=>'sale', 'price'=>10000000, 'monthly_rent'=>null, 'currency'=>$currency,
+                'tenure_type'=>'freehold', 'area_value'=>140, 'area_unit'=>'sqm', 'unit_number'=>$currency,
+            ]);
+            $terms = ['sai_amount_type'=>$mode, 'platform_terms_decision'=>'accept'];
+            $terms += $mode === 'fixed' ? ['fixed_sai_amount'=>200000] : ['broker_sai_rate_percent'=>2];
+            $response = $this->withHeaders($headers)->putJson("/api/properties/$id/sai", $terms)->assertOk()
+                ->assertJsonPath('data.sai_management.platform_share_percent', 10);
+            if ($mode === 'fixed') $response->assertJsonPath('data.sai.currency', $currency);
+            $this->publish($id);
+            $thread = $this->withHeaders($customer)->postJson("/api/properties/$id/conversation")->assertCreated()->json('data.id');
+            $this->withHeaders($headers)->postJson("/api/broker/customers/$thread/completed-deal")->assertCreated();
+            $this->assertDatabaseHas('property_deal_financial_terms', [
+                'property_id'=>$id, 'currency'=>$currency, 'base_amount'=>10000000,
+                'sai_total_amount'=>200000, 'platform_share_amount'=>20000, 'advertiser_sai_share_amount'=>180000,
+            ]);
+            $this->assertDatabaseHas('property_platform_receivables', [
+                'advertiser_user_id'=>$advertiser->id, 'currency'=>$currency, 'amount_total'=>20000,
+            ]);
+            $this->assertDatabaseHas('property_financial_ledger_lines', [
+                'account_code'=>'platform_revenue', 'direction'=>'credit', 'currency'=>$currency, 'amount'=>20000,
+            ]);
         }
     }
 

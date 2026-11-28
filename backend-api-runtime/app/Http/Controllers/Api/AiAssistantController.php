@@ -51,10 +51,11 @@ class AiAssistantController extends Controller
     {
         $this->advertiser($request);
         $v = $request->validate(['mode' => ['required', 'in:prepare,copy'],
+            'supports_sale_currencies' => ['sometimes', 'boolean'],
             'message' => ['required_if:mode,prepare', 'nullable', 'string', 'max:5000'],
             'facts' => ['present', 'array'], 'property_id' => ['nullable', 'integer', 'min:1']]);
         $facts = $listing->facts($v['facts']);
-        $result = $v['mode'] === 'copy' ? $service->copy($facts) : $service->prepare(trim($v['message']), $facts);
+        $result = $v['mode'] === 'copy' ? $service->copy($facts) : $service->prepare(trim($v['message']), $facts, $request->boolean('supports_sale_currencies'));
         return response()->json(['data' => $result])->header('Cache-Control', 'no-store');
     }
 

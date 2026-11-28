@@ -42,12 +42,12 @@ Map<String,dynamic> editorSnapshot({String type='house'})=>{
 };
 Finder textField(String label)=>find.byWidgetPredicate((w)=>w is TextField && w.decoration?.labelText==label);
 
-Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,Wave3VoiceFake? voice,bool testMap=false,double scale=1,GlobalKey? boundary,
+Future<void> pumpWave6(WidgetTester tester,Widget child,{Wave6Properties? properties,Wave6Ai? ai,Wave6Drafts? drafts,Wave6Recovery? recovery,Wave3VoiceFake? voice,bool testMap=false,double scale=1,GlobalKey? boundary,
   bool allowLocation=false,DiscoveryLocationStore? locationStore,DiscoveryLocationAccess? locationAccess,Wave3MarketplaceFake? marketplace, AuthController Function()? auth})async{
   tester.view.physicalSize=const Size(412,915);tester.view.devicePixelRatio=1;
   addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(ProviderScope(overrides:[authControllerProvider.overrideWith(auth ?? BrokerTestAuth.new),
-    propertyRepositoryProvider.overrideWithValue(Wave6Properties()),aiRepositoryProvider.overrideWithValue(ai??Wave6Ai()),
+    propertyRepositoryProvider.overrideWithValue(properties??Wave6Properties()),aiRepositoryProvider.overrideWithValue(ai??Wave6Ai()),
     listingAccountDraftRepositoryProvider.overrideWithValue(drafts??Wave6Drafts()),listingRecoveryStoreProvider.overrideWithValue(recovery??Wave6Recovery()),
     voiceInputProvider.overrideWithValue(voice??Wave3VoiceFake()),
     propertyMapPreviewBuilderProvider.overrideWithValue((context, latitude, longitude) => const SizedBox.shrink()),
@@ -155,15 +155,15 @@ void main(){
       await tester.ensureVisible(amount);
       await tester.enterText(amount, '250000');
       await tester.pumpAndSettle();
-      expect(find.text('حصة المنصة تُحتسب على المعلن'), findsOneWidget);
-      expect(find.text('حصة المنصة 50000 ريال'), findsOneWidget);
+      expect(find.text('حصة المنصة تحسب على ناشر الإعلان'), findsOneWidget);
+      expect(find.text('حصة المنصة 10% وهي 25,000 ريال من سعي المعلن الذي هو 250,000 ريال'), findsOneWidget);
       await tester.ensureVisible(percentage);
       await tester.tap(percentage);
       await tester.pumpAndSettle();
       await tester.ensureVisible(rate);
       await tester.enterText(rate, '3');
       await tester.pumpAndSettle();
-      expect(find.text('حصة المنصة 20% · 60000 ريال من سعي 300000 ريال'), findsOneWidget);
+      expect(find.text('حصة المنصة 10% وهي 30,000 ريال من سعي المعلن الذي هو 300,000 ريال'), findsOneWidget);
       expect(find.text('ترقية حسابك إلى دلال؟'), findsNothing);
       expect(tester.takeException(), isNull);
       await finishWave6(tester);
@@ -177,7 +177,7 @@ void main(){
       builder: (context) => TextButton(child: const Text('ابدأ'), onPressed: () async {
         ready = await showPropertySaiConfigurationSheet(context,
           repository: repository, propertyId: 11, purpose: 'sale', basis: 10000000,
-          professionalAdvertiser: false);
+          currency: 'YER');
       }),
     ))));
     await tester.tap(find.text('ابدأ'));
@@ -374,11 +374,11 @@ void main(){
         repository:repository,propertyId:11,purpose:'sale',basis:100000),child:const Text('ضبط السعي')))),scale:scale,boundary:boundary);
       await tester.tap(find.text('ضبط السعي'));await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-total')));
-      expect(find.textContaining('حصة المنصة 17.5%'),findsOneWidget);expect(find.textContaining('437.50 ريال'),findsOneWidget);
+      expect(find.textContaining('حصة المنصة 17.5%'),findsOneWidget);expect(find.textContaining('437.5 ريال'),findsOneWidget);
       expect(find.textContaining('صافي'),findsNothing);expect(repository.writes,0);
       await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-fixed')));await tester.tap(find.byKey(const ValueKey('listing-sai-fixed')));await tester.pumpAndSettle();
       final amount=find.byKey(const ValueKey('listing-sai-amount'));await tester.ensureVisible(amount);await tester.enterText(amount,'1500');await tester.pumpAndSettle();
-      expect(find.text('حصة المنصة 262.50 ريال'),findsOneWidget);expect(find.textContaining('حصة المنصة 17.5%'),findsNothing);
+      expect(find.text('حصة المنصة 17.5% وهي 262.5 ريال من سعي المعلن الذي هو 1,500 ريال'),findsOneWidget);
       await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-total')));await previewWave6(tester,boundary,'wave6-existing-sai-$scale');
       expect(repository.writes,0);await tester.ensureVisible(find.text('قبول'));await tester.tap(find.text('قبول'));await tester.pumpAndSettle();
       expect(repository.writes,1);expect(repository.savedType,'fixed');expect(repository.savedRate,isNull);expect(repository.savedAmount,1500);expect(repository.decision,'accept');

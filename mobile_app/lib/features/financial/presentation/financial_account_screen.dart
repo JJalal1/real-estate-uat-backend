@@ -112,15 +112,14 @@ class _FinancialAccountScreenState extends ConsumerState<_FinancialAccountPage> 
             crossAxisSpacing: 8,
             childAspectRatio: 1.65,
             children: [
-              _metric('مستحقات المنصة عليّ',
-                  _money(account.summary.openPlatformDue),
-                  Icons.receipt_long_outlined),
-              _metric('متأخر', _money(account.summary.overduePlatformDue),
-                  Icons.schedule_outlined),
-              _metric('مستحق لي', _money(account.summary.pendingPayouts),
-                  Icons.account_balance_wallet_outlined),
-              _metric('تم تحويله لي', _money(account.summary.paidPayouts),
-                  Icons.check_circle_outline),
+              for (final balance in account.summary.openPlatformDue.entries)
+                _metric('مستحقات المنصة عليّ', _money(balance.value, balance.key), Icons.receipt_long_outlined),
+              for (final balance in account.summary.overduePlatformDue.entries)
+                _metric('متأخر', _money(balance.value, balance.key), Icons.schedule_outlined),
+              for (final balance in account.summary.pendingPayouts.entries)
+                _metric('مستحق لي', _money(balance.value, balance.key), Icons.account_balance_wallet_outlined),
+              for (final balance in account.summary.paidPayouts.entries)
+                _metric('تم تحويله لي', _money(balance.value, balance.key), Icons.check_circle_outline),
             ],
           ),
           const SizedBox(height: 20),
@@ -251,7 +250,8 @@ class _FinancialAccountScreenState extends ConsumerState<_FinancialAccountPage> 
   }
 
   Widget _statusCard(FinancialAccountSummary summary) {
-    if (summary.openPlatformDue <= 0 && summary.overduePlatformDue <= 0) {
+    if (!summary.openPlatformDue.values.any((amount) => amount > 0) &&
+        !summary.overduePlatformDue.values.any((amount) => amount > 0)) {
       return const Card(
         child: ListTile(
           leading: EbrokerIcon(Icons.verified_outlined),

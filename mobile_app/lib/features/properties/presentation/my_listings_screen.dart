@@ -269,7 +269,7 @@ class _MyListingsScreenState extends ConsumerState<MyListingsScreen> {
         propertyId: item.id,
         purpose: item.purpose,
         basis: item.purpose == 'rent' ? (item.monthlyRent ?? item.editablePrice) : item.editablePrice,
-        professionalAdvertiser: ref.read(authControllerProvider).asData?.value?.hasMarketplaceProfessionalProfile == true,
+        currency: item.currency,
       );
       if (!context.mounted) return;
       if (!saiReady) {

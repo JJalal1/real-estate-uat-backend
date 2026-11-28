@@ -11,6 +11,7 @@ import 'package:real_estate_mobile/core/offline/offline_connection.dart';
 import 'package:real_estate_mobile/core/offline/offline_http.dart';
 import 'package:real_estate_mobile/core/offline/offline_store.dart';
 import 'package:real_estate_mobile/features/discovery/data/marketplace_repository.dart';
+import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 
 // Opaque in-memory fake for the native cipher contract. Android Keystore itself
 // is a separate native/device gate; this fake never claims cryptographic proof.
@@ -395,6 +396,63 @@ void main() {
             ?.name,
         'Updated profile');
     expect(wire.calls.where((request) => request.path == '/auth/me'), isEmpty);
+  });
+
+  test('the upgrade response replaces the saved ordinary profile before cold or offline restart', () async {
+    const channel = MethodChannel('real_estate/secure_store');
+    const actor = 7;
+    const broker = {'id': actor, 'account_type': 'broker', 'broker_enrolled': true};
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async =>
+            call.method == 'readToken' ? 'synthetic-enrollment' : null);
+    addTearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+
+    final lateReadStarted = Completer<void>();
+    final lateRead = Completer<ResponseBody>();
+    var delaySessionRead = false;
+    wire.response = (r) {
+      if (r.path == '/auth/me' && delaySessionRead) {
+        lateReadStarted.complete();
+        return lateRead.future;
+      }
+      return ResponseBody.fromString(jsonEncode(
+        r.path == '/auth/me'
+            ? {'data': {'user': {'id': actor, 'account_type': 'regular'}}}
+            : {'data': {'id': 22, 'status': 'pending', 'review_status': 'submitted'},
+               'session': {'user': broker}}),
+        200, headers: {'content-type': ['application/json']});
+    };
+    final auth = AuthRepository(dio, offlineStore: store);
+    expect((await auth.restoreSession())!.hasMarketplaceProfessionalProfile, false);
+    delaySessionRead = true;
+    final cancelled = expectLater(auth.restoreSession(), throwsA(isA<DioException>()));
+    await lateReadStarted.future;
+    final result = await PropertyRepository(dio, auth)
+        .submitWithBrokerUpgrade(22, expectedUserId: actor);
+    expect(result.listing.status, 'pending');
+    expect(result.user?.brokerEnrolled, true);
+    lateRead.complete(ResponseBody.fromString('{"data":{"id":7,"account_type":"regular"}}',
+        200, headers: {'content-type': ['application/json']}));
+    await cancelled;
+    expect(wire.calls.where((r) => r.path == '/auth/me'), hasLength(2));
+
+    final restartedConnection = OfflineConnectionController();
+    final restartedWire = _Wire();
+    final restarted = client(storage(), restartedConnection, restartedWire);
+    addTearDown(() {
+      restarted.close(force: true);
+      restartedConnection.dispose();
+    });
+    final restored = AuthRepository(restarted, offlineStore: storage());
+    expect((await restored.restoreSession())?.isBroker, true);
+    restartedConnection.offline();
+    expect((await restored.restoreSession())?.hasMarketplaceProfessionalProfile, true);
+    expect(restartedWire.calls, isEmpty);
+
+    await expectLater(auth.acceptSubmissionUser({'id': 8}, expectedUserId: actor,
+        epoch: Stage6SecureSessionStore.instance.sessionEpoch), throwsStateError);
+    expect((await restored.restoreSession())?.id, actor);
   });
 
   test(

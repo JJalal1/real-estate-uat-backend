@@ -136,7 +136,7 @@ class EbrokerPropertyHorizontalCard extends StatelessWidget {
     final content = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       if (vertical) ...[
         gallery(homeRail
-          ? ((constraints.maxWidth - inset.horizontal) / 2.7).clamp(96.0, 128.0).toDouble()
+          ? ((MediaQuery.sizeOf(context).width - 78 - inset.horizontal) / 2.7).clamp(96.0, 128.0).toDouble()
           : (imageFirst ? (compact ? 156 : 168) : 150)),
         SizedBox(height: compact ? 7 : 9),
         detail,

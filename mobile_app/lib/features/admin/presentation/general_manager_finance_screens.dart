@@ -388,13 +388,19 @@ class _GeneralManagerFinanceWorkspaceScreenState
         crossAxisSpacing: 8,
         childAspectRatio: 1.75,
         children: [
-          _metric('قيمة الصفقات', _money(summary['gross_transaction_value']), Icons.monetization_on_outlined),
-          _metric('إجمالي السعي', _money(summary['total_sai_amount']), Icons.receipt_long_outlined),
-          _metric('مستحق المنصة', _money(summary['platform_entitlement_amount']), Icons.account_balance_outlined),
+          for (final balance in financialAmounts(summary, 'gross_transaction_value').entries)
+            _metric('قيمة الصفقات', _money(balance.value, balance.key), Icons.monetization_on_outlined),
+          for (final balance in financialAmounts(summary, 'total_sai_amount').entries)
+            _metric('إجمالي السعي', _money(balance.value, balance.key), Icons.receipt_long_outlined),
+          for (final balance in financialAmounts(summary, 'platform_entitlement_amount').entries)
+            _metric('مستحق المنصة', _money(balance.value, balance.key), Icons.account_balance_outlined),
           _metric('بانتظار التحقق', '${summary['payments_waiting_review'] ?? 0}', Icons.fact_check_outlined),
-          _metric('غير محصل', _money(summary['open_receivables_amount']), Icons.pending_actions_outlined),
-          _metric('متأخر >24 ساعة', _money(summary['overdue_receivables_amount']), Icons.timer_off_outlined),
-          _metric('مستحق للمعلنين', _money(summary['pending_payouts_amount']), Icons.account_balance_wallet_outlined),
+          for (final balance in financialAmounts(summary, 'open_receivables_amount').entries)
+            _metric('غير محصل', _money(balance.value, balance.key), Icons.pending_actions_outlined),
+          for (final balance in financialAmounts(summary, 'overdue_receivables_amount').entries)
+            _metric('متأخر >24 ساعة', _money(balance.value, balance.key), Icons.timer_off_outlined),
+          for (final balance in financialAmounts(summary, 'pending_payouts_amount').entries)
+            _metric('مستحق للمعلنين', _money(balance.value, balance.key), Icons.account_balance_wallet_outlined),
           _metric('قيود مالية نشطة', '${summary['active_financial_holds'] ?? 0}', Icons.visibility_off_outlined),
         ],
       );

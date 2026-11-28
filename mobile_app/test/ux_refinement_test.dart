@@ -31,8 +31,8 @@ import 'package:real_estate_mobile/features/properties/presentation/listing_edit
 import 'broker_experience_ui_test.dart' show BrokerTestAuth;
 
 const _policy = PropertySaiManagement(configured: false, advertiserType: 'broker',
-  fixedRatePercent: 1, brokerMaxRatePercent: 5, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 20,
-  platformTermsMessage: 'للتطبيق نسبة مقدارها 20% من مبلغ السعي عند إتمام الصفقة.');
+  fixedRatePercent: 1, brokerMaxRatePercent: 5, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 10,
+  platformTermsMessage: 'للتطبيق نسبة مقدارها 10% من مبلغ السعي عند إتمام الصفقة.');
 
 class _Recovery extends ListingRecoveryStore {
   @override
@@ -63,7 +63,7 @@ class _Properties implements PropertyRepository {
   @override
   Future<PropertySaiManagement> saiPolicy(String purpose) async => purpose == 'sale' ? _policy :
     const PropertySaiManagement(configured: false, advertiserType: 'broker', fixedRatePercent: 20,
-      brokerMaxRatePercent: 100, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 20);
+      brokerMaxRatePercent: 100, fallbackPlatformSharePercent: 100, professionalPlatformSharePercent: 10);
   @override
   Future<(List<PropertySummary>, bool)> searchListings(Map<String, dynamic> filters, {int page = 1, CancelToken? cancelToken, bool refresh = false}) async {
     lastQuery = filters;
@@ -75,9 +75,11 @@ class _Properties implements PropertyRepository {
     'title': 'مسودة محفوظة', 'purpose': 'sale', 'type': 'house', 'price': 10000000, 'floors_count':2,'units_per_floor':[2,1], 'contact_phone':'771234567',
     'latitude': 15.3694, 'longitude': 44.1910, 'status': 'draft', 'images': []});
   @override
-  Future<PropertySaiEnvelope> saiForEditor(int id) async => const PropertySaiEnvelope(management:
+  Future<PropertySaiEnvelope> saiForEditor(int id) async => PropertySaiEnvelope(management:
     PropertySaiManagement(configured: true, advertiserType: 'broker', purpose: 'sale',
-      requestedBrokerRatePercent: 2, platformTermsStatus: 'accepted'));
+      requestedBrokerRatePercent: rate ?? 2, saiRatePercent: rate ?? 2, brokerMaxRatePercent: 5,
+      platformSharePercent: rate == null ? 20 : 10, professionalPlatformSharePercent: 10,
+      platformTermsStatus: 'accepted'));
   @override
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.memberName == #createListing || invocation.memberName == #updateListing) {
@@ -268,7 +270,7 @@ void main() {
     await _pump(tester, const ListingEditorScreen(), snapshot: _snapshot(step: 3), properties: repository, boundary: key);
     expect(find.text('4/4'), findsOneWidget); expect(find.text('من يتحمل السعي؟'), findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-total'))); await tester.pumpAndSettle();
-    expect(find.textContaining('200000 ريال'), findsOneWidget);expect(find.textContaining('حصة المنصة 20%'),findsOneWidget);
+    expect(find.textContaining('200,000 ريال'), findsOneWidget);expect(find.textContaining('حصة المنصة 10%'),findsOneWidget);
     expect(find.textContaining('صافي السعي'), findsNothing);
     expect(find.textContaining('مستحق المنصة'), findsNothing);
     expect(find.text('طريقة عرض السعر للباحث'), findsNothing);
@@ -350,11 +352,12 @@ void main() {
     final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
       GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing')))]);
     addTearDown(router.dispose);
-    await _pump(tester, const SizedBox(), snapshot: _snapshot(step: 3), properties: repository, router: router);
+    await _pump(tester, const SizedBox(), snapshot: {..._snapshot(step: 3), 'currency': 'USD'}, properties: repository, router: router);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
     await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
     expect(repository.writes, ['draft', 'sai']); expect(repository.lastInput!['listing_input_version'], 9);
     expect(repository.lastInput!.containsKey('rental_conditions'), isFalse);
+    expect(repository.lastInput!['currency'], 'USD');
     expect(repository.deferred, isTrue);
     expect(repository.payer, 'buyer'); expect(repository.rate, 2);
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
@@ -382,7 +385,7 @@ void main() {
     expect(find.byKey(const ValueKey('listing-sai-rate')), findsNothing);
     await tester.ensureVisible(find.byKey(const ValueKey('listing-sai-amount')));
     await tester.enterText(find.byKey(const ValueKey('listing-sai-amount')), '٣٠٠٠٠٠'); await tester.pump();
-    expect(find.text('حصة المنصة 60000 ريال'),findsOneWidget);
+    expect(find.text('حصة المنصة 10% وهي 30,000 ريال من سعي المعلن الذي هو 300,000 ريال'),findsOneWidget);
     expect(find.textContaining('المبالغ تقديرية'), findsNothing);
     expect(find.textContaining('صافي السعي'), findsNothing);
     await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
@@ -412,19 +415,34 @@ void main() {
     expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
   });
 
-  testWidgets('recovery does not replace an untouched server commission with an uninitialized default', (tester) async {
-    final repository = _Properties();
-    final recovery = _snapshot(step: 3)..['server_property_id'] = 77..['sai_touched'] = false;
-    (recovery['fields'] as Map)['broker_sai_rate_percent'] = '0';
-    final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
-      GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing')))]);
-    addTearDown(router.dispose);
-    await _pump(tester, const SizedBox(), snapshot: recovery, properties: repository, router: router);
-    await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
-    await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
-    expect(repository.writes, ['draft', 'sai']); expect(repository.rate, 2);
-    expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
-  });
+  for (final edited in [false, true]) {
+    testWidgets('recovered draft preserves the server commission until edited (edited=$edited)', (tester) async {
+      final repository = _Properties();
+      final recovery = _snapshot(step: 3)..['server_property_id'] = 77..['sai_touched'] = false;
+      (recovery['fields'] as Map)['broker_sai_rate_percent'] = '0';
+      final router = GoRouter(routes: [GoRoute(path: '/', builder: (_, __) => const ListingEditorScreen()),
+        GoRoute(path: '/my-listings', builder: (_, __) => const Scaffold(body: Text('saved listing')))]);
+      addTearDown(router.dispose);
+      await _pump(tester, const SizedBox(), snapshot: recovery, properties: repository, router: router);
+
+      final rateField = find.byKey(const ValueKey('listing-sai-rate'));
+      expect(double.parse(tester.widget<TextField>(rateField).controller!.text), 2);
+      expect(find.text('حصة المنصة 20% وهي 40,000 ريال من سعي المعلن الذي هو 200,000 ريال'), findsOneWidget);
+      if (edited) {
+        await tester.ensureVisible(rateField);
+        await tester.enterText(rateField, '3');
+        await tester.pumpAndSettle();
+        expect(find.text('حصة المنصة 10% وهي 30,000 ريال من سعي المعلن الذي هو 300,000 ريال'), findsOneWidget);
+      }
+      await tester.tap(find.byTooltip('خيارات المسودة')); await tester.pumpAndSettle();
+      await tester.tap(find.text('حفظ مسودة')); await tester.pumpAndSettle();
+      expect(repository.writes, edited ? ['draft', 'sai'] : ['draft']);
+      final saved = (await repository.saiForEditor(77)).management!;
+      expect(saved.requestedBrokerRatePercent, edited ? 3 : 2);
+      expect(saved.platformSharePercent, edited ? 10 : 20);
+      expect(find.text('saved listing'), findsOneWidget); expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('smart search opens its map and shows current listing prices from the public results', (tester) async {
     final repository = _Properties(), key = GlobalKey();

@@ -16,6 +16,7 @@ import 'package:real_estate_mobile/features/map/presentation/map_screen.dart';
 import 'package:real_estate_mobile/features/map/presentation/property_map_results_sheet.dart';
 import 'package:real_estate_mobile/features/properties/data/property_repository.dart';
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
+import 'package:real_estate_mobile/features/properties/presentation/property_summary_card.dart';
 import 'support/owner_ux_fixtures.dart';
 
 PropertySummary row(int id, {String title = 'شقة منشورة في حدة', String type = 'apartment', String purpose = 'sale'}) => PropertySummary(
@@ -237,6 +238,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(properties.calls,hasLength(1));
       expect(find.byKey(const ValueKey('home-result-1')),findsOneWidget);
+      final first = find.byKey(const ValueKey('home-result-1'));
+      expect(find.descendant(of: first, matching: find.byType(ListingPropertyCard)), findsOneWidget);
+      expect(find.descendant(of: first, matching: find.byKey(const ValueKey('favorite-property-1'))), findsOneWidget);
+      expect(find.descendant(of: first, matching: find.byKey(const ValueKey('compare-property-1'))), findsOneWidget);
+      expect(find.byKey(const ValueKey('published-filter-area')), findsNothing);
+      expect(find.byKey(const ValueKey('published-filter-min-price')), findsOneWidget);
+      expect(find.byKey(const ValueKey('published-filter-max-price')), findsOneWidget);
+      final filter = find.byKey(const ValueKey('published-filter-more'));
+      final outline = find.descendant(of: filter, matching: find.byType(Material));
+      expect(tester.getSize(outline).height, lessThan(40));
+      expect(tester.getSize(filter).height, greaterThanOrEqualTo(48));
       expect(find.byType(MapScreen),findsNothing);
       expect(tester.widget<TextField>(input).controller!.text,'ش');
       if(keyboard) await uxPreview(tester,boundary,'w2-B-home-results');

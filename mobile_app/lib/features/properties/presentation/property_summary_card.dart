@@ -70,10 +70,10 @@ enum HomePropertySection { latest, nearby, recent }
 
 class PropertySummaryCard extends StatelessWidget {
   const PropertySummaryCard({required this.property, this.imageFirst = false,
-    this.preview = false, this.compactPreview = false, this.compact = false, this.knownFavorite = false,
+    this.preview = false, this.compactPreview = false, this.compact = false, this.searchResult = false, this.knownFavorite = false,
     this.homeSection, this.nearbyDistance, this.onTap, super.key});
   final PropertySummary property;
-  final bool imageFirst, preview, compactPreview, compact, knownFavorite;
+  final bool imageFirst, preview, compactPreview, compact, searchResult, knownFavorite;
   final HomePropertySection? homeSection;
   final String? nearbyDistance;
   final VoidCallback? onTap;
@@ -97,20 +97,24 @@ class PropertySummaryCard extends StatelessWidget {
         '${p.advanceMonths != null ? 'مقدم ${arabicDigits('${p.advanceMonths}')} أشهر' : 'القيمة المعروضة'}: ${moneyLabel(p.price, p.currency)}',
     ];
     final VoidCallback open = onTap ?? () => context.push('/properties/${p.id}', extra: p);
-    if (compact) {
+    if (compact || searchResult) {
       final state = listingStatus(p.status, p.availabilityStatus, published: p.status == 'published');
+      final details = [if (age != null) age, ...supportingText];
       return ListingPropertyCard(
         property: p,
         price: (monthly ? p.monthlyRent! : p.price).toString(),
         priceSuffix: monthly ? 'شهريًا' : null,
         onTap: open,
-        badge: state == null ? null : AppStatusBadge(label: state.$1, tone: state.$2),
+        details: searchResult ? details : const [],
+        badge: searchResult
+            ? PropertyCompareAction(propertyId: p.id, enabled: p.status == 'published', compact: true)
+            : state == null ? null : AppStatusBadge(label: state.$1, tone: state.$2),
         actionsMenu: PropertyFavoriteAction(
           propertyId: p.id,
-          enabled: p.status == 'published' && p.availabilityStatus == 'available',
-          includeComparison: true,
+          enabled: p.status == 'published' && (searchResult || p.availabilityStatus == 'available'),
+          includeComparison: !searchResult,
           knownFavorite: knownFavorite,
-          menuDetails: [if (age != null) age, ...supportingText],
+          menuDetails: details,
         ),
       );
     }
@@ -148,6 +152,7 @@ class ListingPropertyCard extends StatelessWidget {
     required this.onTap,
     this.priceSuffix,
     this.actionsMenu,
+    this.details = const [],
     this.badge,
     this.footer,
     this.authenticatedImages = false,
@@ -159,6 +164,7 @@ class ListingPropertyCard extends StatelessWidget {
   final String? priceSuffix;
   final VoidCallback onTap;
   final Widget? actionsMenu, badge, footer;
+  final List<String> details;
   final bool authenticatedImages;
 
   @override
@@ -233,6 +239,9 @@ class ListingPropertyCard extends StatelessWidget {
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
+                      for (final line in details)
+                        Text(line, style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 10, color: theme.colorScheme.onSurfaceVariant)),
                       const SizedBox(height: 5),
                       CompactPropertyFacts(
                         key: const ValueKey('my-listing-facts'),

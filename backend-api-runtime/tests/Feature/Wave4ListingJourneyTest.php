@@ -64,7 +64,7 @@ class Wave4ListingJourneyTest extends TestCase
         $this->assertDatabaseCount('property_platform_receivables',0);
         $this->withHeaders($outsiderHeaders)->postJson("/api/properties/$id/sai-attestation",['accepted'=>true])->assertForbidden();
         $text=app(PropertyFinancialService::class)->attestationText(Property::findOrFail($id));
-        $this->assertStringContainsString('20%',$text);
+        $this->assertStringContainsString('10%',$text);
         $this->assertStringContainsString('عميل عبر المنصة',$text);
         $this->withHeaders($headers)->getJson('/api/finance/sai-attestations/pending')->assertOk()->assertJsonFragment(['property_id'=>$id,'text'=>$text]);
         $this->withHeaders($headers)->postJson("/api/properties/$id/sai-attestation",['accepted'=>true])->assertOk();
@@ -80,10 +80,10 @@ class Wave4ListingJourneyTest extends TestCase
         $this->assertDatabaseCount('property_deal_financial_terms',1);
         $this->assertDatabaseCount('property_platform_receivables',1);
         $this->assertDatabaseHas('property_deal_financial_terms',['broker_deal_outcome_id'=>$deal,
-            'buyer_user_id'=>$customer->id,'base_amount'=>100000,'monthly_basis_amount'=>100000,'sai_total_amount'=>50000,'platform_share_amount'=>10000,'advertiser_sai_share_amount'=>40000]);
+            'buyer_user_id'=>$customer->id,'base_amount'=>100000,'monthly_basis_amount'=>100000,'sai_total_amount'=>50000,'platform_share_amount'=>5000,'advertiser_sai_share_amount'=>45000]);
         $snapshot=json_decode(DB::table('property_deal_financial_terms')->where('broker_deal_outcome_id',$deal)->value('snapshot'),true);
         $this->assertSame($term->id,$snapshot['sai_term_id']);
-        $this->assertDatabaseHas('property_platform_receivables',['advertiser_user_id'=>$broker->id,'amount_total'=>10000]);
+        $this->assertDatabaseHas('property_platform_receivables',['advertiser_user_id'=>$broker->id,'amount_total'=>5000]);
         $this->assertSame($frozen,$term->fresh()->getRawOriginal());
     }
 
@@ -117,7 +117,7 @@ class Wave4ListingJourneyTest extends TestCase
         $deal=(int)$this->withHeaders($headers)->postJson("/api/broker/customers/$thread/completed-deal",['basis_amount'=>110000])->assertCreated()->json('data.id');
         $this->withHeaders($customerHeaders)->postJson("/api/broker/deals/$deal/decision",['confirmed'=>true])->assertOk();
         $this->assertDatabaseHas('property_deal_financial_terms',['broker_deal_outcome_id'=>$deal,'sai_total_amount'=>55000,
-            'platform_share_amount'=>11000,'advertiser_sai_share_amount'=>44000]);
+            'platform_share_amount'=>5500,'advertiser_sai_share_amount'=>49500]);
         $this->assertDatabaseHas('message_threads',['id'=>$thread,'sai_term_id'=>$old->id]);
         $this->assertDatabaseHas('properties',['id'=>$id,'current_sai_term_id'=>$current->id]);
         $this->assertSame($oldRaw,$old->fresh()->getRawOriginal());

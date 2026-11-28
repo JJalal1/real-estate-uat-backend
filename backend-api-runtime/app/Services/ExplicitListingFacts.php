@@ -9,7 +9,7 @@ class ExplicitListingFacts
 {
     public function __construct(private readonly ArabicListingNumber $numbers) {}
 
-    public function extract(string $message): array
+    public function extract(string $message, string $defaultCurrency = 'YER'): array
     {
         $text = ArabicListingNumber::normalize($message);
         $fields = [];
@@ -88,7 +88,7 @@ class ExplicitListingFacts
             $target = $key === 'price' && ($fields['purpose'] ?? '') === 'rent' ? 'monthly_rent' : $key;
             if (isset($fields[$target]) && $fields[$target] !== $value) { unset($fields[$target]); continue; }
             $fields[$target] = $value;
-            $fields['currency'] = str_contains($text, 'دولار') ? 'USD' : (str_contains($text, 'سعودي') ? 'SAR' : 'YER');
+            $fields['currency'] = empty($match[2]) ? $defaultCurrency : $this->currencyCode($match[2]);
         }
         // A single requested currency amount in an explicitly rental brief is
         // the quoted rent. Never use an unlabelled number, advance/deposit,
@@ -104,7 +104,7 @@ class ExplicitListingFacts
                 $amount = $this->numbers->parse($match[1]);
                 if ($amount !== null) {
                     $fields['monthly_rent'] = $amount;
-                    $fields['currency'] = str_contains($text, 'دولار') ? 'USD' : (str_contains($text, 'سعودي') ? 'SAR' : 'YER');
+                    $fields['currency'] = empty($match[2]) ? $defaultCurrency : $this->currencyCode($match[2]);
                 }
             }
         }
@@ -124,8 +124,18 @@ class ExplicitListingFacts
         if ($conditions !== []) $fields['rental_conditions'] = $conditions;
         $rate = $this->one('/(?<!\pL)(?:و)?(?:نسبه\s*)?(?:السعي|العموله)\s*[:=]?\s*('.$number.')\s*(?:%|بالمئه)(?!\pL)/u', $text);
         if ($rate !== null && $rate <= 100) { $fields['sai_amount_type']='percentage'; $fields['broker_sai_rate_percent']=$rate; }
-        $fee = $this->one('/(?<!\pL)(?:مبلغ\s*)?(?:السعي|العموله)\s*[:=]?\s*('.$number.')\s*ريال(?!\pL)/u', $text);
-        if ($fee !== null && $rate === null) { $fields['sai_amount_type']='fixed'; $fields['fixed_sai_amount']=$fee; $fields['currency'] ??= 'YER'; }
+        $feePattern = '/(?<!\pL)(?:مبلغ\s*)?(?:السعي|العموله)\s*[:=]?\s*('.$number.')\s*(ريال(?:\s*(?:يمني|سعودي))?|دولار|سعودي)(?!\pL)/u';
+        if ($rate === null && preg_match_all($feePattern, $text, $fees, PREG_SET_ORDER) === 1) {
+            $match = $fees[0];
+            $fee = $this->numbers->parse($match[1]);
+            $currency = $this->currencyCode($match[2]);
+            if ($fee !== null && !$this->negated($text, $match[0]) && !$this->alternativeAfter($text, $match[0])
+                && (!isset($fields['currency']) || $fields['currency'] === $currency)) {
+                $fields['sai_amount_type'] = 'fixed';
+                $fields['fixed_sai_amount'] = $fee;
+                $fields['currency'] = $currency;
+            }
+        }
         return $fields;
     }
 
@@ -157,6 +167,18 @@ class ExplicitListingFacts
             return $isPosition ? $this->originalPhrase($unit, $message) : $unit;
         }
         return null;
+    }
+
+    private function currencyCode(string $unit): string
+    {
+        return str_contains($unit, 'دولار') ? 'USD' : (str_contains($unit, 'سعودي') ? 'SAR' : 'YER');
+    }
+
+    /** A listing and its fixed fee use one currency, without exchange-rate conversions. */
+    public function hasMixedCurrencies(string $message): bool
+    {
+        preg_match_all('/(?:دولار|ريال(?:\s+(?:يمني|سعودي))?)/u', ArabicListingNumber::normalize($message), $units);
+        return count(array_unique(array_map($this->currencyCode(...), $units[0]))) > 1;
     }
 
     private function one(string $pattern, string $text): ?float

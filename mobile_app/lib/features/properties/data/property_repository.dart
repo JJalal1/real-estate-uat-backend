@@ -6,6 +6,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
 import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_repository.dart';
+import '../../account/domain/auth_user.dart';
 import '../domain/my_listings_page.dart';
 import '../domain/category_property_facts.dart';
 import '../domain/property_details.dart';
@@ -512,20 +513,29 @@ class PropertyRepository {
     return PropertyIdentityResult.fromJson(data);
   }
 
-  Future<PropertyDetails> submitListing(int propertyId) =>
-      _publish(propertyId, upgradeToBroker: false);
+  Future<PropertyDetails> submitListing(int propertyId) async =>
+      _detailsFromResponse(await _publish(propertyId, upgradeToBroker: false));
 
-  Future<PropertyDetails> submitWithBrokerUpgrade(int propertyId) =>
-      _publish(propertyId, upgradeToBroker: true);
+  Future<({PropertyDetails listing, AuthUser? user})> submitWithBrokerUpgrade(
+      int propertyId, {required int expectedUserId}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final response = await _publish(propertyId, upgradeToBroker: true);
+    final session = response.data?['session'];
+    final rawUser = session is Map ? session['user'] : null;
+    final user = rawUser is Map<String, dynamic>
+        ? await _auth.acceptSubmissionUser(rawUser, expectedUserId: expectedUserId, epoch: epoch)
+        : null;
+    return (listing: _detailsFromResponse(response), user: user);
+  }
 
-  Future<PropertyDetails> _publish(int propertyId, {required bool upgradeToBroker}) async {
+  Future<Response<Map<String, dynamic>>> _publish(int propertyId, {required bool upgradeToBroker}) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/properties/$propertyId/submit',
       data: {'publish_now': true, if (upgradeToBroker) 'upgrade_to_broker': true},
       options: await _auth.requiredAuthOptions(),
     );
     _invalidatePublicDiscoveryCache();
-    return _detailsFromResponse(response);
+    return response;
   }
 
   Future<PropertyDetails> uploadProofDocuments(

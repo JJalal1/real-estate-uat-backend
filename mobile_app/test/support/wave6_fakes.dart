@@ -112,7 +112,7 @@ class Wave6Properties extends Wave3PropertiesFake {
   Future<PropertySaiEnvelope> sai(int id) async=>const PropertySaiEnvelope();
   @override
   Future<PropertySaiManagement> saiPolicy(String purpose) async=>PropertySaiManagement(configured:false,advertiserType:'broker',purpose:purpose,
-    fixedRatePercent:purpose=='rent'?20:1,brokerMaxRatePercent:purpose=='rent'?100:5,professionalPlatformSharePercent:20,fallbackPlatformSharePercent:100);
+    fixedRatePercent:purpose=='rent'?20:1,brokerMaxRatePercent:purpose=='rent'?100:5,professionalPlatformSharePercent:10,fallbackPlatformSharePercent:100);
 }
 class Wave6Ai extends Wave3AiFake {
   Completer<Map<String,dynamic>>? descriptionResult;

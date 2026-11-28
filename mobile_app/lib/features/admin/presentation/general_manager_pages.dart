@@ -9,6 +9,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/widgets/app_components.dart';
 import 'general_manager_accounts_screen.dart';
 import '../../financial/data/financial_repository.dart';
+import '../../financial/domain/financial_models.dart' show financialAmounts;
 import '../../regions/data/region_repository.dart';
 import '../../regions/domain/region_models.dart';
 import '../data/general_manager_repository.dart';
@@ -415,8 +416,9 @@ class _GeneralManagerReportsScreenState
                 }
                 final finance = snapshot.data ?? const <String, dynamic>{};
                 int count(String key) => _asInt(finance[key]);
-                String amount(String key) =>
-                    _formatMoney(_asDouble(finance[key]));
+                Iterable<_DataRow> amounts(String label, String key) =>
+                    financialAmounts(finance, key).entries.map((balance) =>
+                        _DataRow(label, _formatMoney(balance.value, balance.key)));
                 return Column(
                   children: [
                     _MetricGrid(items: [
@@ -431,14 +433,10 @@ class _GeneralManagerReportsScreenState
                     ]),
                     const SizedBox(height: 8),
                     _DataList(rows: [
-                      _DataRow(
-                          'مدفوعات مؤكدة', amount('confirmed_payments_amount')),
-                      _DataRow(
-                          'مستحقات مفتوحة', amount('open_receivables_amount')),
-                      _DataRow('مستحقات متأخرة',
-                          amount('overdue_receivables_amount')),
-                      _DataRow('تحويلات معلقة للمعلنين',
-                          amount('pending_payouts_amount')),
+                      ...amounts('مدفوعات مؤكدة', 'confirmed_payments_amount'),
+                      ...amounts('مستحقات مفتوحة', 'open_receivables_amount'),
+                      ...amounts('مستحقات متأخرة', 'overdue_receivables_amount'),
+                      ...amounts('تحويلات معلقة للمعلنين', 'pending_payouts_amount'),
                     ]),
                   ],
                 );
@@ -1370,16 +1368,8 @@ double? _asDouble(dynamic value) {
   return double.tryParse(value?.toString() ?? '');
 }
 
-String _formatMoney(double? value) {
-  final amount = (value ?? 0).round().toString();
-  final out = StringBuffer();
-  for (var i = 0; i < amount.length; i++) {
-    final remaining = amount.length - i;
-    out.write(amount[i]);
-    if (remaining > 1 && remaining % 3 == 1) out.write(',');
-  }
-  return '$out YER';
-}
+String _formatMoney(double value, String currency) =>
+    '${formatMoneyAmount(value, englishDigits: true)} $currency';
 
 String _propertyTypeLabel(String type) => switch (type) {
       'apartment' => 'شقة',

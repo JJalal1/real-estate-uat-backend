@@ -16,7 +16,7 @@ Future<bool> showPropertySaiConfigurationSheet(
   required int propertyId,
   required String purpose,
   required double basis,
-  bool professionalAdvertiser = true,
+  String currency = 'YER',
 }) async {
   final initial = await repository.saiForEditor(propertyId);
   if (initial.management == null) throw StateError('تعذر تحميل سياسة السعي. أعد المحاولة.');
@@ -30,7 +30,7 @@ Future<bool> showPropertySaiConfigurationSheet(
           purpose: purpose,
           basis: basis,
           initial: initial,
-          professionalAdvertiser: professionalAdvertiser,
+          currency: currency,
         ),
       ) ??
       false;
@@ -43,7 +43,7 @@ class _SaiConfigurationBody extends StatefulWidget {
     required this.purpose,
     required this.initial,
     required this.basis,
-    required this.professionalAdvertiser,
+    required this.currency,
   });
 
   final PropertyRepository repository;
@@ -51,7 +51,7 @@ class _SaiConfigurationBody extends StatefulWidget {
   final String purpose;
   final PropertySaiEnvelope initial;
   final double basis;
-  final bool professionalAdvertiser;
+  final String currency;
 
   @override
   State<_SaiConfigurationBody> createState() => _SaiConfigurationBodyState();
@@ -121,7 +121,7 @@ class _SaiConfigurationBodyState extends State<_SaiConfigurationBody> {
               ListingSaiSection(
                 purpose: widget.purpose, policy: management, basis: widget.basis,
                 rateController: _rateController, amountController: _amountController, amountType: _amountType,
-                professionalAdvertiser: widget.professionalAdvertiser,
+                currency: widget.currency,
                 onEditHistoricalTerms: _editHistoricalTerms,
                 accepted: false, enabled: !_busy, onChanged: () => setState(() => _error = null),
                 onAcceptanceChanged: (_) {}, onRetry: () {},

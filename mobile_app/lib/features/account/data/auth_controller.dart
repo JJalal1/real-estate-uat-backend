@@ -205,6 +205,22 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     state = const AsyncData(null);
   }
 
+  void acceptSubmissionUser(AuthUser user) {
+    if (state.asData?.value?.id != user.id) throw StateError('ACCOUNT_CHANGED');
+    _beginChange();
+    state = AsyncData(user);
+  }
+
+  Future<void> refreshSavedSession() async {
+    final previous = state.asData?.value;
+    if (_logoutOperation != null || previous == null || !_repository.restoredFromSnapshot) return;
+    final revision = _revision;
+    final user = await _repository.restoreSession();
+    if (revision == _revision && identical(previous, state.asData?.value)) {
+      state = AsyncData(user);
+    }
+  }
+
   Future<void> refresh() async {
     if (_logoutOperation != null) return;
     final revision = _beginChange();

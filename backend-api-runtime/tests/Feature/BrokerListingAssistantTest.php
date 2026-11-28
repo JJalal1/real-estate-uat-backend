@@ -241,6 +241,24 @@ class BrokerListingAssistantTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_sale_currency_proposals_preserve_price_and_fee_units_for_capable_editors(): void
+    {
+        [, $headers] = $this->actor('currency-proposal', 'broker');
+        config(['gemini.enabled' => false]);
+        $options = ['supports_sale_currencies' => true];
+        foreach (['دولار' => 'USD', 'ريال سعودي' => 'SAR'] as $unit => $code) {
+            $this->prepare($headers, "بيت للبيع، السعر: 50000 {$unit}، السعي: 2000 {$unit}", [], $options)
+                ->assertOk()->assertJsonPath('data.fields.currency', $code)
+                ->assertJsonPath('data.fields.price', 50000)->assertJsonPath('data.fields.fixed_sai_amount', 2000);
+        }
+        $this->prepare($headers, 'السعر: 80000', ['purpose' => 'sale', 'currency' => 'SAR'], $options)
+            ->assertOk()->assertJsonPath('data.fields.currency', 'SAR')->assertJsonPath('data.fields.price', 80000);
+        $this->prepare($headers, 'بيت للبيع، السعر: 50000 دولار، السعي: 2000 ريال سعودي', [], $options)
+            ->assertOk()->assertJsonMissingPath('data.fields.price')->assertJsonMissingPath('data.fields.fixed_sai_amount');
+        $this->prepare($headers, 'شقة للإيجار، الإيجار الشهري: 1000 دولار', [], $options)
+            ->assertOk()->assertJsonMissingPath('data.fields.monthly_rent')->assertJsonMissingPath('data.fields.currency');
+    }
+
     public function test_transient_retry_succeeds_and_counts_both_attempts(): void
     {
         [, $headers] = $this->actor('retry', 'broker');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PropertyPaymentMethod;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\CurrencyTotals;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,22 +31,28 @@ class PropertyFinanceAdminController extends Controller
         $payouts=DB::table('property_payouts as po')->whereIn('po.deal_financial_term_id',$termIds);
         $payments=DB::table('property_payments as pay')->whereIn('pay.deal_financial_term_id',$termIds);
 
-        $data=[
-            'gross_transaction_value'=>(float)(clone $terms)->sum('d.base_amount'),
-            'total_sai_amount'=>(float)(clone $terms)->sum('d.sai_total_amount'),
-            'platform_entitlement_amount'=>(float)(clone $terms)->sum('d.platform_share_amount'),
-            'advertiser_sai_entitlement_amount'=>(float)(clone $terms)->sum('d.advertiser_sai_share_amount'),
-            'payments_waiting_review'=>(clone $payments)->whereIn('pay.status',['proof_submitted','under_review'])->count(),
-            'confirmed_payments_amount'=>(float)(clone $payments)->where('pay.status','confirmed')->sum('pay.required_amount'),
-            'open_receivables_amount'=>(float)(clone $openReceivables)->selectRaw('COALESCE(SUM(r.amount_total-r.amount_paid),0) total')->value('total'),
-            'overdue_receivables_amount'=>(float)(clone $openReceivables)->where('r.due_at','<=',now())->selectRaw('COALESCE(SUM(r.amount_total-r.amount_paid),0) total')->value('total'),
-            'overdue_accounts'=>(clone $openReceivables)->where('r.due_at','<=',now())->distinct('r.advertiser_user_id')->count('r.advertiser_user_id'),
-            'pending_payouts_amount'=>(float)(clone $payouts)->where('po.status','pending')->sum('po.amount'),
-            'paid_payouts_amount'=>(float)(clone $payouts)->where('po.status','paid')->sum('po.amount'),
-            'open_disputes'=>DB::table('property_financial_disputes')->whereIn('deal_financial_term_id',$termIds)->where('status','open')->count(),
-            'active_financial_holds'=>DB::table('property_financial_holds')->whereIn('user_id',$advertiserIds)->whereNull('released_at')->count(),
-            'hidden_published_listings'=>DB::table('properties')->whereIn('user_id',$advertiserIds)->where('status','published')->whereNotNull('financial_hold_at')->count(),
-            'pending_refunds_amount'=>(float)DB::table('property_refunds as rf')->join('property_payments as pay','pay.id','=','rf.property_payment_id')->whereIn('pay.deal_financial_term_id',$termIds)->where('rf.status','pending')->sum('rf.amount'),
+        $refunds = DB::table('property_refunds as rf')
+            ->join('property_payments as pay', 'pay.id', '=', 'rf.property_payment_id')
+            ->whereIn('pay.deal_financial_term_id', $termIds)->where('rf.status', 'pending');
+        $overdue = (clone $openReceivables)->where('r.due_at', '<=', now());
+
+        $data = CurrencyTotals::summary([
+            'gross_transaction_value' => CurrencyTotals::sum($terms, 'd.base_amount', 'd.currency'),
+            'total_sai_amount' => CurrencyTotals::sum($terms, 'd.sai_total_amount', 'd.currency'),
+            'platform_entitlement_amount' => CurrencyTotals::sum($terms, 'd.platform_share_amount', 'd.currency'),
+            'advertiser_sai_entitlement_amount' => CurrencyTotals::sum($terms, 'd.advertiser_sai_share_amount', 'd.currency'),
+            'confirmed_payments_amount' => CurrencyTotals::sum((clone $payments)->where('pay.status', 'confirmed'), 'pay.required_amount', 'pay.currency'),
+            'open_receivables_amount' => CurrencyTotals::sum($openReceivables, 'r.amount_total-r.amount_paid', 'r.currency'),
+            'overdue_receivables_amount' => CurrencyTotals::sum($overdue, 'r.amount_total-r.amount_paid', 'r.currency'),
+            'pending_payouts_amount' => CurrencyTotals::sum((clone $payouts)->where('po.status', 'pending'), 'po.amount', 'po.currency'),
+            'paid_payouts_amount' => CurrencyTotals::sum((clone $payouts)->where('po.status', 'paid'), 'po.amount', 'po.currency'),
+            'pending_refunds_amount' => CurrencyTotals::sum($refunds, 'rf.amount', 'rf.currency'),
+        ]) + [
+            'payments_waiting_review' => (clone $payments)->whereIn('pay.status', ['proof_submitted', 'under_review'])->count(),
+            'overdue_accounts' => $overdue->distinct()->count('r.advertiser_user_id'),
+            'open_disputes' => DB::table('property_financial_disputes')->whereIn('deal_financial_term_id', $termIds)->where('status', 'open')->count(),
+            'active_financial_holds' => DB::table('property_financial_holds')->whereIn('user_id', $advertiserIds)->whereNull('released_at')->count(),
+            'hidden_published_listings' => DB::table('properties')->whereIn('user_id', $advertiserIds)->where('status', 'published')->whereNotNull('financial_hold_at')->count(),
         ];
         return response()->json(['data'=>$data]);
     }

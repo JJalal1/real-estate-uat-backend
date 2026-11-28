@@ -29,7 +29,7 @@ class UxRefinementApiTest extends TestCase
         [, $headers] = $this->advertiser('policy');
         $this->withHeaders($headers)->getJson('/api/listing-sai-policy?purpose=sale')->assertOk()
             ->assertJsonPath('data.payer', 'buyer')->assertJsonPath('data.broker_max_rate_percent', 5)
-            ->assertJsonPath('data.professional_platform_share_percent', 20)->assertJsonPath('data.fixed_rate_percent', 1);
+            ->assertJsonPath('data.professional_platform_share_percent', 10)->assertJsonPath('data.fixed_rate_percent', 1);
         $this->withHeaders($headers)->getJson('/api/listing-sai-policy?purpose=rent')->assertOk()
             ->assertJsonPath('data.payer', 'tenant')->assertJsonPath('data.broker_max_rate_percent', 100)
             ->assertJsonPath('data.fixed_rate_percent', 20);

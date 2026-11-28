@@ -3,6 +3,7 @@ namespace Tests\Feature;
 
 use App\Models\AccountVerificationProfile;
 use App\Models\ListingEditorDraft;
+use App\Models\Property;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,6 +32,46 @@ class Branch2RecoveryTest extends TestCase
         $this->withHeaders($a)->getJson('/api/listing-editor-drafts')->assertJsonCount(0,'data')->assertJsonPath('meta.recovery_contract',1);
         $this->withHeaders($a)->deleteJson($url,['recovery_only'=>true,'expected_revision'=>1])->assertOk();
     }
+    public function test_sale_drafts_restore_amounts_in_the_selected_currency(): void
+    {
+        [, $headers] = $this->actor('sale-currency', 'broker');
+        foreach (['USD', 'SAR', 'YER'] as $currency) {
+            $url = '/api/listing-editor-drafts/'.Str::uuid();
+            $payload = [
+                'draft_kind'=>'saved', 'purpose'=>'sale', 'currency'=>$currency,
+                'sai_amount_type'=>'fixed', 'fields'=>['price'=>'50000', 'fixed_sai_amount'=>'2000'],
+            ];
+            $this->withHeaders($headers)->putJson($url, ['payload'=>$payload, 'expected_revision'=>0])->assertOk();
+            $this->withHeaders($headers)->getJson($url)->assertOk()
+                ->assertJsonPath('data.payload.currency', $currency)
+                ->assertJsonPath('data.payload.fields.price', '50000')
+                ->assertJsonPath('data.payload.fields.fixed_sai_amount', '2000');
+            if ($currency !== 'YER') {
+                unset($payload['currency']);
+                $this->withHeaders($headers)->putJson($url, ['payload'=>$payload, 'expected_revision'=>1])->assertConflict();
+            }
+        }
+    }
+
+    public function test_historical_currency_can_only_be_retained_on_the_linked_listing(): void
+    {
+        [$owner, $headers] = $this->actor('legacy-currency', 'broker');
+        $listing = Property::create([
+            'user_id'=>$owner->id, 'title'=>'Existing sale', 'purpose'=>'sale', 'type'=>'house',
+            'currency'=>'EUR', 'price'=>75000, 'latitude'=>15.4, 'longitude'=>44.2, 'status'=>'draft', 'review_status'=>'draft',
+        ]);
+        $url = '/api/listing-editor-drafts/'.Str::uuid();
+        $payload = ['draft_kind'=>'saved', 'purpose'=>'sale', 'currency'=>'EUR', 'fields'=>['price'=>'75000']];
+        $this->withHeaders($headers)->putJson($url, ['expected_revision'=>0, 'payload'=>$payload])->assertUnprocessable();
+        $this->withHeaders($headers)->putJson($url, ['property_id'=>$listing->id, 'expected_revision'=>0, 'payload'=>$payload])
+            ->assertOk()->assertJsonPath('data.payload.currency', 'EUR');
+        $payload['fields']['price'] = '78000';
+        $this->withHeaders($headers)->putJson($url, ['expected_revision'=>1, 'payload'=>$payload])
+            ->assertOk()->assertJsonPath('data.payload.currency', 'EUR')->assertJsonPath('data.payload.fields.price', '78000');
+        $payload['currency'] = 'GBP';
+        $this->withHeaders($headers)->putJson($url, ['expected_revision'=>2, 'payload'=>$payload])->assertUnprocessable();
+    }
+
     public function test_retire_before_the_first_delayed_save_prevents_recreation(): void
     {
         [, $a]=$this->actor('b2-late','broker');$key=(string)Str::uuid();$url='/api/listing-editor-drafts/'.$key;

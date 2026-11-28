@@ -284,13 +284,16 @@ class _MarketplaceHomeState extends ConsumerState<MarketplaceHomeScreen> {
   }
 
   Widget _propertyRail(String section, Iterable<PropertySummary> rows, {HomeLocation? location}) {
-    final width = (MediaQuery.sizeOf(context).width - 78).clamp(220, 366).toDouble();
     final homeSection = switch (section) {
       'latest' => HomePropertySection.latest,
       'regional' => HomePropertySection.nearby,
       'recent' => HomePropertySection.recent,
       _ => null,
     };
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final width = homeSection == null
+      ? (viewportWidth - 78).clamp(220.0, 366.0).toDouble()
+      : (viewportWidth * 2 / 3).clamp(200.0, 320.0).toDouble();
     // Keep intrinsic height for large Arabic text. ViewportMedia gates the images.
     return SingleChildScrollView(
       key: PageStorageKey('home-properties-$section'),
