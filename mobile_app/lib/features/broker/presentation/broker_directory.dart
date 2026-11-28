@@ -125,7 +125,7 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
     }
     if (!actor.isActive || actor.id == profile.id) return;
     final scope = ref.read(accountRequestScopeProvider);
-    final result = await showCommunityReportDialog(context, label: 'بلاغ عن معلن', target: profile.name);
+    final result = await showCommunityReportDialog(context, ref: ref, label: 'معلن', target: profile.name);
     if (result == null) return;
     try {
       if (!mounted || !scope.isCurrent || widget.id != profile.id) return;
@@ -134,7 +134,7 @@ class _BrokerPublicProfileScreenState extends ConsumerState<BrokerPublicProfileS
         details: result.details, attachment: result.attachment,
       );
       if (mounted && scope.isCurrent) {
-        await showReportReceipt(context,
+        await showReportReceipt(context, ref: ref,
         caseId: receipt.id, reference: receipt.reference, alreadyReceived: receipt.alreadyReceived);
       }
     } catch (error) {

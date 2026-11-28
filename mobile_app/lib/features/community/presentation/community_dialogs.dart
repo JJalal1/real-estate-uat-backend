@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 
 class CommunityRatingDialogResult {
   const CommunityRatingDialogResult({
@@ -57,20 +59,32 @@ Future<CommunityRatingDialogResult?> showAdvertiserRatingDialog(
 
 Future<CommunityReportDialogResult?> showCommunityReportDialog(
   BuildContext context, {
+  required WidgetRef ref,
   required String label,
   String? target,
   String? property,
   bool conversation = false,
-}) {
-  return showDialog<CommunityReportDialogResult>(
+}) async {
+  String? submittedAttachment;
+  final result = await showActorDialog<CommunityReportDialogResult>(
     context: context,
-    builder: (_) => _CommunityReportDialog(label: label, target: target, property: property, conversation: conversation),
+    ref: ref,
+    builder: (_) => _CommunityReportDialog(
+      label: label,
+      target: target,
+      property: property,
+      conversation: conversation,
+      onSubmitAttachment: (path) => submittedAttachment = path,
+    ),
   );
+  if (result == null) await clearReportEvidence(submittedAttachment);
+  return result;
 }
 
-Future<void> showReportReceipt(BuildContext context, {required int caseId, String? reference,
+Future<void> showReportReceipt(BuildContext context, {required WidgetRef ref,
+    required int caseId, String? reference,
     bool alreadyReceived = false}) async {
-  final follow = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+  final follow = await showActorDialog<bool>(context: context, ref: ref, builder: (dialog) => AlertDialog(
     title: Text(alreadyReceived ? 'وصل بلاغك سابقًا' : 'وصل بلاغك للدعم'),
     content: reference == null || reference.isEmpty ? null : Text('رقم البلاغ $reference'),
     actions: [
@@ -254,12 +268,14 @@ class _AdvertiserRatingDialogState extends State<_AdvertiserRatingDialog> {
 }
 
 class _CommunityReportDialog extends StatefulWidget {
-  const _CommunityReportDialog({required this.label, required this.conversation, this.target, this.property});
+  const _CommunityReportDialog({required this.label, required this.conversation,
+    required this.onSubmitAttachment, this.target, this.property});
 
   final String label;
   final bool conversation;
   final String? target;
   final String? property;
+  final ValueChanged<String?> onSubmitAttachment;
 
   @override
   State<_CommunityReportDialog> createState() => _CommunityReportDialogState();
@@ -305,6 +321,7 @@ class _CommunityReportDialogState extends State<_CommunityReportDialog> {
       return;
     }
     _submitted = true;
+    widget.onSubmitAttachment(_attachment);
     Navigator.of(context).pop(
       CommunityReportDialogResult(reason: _reason, details: details, attachment: _attachment),
     );
@@ -340,12 +357,13 @@ class _CommunityReportDialogState extends State<_CommunityReportDialog> {
             title: Text(name), subtitle: widget.property == null ? null : Text(widget.property!)),
           DropdownButtonFormField<String>(
             value: _reason,
+            isExpanded: true,
             decoration: const InputDecoration(labelText: 'السبب'),
             items: reasons.entries
                 .map(
                   (entry) => DropdownMenuItem(
                     value: entry.key,
-                    child: Text(entry.value),
+                    child: Text(entry.value, maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                 )
                 .toList(growable: false),

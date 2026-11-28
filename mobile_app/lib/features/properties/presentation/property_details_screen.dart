@@ -25,6 +25,7 @@ import 'property_fullscreen_gallery.dart';
 import '../../../core/local/listing_viewer_key_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
 import '../../community/presentation/listing_community_screen.dart';
@@ -459,20 +460,21 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
   Future<void> _reportListing(PropertyDetails property) async {
     if (_reporting || !await _requireContactAccount() || !mounted) return;
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final scope = ref.read(accountRequestScopeProvider);
     final repository = ref.read(communityRepositoryProvider);
-    final result = await showCommunityReportDialog(context, label: 'الإعلان', target: property.title);
-    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
-    setState(() => _reporting = true);
+    final result = await showCommunityReportDialog(context, ref: ref, label: 'الإعلان', target: property.title);
+    if (result == null) return;
     try {
+      if (!mounted || !scope.isCurrent) return;
+      setState(() => _reporting = true);
       final receipt = await repository.report(targetType: 'listing', targetId: property.id,
         reason: result.reason, details: result.details, attachment: result.attachment);
-      if (mounted) {
-        await showReportReceipt(context, caseId: receipt.id, reference: receipt.reference,
+      if (mounted && scope.isCurrent) {
+        await showReportReceipt(context, ref: ref, caseId: receipt.id, reference: receipt.reference,
         alreadyReceived: receipt.alreadyReceived);
       }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+      if (mounted && scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
     } finally {
       await clearReportEvidence(result.attachment);
       if (mounted) setState(() => _reporting = false);

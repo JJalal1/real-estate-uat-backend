@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_controller.dart';
 import '../data/community_repository.dart';
 import '../domain/community_models.dart';
@@ -346,12 +347,12 @@ class _ListingCommunityScreenState
 
   Future<void> _report(String targetType, int targetId, String label) async {
     final repository = ref.read(communityRepositoryProvider);
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
-    final result = await showCommunityReportDialog(context, label: label,
+    final scope = ref.read(accountRequestScopeProvider);
+    final result = await showCommunityReportDialog(context, ref: ref, label: label,
       target: targetType == 'advertiser' ? widget.advertiserName : null);
     if (result == null) return;
     try {
-      if (!mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
+      if (!mounted || !scope.isCurrent) return;
       await _run(() async {
       final receipt = await repository.report(
             targetType: targetType,
@@ -361,8 +362,8 @@ class _ListingCommunityScreenState
             attachment: result.attachment,
             propertyId: targetType == 'advertiser' ? widget.propertyId : null,
           );
-      if (mounted) {
-        await showReportReceipt(context, caseId: receipt.id, reference: receipt.reference,
+      if (mounted && scope.isCurrent) {
+        await showReportReceipt(context, ref: ref, caseId: receipt.id, reference: receipt.reference,
         alreadyReceived: receipt.alreadyReceived);
       }
       });

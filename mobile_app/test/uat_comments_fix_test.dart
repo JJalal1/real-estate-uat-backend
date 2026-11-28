@@ -2,7 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:real_estate_mobile/features/account/data/auth_controller.dart';
 import 'package:real_estate_mobile/features/account/data/auth_repository.dart';
+import 'package:real_estate_mobile/features/account/domain/auth_user.dart';
 import 'package:real_estate_mobile/features/community/data/community_repository.dart';
 import 'package:real_estate_mobile/features/community/domain/community_models.dart';
 import 'package:real_estate_mobile/features/community/presentation/community_dialogs.dart';
@@ -10,6 +12,16 @@ import 'package:real_estate_mobile/features/properties/data/property_repository.
 import 'package:real_estate_mobile/features/properties/domain/property_details.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_details_screen.dart';
 import 'package:real_estate_mobile/features/properties/presentation/property_location_preview.dart';
+
+class _ReportAuthController extends AuthController {
+  @override
+  Future<AuthUser?> build() async => AuthUser.fromJson({
+    'id': 1,
+    'name': 'مستخدم اختبار',
+    'account_status': 'active',
+    'phone_verified_at': '2026-11-27T00:00:00Z',
+  });
+}
 
 void main() {
   testWidgets('comment dialog closes without lifecycle exceptions',
@@ -46,40 +58,54 @@ void main() {
 
   testWidgets('rating and report dialogs own their controllers safely',
       (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     CommunityRatingDialogResult? rating;
     CommunityReportDialogResult? report;
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: Column(
-              children: [
-                FilledButton(
-                  onPressed: () async {
-                    rating = await showAdvertiserRatingDialog(
-                      context,
-                      initialRating: 4,
-                      initialComment: 'جيد',
-                    );
-                  },
-                  child: const Text('تقييم'),
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_ReportAuthController.new),
+        ],
+        child: MaterialApp(
+          home: Consumer(
+            builder: (context, ref, _) {
+              ref.watch(authControllerProvider);
+              return Scaffold(
+                body: Column(
+                  children: [
+                    FilledButton(
+                      onPressed: () async {
+                        rating = await showAdvertiserRatingDialog(
+                          context,
+                          initialRating: 4,
+                          initialComment: 'جيد',
+                        );
+                      },
+                      child: const Text('تقييم'),
+                    ),
+                    FilledButton(
+                      onPressed: () async {
+                        report = await showCommunityReportDialog(
+                          context,
+                          ref: ref,
+                          label: 'الإعلان',
+                        );
+                      },
+                      child: const Text('بلاغ'),
+                    ),
+                  ],
                 ),
-                FilledButton(
-                  onPressed: () async {
-                    report = await showCommunityReportDialog(
-                      context,
-                      label: 'الإعلان',
-                    );
-                  },
-                  child: const Text('بلاغ'),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
     );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('تقييم'));
     await tester.pumpAndSettle();

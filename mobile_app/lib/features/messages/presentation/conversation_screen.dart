@@ -283,7 +283,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
 
   Future<void> _report(MessageThreadSummary thread) async {
     if (!mounted || !_scope.isCurrent) return;
-    final input = await showCommunityReportDialog(context, label: 'المحادثة',
+    final input = await showCommunityReportDialog(context, ref: ref, label: 'المحادثة',
       target: thread.otherUserName, property: thread.propertyTitle, conversation: true);
     if (input == null) return;
     try {
@@ -291,7 +291,7 @@ class _ConversationScreenState extends ConsumerState<_ConversationBody> with Wid
       final report = await ref.read(messageRepositoryProvider).report(widget.threadId,
         reason: input.reason, details: input.details, attachment: input.attachment);
       if (mounted && _scope.isCurrent) {
-        await showReportReceipt(context,
+        await showReportReceipt(context, ref: ref,
         caseId: report.supportCaseId ?? 0, reference: report.reference);
       }
     } catch (error) {

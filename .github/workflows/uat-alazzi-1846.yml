@@ -274,6 +274,10 @@ jobs:
           test/phase23_listing_task_navigation_test.dart
           test/stage9_review_models_test.dart
           test/financial_v1_contract_test.dart
+      - name: Test private report forms across session changes
+        if: env.AQER_BUILD == '1852'
+        working-directory: mobile_app
+        run: flutter test --no-pub --reporter expanded test/private_journey_actor_scope_test.dart
       - name: Test the Sections tab, category filters and navigation
         if: github.ref_name == 'release/alazzi-1851-category-filters' || env.AQER_BUILD == '1852'
         working-directory: mobile_app
