@@ -8,17 +8,19 @@ String arabicDigits(String text) {
 }
 
 /// Groups the exact decimal string, without rounding or scaling a monetary value.
-String formatMoneyAmount(Object amount) {
+String formatMoneyAmount(Object amount, {bool englishDigits = false}) {
   const eastern = '٠١٢٣٤٥٦٧٨٩';
   var raw = amount.toString().replaceAll('٬', '').replaceAll(',', '').replaceAll('٫', '.');
   for (var i = 0; i < eastern.length; i++) { raw = raw.replaceAll(eastern[i], '$i'); }
-  if (!RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(raw)) return arabicDigits(raw);
+  if (!RegExp(r'^-?\d+(?:\.\d+)?$').hasMatch(raw)) return englishDigits ? raw : arabicDigits(raw);
   final negative = raw.startsWith('-');
   if (negative) raw = raw.substring(1);
   final parts = raw.split('.');
-  final whole = parts.first.replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (match) => '${match[1]}٬');
+  final whole = parts.first.replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (match) => '${match[1]}${englishDigits ? ',' : '٬'}');
   final decimal = parts.length == 2 ? parts[1].replaceFirst(RegExp(r'0+$'), '') : '';
-  return arabicDigits('${negative ? '−' : ''}$whole${decimal.isEmpty ? '' : '٫$decimal'}');
+  final suffix = decimal.isEmpty ? '' : '${englishDigits ? '.' : '٫'}$decimal';
+  final formatted = '${negative ? '−' : ''}$whole$suffix';
+  return englishDigits ? formatted : arabicDigits(formatted);
 }
 
 String moneyLabel(Object amount, String currency) => '${formatMoneyAmount(amount)} ${currencyLabel(currency)}';

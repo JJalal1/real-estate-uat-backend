@@ -337,13 +337,16 @@ class PropertyFinancialService
 
     public function financialSummaryFor(User $user): array
     {
-        $receivables = PropertyPlatformReceivable::query()->where('advertiser_user_id', $user->id)->get();
-        $payouts = DB::table('property_payouts')->where('advertiser_user_id', $user->id)->get();
-        return [
-            'open_platform_due'=>round((float) $receivables->whereIn('status',['open','under_review','overdue','disputed'])->sum(fn($r)=>max(0,(float)$r->amount_total-(float)$r->amount_paid)),2),
-            'overdue_platform_due'=>round((float) $receivables->filter(fn($r)=>in_array($r->status,['open','under_review','overdue','disputed'],true) && $r->due_at && now()->gte($r->due_at))->sum(fn($r)=>max(0,(float)$r->amount_total-(float)$r->amount_paid)),2),
-            'pending_payouts'=>round((float) $payouts->where('status','pending')->sum('amount'),2),
-            'paid_payouts'=>round((float) $payouts->where('status','paid')->sum('amount'),2),
+        $open = PropertyPlatformReceivable::query()->where('advertiser_user_id', $user->id)->outstanding()->toBase();
+        $overdue = (clone $open)->where('due_at', '<=', now());
+        $payouts = DB::table('property_payouts')->where('advertiser_user_id', $user->id);
+
+        return CurrencyTotals::summary([
+            'open_platform_due' => CurrencyTotals::sum($open, 'amount_total - amount_paid'),
+            'overdue_platform_due' => CurrencyTotals::sum($overdue, 'amount_total - amount_paid'),
+            'pending_payouts' => CurrencyTotals::sum((clone $payouts)->where('status', 'pending'), 'amount'),
+            'paid_payouts' => CurrencyTotals::sum((clone $payouts)->where('status', 'paid'), 'amount'),
+        ]) + [
             'listing_creation_blocked'=>false,
             'published_listings_hidden'=>false,
         ];

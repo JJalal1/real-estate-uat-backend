@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_components.dart';
+import '../../../core/formatters/latin_number_input.dart';
 import '../domain/property_sai.dart';
 import '../domain/arabic_price_words.dart';
 
@@ -18,7 +19,8 @@ class ListingSaiSection extends StatelessWidget {
     this.amountType = 'fixed',
     this.onAmountTypeChanged,
     this.onEditHistoricalTerms,
-    this.professionalAdvertiser = true,
+    this.currency = 'YER',
+    this.keepConfiguredShare = false,
     this.error,
     this.enabled = true,
     super.key,
@@ -29,7 +31,9 @@ class ListingSaiSection extends StatelessWidget {
   final TextEditingController rateController;
   final TextEditingController? amountController;
   final double? basis;
-  final bool accepted, enabled, professionalAdvertiser;
+  final bool accepted, enabled;
+  final String currency;
+  final bool keepConfiguredShare;
   final VoidCallback onChanged, onRetry;
   final VoidCallback? onEditHistoricalTerms;
   final ValueChanged<bool> onAcceptanceChanged;
@@ -46,14 +50,11 @@ class ListingSaiSection extends StatelessWidget {
         : parseSaiNumber(rateController.text);
     final enteredAmount = fixed ? parseSaiNumber(amountController?.text ?? '') : null;
     final words = enteredAmount == null || !enteredAmount.isFinite || (enteredAmount * 100 - (enteredAmount * 100).round()).abs() > .000001
-        ? null : enteredAmount == 0 ? 'صفر ريال يمني' : arabicRiyalAmountInWords(enteredAmount.toStringAsFixed(2));
+        ? null : enteredAmount == 0 ? 'صفر ${currencyLabel(currency)}' : arabicRiyalAmountInWords(enteredAmount.toStringAsFixed(2), currency: currency);
     final rateError = !fixed && rate != null && rate > 100 ? 'أقصى نسبة للسعي 100%' : null;
     final quote = current == null || basis == null ||
         (fixed ? enteredAmount == null : rate == null)
-        ? null : PropertySaiQuote.calculate(current, rate ?? 0, basis!, fixedAmount: enteredAmount);
-    final platformShare = historicalFixed
-        ? current?.platformSharePercent ?? current?.fallbackPlatformSharePercent
-        : quote?.fallback == true ? current?.fallbackPlatformSharePercent : current?.professionalPlatformSharePercent;
+        ? null : PropertySaiQuote.calculate(current, rate ?? 0, basis!, fixedAmount: enteredAmount, keepConfiguredShare: keepConfiguredShare);
     String percent(double value) => value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
     final fixedRate = current?.effectiveFixedRate;
     final fixedRateText = fixedRate == null ? '—' : percent(fixedRate);
@@ -61,7 +62,7 @@ class ListingSaiSection extends StatelessWidget {
     final basisText = purpose == 'rent' ? 'إيجار الشهر الأول' : 'سعر البيع';
     final zeroText = fixed ? '0' : '0%';
     String amount(double value) =>
-        '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 2)} ريال';
+        '${formatMoneyAmount(value, englishDigits: true)} ${currencyLabel(currency)}';
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Divider(height: 32),
@@ -94,27 +95,26 @@ class ListingSaiSection extends StatelessWidget {
           const SizedBox(height: 12),
           if (fixed)
             TextField(key: const ValueKey('listing-sai-amount'), controller: amountController,
-              enabled: enabled, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: 'مقدار السعي بالريال اليمني', hintText: '0',
+              enabled: enabled, inputFormatters: [latinNumberInput], keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(labelText: 'مقدار السعي ${listingCurrencyPhrases[currency] ?? currency}', hintText: '0',
                 helperText: words, helperMaxLines: 4),
               onChanged: (_) => onChanged())
           else
             TextField(key: const ValueKey('listing-sai-rate'), controller: rateController,
-              enabled: enabled, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              enabled: enabled, inputFormatters: [latinNumberInput], keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(labelText: 'نسبة السعي %', hintText: '0',
                 errorText: rateError,
                 helperText: 'من 0 إلى $maximumText% من $basisText'),
               onChanged: (_) => onChanged()),
         ],
         if (!historicalFixed) Padding(padding: const EdgeInsets.only(top: 8),
-          child: Text(professionalAdvertiser ? 'حصة المنصة تُحتسب على الدلال' : 'حصة المنصة تُحتسب على المعلن',
+          child: Text('حصة المنصة تحسب على ناشر الإعلان',
             style: theme.textTheme.bodySmall)),
         if (quote != null) ...[
           const SizedBox(height: 12),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(Icons.info_outline, size: 16, color: theme.colorScheme.primary), const SizedBox(width: 6),
-            Expanded(child: Text(fixed ? 'حصة المنصة ${amount(quote.platform)}' :
-              'حصة المنصة ${percent(platformShare!)}% · ${amount(quote.platform)} من سعي ${amount(quote.total)}',
+            Expanded(child: Text('حصة المنصة ${percent(quote.platformPercent)}% وهي ${amount(quote.platform)} من سعي المعلن الذي هو ${amount(quote.total)}',
               key: const ValueKey('listing-sai-total'), style: theme.textTheme.bodySmall)),
           ]),
         ],

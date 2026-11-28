@@ -56,7 +56,7 @@ class ListingEditorDraftService
     public function clean(array $payload): array
     {
         $allowed = ['draft_kind','entry_method','checkpoint_key','media_version','editor_version','sai_amount_type','rental_conditions','unit_occupies_entire_floor','sai_touched','sai_terms_accepted',
-            'units_per_floor','same_floor_units','step','purpose','type','area_unit','tenure_type','parking','elevator','facade','ownership_document_type','relationship_type',
+            'units_per_floor','same_floor_units','step','purpose','currency','type','area_unit','tenure_type','parking','elevator','facade','ownership_document_type','relationship_type',
             'latitude','longitude','land_boundary','replace_images','price_display_mode','server_property_id','proof_needs_reselection',
             'location_accuracy_m','location_reduced_accuracy','location_method','location_context',
             'type_confirmed','purpose_confirmed','completion_only','completion_reviewing','image_order','fields'];

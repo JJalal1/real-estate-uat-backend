@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as maps;
@@ -50,6 +51,7 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
         if (previous == OfflineConnection.offline ||
             previous == OfflineConnection.unavailable ||
             monitor.usedSnapshot) {
+          unawaited(_refreshRestoredAccount());
           ref.read(offlineResumeRevisionProvider.notifier).state++;
           final search = ref.read(marketplaceSearchControllerProvider.notifier);
           if (search.active) unawaited(search.refresh());
@@ -67,6 +69,21 @@ class _OfflineCoordinatorState extends ConsumerState<OfflineCoordinator>
     ref.listenManual(homeSearchResultsProvider, (_, __) => _queueSave());
     ref.listenManual(marketplaceMapResultsProvider, (_, __) => _queueSave());
     _start();
+  }
+
+  Future<void> _refreshRestoredAccount() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    try {
+      final user = await ref.read(authControllerProvider.future);
+      if (mounted && user != null && epoch == Stage6SecureSessionStore.instance.sessionEpoch &&
+          ref.read(authControllerProvider).asData?.value?.id == user.id) {
+        await ref.read(authControllerProvider.notifier).refreshSavedSession();
+      }
+    } on DioException {
+      // Another connectivity change can occur while refreshing a saved profile.
+    } on StateError {
+      // An account switch takes precedence over reconciling the previous profile.
+    }
   }
 
   void _start() {

@@ -393,13 +393,38 @@ class FinancialV1ApiTest extends TestCase
         $this->assertSame([],$service->overdueReceivablesFor([]));
     }
 
-    private function acceptedSaleDeal(string $payer): array
+    public function test_advertiser_and_manager_totals_keep_sale_currencies_separate(): void
     {
-        [$advertiser, $advertiserHeaders] = $this->user('financial-deal-owner-'.$payer.'@example.test', '+96777200'.($payer === 'buyer' ? '0021' : '0031'));
+        [$yerId, , $advertiser, , $headers] = $this->acceptedSaleDeal('seller');
+        [$usdId] = $this->acceptedSaleDeal('buyer', 'USD', [$advertiser, $headers]);
+        foreach ([[$yerId, 'YER', 20000], [$usdId, 'USD', 12.50]] as [$id, $currency, $amount]) {
+            $term = DB::table('property_deal_financial_terms')->where('property_agreement_id', $id)->first();
+            $this->assertSame($currency, $term->currency);
+            DB::table('property_payouts')->insert([
+                'reference' => 'PAYOUT-'.$id, 'deal_financial_term_id' => $term->id,
+                'advertiser_user_id' => $advertiser->id, 'amount' => $amount, 'currency' => $currency,
+                'status' => 'pending', 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+        $this->withHeaders($headers)->getJson('/api/finance/account')->assertOk()
+            ->assertJsonPath('data.summary.amounts_by_currency.pending_payouts.YER', 20000)
+            ->assertJsonPath('data.summary.amounts_by_currency.pending_payouts.USD', 12.5)
+            ->assertJsonPath('data.summary.pending_payouts', 20000);
+        [, $managerHeaders] = $this->user('finance-manager@example.test', '+967770008856', ['super_admin']);
+        $this->withHeaders($managerHeaders)->getJson('/api/admin/finance/summary')->assertOk()
+            ->assertJsonPath('data.amounts_by_currency.pending_payouts_amount.USD', 12.5)
+            ->assertJsonPath('data.pending_payouts_amount', 20000)
+            ->assertJsonPath('data.amounts_by_currency.gross_transaction_value.USD', 90000000)
+            ->assertJsonPath('data.gross_transaction_value', 90000000);
+    }
+
+    private function acceptedSaleDeal(string $payer, string $currency = 'YER', ?array $advertiserAccount = null): array
+    {
+        [$advertiser, $advertiserHeaders] = $advertiserAccount ?? $this->user('financial-deal-owner-'.$payer.'@example.test', '+96777200'.($payer === 'buyer' ? '0021' : '0031'));
         [$buyer, $buyerHeaders] = $this->user('financial-deal-buyer-'.$payer.'@example.test', '+96777200'.($payer === 'buyer' ? '0022' : '0032'));
         $property = $this->property($advertiser, 100_000_000, 'Financial deal '.$payer);
         $term = $this->term($property, $payer);
-        $property->forceFill(['current_sai_term_id'=>$term->id, 'price_display_mode'=>$payer === 'buyer' ? 'excludes_sai' : null])->save();
+        $property->forceFill(['currency'=>$currency, 'current_sai_term_id'=>$term->id, 'price_display_mode'=>$payer === 'buyer' ? 'excludes_sai' : null])->save();
 
         $threadId = (int) $this->withHeaders($buyerHeaders)
             ->postJson("/api/properties/{$property->id}/conversation")
@@ -408,7 +433,7 @@ class FinancialV1ApiTest extends TestCase
         $created = $this->withHeaders($buyerHeaders)
             ->postJson("/api/messages/threads/$threadId/agreement", [
                 'agreed_amount'=>90_000_000,
-                'currency'=>'YER',
+                'currency'=>$currency,
             ])->assertCreated();
         $agreementId = (int) $created->json('data.id');
         $revisionId = (int) $created->json('data.current_revision.id');

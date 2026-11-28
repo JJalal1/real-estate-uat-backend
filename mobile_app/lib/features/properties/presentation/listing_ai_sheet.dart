@@ -12,6 +12,7 @@ import '../../../core/widgets/app_components.dart';
 import '../../discovery/data/ai_repository.dart';
 import '../../discovery/domain/smart_search_filters.dart';
 import '../domain/property_field_options.dart';
+import '../domain/arabic_price_words.dart';
 
 class ListingAiSheet extends ConsumerStatefulWidget {
   const ListingAiSheet({required this.facts, this.propertyId, this.draftKey, this.description = false,
@@ -52,6 +53,8 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   final _briefBoxKey = GlobalKey();
   double? _dictationFieldHeight;
   Map<String, dynamic>? _fields;
+  String _proposalCurrency = 'YER';
+  static const _amountKeys = {'price', 'monthly_rent', 'fixed_sai_amount'};
   bool _busy = false, _hasDescription = false, _copyReady = false;
   late final VoiceCaptureController _capture;
   String _voiceDraft = '', _lastBriefText = '';
@@ -63,7 +66,7 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     'monthly_rent': 'الإيجار الشهري', 'area_value': 'المساحة', 'area_unit': 'وحدة المساحة',
     'bedrooms': 'غرف النوم', 'bathrooms': 'الحمامات', 'governorate': 'المحافظة', 'district': 'الحي', 'street': 'الشارع',
     'floor_number': 'الدور', 'unit_number': 'موضع الوحدة', 'has_parking': 'موقف السيارة', 'floors_count': 'عدد الأدوار', 'units_per_floor': 'الوحدات في كل دور', 'shop_openings': 'عدد الفتحات',
-    'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية', 'broker_sai_rate_percent':'نسبة السعي', 'fixed_sai_amount':'مبلغ السعي بالريال', 'rental_conditions':'شروط الإيجار'};
+    'building_facade': 'واجهة البناء', 'tenure_type': 'نوع الملكية', 'broker_sai_rate_percent':'نسبة السعي', 'fixed_sai_amount':'مبلغ السعي', 'rental_conditions':'شروط الإيجار'};
 
   @override
   void initState() {
@@ -138,18 +141,22 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
       } else {
         final raw = result['fields'];
         if (raw is! Map) throw StateError('Invalid proposed fields.');
-        final foreign = raw['currency'] != null && raw['currency'] != 'YER';
+        final currency = (raw['currency'] ?? widget.facts['currency'] ?? 'YER').toString();
+        final purpose = raw['purpose'] ?? widget.facts['purpose'];
+        final unsupported = !listingCurrencyPhrases.containsKey(currency) ||
+            currency != 'YER' && purpose == 'rent' && currency != widget.facts['currency'];
         final fields = <String, dynamic>{for (final entry in raw.entries)
-          if (labels.containsKey(entry.key) && entry.value != null && !(foreign && const ['price', 'monthly_rent', 'fixed_sai_amount'].contains(entry.key)))
+          if (labels.containsKey(entry.key) && entry.value != null && !(unsupported && _amountKeys.contains(entry.key)))
             entry.key.toString(): entry.value};
         setState(() {
+          _proposalCurrency = currency;
           _fields = fields; _selected..clear()..addAll(fields.keys);
           if (widget.prepareDraft) {
             _setCopy(result['copy']);
             _source = result['source']?.toString();
             _notice = result['message']?.toString();
           }
-          if (foreign) _error = 'حقل السعر هنا بالريال اليمني. أدخل المبلغ المناسب يدويًا؛ لم نغيّر العملة.';
+          if (unsupported) _error = 'اختر المبلغ المناسب لعملة الإعلان يدويًا.';
         });
       }
     } catch (error) {
@@ -172,7 +179,12 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
     FocusScope.of(context).unfocus();
     setState(() { _busy = true; _error = null; });
     try {
-      final facts = {...widget.facts, ..._selectedFields};
+      final selected = _selectedFields;
+      final facts = {...widget.facts};
+      if (selected.containsKey('currency') && selected['currency'] != facts['currency']) {
+        facts.removeWhere((key, _) => _amountKeys.contains(key));
+      }
+      facts.addAll(selected);
       final result = await ref.read(aiRepositoryProvider).listingCopy(facts, propertyId: widget.propertyId, draftKey: widget.draftKey);
       if (!mounted || !_sessionValid) return;
       setState(() => _setCopy(result['copy']));
@@ -188,6 +200,15 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
       fields['sai_amount_type'] = 'percentage';
     } else if (fields.containsKey('fixed_sai_amount') && !fields.containsKey('broker_sai_rate_percent')) {
       fields['sai_amount_type'] = 'fixed';
+    }
+    if (fields.keys.any(_amountKeys.contains)) {
+      final sale = (fields['purpose'] ?? widget.facts['purpose'] ?? 'sale') == 'sale';
+      if (sale || _proposalCurrency == (widget.facts['currency'] ?? 'YER')) {
+        fields['currency'] = _proposalCurrency;
+      } else {
+        fields.removeWhere((key, _) => _amountKeys.contains(key));
+        if (fields['sai_amount_type'] == 'fixed') fields.remove('sai_amount_type');
+      }
     }
     return fields;
   }
@@ -246,22 +267,25 @@ class _ListingAiSheetState extends ConsumerState<ListingAiSheet> {
   void _restoreVoiceDraft() { _restoringVoice = true; _message.text = _voiceDraft; _restoringVoice = false; }
   void _cancelVoice() { if (_capture.active || _capture.canRetry) { ++_voiceTurn; _capture.cancel(); _restoreVoiceDraft(); } }
 
-  String _value(String key, dynamic value) => switch (key) {
+  String _value(String key, dynamic value, String currency) => switch (key) {
     'type' => SmartSearchFilters.types[value] ?? '$value', 'purpose' => value == 'rent' ? 'للإيجار' : 'للبيع',
     'building_facade' => SmartSearchFilters.facades[value] ?? '$value', 'area_unit' => propertyAreaUnitLabel(value.toString()),
     'rental_conditions' => (value as List).map((c) => rentalConditionSummary(Map<String,dynamic>.from(c as Map))).join('، '),
     'tenure_type' => value == 'waqf' ? 'وقف' : 'حر',
     'units_per_floor' => (value as List).asMap().entries.map((e) => 'الدور ${arabicDigits('${e.key+1}')}: ${arabicDigits('${e.value}')}').join('، '),
     'has_parking' || 'unit_occupies_entire_floor' => value == true || value == 1 ? 'نعم' : 'لا',
-    'price' || 'monthly_rent' || 'fixed_sai_amount' => moneyLabel(value, 'YER'),
-    'broker_sai_rate_percent' => '${formatMoneyAmount(value)}٪',
+    'price' || 'monthly_rent' || 'fixed_sai_amount' => '${formatMoneyAmount(value, englishDigits: true)} ${currencyLabel(currency)}',
+    'broker_sai_rate_percent' => '${formatMoneyAmount(value, englishDigits: true)}%',
     _ => arabicDigits('$value'),
   };
 
   String _proposalValue(String key, dynamic value) {
     final old = widget.facts[key];
-    return widget.prepareDraft && old != null && old != value
-      ? 'الحالي: ${_value(key, old)}\nالمقترح: ${_value(key, value)}' : _value(key, value);
+    final previousCurrency = widget.facts['currency']?.toString() ?? 'YER';
+    final proposed = _value(key, value, _proposalCurrency);
+    final currencyChanged = _amountKeys.contains(key) && previousCurrency != _proposalCurrency;
+    return widget.prepareDraft && old != null && (old != value || currencyChanged)
+      ? 'الحالي: ${_value(key, old, previousCurrency)}\nالمقترح: $proposed' : proposed;
   }
 
   @override

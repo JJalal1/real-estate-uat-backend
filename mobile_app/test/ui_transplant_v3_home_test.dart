@@ -240,11 +240,12 @@ void main() {
     final first = find.byKey(const ValueKey('home-property-51'));
     final second = find.byKey(const ValueKey('home-property-52'));
     final railBounds = tester.getRect(latest);
-    expect(tester.getSize(first).width, lessThan(412 - 64));
+    final expectedWidth = 412 * 2 / 3;
+    expect(tester.getSize(first).width, closeTo(expectedWidth, .1));
     expect(tester.getRect(second).right, greaterThan(railBounds.left));
     expect(tester.getRect(second).left, lessThan(railBounds.left));
     final gallery = find.descendant(of: first, matching: find.byType(PropertyCardGallery));
-    expect(tester.widget<PropertyCardGallery>(gallery).height, inInclusiveRange(96, 128));
+    expect(tester.widget<PropertyCardGallery>(gallery).height, closeTo(117.78, .1));
     expect(tester.getSize(first).height, lessThan(250));
     final title = tester.widget<Text>(find.text('آخر إعلان أول'));
     expect(title.style!.fontSize, lessThan(17));
@@ -262,12 +263,16 @@ void main() {
     final sale = find.text('بالقرب منك');
     await tester.scrollUntilVisible(sale, 140, scrollable: homeScroll);
     expect(sale, findsOneWidget);
+    final nearbyCard = find.byKey(const ValueKey('home-property-53'));
+    await tester.scrollUntilVisible(nearbyCard, 140, scrollable: homeScroll);
+    expect(tester.getSize(nearbyCard).width, closeTo(expectedWidth, .1));
     expect(find.text('تملّك في منطقتك'), findsNothing);
 
     final recent = find.byKey(const PageStorageKey('home-properties-recent'));
     await tester.scrollUntilVisible(recent, 140, scrollable: homeScroll);
     final viewed = find.descendant(of: recent, matching: find.byKey(const ValueKey('home-property-55')));
     expect(viewed, findsOneWidget);
+    expect(tester.getSize(viewed).width, closeTo(expectedWidth, .1));
     expect(find.descendant(of: viewed, matching: find.text('صنعاء، حدة')), findsOneWidget);
     expect(find.descendant(of: viewed, matching: find.text('قبل ٦ أشهر')), findsNothing);
     expect(find.byKey(const ValueKey('home-property-54')), findsNothing);

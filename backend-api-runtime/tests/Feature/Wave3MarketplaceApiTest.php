@@ -40,16 +40,30 @@ class Wave3MarketplaceApiTest extends TestCase
         $this->withHeaders($headers)->getJson('/api/listing-access')->assertOk()
             ->assertJsonPath('data.listing_count', 0)->assertJsonPath('data.upgrade_required', false);
         $this->withHeaders($headers)->postJson("/api/properties/$first/submit", ['publish_now' => true])
+            ->assertOk()->assertJsonPath('data.status', 'pending')->assertJsonPath('data.review_status', 'submitted');
+        $this->assertQueuedForReview($first);
+        $this->assertSame('distinct', Property::findOrFail($first)->duplicate_check_status);
+        [$moderator, $modHeaders] = $this->actor('marketplace-support', 'owner');
+        $moderator->roles()->attach(Role::where('key', 'support_agent')->firstOrFail()->id, ['created_at' => now()]);
+        $this->withHeaders($modHeaders)->getJson('/api/admin/listing-review/queue')
+            ->assertOk()->assertJsonPath('data.0.id', $first);
+        $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$first/start")->assertOk();
+        $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$first/approve")
             ->assertOk()->assertJsonPath('data.status', 'published');
+        $this->withHeaders(['Authorization' => ''])->getJson("/api/properties/$first")->assertOk();
         $this->withHeaders($headers)->post("/api/properties/$first", [
             'title' => 'منزل للعائلة في حدة بعد التعديل',
             'submit_for_review' => true,
             'publish_now' => true,
-        ])->assertOk()->assertJsonPath('data.id', $first)->assertJsonPath('data.status', 'published');
+        ])->assertOk()->assertJsonPath('data.id', $first)->assertJsonPath('data.status', 'pending');
         $this->assertSame($first, (int) $owner->fresh()->first_marketplace_listing_id);
         $this->withHeaders($headers)->postJson("/api/properties/$first/submit", ['publish_now' => true])
-            ->assertOk()->assertJsonPath('data.status', 'published');
+            ->assertOk()->assertJsonPath('data.status', 'pending')->assertJsonPath('data.review_status', 'submitted');
         $this->assertNull($owner->fresh()->broker_enrolled_at);
+        $this->assertQueuedForReview($first);
+        $this->assertSame(2, Property::findOrFail($first)->reviews()->where('action', 'submitted')->count());
+        $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$first/start")->assertOk();
+        $this->withHeaders($modHeaders)->postJson("/api/admin/listing-review/listings/$first/approve")->assertOk();
         $this->withHeaders($headers)->deleteJson("/api/properties/$first")->assertOk();
 
         $publish = "/api/properties/$second/submit";
@@ -58,7 +72,14 @@ class Wave3MarketplaceApiTest extends TestCase
         $this->assertDatabaseHas('properties', ['id' => $second, 'status' => 'draft']);
         $this->assertNull($owner->fresh()->broker_enrolled_at);
         $this->withHeaders($headers)->postJson($publish, ['publish_now' => true, 'upgrade_to_broker' => true])
-            ->assertOk()->assertJsonPath('data.status', 'published');
+            ->assertOk()->assertJsonPath('data.status', 'pending')->assertJsonPath('data.review_status', 'submitted')
+            ->assertJsonPath('session.user.account_type', 'broker')->assertJsonPath('session.user.broker_enrolled', true);
+        $this->assertQueuedForReview($second);
+        $this->withHeaders($headers)->postJson($publish, ['publish_now' => true, 'upgrade_to_broker' => true])
+            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $this->assertSame(1, Property::findOrFail($second)->reviews()->where('action', 'submitted')->count());
+        $this->withHeaders($headers)->getJson('/api/auth/me')->assertOk()
+            ->assertJsonPath('data.user.account_type', 'broker')->assertJsonPath('data.user.broker_enrolled', true);
         $owner->refresh();
         $this->assertNotNull($owner->broker_enrolled_at);
         $this->assertFalse($owner->isBrokerVerified());
@@ -71,6 +92,11 @@ class Wave3MarketplaceApiTest extends TestCase
             ->assertJsonPath('data.sai_management.advertiser_type', 'broker')
             ->assertJsonPath('data.sai_management.requested_broker_rate_percent', 2)
             ->assertJsonPath('data.sai_management.configured', true);
+
+        $third = $this->create($headers, ['longitude' => 44.30, 'title' => 'عقار ثالث']);
+        $this->withHeaders($headers)->postJson("/api/properties/$third/submit", ['publish_now' => true])
+            ->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $this->assertQueuedForReview($third);
     }
 
     public function test_existing_professionals_keep_the_workspace_and_pending_accounts_can_draft(): void
@@ -148,7 +174,7 @@ class Wave3MarketplaceApiTest extends TestCase
         $second = $this->create($headers, ['longitude' => 44.25, 'title' => 'إعلان إضافي']);
 
         $this->withHeaders($headers)->postJson("/api/properties/$first/submit", ['publish_now' => true])
-            ->assertOk()->assertJsonPath('data.status', 'published');
+            ->assertOk()->assertJsonPath('data.status', 'pending')->assertJsonPath('data.review_status', 'submitted');
         $this->withHeaders($headers)->postJson("/api/properties/$second/submit", ['publish_now' => true])
             ->assertConflict()->assertJsonPath('code', 'broker_upgrade_required');
         $this->assertNull($owner->fresh()->broker_enrolled_at);
@@ -156,7 +182,9 @@ class Wave3MarketplaceApiTest extends TestCase
         $this->withHeaders($headers)->postJson("/api/properties/$second/submit", [
             'publish_now' => true,
             'upgrade_to_broker' => true,
-        ])->assertOk()->assertJsonPath('data.status', 'published');
+        ])->assertOk()->assertJsonPath('data.review_status', 'submitted');
+        $this->assertQueuedForReview($first);
+        $this->assertQueuedForReview($second);
 
         $owner->refresh();
         $this->assertNotNull($owner->broker_enrolled_at);
@@ -192,6 +220,17 @@ class Wave3MarketplaceApiTest extends TestCase
             'work_areas_json' => json_encode(['حدة'])])->assertOk()->assertJsonPath('data.status', 'pending');
         $this->withHeaders($headers)->getJson('/api/broker/workspace')->assertForbidden();
         $this->assertFalse(app(\App\Services\ListingAccessService::class)->isProfessional($owner->fresh()));
+    }
+
+    private function assertQueuedForReview(int $id): void
+    {
+        $this->assertDatabaseHas('properties', [
+            'id' => $id, 'review_status' => 'submitted', 'status' => 'pending', 'published_at' => null,
+        ]);
+        $this->assertDatabaseHas('support_tasks', ['source_type' => 'listing_review', 'source_id' => $id, 'status' => 'new']);
+        $this->withHeaders(['Authorization' => ''])->getJson("/api/properties/$id")->assertNotFound();
+        $public = $this->getJson('/api/properties')->assertOk()->json('data');
+        $this->assertNotContains($id, array_column($public, 'id'));
     }
 
     private function actor(string $key, string $type): array

@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ListingEditorDraftController extends Controller
 {
@@ -34,6 +35,7 @@ class ListingEditorDraftController extends Controller
         abort_unless(Str::isUuid($key),404);
         $v=$request->validate(['payload'=>['required','array'],'first_saved_at'=>['nullable','date'],'expected_revision'=>['required','integer','min:0'],'property_id'=>['nullable','integer','min:1'],
             'payload.type'=>['nullable',\Illuminate\Validation\Rule::in(array_keys(app(\App\Services\DynamicPropertySchema::class)->definition()['types']))],
+            'payload.currency'=>['sometimes','required','string','regex:/^[A-Z]{3}$/D'],
             'payload.purpose'=>['nullable','in:sale,rent'],'payload.step'=>['nullable','integer','between:0,3'],
             'payload.latitude'=>['nullable','numeric','between:-90,90'],'payload.longitude'=>['nullable','numeric','between:-180,180'],
             'payload.fields'=>['nullable','array'],'payload.image_order'=>['nullable','array','max:12'],
@@ -73,8 +75,11 @@ class ListingEditorDraftController extends Controller
             } else {
                 abort_if(($draft->payload['draft_kind'] ?? null)==='retired',410,'ألغي هذا التقدم المؤقت ولا يمكن إعادته بطلب قديم.');
                 $this->drafts->assertNotExpired($draft);
-                if ($draft->property_id) $this->drafts->assertEditable($actor,Property::query()->findOrFail($draft->property_id));
                 abort_if($property && $draft->property_id !== null && (int)$property->id !== $draft->property_id,409);
+                if ($draft->property_id && !$property) {
+                    $property = Property::query()->findOrFail($draft->property_id);
+                    $this->drafts->assertEditable($actor, $property);
+                }
                 $incoming=$this->drafts->clean($v['payload']);
                 if (($draft->payload['draft_kind'] ?? null)==='saved') $incoming['draft_kind']='saved';
                 if (isset($incoming['checkpoint_key']) && ($draft->payload['checkpoint_key'] ?? null)===$incoming['checkpoint_key']) {
@@ -82,6 +87,12 @@ class ListingEditorDraftController extends Controller
                     return $draft;
                 }
                 $this->drafts->assertRevision($draft,$v['expected_revision']);
+            }
+            $currency = $v['payload']['currency'] ?? null;
+            $storedCurrency = $draft->payload['currency'] ?? $property?->currency ?? 'YER';
+            abort_if($currency === null && $storedCurrency !== 'YER', 409, 'حدّث التطبيق لتعديل هذه المسودة بعملة سعرها المحفوظة.');
+            if ($currency !== null && !in_array($currency, ['YER', 'SAR', 'USD'], true) && $currency !== $property?->currency) {
+                throw ValidationException::withMessages(['payload.currency'=>['اختر عملة سعر متاحة.']]);
             }
             $clean=$this->drafts->clean($v['payload']);
             // Explicitly saved and unclassified legacy work cannot be downgraded

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Concerns\SerializesPropertyCards;
+use App\Http\Controllers\Concerns\SerializesSessionUser;
 use App\Http\Controllers\Controller;
 use App\Models\Property;
 use App\Models\PropertyImage;
@@ -33,6 +34,7 @@ use Throwable;
 class PropertyController extends Controller
 {
     use SerializesPropertyCards;
+    use SerializesSessionUser;
 
     private const TYPES = ['apartment', 'floor', 'building', 'house', 'villa', 'land', 'shop', 'office', 'farm'];
     private const PURPOSES = ['sale', 'rent'];
@@ -509,7 +511,18 @@ class PropertyController extends Controller
 
     public function submit(Request $request, Property $property): JsonResponse
     {
-        /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);$property=$this->workflow->submit($user,$property,$request);return response()->json(['message'=>$property->status === 'published' ? 'تم نشر الإعلان.' : 'تم إرسال الإعلان للمراجعة.','data'=>$this->detailData($property,$request)]);
+        /** @var User $user */
+        $user = $request->user();
+        $this->assertOwner($property, $user);
+        $property = $this->workflow->submit($user, $property, $request);
+        $body = [
+            'message' => $property->status === 'published' ? 'تم نشر الإعلان.' : 'تم إرسال الإعلان للمراجعة.',
+            'data' => $this->detailData($property, $request),
+        ];
+        if ($request->boolean('upgrade_to_broker')) {
+            $body['session'] = ['user' => $this->userData($user->fresh())];
+        }
+        return response()->json($body);
     }
 
     public function uploadProofDocuments(Request $request, Property $property): JsonResponse

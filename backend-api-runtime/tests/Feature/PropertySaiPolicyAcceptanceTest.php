@@ -42,8 +42,8 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
             ->assertJsonPath('data.sai.payer', 'buyer')
             ->assertJsonPath('data.sai.calculation_basis', 'final_sale_value')
             ->assertJsonPath('data.sai_management.advertiser_type', 'broker')
-            ->assertJsonPath('data.sai_management.platform_share_percent', 20)
-            ->assertJsonPath('data.sai_management.broker_share_percent', 80);
+            ->assertJsonPath('data.sai_management.platform_share_percent', 10)
+            ->assertJsonPath('data.sai_management.broker_share_percent', 90);
 
         [, $buyerHeaders] = $this->user('ordinary-sale-buyer');
         $property->forceFill([
@@ -58,8 +58,8 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
             'broker_deal_outcome_id' => $dealId,
             'advertiser_user_id' => $owner->id,
             'sai_total_amount' => 2_600_000,
-            'platform_share_amount' => 520_000,
-            'advertiser_sai_share_amount' => 2_080_000,
+            'platform_share_amount' => 260_000,
+            'advertiser_sai_share_amount' => 2_340_000,
         ]);
         $this->assertNull($owner->fresh()->broker_enrolled_at);
     }
@@ -82,11 +82,11 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         $term = PropertySaiTerm::query()->findOrFail($property->fresh()->current_sai_term_id);
         $amounts = app(PropertySaiService::class)->calculateSaiAmount($term, 100_000);
         $this->assertSame(30_000.0, $amounts['total_sai']);
-        $this->assertSame(6_000.0, $amounts['platform_share']);
-        $this->assertSame(24_000.0, $amounts['broker_share']);
+        $this->assertSame(3_000.0, $amounts['platform_share']);
+        $this->assertSame(27_000.0, $amounts['broker_share']);
     }
 
-    public function test_broker_sale_five_percent_is_total_sai_and_platform_gets_twenty_percent_inside_it(): void
+    public function test_broker_sale_five_percent_is_total_sai_and_platform_gets_ten_percent_inside_it(): void
     {
         [$broker, $headers] = $this->advertiser('broker', 'broker-sale');
         $property = $this->property($broker, 'sale', 100_000_000);
@@ -105,19 +105,19 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         $accepted
             ->assertJsonPath('data.sai.rate_percent', 5)
             ->assertJsonPath('data.sai.display_text', 'السعي 5% - يتحملها المشتري')
-            ->assertJsonPath('data.sai_management.platform_share_percent', 20)
-            ->assertJsonPath('data.sai_management.broker_share_percent', 80)
+            ->assertJsonPath('data.sai_management.platform_share_percent', 10)
+            ->assertJsonPath('data.sai_management.broker_share_percent', 90)
             ->assertJsonPath('data.sai_management.platform_terms_status', 'accepted')
-            ->assertJsonPath('data.sai_management.platform_terms_message', 'للتطبيق نسبة مقدارها 20% من مبلغ السعي عند إتمام الصفقة.');
+            ->assertJsonPath('data.sai_management.platform_terms_message', 'حصة المنصة تحسب على ناشر الإعلان بنسبة 10% من مبلغ السعي عند إتمام الصفقة.');
 
         $term = PropertySaiTerm::query()->findOrFail($property->fresh()->current_sai_term_id);
         $amounts = app(PropertySaiService::class)->calculateSaiAmount($term, 100_000_000);
         $this->assertSame(5_000_000.0, $amounts['total_sai']);
-        $this->assertSame(1_000_000.0, $amounts['platform_share']);
-        $this->assertSame(4_000_000.0, $amounts['broker_share']);
+        $this->assertSame(500_000.0, $amounts['platform_share']);
+        $this->assertSame(4_500_000.0, $amounts['broker_share']);
     }
 
-    public function test_office_rent_hundred_percent_is_capped_to_one_month_and_internal_split_is_twenty_eighty(): void
+    public function test_office_rent_hundred_percent_is_capped_to_one_month_and_internal_split_is_ten_ninety(): void
     {
         [$office, $headers] = $this->advertiser('office', 'office-rent');
         $property = $this->property($office, 'rent', 100_000);
@@ -132,14 +132,14 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
             ->assertJsonPath('data.sai.rate_percent', 100)
             ->assertJsonPath('data.sai.calculation_basis', 'first_month_rent')
             ->assertJsonPath('data.sai.display_text', 'السعي 100% - يتحملها المستأجر')
-            ->assertJsonPath('data.sai_management.platform_share_percent', 20)
-            ->assertJsonPath('data.sai_management.broker_share_percent', 80);
+            ->assertJsonPath('data.sai_management.platform_share_percent', 10)
+            ->assertJsonPath('data.sai_management.broker_share_percent', 90);
 
         $term = PropertySaiTerm::query()->findOrFail($property->fresh()->current_sai_term_id);
         $amounts = app(PropertySaiService::class)->calculateSaiAmount($term, 100_000);
         $this->assertSame(100_000.0, $amounts['total_sai']);
-        $this->assertSame(20_000.0, $amounts['platform_share']);
-        $this->assertSame(80_000.0, $amounts['broker_share']);
+        $this->assertSame(10_000.0, $amounts['platform_share']);
+        $this->assertSame(90_000.0, $amounts['broker_share']);
 
         $this->withHeaders($headers)->putJson("/api/properties/{$property->id}/sai", [
             'sai_payer' => 'tenant',
@@ -290,6 +290,28 @@ class PropertySaiPolicyAcceptanceTest extends TestCase
         $this->assertSame($termTwo, (int) MessageThread::query()->findOrFail($threadTwo)->sai_term_id);
         $this->assertSame($legacyTerms, $legacy->fresh()->getRawOriginal());
         $this->assertDatabaseCount('property_sai_terms', 2);
+    }
+
+    public function test_existing_twenty_percent_term_can_still_be_reviewed_and_displays_its_actual_share(): void
+    {
+        [$owner, $headers] = $this->advertiser('broker', 'historical-share');
+        $listing = $this->property($owner, 'sale', 10000000);
+        $legacy = PropertySaiTerm::query()->create([
+            'property_id'=>$listing->id, 'version'=>1, 'advertiser_type'=>'broker',
+            'purpose'=>'sale', 'source_mode'=>'broker_custom', 'requested_broker_rate_percent'=>2,
+            'sai_rate_percent'=>2, 'sai_amount_type'=>'percentage', 'payer'=>'buyer',
+            'calculation_basis'=>'final_sale_value', 'platform_share_percent'=>20, 'broker_share_percent'=>80,
+            'platform_terms_status'=>'accepted', 'platform_terms_accepted_at'=>now(), 'created_by_user_id'=>$owner->id,
+        ]);
+        $listing->update(['current_sai_term_id'=>$legacy->id]);
+        $service = app(PropertySaiService::class);
+        $this->assertSame($legacy->id, $service->assertReadyForSubmission($listing, $owner)->id);
+        $this->assertStringContainsString('20%', $service->managementData($listing, $owner)['platform_terms_message']);
+        $this->withHeaders($headers)->putJson("/api/properties/{$listing->id}/sai", [
+            'broker_sai_rate_percent'=>2, 'platform_terms_decision'=>'accept',
+        ])->assertOk()->assertJsonPath('data.sai_management.version', 2)
+            ->assertJsonPath('data.sai_management.platform_share_percent', 10);
+        $this->assertSame(40000.0, $service->calculateSaiAmount($legacy->fresh(), 10000000)['platform_share']);
     }
 
     public function test_published_listing_cannot_change_sai_without_returning_to_draft(): void

@@ -239,6 +239,16 @@ class FinancialDeal {
       );
 }
 
+/// Grouped amounts from new servers, with the YER scalar used by older servers.
+Map<String, double> financialAmounts(Map<String, dynamic> summary, String metric) {
+  final grouped = summary['amounts_by_currency'];
+  final values = grouped is Map ? grouped[metric] : null;
+  if (values is Map && values.isNotEmpty) {
+    return {for (final entry in values.entries) entry.key.toString(): _double(entry.value)};
+  }
+  return {'YER': _double(summary[metric])};
+}
+
 class FinancialAccountSummary {
   const FinancialAccountSummary({
     required this.openPlatformDue,
@@ -249,19 +259,19 @@ class FinancialAccountSummary {
     required this.publishedListingsHidden,
   });
 
-  final double openPlatformDue;
-  final double overduePlatformDue;
-  final double pendingPayouts;
-  final double paidPayouts;
+  final Map<String, double> openPlatformDue;
+  final Map<String, double> overduePlatformDue;
+  final Map<String, double> pendingPayouts;
+  final Map<String, double> paidPayouts;
   final bool listingCreationBlocked;
   final bool publishedListingsHidden;
 
   factory FinancialAccountSummary.fromJson(Map<String, dynamic> json) =>
       FinancialAccountSummary(
-        openPlatformDue: _double(json['open_platform_due']),
-        overduePlatformDue: _double(json['overdue_platform_due']),
-        pendingPayouts: _double(json['pending_payouts']),
-        paidPayouts: _double(json['paid_payouts']),
+        openPlatformDue: financialAmounts(json, 'open_platform_due'),
+        overduePlatformDue: financialAmounts(json, 'overdue_platform_due'),
+        pendingPayouts: financialAmounts(json, 'pending_payouts'),
+        paidPayouts: financialAmounts(json, 'paid_payouts'),
         listingCreationBlocked: _bool(json['listing_creation_blocked']),
         publishedListingsHidden: _bool(json['published_listings_hidden']),
       );

@@ -97,7 +97,12 @@ class ListingAiService
             // A unit identifier affects property identity. Accept it only from
             // a distinct explicit unit label, never a model's floor inference.
             unset($fields['unit_number']);
-            $unit = app(ExplicitListingFacts::class)->unitNumber($message);
+            $explicit = app(ExplicitListingFacts::class);
+            if ($explicit->hasMixedCurrencies($message)) {
+                unset($fields['price'], $fields['monthly_rent'], $fields['currency'], $fields['fixed_sai_amount']);
+                if (($fields['sai_amount_type'] ?? null) === 'fixed') unset($fields['sai_amount_type']);
+            }
+            $unit = $explicit->unitNumber($message);
             if ($unit !== null) $fields['unit_number'] = $unit;
             if (isset($fields['floor_number'])) $fields['floor_number']=app(DynamicPropertySchema::class)->normalizeFloor($fields['floor_number']);
             if (isset($fields['broker_sai_rate_percent']) && !isset($fields['fixed_sai_amount'])) $fields['sai_amount_type']='percentage';

@@ -116,7 +116,7 @@ class _MarketplaceSearchScreenState extends ConsumerState<MarketplaceSearchScree
     else SliverList(delegate: SliverChildBuilderDelegate((context, i) {
       final row = search.rows[i];
       return Padding(padding: const EdgeInsets.fromLTRB(18, 8, 18, 4),
-        child: PropertySummaryCard(key: ValueKey('home-result-${row.id}'), property: row));
+        child: PropertySummaryCard(key: ValueKey('home-result-${row.id}'), property: row, searchResult: true));
     }, childCount: search.rows.length)),
     if (search.rows.isNotEmpty && controller.home.isLoadingMore &&
         (search.loading || search.resultsError != null)) SliverToBoxAdapter(child: Padding(

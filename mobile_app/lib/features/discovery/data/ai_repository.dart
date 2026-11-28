@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../account/data/auth_repository.dart';
+import '../../properties/domain/arabic_price_words.dart';
 import '../domain/governorate_search.dart';
 
 final aiRepositoryProvider = Provider<AiRepository>((ref) => AiRepository(ref.watch(dioProvider), ref.watch(authRepositoryProvider)));
@@ -52,20 +53,31 @@ class AiRepository {
     return {...result, 'filters': next};
   }
 
+  // A legacy listing can use an additional currency which the assistant cannot
+  // price. Keep its monetary facts together in the editor until the user
+  // explicitly selects a supported currency.
+  Map<String, dynamic> _listingFacts(Map<String, dynamic> facts) {
+    final currency = facts['currency'];
+    if (currency == null || listingCurrencyPhrases.containsKey(currency)) return facts;
+    return Map.of(facts)..removeWhere((key, value) =>
+        const {'currency', 'price', 'monthly_rent', 'fixed_sai_amount'}.contains(key) ||
+        key == 'sai_amount_type' && value == 'fixed');
+  }
+
   Future<Map<String, dynamic>> listingFields(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) =>
-    _post('/ai/listing-fields', {'message': message.trim(), 'facts': facts, if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
+    _post('/ai/listing-fields', {'supports_sale_currencies': true, 'message': message.trim(), 'facts': _listingFacts(facts), if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
   Future<Map<String, dynamic>> prepareListing(String message, Map<String, dynamic> facts, {int? propertyId, String? draftKey}) =>
-    _post('/ai/listing-draft', {'mode': 'prepare', 'message': message.trim(), 'facts': facts,
+    _post('/ai/listing-draft', {'supports_sale_currencies': true, 'mode': 'prepare', 'message': message.trim(), 'facts': _listingFacts(facts),
       if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
   Future<Map<String, dynamic>> listingCopy(Map<String, dynamic> facts, {int? propertyId, String? draftKey}) =>
-    _post('/ai/listing-draft', {'mode': 'copy', 'facts': facts,
+    _post('/ai/listing-draft', {'supports_sale_currencies': true, 'mode': 'copy', 'facts': _listingFacts(facts),
       if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey}, private: true);
 
   Future<Map<String, dynamic>> description(Map<String, dynamic> facts, {int? propertyId, String? draftKey, String sourceDescription = ''}) async {
     final auth = await _auth.requiredAuthOptions();
-    final input = {'facts': facts, if (sourceDescription.trim().isNotEmpty) 'description': sourceDescription.trim(),
+    final input = {'facts': _listingFacts(facts), if (sourceDescription.trim().isNotEmpty) 'description': sourceDescription.trim(),
       if (propertyId != null) 'property_id': propertyId, if (draftKey != null) 'editor_draft_key': draftKey};
     // In-memory only; requests from different authenticated sessions never coalesce.
     final key = jsonEncode([auth.headers, input]);

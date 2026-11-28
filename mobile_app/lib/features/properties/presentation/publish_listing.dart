@@ -15,6 +15,7 @@ Future<PropertyDetails?> publishListing(
 ) async {
   final repository = ref.read(propertyRepositoryProvider);
   final userId = ref.read(authControllerProvider).asData?.value?.id;
+  if (userId == null) throw StateError('AUTH_REQUIRED');
   final session = Stage6SecureSessionStore.instance;
   final epoch = session.sessionEpoch;
   bool sameActor() =>
@@ -44,7 +45,7 @@ Future<PropertyDetails?> publishListing(
         scrollable: true,
         title: const Text('ترقية حسابك إلى دلال؟'),
         content: const Text(
-            'انشر إعلانك الثاني بحساب دلال، وأدِر عقاراتك وإعلاناتك وتابع عملاءك من مكان واحد.'),
+            'بعد الترقية إلى دلال، يُرسل إعلانك إلى الدعم للمراجعة قبل نشره.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -52,7 +53,7 @@ Future<PropertyDetails?> publishListing(
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('ترقية ونشر الإعلان'),
+            child: const Text('ترقية وإرسال للمراجعة'),
           ),
         ],
       ),
@@ -60,15 +61,21 @@ Future<PropertyDetails?> publishListing(
   );
   if (!sameActor()) throw StateError('ACCOUNT_CHANGED');
   if (consent != true) return null;
-  final result = await repository.submitWithBrokerUpgrade(propertyId);
+  final result = await repository.submitWithBrokerUpgrade(propertyId, expectedUserId: userId);
   if (!sameActor()) throw StateError('ACCOUNT_CHANGED');
-  try {
-    await ref.read(authControllerProvider.notifier).refresh();
-  } on DioException {
-    // Publication is already complete. The next session refresh loads the enrollment.
+  final controller = ref.read(authControllerProvider.notifier);
+  if (result.user case final user?) {
+    controller.acceptSubmissionUser(user);
+  } else {
+    // An older API returns only the listing after accepting the submission.
+    try {
+      await controller.refresh();
+    } on DioException {
+      // The listing has already been sent to the server.
+    }
   }
   if (!sameActor()) throw StateError('ACCOUNT_CHANGED');
-  return result;
+  return result.listing;
 }
 
 String publicationMessage(PropertyDetails listing) =>

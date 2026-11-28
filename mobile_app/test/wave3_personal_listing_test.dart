@@ -40,6 +40,11 @@ class _UploadAuth implements AuthRepository {
   Future<Options> requiredAuthOptions() async =>
       Options(headers: {'Authorization': 'Bearer fixture'});
   @override
+  Future<AuthUser> acceptSubmissionUser(Map<String, dynamic> raw, {required int expectedUserId, required int epoch}) async {
+    expect(raw['id'], expectedUserId);
+    return AuthUser.fromJson(raw);
+  }
+  @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
@@ -69,7 +74,10 @@ Future<_PublicationAuth> _mountPublisher(
         requestOptions: request,
         statusCode: 200,
         data: {
-          'data': {'id': 22, 'title': 'شقة', 'status': 'published'}
+          'data': {'id': 22, 'title': 'شقة', 'status': 'pending', 'review_status': 'submitted'},
+          if (body['upgrade_to_broker'] == true) 'session': {'user': {
+            'id': 1, 'account_type': 'broker', 'broker_enrolled': true,
+          }},
         },
       ));
     }
@@ -85,14 +93,16 @@ Future<_PublicationAuth> _mountPublisher(
           home: Consumer(builder: (context, ref, _) {
             final actor = ref.watch(authControllerProvider).asData?.value;
             return Scaffold(
-                body: TextButton(
+                body: Column(children: [
+              Text(actor?.hasMarketplaceProfessionalProfile == true ? 'إعلاناتي' : 'الأقسام'),
+              TextButton(
               onPressed: actor == null
                   ? null
                   : () async {
                       results.add(await publishListing(context, ref, 22));
                     },
               child: const Text('نشر الإعلان'),
-            ));
+            )]));
           }))));
   await tester.pumpAndSettle();
   return auth;
@@ -105,11 +115,11 @@ void main() {
         const MaterialApp(home: Scaffold(body: AddPropertyWizardScreen())));
     expect(find.byKey(const ValueKey('listing-method-manual')), findsOneWidget);
     expect(find.byKey(const ValueKey('listing-method-ai')), findsOneWidget);
-    expect(find.text('ترقية ونشر الإعلان'), findsNothing);
+    expect(find.text('ترقية وإرسال للمراجعة'), findsNothing);
   });
 
   for (final historicalOwner in [false, true]) {
-    testWidgets('first publication succeeds directly, historicalOwner=$historicalOwner', (tester) async {
+    testWidgets('first listing is sent for review, historicalOwner=$historicalOwner', (tester) async {
       final calls = <Map<String, dynamic>>[], results = <PropertyDetails?>[];
       final auth = await _mountPublisher(tester,
           needsUpgrade: false, historicalOwner: historicalOwner, calls: calls, results: results);
@@ -118,9 +128,10 @@ void main() {
       expect(calls, [
         {'publish_now': true}
       ]);
-      expect(results.single!.status, 'published');
+      expect(results.single!.status, 'pending');
+      expect(publicationMessage(results.single!), contains('للمراجعة'));
       expect(auth.refreshes, 0);
-      expect(find.text('ترقية ونشر الإعلان'), findsNothing);
+      expect(find.text('ترقية وإرسال للمراجعة'), findsNothing);
     });
 
     for (final accept in [false, true]) {
@@ -136,14 +147,15 @@ void main() {
           {'publish_now': true}
         ]);
         expect(results, isEmpty);
-        await tester.tap(find.text(accept ? 'ترقية ونشر الإعلان' : 'ليس الآن'));
+        await tester.tap(find.text(accept ? 'ترقية وإرسال للمراجعة' : 'ليس الآن'));
         await tester.pumpAndSettle();
         expect(calls, [
           {'publish_now': true},
           if (accept) {'publish_now': true, 'upgrade_to_broker': true},
         ]);
-        expect(results.single?.status, accept ? 'published' : null);
-        expect(auth.refreshes, accept ? 1 : 0);
+        expect(results.single?.status, accept ? 'pending' : null);
+        expect(find.text(accept ? 'إعلاناتي' : 'الأقسام'), findsOneWidget);
+        expect(auth.refreshes, 0);
       });
     }
   }

@@ -175,11 +175,11 @@ String? _textOrNull(dynamic value) {
 /// Preview only: the immutable server term and confirmed final deal determine
 /// settlement. The platform percentage comes exclusively from server policy.
 class PropertySaiQuote {
-  const PropertySaiQuote(this.rate, this.total, this.platform, this.net, this.fallback);
+  const PropertySaiQuote(this.rate, this.total, this.platform, this.net, this.fallback, this.platformPercent);
   final double rate, total, platform, net;
   final bool fallback;
-  double get platformPercent => total == 0 ? 0 : platform * 100 / total;
-  static PropertySaiQuote? calculate(PropertySaiManagement policy, double requestedRate, double basis, {double? fixedAmount}) {
+  final double platformPercent;
+  static PropertySaiQuote? calculate(PropertySaiManagement policy, double requestedRate, double basis, {double? fixedAmount, bool keepConfiguredShare = false}) {
     final historicalFixed = policy.hasHistoricalFixedTerms;
     final fixed = fixedAmount != null && !historicalFixed;
     final amount = fixedAmount ?? 0;
@@ -187,9 +187,8 @@ class PropertySaiQuote {
     if (fixed ? !amount.isFinite || amount < 0 : !requestedRate.isFinite || requestedRate < 0 || requestedRate > 100) return null;
     final fallback = historicalFixed || (fixed ? amount == 0 : requestedRate == 0);
     final rate = fallback ? policy.effectiveFixedRate : requestedRate;
-    final share = historicalFixed
-        ? policy.platformSharePercent ?? policy.fallbackPlatformSharePercent
-        : fallback ? policy.fallbackPlatformSharePercent : policy.professionalPlatformSharePercent;
+    final policyShare = fallback ? policy.fallbackPlatformSharePercent : policy.professionalPlatformSharePercent;
+    final share = historicalFixed || keepConfiguredShare ? policy.platformSharePercent ?? policyShare : policyShare;
     if (rate == null || share == null || share < 0 || share > 100) return null;
     if (!historicalFixed && (policy.brokerMaxRatePercent == null ||
         (fixed ? amount > (basis * policy.brokerMaxRatePercent!).round() / 100
@@ -199,7 +198,7 @@ class PropertySaiQuote {
     double money(double value) => (value * 100).round() / 100;
     final total = fixed && !fallback ? money(amount) : money(basis * rate / 100);
     final platform = money(total * share / 100);
-    return PropertySaiQuote(rate, total, platform, money(total - platform), fallback);
+    return PropertySaiQuote(rate, total, platform, money(total - platform), fallback, share);
   }
 }
 
@@ -209,5 +208,6 @@ double? parseSaiNumber(String text) {
   for (var i = 0; i < 10; i++) {
     value = value.replaceAll(arabic[i], '$i').replaceAll(persian[i], '$i');
   }
-  return double.tryParse(value);
+  final parsed = double.tryParse(value);
+  return parsed != null && parsed.isFinite ? parsed : null;
 }

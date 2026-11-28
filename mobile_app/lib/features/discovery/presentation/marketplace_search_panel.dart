@@ -276,12 +276,16 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
             Expanded(child: _ChipRail(children: purposeChips)),
             const SizedBox(width: 6),
             if (large) IconButton.outlined(key: const ValueKey('published-filter-more'),
-              tooltip: 'تصفية', onPressed: () => _editFilters(), icon: const Icon(Icons.tune))
+              tooltip: 'تصفية', onPressed: () => _editFilters(), icon: const Icon(Icons.tune, size: 16))
             else OutlinedButton.icon(key: const ValueKey('published-filter-more'),
-              onPressed: () => _editFilters(), icon: const Icon(Icons.tune, size: 18),
-              label: Text(ui.criteria.chips.isEmpty ? 'تصفية' : 'تصفية (${arabicDigits(ui.criteria.chips.length.toString())})'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)))),
+              onPressed: () => _editFilters(), icon: const Icon(Icons.tune, size: 14),
+              label: Text(ui.criteria.chips.isEmpty ? 'تصفية' : 'تصفية (${ui.criteria.chips.length})'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(48, 30),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                textStyle: theme.textTheme.labelSmall,
+                visualDensity: VisualDensity.standard,
+                tapTargetSize: MaterialTapTargetSize.padded,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))),
           ]),
           _ChipRail(children: typeChips),
           LayoutBuilder(builder: (_, space) => Wrap(spacing: 6, runSpacing: 6, children: [
@@ -289,9 +293,6 @@ class _MarketplaceSearchPanelState extends ConsumerState<MarketplaceSearchPanel>
               _quickFilter('min_bedrooms', 'الغرف', Icons.bed_outlined, large ? space.maxWidth : 110),
             if ((ui.criteria.selectedTypes.isNotEmpty || values.containsKey('min_bathrooms')) && DynamicPropertySchema.appliesToFilters('bathrooms', values))
               _quickFilter('min_bathrooms', 'الحمامات', Icons.bathtub_outlined, large ? space.maxWidth : 110),
-            if (DynamicPropertySchema.appliesToFilters('area_value', values))
-              ActionChip(key: const ValueKey('published-filter-area'), label: const Text('المساحة'),
-                onPressed: () => _editFilters('min_area_m2')),
             if (values['type'] == 'land') ActionChip(key: const ValueKey('published-filter-land-use'),
               label: const Text('الاستخدام المعلن'), onPressed: _landUse),
           ])),

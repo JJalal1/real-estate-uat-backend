@@ -62,6 +62,19 @@ class _SupportPaymentRepository implements FinancialRepository {
 }
 
 void main() {
+  test('financial balances preserve currency and read earlier YER summaries', () {
+    final mixed = FinancialAccountSummary.fromJson({
+      'pending_payouts': 20000,
+      'amounts_by_currency': {
+        'pending_payouts': {'YER': 20000, 'USD': 12.5},
+        'open_platform_due': {'SAR': 6},
+      },
+    });
+    expect(mixed.pendingPayouts, {'YER': 20000, 'USD': 12.5});
+    expect(mixed.openPlatformDue, {'SAR': 6});
+    expect(FinancialAccountSummary.fromJson({'paid_payouts': 25}).paidPayouts, {'YER': 25});
+  });
+
   test('listing editor keeps monthly price and selected rental conditions before settlement', () {
     final source = File(
       'lib/features/properties/presentation/listing_editor_screen.dart',
@@ -70,7 +83,7 @@ void main() {
     expect(source, contains('final _monthlyRent = TextEditingController()'));
     expect(source, contains('final _rentalTermMonths = TextEditingController()'));
     expect(source, contains('final _advanceMonths = TextEditingController()'));
-    expect(source, contains('الإيجار الشهري بالريال اليمني'));
+    expect(source, contains('الإيجار الشهري'));
     expect(source, contains('RentalConditionsEditor'));
     final conditions = File('lib/features/properties/presentation/rental_conditions_editor.dart').readAsStringSync();
     expect(conditions, contains('عدد أشهر المقدم'));

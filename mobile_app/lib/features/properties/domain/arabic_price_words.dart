@@ -1,4 +1,10 @@
-String? arabicRiyalAmountInWords(String rawValue) {
+const listingCurrencyPhrases = {
+  'YER': 'بالريال اليمني',
+  'SAR': 'بالريال السعودي',
+  'USD': 'بالدولار',
+};
+
+String? arabicRiyalAmountInWords(String rawValue, {String currency = 'YER'}) {
   var normalized = rawValue.replaceAll(',', '').replaceAll('٬', '').replaceAll('٫', '.').trim();
   const arabic = '٠١٢٣٤٥٦٧٨٩', persian = '۰۱۲۳۴۵۶۷۸۹';
   for (var i = 0; i < 10; i++) { normalized = normalized.replaceAll(arabic[i], '$i').replaceAll(persian[i], '$i'); }
@@ -7,7 +13,14 @@ String? arabicRiyalAmountInWords(String rawValue) {
   if (value == null || value < 0 || value > 1000000000000) return null;
   final fils = parts.length == 1 ? 0 : int.parse(parts[1].padRight(2, '0'));
   if (value == 0 && fils == 0) return null;
-  return '${arabicIntegerInWords(value)} ريال يمني${fils == 0 ? '' : ' و${arabicIntegerInWords(fils)} فلس'}';
+  if (!listingCurrencyPhrases.containsKey(currency)) return null;
+  final (unit, fraction) = switch (currency) {
+    'YER' => ('ريال يمني', 'فلس'),
+    'SAR' => ('ريال سعودي', 'هللة'),
+    'USD' => ('دولار أمريكي', 'سنت'),
+    _ => (currency, ''),
+  };
+  return '${arabicIntegerInWords(value)} $unit${fils == 0 ? '' : ' و${arabicIntegerInWords(fils)} $fraction'}';
 }
 
 String arabicIntegerInWords(int value) {

@@ -72,13 +72,13 @@ class ListingWorkflowService
     public function submit(User $actor, Property $listing, Request $request): Property
     {
         $request->validate(['publish_now' => ['sometimes', 'boolean'], 'upgrade_to_broker' => ['sometimes', 'boolean']]);
-        $direct = $request->boolean('publish_now');
-        $accepted = DB::transaction(function () use ($actor, $listing, $request, $direct) {
+        $marketplaceSubmit = $request->boolean('publish_now');
+        $accepted = DB::transaction(function () use ($actor, $listing, $request, $marketplaceSubmit) {
             $actor = User::query()->lockForUpdate()->findOrFail($actor->id);
             $locked = Property::query()->whereKey($listing->id)->lockForUpdate()->firstOrFail();
             abort_unless((int) $actor->id === (int) $locked->user_id && $actor->canCreateListings(), 403);
             // A repeated submit after an interrupted mobile response returns the committed listing.
-            if ($direct && ($locked->status === 'published' || in_array($locked->review_status, ['submitted', 'under_review'], true))) {
+            if ($marketplaceSubmit && ($locked->status === 'published' || in_array($locked->review_status, ['submitted', 'under_review'], true))) {
                 return $locked;
             }
             if ($locked->status === 'archived' || ! in_array($locked->review_status, ['draft', 'returned_for_correction'], true)) {
@@ -89,7 +89,7 @@ class ListingWorkflowService
             }
 
             $from = $locked->review_status;
-            if ($direct) {
+            if ($marketplaceSubmit) {
                 app(PropertySaiService::class)->assertReadyForSubmission($locked, $actor);
             }
             app(ListingAccessService::class)->authorizePublication($actor, $locked, $request);
@@ -97,14 +97,11 @@ class ListingWorkflowService
             $this->assets->assertPurposeNotBlocked($asset, $locked->purpose);
             $this->regions->assertListingAllowed($actor, (float) $locked->latitude, (float) $locked->longitude);
 
-            if ($direct && $from === 'draft' && $this->publishIfDistinct($actor, $locked, $asset, $request)) {
-                return $locked;
-            }
-
             $locked->forceFill([
                 'first_listed_at' => $locked->first_listed_at ?? now(),
                 'status' => 'pending',
                 'review_status' => 'submitted',
+                'published_at' => null,
                 'submitted_at' => now(),
                 'reviewed_at' => null,
                 'last_review_reason' => null,
@@ -116,7 +113,7 @@ class ListingWorkflowService
                 'duplicate_checked_at' => null,
             ])->save();
 
-            $this->review($actor, $locked, 'submitted', $from, 'submitted', metadata: ['marketplace_publish' => $direct]);
+            $this->review($actor, $locked, 'submitted', $from, 'submitted', metadata: ['marketplace_publish' => $marketplaceSubmit]);
             $this->audit->record(
                 $actor,
                 'listing.submitted',
@@ -138,42 +135,6 @@ class ListingWorkflowService
             $this->processSubmittedIdentity($actor, $accepted);
         }
         return $accepted->fresh(['images', 'documents', 'propertyAsset']);
-    }
-
-    private function publishIfDistinct(User $actor, Property $listing, PropertyAsset $asset, Request $request): bool
-    {
-        // Existing media findings and duplicate candidates keep their moderation workflow.
-        foreach ($this->mediaReviewStates($listing) as $review) {
-            if ($review['decision'] !== 'relevant') return false;
-        }
-        try {
-            $distinct = DB::transaction(function () use ($listing, $actor): bool {
-                $identity = $this->identity->evaluate($listing, $actor, true);
-                return $identity['decision'] === 'distinct' && $this->assets->likelyDuplicates($listing) === [];
-            });
-        } catch (\Throwable $error) {
-            Log::warning('Direct listing identity check needs review.', ['listing_id' => $listing->id, 'error_type' => $error::class]);
-            return false;
-        }
-        if (! $distinct) return false;
-
-        $this->assets->assertNotAlreadyPublished($asset, $listing->purpose, $listing->id);
-        $this->identity->ensureRepresentation($listing);
-        $listing->forceFill([
-            'status' => 'published',
-            'review_status' => 'approved',
-            'first_listed_at' => $listing->first_listed_at ?? now(),
-            'submitted_at' => now(),
-            'published_at' => now(),
-            'reviewed_at' => null,
-            'last_review_reason' => null,
-            'review_assigned_to_user_id' => null,
-            'review_assigned_at' => null,
-        ])->save();
-        $this->review($actor, $listing, 'published_by_advertiser', 'draft', 'approved');
-        $this->audit->record($actor, 'listing.published_by_advertiser', $listing,
-            ['property_identity_status' => 'distinct'], $request, $actor->id);
-        return true;
     }
 
     public function processSubmittedIdentity(User $actor, Property $listing): array
