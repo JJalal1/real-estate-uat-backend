@@ -19,6 +19,9 @@ String? notificationDestination(AppNotificationItem item) {
   if (item.entityType == 'support_staff_thread' && item.entityId != null) {
     return '/support/internal/${item.entityId}';
   }
+  if (item.entityType == 'executive_support_task' && item.entityId != null) {
+    return '/admin/general-manager/decisions/${item.entityId}';
+  }
   if (item.entityType == 'support_report_decision' && item.entityId != null) {
     return '/support/publication-hold/${item.entityId}';
   }

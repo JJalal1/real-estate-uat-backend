@@ -13,6 +13,7 @@ import '../../account/presentation/account_screen.dart';
 import '../../account/presentation/auth_gate.dart';
 import '../../admin/presentation/general_manager_finance_hubs.dart';
 import '../../admin/presentation/general_manager_pages.dart';
+import '../../admin/presentation/general_manager_operations_screen.dart';
 import '../../discovery/presentation/marketplace_categories_screen.dart';
 import '../../discovery/presentation/marketplace_home_screen.dart';
 import '../../messages/data/unread_inbox_repository.dart';
@@ -293,10 +294,10 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       case 'platform':
         return const _ShellData(
           pages: [
-            GeneralManagerHomeFinancialOverlay(),
+            GeneralManagerOperationsScreen(GeneralManagerSection.home),
             GeneralManagerMarketScreen(),
             GeneralManagerAdministrationFinancialHubScreen(),
-            GeneralManagerReportsFinancialHubScreen(),
+            GeneralManagerOperationsScreen(GeneralManagerSection.reports),
             AccountScreen(),
           ],
           items: [

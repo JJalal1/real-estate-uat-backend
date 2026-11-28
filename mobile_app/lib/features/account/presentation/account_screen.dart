@@ -49,6 +49,8 @@ class AccountScreen extends ConsumerWidget {
                     user.roles.contains('support_agent'));
             final hasBrokerTab = user != null &&
                 user.isBroker && user.hasMarketplaceProfessionalProfile;
+            final supportWorkspace = administrativeRole &&
+                !user.isPlatformOwner && !user.hasRole('super_admin');
             final appearance = _AccountRow(
               'المظهر',
               Icons.contrast_outlined,
@@ -78,6 +80,7 @@ class AccountScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.s12),
                 ],
+                if (!supportWorkspace) ...[
                 const AppSectionHeader(title: 'تصفّح العقارات'),
                 const SizedBox(height: AppSpacing.s8),
                 _AccountGroup(key: const ValueKey('account-preferences-group'), rows: [
@@ -100,6 +103,7 @@ class AccountScreen extends ConsumerWidget {
                   if (user == null) appearance,
                 ]),
                 const SizedBox(height: AppSpacing.s12),
+                ],
                 if (user == null) ...[
                   AppButton(
                     label: 'تسجيل الدخول أو إنشاء حساب',
@@ -142,7 +146,7 @@ class AccountScreen extends ConsumerWidget {
                         Icons.security_outlined,
                         () => context.push('/account-safety'),
                       ),
-                      _AccountRow(
+                      if (!supportWorkspace) _AccountRow(
                         'تفضيلات الإشعارات',
                         Icons.tune_rounded,
                         () => Navigator.of(context).push<void>(
@@ -150,11 +154,15 @@ class AccountScreen extends ConsumerWidget {
                         ),
                       ),
                       appearance,
-                      if (administrativeRole)
+                      if (supportWorkspace)
+                        _AccountRow('إشعارات العمل', Icons.notifications_outlined,
+                          () => context.push('/notifications?work=1'))
+                      else if (administrativeRole)
                         _AccountRow('الإشعارات', Icons.notifications_outlined,
                           () => context.push('/notifications')),
                     ],
                   ),
+                  if (!supportWorkspace) ...[
                   const SizedBox(height: AppSpacing.s12),
                   const AppSectionHeader(title: 'الخدمات والدعم'),
                   const SizedBox(height: AppSpacing.s8),
@@ -180,7 +188,8 @@ class AccountScreen extends ConsumerWidget {
                         ),
                     ],
                   ),
-                  if (administrativeRole) ...[
+                  ],
+                  if (administrativeRole && !supportWorkspace) ...[
                     const SizedBox(height: AppSpacing.s20),
                     AppInlineMessage(
                       title: 'مساحة العمل منفصلة عن الحساب',
@@ -191,7 +200,7 @@ class AccountScreen extends ConsumerWidget {
                               : 'تابع الطلبات من «لوحة الدعم» و«الوارد».',
                       tone: AppStatusTone.info,
                     ),
-                  ] else if (!hasBrokerTab) ...[
+                  ] else if (!administrativeRole && !hasBrokerTab) ...[
                     if (!user.hasMarketplaceProfessionalProfile) ...[
                       const SizedBox(height: AppSpacing.s20),
                       const AppSectionHeader(title: 'عقاراتي'),

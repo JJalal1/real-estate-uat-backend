@@ -341,6 +341,11 @@ class SupportWorkspaceRepository {
     return _task(response.data);
   }
 
+  Future<void> forwardToExecutive(int taskId, String reason) async {
+    await _workspaceData('POST', '/admin/workspace/tasks/$taskId/forward-to-executive',
+      body: {'reason': reason});
+  }
+
   Future<SupportTaskItem> reopen(int taskId) =>
       _taskPost('/admin/workspace/tasks/$taskId/reopen');
 
@@ -387,21 +392,14 @@ class SupportWorkspaceRepository {
         .toList(growable: false);
   }
 
-  Future<List<SupportTeamMember>> team() async {
-    final response = await _dio.get<Map<String, dynamic>>(
-      '/admin/workspace/team',
-      options: await _auth.requiredAuthOptions(),
-    );
-    final rows = response.data?['data'];
-    if (rows is! List) return const <SupportTeamMember>[];
-    return rows
-        .whereType<Map>()
-        .map(
-          (row) => SupportTeamMember.fromJson(
-            row.map((key, value) => MapEntry(key.toString(), value)),
-          ),
-        )
-        .toList(growable: false);
+  Future<List<SupportTeamMember>> team() => teamActivity();
+
+  Future<List<SupportTeamMember>> teamActivity({String? period}) async {
+    final rows = await _workspaceData('GET', '/admin/workspace/team',
+      query: {if (period != null) 'period': period});
+    return (rows as List).whereType<Map>().map((row) => SupportTeamMember.fromJson(
+      Map<String, dynamic>.from(row),
+    )).toList(growable: false);
   }
 
   Future<List<SupportTeamSummary>> teams() async {

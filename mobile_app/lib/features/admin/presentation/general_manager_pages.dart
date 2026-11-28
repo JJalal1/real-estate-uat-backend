@@ -554,6 +554,9 @@ class _GeneralManagerMapScreenState
   static const _yemen = LatLng(15.5527, 48.5164);
   final _search = TextEditingController();
   Timer? _debounce;
+  Timer? _mapTimeout;
+  int _mapAttempt = 0;
+  bool _mapDelayed = false;
   MapLibreMapController? _map;
   bool _styleLoaded = false;
   bool _mapReady = false;
@@ -568,12 +571,14 @@ class _GeneralManagerMapScreenState
   void initState() {
     super.initState();
     _insights = widget.initialInsights;
+    _startMapTimeout();
     Future.microtask(_load);
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _mapTimeout?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -602,41 +607,61 @@ class _GeneralManagerMapScreenState
   }
 
   Future<void> _onStyleLoaded() async {
+    _mapTimeout?.cancel();
     _styleLoaded = true;
     if (mounted) setState(() => _mapReady = true);
     await _syncProperties();
   }
 
-  Future<void> _syncProperties() async {
+  void _startMapTimeout() {
+    _mapTimeout?.cancel();
+    _mapTimeout = Timer(const Duration(seconds: 12), () {
+      if (mounted && !_mapReady) setState(() => _mapDelayed = true);
+    });
+  }
+
+  void _retryMap() {
+    setState(() {
+      _mapAttempt++;
+      _map = null;
+      _styleLoaded = false;
+      _mapReady = false;
+      _mapDelayed = false;
+    });
+    _startMapTimeout();
+    if (_insights == null || _governorates.isEmpty) unawaited(_load());
+  }
+
+  Future<void> _markerUpdate = Future<void>.value();
+
+  Iterable<Map<String, dynamic>> get _visibleProperties =>
+      (_insights?.marketList('map_properties') ?? const <Map<String, dynamic>>[])
+          .where((row) => _governorateId == null ||
+              int.tryParse('${row['governorate_id']}') == _governorateId);
+
+  Future<void> _syncProperties() {
+    final province = _governorateId;
     final map = _map;
-    final insights = _insights;
-    if (map == null || !_styleLoaded || insights == null) return;
-    try {
-      await map.clearCircles();
-      final points = <LatLng>[];
-      for (final row in insights.marketList('map_properties')) {
-        final lat = _asDouble(row['latitude']);
-        final lng = _asDouble(row['longitude']);
-        if (lat == null || lng == null) continue;
-        final point = LatLng(lat, lng);
-        points.add(point);
-        await map.addCircle(CircleOptions(
-          geometry: point,
-          circleRadius: 7,
-          circleColor: '#0B8A55',
-          circleStrokeColor: '#FFFFFF',
-          circleStrokeWidth: 2,
-        ));
+    return _markerUpdate = _markerUpdate.then((_) async {
+      if (!mounted || map == null || _map != map || !_styleLoaded || province != _governorateId) return;
+      try {
+        await map.clearCircles();
+        if (!mounted || _map != map || province != _governorateId) return;
+        final circles = <CircleOptions>[];
+        for (final row in _visibleProperties) {
+          final lat = _asDouble(row['latitude']);
+          final lng = _asDouble(row['longitude']);
+          if (lat == null || lng == null) continue;
+          circles.add(CircleOptions(
+            geometry: LatLng(lat, lng), circleRadius: 7,
+            circleColor: '#0B8A55', circleStrokeColor: '#FFFFFF', circleStrokeWidth: 2,
+          ));
+        }
+        if (circles.isNotEmpty) await map.addCircles(circles);
+      } catch (_) {
+        // The native view can be disposed while a marker update is in flight.
       }
-      if (points.isNotEmpty && widget.initialInsights == null) {
-        final lat =
-            points.fold<double>(0, (s, p) => s + p.latitude) / points.length;
-        final lng =
-            points.fold<double>(0, (s, p) => s + p.longitude) / points.length;
-        await map
-            .animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 6.2));
-      }
-    } catch (_) {}
+    });
   }
 
   void _onSearchChanged(String value) {
@@ -668,7 +693,7 @@ class _GeneralManagerMapScreenState
         _searching = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || _search.text.trim() != query) return;
       setState(() {
         _results = const [];
         _searching = false;
@@ -688,9 +713,13 @@ class _GeneralManagerMapScreenState
 
   Future<void> _focusGovernorate(GovernorateModel gov) async {
     setState(() => _governorateId = gov.id);
+    await _syncProperties();
+    if (!mounted || _governorateId != gov.id) return;
     _search.text = gov.nameAr;
     await _searchPlaces(gov.nameAr);
-    if (_results.isNotEmpty) await _focusPlace(_results.first);
+    if (mounted && _governorateId == gov.id && _results.isNotEmpty) {
+      await _focusPlace(_results.first);
+    }
   }
 
   Future<void> _showYemen() async {
@@ -699,12 +728,16 @@ class _GeneralManagerMapScreenState
       _results = const [];
       _search.clear();
     });
-    await _map?.animateCamera(CameraUpdate.newLatLngZoom(_yemen, 5.2));
+    await _syncProperties();
+    if (mounted && _governorateId == null) {
+      await _map?.animateCamera(CameraUpdate.newLatLngZoom(_yemen, 5.2));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final markers = _insights?.marketList('map_properties').length ?? 0;
+    final markers = _visibleProperties.length;
+    final attempt = _mapAttempt;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -783,26 +816,33 @@ class _GeneralManagerMapScreenState
                 height: 390,
                 child: Stack(children: [
                   MapLibreMap(
+                    key: ValueKey(attempt),
                     styleString: _style,
                     initialCameraPosition:
                         const CameraPosition(target: _yemen, zoom: 5.2),
-                    onMapCreated: _onMapCreated,
-                    onStyleLoadedCallback: _onStyleLoaded,
+                    onMapCreated: (map) {
+                      if (mounted && attempt == _mapAttempt) _onMapCreated(map);
+                    },
+                    onStyleLoadedCallback: () {
+                      if (mounted && attempt == _mapAttempt) unawaited(_onStyleLoaded());
+                    },
                     myLocationEnabled: false,
                     compassEnabled: true,
                     rotateGesturesEnabled: true,
                   ),
                   if (!_mapReady)
-                    const Positioned.fill(
+                    Positioned.fill(
                         child: ColoredBox(
-                            color: Color(0x99FFFFFF),
+                            color: Theme.of(context).colorScheme.surface.withValues(alpha: .85),
                             child: Center(
                                 child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                  CircularProgressIndicator(),
-                                  SizedBox(height: 10),
-                                  Text('جاري تحميل الخريطة…')
+                                  if (!_mapDelayed) const CircularProgressIndicator(),
+                                  const SizedBox(height: 10),
+                                  Text(_mapDelayed ? 'تأخر تحميل الخريطة' : 'جارٍ تحميل الخريطة…'),
+                                  if (_mapDelayed)
+                                    TextButton(onPressed: _retryMap, child: const Text('إعادة المحاولة')),
                                 ])))),
                 ]),
               ),
@@ -812,14 +852,7 @@ class _GeneralManagerMapScreenState
               icon: Icons.home_work_outlined,
               title: '$markers عقارات منشورة بمواقع جغرافية',
               subtitle:
-                  'النقاط الخضراء تمثل مواقع العقارات المنشورة الفعلية. لا يتم عرض مواقع المستخدمين الشخصية.',
-            ),
-            const SizedBox(height: 10),
-            const _InfoPanel(
-              icon: Icons.layers_outlined,
-              title: 'طبقات إدارية قادمة مع تنظيم الدعم',
-              subtitle:
-                  'عند بناء نطاقات مدير الدعم وموظفيه سنضيف طبقة فرق الدعم والأحمال حسب المحافظة، بدون خلطها الآن مع تجربة المدير.',
+                  'النقاط الخضراء تعرض مواقع العقارات المنشورة ضمن النطاق المختار.',
             ),
           ],
         ),
@@ -1355,6 +1388,7 @@ String _propertyTypeLabel(String type) => switch (type) {
       'land' => 'أرض',
       'shop' => 'محل',
       'office' => 'مكتب',
+      'building' => 'عمارة',
       'farm' => 'مزرعة',
       _ => type.isEmpty ? 'غير محدد' : type
     };

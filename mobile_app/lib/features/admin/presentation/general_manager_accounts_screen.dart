@@ -412,7 +412,7 @@ class _StatusChip extends StatelessWidget {
 String? _primaryAdministrativeRole(AccessUserSummary user) {
   if (user.isPlatformOwner || user.roles.contains('super_admin')) return 'المدير العام';
   if (user.roles.contains('platform_admin')) return 'مدير إداري';
-  if (user.roles.contains('support_manager')) return 'مدير دعم';
+  if (user.roles.contains('support_manager')) return 'مدير فريق محافظة';
   if (user.roles.contains('support_agent')) return 'موظف دعم';
   return null;
 }
@@ -440,7 +440,7 @@ List<String> _visibleRoleLabels(List<String> roles) {
 String _friendlyRole(String key, {String? fallback}) => switch (key) {
       'super_admin' => 'المدير العام',
       'platform_admin' => 'مدير إداري',
-      'support_manager' => 'مدير دعم',
+      'support_manager' => 'مدير فريق محافظة',
       'support_agent' => 'موظف دعم',
       'broker' => 'دلال',
       'registered_user' => 'مستخدم',

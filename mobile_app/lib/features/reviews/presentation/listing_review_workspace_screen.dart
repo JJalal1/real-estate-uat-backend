@@ -12,6 +12,7 @@ import '../../../core/widgets/app_components.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/account_request_scope.dart';
 import '../../account/presentation/actor_scoped_page.dart';
+import '../../map/presentation/aqer_map.dart';
 import '../../properties/domain/property_field_options.dart';
 import '../../properties/presentation/property_location_preview.dart';
 import '../data/listing_review_repository.dart';
@@ -375,6 +376,9 @@ class _ListingReviewCaseScreenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) AqerMap.warmUpGoogle();
+    });
     _future = _load(); _future.ignore();
   }
 

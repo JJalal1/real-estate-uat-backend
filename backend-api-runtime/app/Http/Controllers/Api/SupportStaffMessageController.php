@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\SupportTask;
 use App\Models\User;
+use App\Models\UserNotification;
 use App\Services\SupportTeamRoutingService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -38,12 +39,25 @@ class SupportStaffMessageController extends Controller
     public function open(Request $request): JsonResponse
     {
         $actor = $request->user();
-        abort_unless($actor->hasRole('support_manager') && $actor->isActive(), 403);
+        $executive = $actor->is_platform_owner || $actor->hasRole('super_admin');
+        abort_unless($actor->isActive() && ($executive || $actor->hasRole('support_manager')), 403);
         $v = $request->validate([
             'channel' => ['required', Rule::in(['team', 'executive'])],
             'member_id' => ['required_if:channel,team', 'integer', 'min:1'],
             'team_id' => ['nullable', 'integer', 'min:1'],
         ]);
+        if ($executive) {
+            abort_unless($v['channel'] === 'executive' && isset($v['team_id']), 422);
+            $teamId = (int) $v['team_id'];
+            $managerId = DB::table('support_teams')->where('id', $teamId)
+                ->where('is_active', true)->value('manager_user_id');
+            $manager = User::query()->find($managerId);
+            abort_unless($manager?->isActive() && $manager->hasRole('support_manager')
+                && !$manager->is($actor) && in_array($teamId, $this->routing->managedTeamIds($manager), true), 404);
+
+            return $this->openThread($actor, $teamId, (int) $manager->id, (int) $actor->id, 'executive');
+        }
+
         $teamIds = $this->routing->managedTeamIds($actor);
         $teams = DB::table('support_teams')->whereIn('id', $teamIds)->where('is_active', true);
         if (isset($v['team_id'])) $teams->where('id', $v['team_id']);
@@ -60,11 +74,16 @@ class SupportStaffMessageController extends Controller
         }
         $teamId = $teams->orderBy('id')->value('id');
         abort_unless($teamId && $recipient->isActive() && !$recipient->is($actor), 404);
+        return $this->openThread($actor, (int) $teamId, (int) $actor->id, (int) $recipient->id, $v['channel']);
+    }
+
+    private function openThread(User $actor, int $team, int $manager, int $recipient, string $channel): JsonResponse
+    {
         $identity = [
-            'support_team_id' => $teamId,
-            'manager_user_id' => $actor->id,
-            'recipient_user_id' => $recipient->id,
-            'channel' => $v['channel'],
+            'support_team_id' => $team,
+            'manager_user_id' => $manager,
+            'recipient_user_id' => $recipient,
+            'channel' => $channel,
         ];
         DB::table('support_staff_threads')->insertOrIgnore($identity + ['created_at' => now(), 'updated_at' => now()]);
         $thread = DB::table('support_staff_threads')->where($identity)->first();
@@ -77,11 +96,17 @@ class SupportStaffMessageController extends Controller
         $actor = $request->user();
         $thread = $this->thread($actor, $threadId);
         $v = $request->validate(['before' => ['nullable', 'integer', 'min:1']]);
-        $rows = DB::table('support_staff_messages')->where('support_staff_thread_id', $threadId)
+        $messages = DB::table('support_staff_messages')->where('support_staff_thread_id', $threadId)
             ->when(isset($v['before']), fn ($query) => $query->where('id', '<', $v['before']))
-            ->latest('id')->limit(50)->get()->reverse()->values()->map(fn ($row) => [
+            ->latest('id')->limit(50)->get();
+        if (!isset($v['before']) && $messages->isNotEmpty()) {
+            $this->unread($actor, $threadId)->where('created_at', '<=', $messages->first()->created_at)
+                ->update(['read_at' => now()]);
+        }
+        $rows = $messages->reverse()->values()->map(fn ($row) => [
                 'id' => (int) $row->id, 'mine' => (int) $row->sender_user_id === (int) $actor->id,
                 'body' => $row->body, 'task_id' => $row->support_task_id ? (int) $row->support_task_id : null,
+                'created_at' => $row->created_at,
             ]);
 
         return response()->json(['data' => $this->summary($actor, $thread) + ['messages' => $rows]]);
@@ -160,6 +185,13 @@ class SupportStaffMessageController extends Controller
             'name' => $name,
             'team' => DB::table('support_teams')->where('id', $thread->support_team_id)->value('name_ar'),
             'preview' => $last === null ? null : mb_substr($last, 0, 120),
+            'unread' => $this->unread($actor, (int) $thread->id)->count(),
         ];
+    }
+
+    private function unread(User $actor, int $thread): \Illuminate\Database\Eloquent\Builder
+    {
+        return UserNotification::query()->where('user_id', $actor->id)->where('entity_type', 'support_staff_thread')
+            ->where('entity_id', $thread)->whereNull('read_at');
     }
 }

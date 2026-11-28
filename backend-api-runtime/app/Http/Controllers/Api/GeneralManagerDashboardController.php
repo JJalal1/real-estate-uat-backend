@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
 
 class GeneralManagerDashboardController extends Controller
 {
-    public const CACHE_KEY = 'general-manager:insights:v3';
+    public const CACHE_KEY = 'general-manager:insights:v4';
 
     public function refreshSummary(): void
     {
@@ -87,8 +87,7 @@ SELECT
  (SELECT COUNT(*) FROM rental_contracts) rental_contracts,
  (SELECT COUNT(*) FROM governorates) governorates_total,
  (SELECT COALESCE(jsonb_agg(jsonb_build_object('type',x.type,'total',x.total) ORDER BY x.total DESC),'[]'::jsonb) FROM (SELECT type,COUNT(*)::int total FROM properties WHERE status='published' GROUP BY type)x) property_types,
- (SELECT COALESCE(jsonb_agg(jsonb_build_object('id',x.id,'name',x.name_ar,'total',x.total,'sale',x.sale,'rent',x.rent) ORDER BY x.total DESC),'[]'::jsonb) FROM (SELECT g.id,g.name_ar,COUNT(*)::int total,COUNT(*) FILTER(WHERE p.purpose='sale')::int sale,COUNT(*) FILTER(WHERE p.purpose='rent')::int rent FROM properties p JOIN geo_cells c ON c.id=p.geo_cell_id JOIN governorates g ON g.id=c.governorate_id WHERE p.status='published' GROUP BY g.id,g.name_ar ORDER BY total DESC LIMIT 30)x) governorates,
- (SELECT COALESCE(jsonb_agg(jsonb_build_object('id',x.id,'title',x.title,'purpose',x.purpose,'type',x.type,'latitude',x.latitude,'longitude',x.longitude) ORDER BY x.id DESC),'[]'::jsonb) FROM (SELECT id,title,purpose,type,latitude,longitude FROM properties WHERE status='published' AND latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY id DESC LIMIT 500)x) map_properties
+ (SELECT COALESCE(jsonb_agg(jsonb_build_object('id',x.id,'name',x.name_ar,'total',x.total,'sale',x.sale,'rent',x.rent) ORDER BY x.total DESC),'[]'::jsonb) FROM (SELECT g.id,g.name_ar,COUNT(*)::int total,COUNT(*) FILTER(WHERE p.purpose='sale')::int sale,COUNT(*) FILTER(WHERE p.purpose='rent')::int rent FROM properties p JOIN geo_cells c ON c.id=p.geo_cell_id JOIN governorates g ON g.id=c.governorate_id WHERE p.status='published' GROUP BY g.id,g.name_ar ORDER BY total DESC LIMIT 30)x) governorates
 SQL);
 
         return $this->shape([
@@ -101,7 +100,7 @@ SQL);
             'pending_listing_reviews'=>(int)$row->pending_listing_reviews,'pending_verifications'=>(int)$row->pending_verifications,'approved_brokers'=>(int)$row->approved_brokers,'approved_offices'=>(int)$row->approved_offices,
             'pending_professional_verifications'=>(int)$row->pending_professional_verifications,'support_agents'=>(int)$row->support_agents,'support_managers'=>(int)$row->support_managers,
             'conversations'=>(int)$row->conversations,'viewings'=>(int)$row->viewings,'agreements'=>(int)$row->agreements,'rental_contracts'=>(int)$row->rental_contracts,'governorates_total'=>(int)$row->governorates_total,
-            'by_type'=>$this->jsonArray($row->property_types ?? null),'by_governorate'=>$this->jsonArray($row->governorates ?? null),'map_properties'=>$this->jsonArray($row->map_properties ?? null),
+            'by_type'=>$this->jsonArray($row->property_types ?? null),'by_governorate'=>$this->jsonArray($row->governorates ?? null),'map_properties'=>$this->mapProperties(),
         ]);
     }
 
@@ -126,8 +125,25 @@ SQL);
             'support_tasks_today'=>(clone $tasks)->where('created_at','>=',$today)->count(),'support_tasks_7d'=>(clone $tasks)->where('created_at','>=',$week)->count(),'support_tasks_30d'=>(clone $tasks)->where('created_at','>=',$month)->count(),
             'properties_total'=>DB::table('properties')->count(),'published_properties'=>(clone $published)->count(),'published_sale'=>(clone $published)->where('purpose','sale')->count(),'published_rent'=>(clone $published)->where('purpose','rent')->count(),'published_today'=>(clone $published)->where('published_at','>=',$today)->count(),'published_7d'=>(clone $published)->where('published_at','>=',$week)->count(),'published_30d'=>(clone $published)->where('published_at','>=',$month)->count(),'unmapped_published'=>Schema::hasColumn('properties','geo_cell_id')?(clone $published)->whereNull('geo_cell_id')->count():0,
             'pending_listing_reviews'=>DB::table('properties')->whereIn('review_status',['submitted','under_review'])->count(),'pending_verifications'=>Schema::hasTable('account_verification_profiles')?DB::table('account_verification_profiles')->whereIn('status',['pending','needs_more_info'])->count():0,'approved_brokers'=>Schema::hasTable('account_verification_profiles')?DB::table('account_verification_profiles')->where('type','broker')->where('status','approved')->count():0,'approved_offices'=>Schema::hasTable('account_verification_profiles')?DB::table('account_verification_profiles')->where('type','office')->where('status','approved')->count():0,'pending_professional_verifications'=>Schema::hasTable('account_verification_profiles')?DB::table('account_verification_profiles')->whereIn('type',['broker','office'])->whereIn('status',['pending','needs_more_info'])->count():0,
-            'support_agents'=>0,'support_managers'=>0,'conversations'=>$count('message_threads'),'viewings'=>$count('viewing_bookings'),'agreements'=>$count('property_agreements'),'rental_contracts'=>$count('rental_contracts'),'governorates_total'=>$count('governorates') ?? 0,'by_type'=>[],'by_governorate'=>[],'map_properties'=>[],
+            'support_agents'=>0,'support_managers'=>0,'conversations'=>$count('message_threads'),'viewings'=>$count('viewing_bookings'),'agreements'=>$count('property_agreements'),'rental_contracts'=>$count('rental_contracts'),'governorates_total'=>$count('governorates') ?? 0,'by_type'=>[],'by_governorate'=>[],'map_properties'=>$this->mapProperties(),
         ]);
+    }
+
+    private function mapProperties(): array
+    {
+        return DB::table('properties as property')
+            ->leftJoin('geo_cells as cell', 'cell.id', '=', 'property.geo_cell_id')
+            ->leftJoin('support_tasks as review', function ($join): void {
+                $join->on('review.source_id', '=', 'property.id')->where('review.source_type', 'listing_review');
+            })
+            ->where('property.status', 'published')
+            ->whereBetween('property.latitude', [-90, 90])->whereBetween('property.longitude', [-180, 180])
+            ->where(fn ($query) => $query->where('property.latitude', '<>', 0)->orWhere('property.longitude', '<>', 0))
+            ->orderByDesc('property.id')->limit(500)
+            ->get(['property.id', 'property.title', 'property.purpose', 'property.type',
+                'property.latitude', 'property.longitude',
+                DB::raw('COALESCE(cell.governorate_id, review.governorate_id) AS governorate_id')])
+            ->map(fn ($row) => (array) $row)->all();
     }
 
     private function shape(array $m): array

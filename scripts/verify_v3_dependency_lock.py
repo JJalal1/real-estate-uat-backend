@@ -35,6 +35,7 @@ APPROVED_UAT_1829_SHA = "eb4df35101387bdb0cc969224cdd28f5d5b913d9"
 # The approved design adds the Cairo font assets and their license to the 1829 manifest.
 APPROVED_CAIRO_MANIFEST_SHA256 = "c30ebd1d03da47c843ccf863b684f1f450de1807e0e61e9c2541af992d90c84c"
 APPROVED_REGIONS_MANIFEST_SHA256 = "213dc44d36224062c704de622346cfafd28624b0116c422f53b72f34cbeea3c8"
+APPROVED_MAPS_WARMUP_MANIFEST_SHA256 = "46fe07fb87884504f2dcb9a199d209ab331165128aa3cfc4cab5b4bc966ea79f"
 GOOGLE_MAPS_BASE_SHA = "2ff278bb27e25fcae8292a88128f58b3da04bc80"
 GOOGLE_MAPS_PACKAGES = {
     "csslib": "1.0.2",
@@ -243,6 +244,8 @@ def verify_google_maps_1826(baseline_lock, committed_lock, resolved, baseline_pu
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--resolved", required=True, type=Path)
+    parser.add_argument("--reference-lock", type=Path,
+                        help="write the verified lock for the independent UAT 1829 verifier")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--cleanup1818", action="store_true",
                       help="opt in to the finite approved cleanup on its exact CI branch")
@@ -252,7 +255,9 @@ def main():
                       help="verify unchanged dependency inputs from the signed UAT 1829 source")
     args = parser.parse_args()
     if args.approved_uat1829:
-        return verify_approved_uat1829(args.resolved)
+        return verify_approved_uat1829(args.resolved, args.reference_lock)
+    if args.reference_lock is not None:
+        parser.error("--reference-lock requires --approved-uat1829")
     baseline = GOOGLE_MAPS_BASE_SHA if args.google_maps1826 else GOLDEN_SHA
     original = subprocess.check_output(
         ["git", "show", baseline + ":mobile_app/pubspec.lock"], text=True,
@@ -303,13 +308,14 @@ def main():
     return 0
 
 
-def verify_approved_uat1829(resolved):
+def verify_approved_uat1829(resolved, reference_lock=None):
     inputs = (
         "mobile_app/pubspec.yaml",
         "mobile_app/pubspec.lock",
         "docs/ui-transplant-v3/pubspec_overrides.yaml",
     )
     try:
+        maps_warmup_declared = False
         subprocess.run(
             ["git", "merge-base", "--is-ancestor", APPROVED_UAT_1829_SHA, "HEAD"],
             cwd=ROOT, check=True,
@@ -317,13 +323,14 @@ def verify_approved_uat1829(resolved):
         for path in inputs:
             expected = subprocess.check_output(["git", "show", f"{APPROVED_UAT_1829_SHA}:{path}"], cwd=ROOT)
             committed = subprocess.check_output(["git", "show", f"HEAD:{path}"], cwd=ROOT)
-            approved_asset_manifest = (
-                path == "mobile_app/pubspec.yaml"
-                and hashlib.sha256(committed).hexdigest() in (
+            approved_manifest = False
+            if path == "mobile_app/pubspec.yaml":
+                manifest_sha = hashlib.sha256(committed).hexdigest()
+                maps_warmup_declared = manifest_sha == APPROVED_MAPS_WARMUP_MANIFEST_SHA256
+                approved_manifest = maps_warmup_declared or manifest_sha in (
                     APPROVED_CAIRO_MANIFEST_SHA256, APPROVED_REGIONS_MANIFEST_SHA256
                 )
-            )
-            if committed != expected and not approved_asset_manifest:
+            if committed != expected and not approved_manifest:
                 raise ValueError(f"Approved UAT 1829 dependency input changed: {path}")
             if path != "mobile_app/pubspec.lock" and (ROOT / path).read_bytes() != committed:
                 raise ValueError(f"Working dependency input differs from UAT 1829: {path}")
@@ -334,7 +341,18 @@ def verify_approved_uat1829(resolved):
             ["git", "show", f"{APPROVED_UAT_1829_SHA}:mobile_app/pubspec.lock"],
             cwd=ROOT, text=True,
         )
-        records = verify(baseline, resolved.read_text(encoding="utf-8"))
+        resolved_text = resolved.read_text(encoding="utf-8")
+        if maps_warmup_declared:
+            resolved_text, declarations = re.subn(
+                r'(?m)^(  google_maps_flutter_android:\n    dependency: )"direct main"$',
+                r"\g<1>transitive",
+                resolved_text,
+            )
+            if declarations != 1:
+                raise ValueError("The pinned Android Maps SDK must be declared directly")
+        records = verify(baseline, resolved_text)
+        if reference_lock is not None:
+            reference_lock.write_text(resolved_text, encoding="utf-8")
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print("Dependency guard FAILED: " + str(error))
         return 1

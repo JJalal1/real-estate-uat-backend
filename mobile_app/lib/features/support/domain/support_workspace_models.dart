@@ -84,6 +84,8 @@ class SupportTaskItem {
   final bool canClaim;
   final bool isOverdue;
   final Map<String, dynamic> metadata;
+  bool get awaitingExecutiveDecision =>
+      status == 'escalated' && metadata['executive_escalation'] is Map;
 
   bool get isClosed => status == 'completed' || status == 'rejected';
 
@@ -149,6 +151,8 @@ class SupportTeamMember {
     required this.capacity,
     required this.completedToday,
     required this.workloadPercent,
+    this.completedInPeriod = 0,
+    this.activeInPeriod = 0,
     this.teamId,
     this.teamName,
     this.averageClaimMinutes,
@@ -174,6 +178,8 @@ class SupportTeamMember {
   final int capacity;
   final int completedToday;
   final int workloadPercent;
+  final int completedInPeriod;
+  final int activeInPeriod;
   final int? averageClaimMinutes;
   final int? averageResponseMinutes;
   final int? averageCompletionMinutes;
@@ -197,6 +203,8 @@ class SupportTeamMember {
       isAvailable: json['is_available'] != false,
       capacity: _int(json['capacity']) == 0 ? 10 : _int(json['capacity']),
       completedToday: _int(json['completed_today']),
+      completedInPeriod: _int(json['completed_in_period'] ?? json['completed_today']),
+      activeInPeriod: _int(json['active_in_period']),
       workloadPercent: _int(json['workload_percent']),
       averageClaimMinutes: json['average_claim_minutes'] == null
           ? null
@@ -406,13 +414,14 @@ DateTime? _date(dynamic value) {
 
 class SupportStaffThread {
   const SupportStaffThread({required this.id, required this.name, required this.channel,
-    this.team, this.preview, this.messages = const []});
+    this.team, this.preview, this.unread = 0, this.messages = const []});
 
   final int id;
   final String name;
   final String channel;
   final String? team;
   final String? preview;
+  final int unread;
   final List<SupportStaffMessage> messages;
 
   factory SupportStaffThread.fromJson(Map<String, dynamic> json) => SupportStaffThread(
@@ -421,6 +430,7 @@ class SupportStaffThread {
     channel: json['channel']?.toString() ?? '',
     team: _text(json['team']),
     preview: _text(json['preview']),
+    unread: _int(json['unread']),
     messages: (json['messages'] as List? ?? const [])
         .whereType<Map<String, dynamic>>().map(SupportStaffMessage.fromJson).toList(growable: false),
   );

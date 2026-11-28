@@ -8,6 +8,7 @@ import '../../../core/network/api_error_message.dart';
 import '../../../core/platform/client_request_key.dart';
 import '../../../core/widgets/app_components.dart';
 import '../../account/data/account_request_scope.dart';
+import '../../account/data/auth_controller.dart';
 import '../data/support_workspace_repository.dart';
 import '../domain/support_workspace_models.dart';
 
@@ -108,8 +109,7 @@ class _SupportMessagesScreenState extends ConsumerState<SupportMessagesScreen> {
     ref.watch(accountRequestScopeProvider);
     if (!_scope.isCurrent) return const SizedBox.shrink();
     return Scaffold(
-      appBar:
-          AppAppBar(title: widget.executive ? 'مراسلات فرق الدعم' : 'الرسائل'),
+      appBar: const AppAppBar(title: 'الرسائل'),
       body: _loading && _internal.isEmpty && _cases.isEmpty
           ? const AppLoadingState(label: 'جارٍ تحميل المحادثات…')
           : RefreshIndicator(
@@ -144,7 +144,9 @@ class _SupportMessagesScreenState extends ConsumerState<SupportMessagesScreen> {
                           ].join('\n'),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis),
-                      trailing: const Icon(Icons.chevron_left),
+                      trailing: thread.unread > 0
+                          ? Badge(label: Text('${thread.unread}'))
+                          : const Icon(Icons.chevron_left),
                       onTap: () async {
                         await context
                             .push<void>('/support/internal/${thread.id}');
@@ -305,6 +307,8 @@ class _SupportStaffChatScreenState
   Widget build(BuildContext context) {
     ref.watch(accountRequestScopeProvider);
     if (!_scope.isCurrent) return const SizedBox.shrink();
+    final user = ref.watch(authControllerProvider).asData?.value;
+    final executive = user?.isPlatformOwner == true || user?.hasRole('super_admin') == true;
     final thread = _thread;
     return Scaffold(
       appBar: AppAppBar(title: thread?.name ?? 'محادثة داخلية'),
@@ -342,9 +346,10 @@ class _SupportStaffChatScreenState
                                     TextButton.icon(
                                         icon: const Icon(
                                             Icons.assignment_outlined),
-                                        onPressed: () => context.push(
-                                            '/support/workspace/tasks/$task?manager=1'),
-                                        label: const Text('فتح المهمة')),
+                                        onPressed: () => context.push(executive
+                                            ? '/admin/general-manager/decisions/$task'
+                                            : '/support/workspace/tasks/$task?manager=1'),
+                                        label: const Text('فتح الحالة')),
                                 ],
                               )))),
               ])),

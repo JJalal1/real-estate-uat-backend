@@ -58,6 +58,22 @@ class MessageRepository {
         filters: {if (platformHistory) 'platform_history': 1,
           if (platformHistory && unreadOnly) 'unread_only': 1});
 
+  Future<NotificationPage> workNotificationsPage({int page = 1, bool unreadOnly = false}) =>
+      _inboxPage('/notifications', AppNotificationItem.fromJson,
+        page: page, perPage: 40, maxPerPage: 200,
+        filters: {'platform_history': 1, 'work_only': 1, if (unreadOnly) 'unread_only': 1});
+
+  Future<void> readAllWorkNotifications() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final options = await _sessionOptions();
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) throw StateError('ACCOUNT_CHANGED');
+    await _dio.post<Map<String, dynamic>>('/notifications/history/read-all',
+      queryParameters: {'work_only': 1}, options: options);
+    _requestScope?.verify();
+    if (epoch != Stage6SecureSessionStore.instance.sessionEpoch) throw StateError('ACCOUNT_CHANGED');
+  }
+
   Future<ConversationReportPage> adminReportsPage({int page = 1,
       int perPage = 40, String? status}) =>
       _inboxPage('/admin/messages/reports', ConversationReportSummary.fromJson,
