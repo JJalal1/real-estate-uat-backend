@@ -54,13 +54,18 @@ SELECT
  (SELECT COUNT(*) FROM users WHERE created_at >= (SELECT today_start FROM params)) users_new_today,
  (SELECT COUNT(*) FROM users WHERE created_at >= (SELECT week_start FROM params)) users_new_7d,
  (SELECT COUNT(*) FROM users WHERE created_at >= (SELECT month_start FROM params)) users_new_30d,
- (SELECT COUNT(*) FROM support_tasks WHERE status IN ('new','in_progress','waiting_user','waiting_internal','needs_followup','escalated')) open_support_tasks,
- (SELECT COUNT(*) FROM support_tasks WHERE status IN ('new','in_progress','waiting_user','waiting_internal','needs_followup','escalated') AND sla_due_at IS NOT NULL AND sla_due_at <= CURRENT_TIMESTAMP) overdue_support_tasks,
- (SELECT COUNT(*) FROM support_tasks WHERE status='escalated') escalated_support_tasks,
- (SELECT COUNT(*) FROM support_tasks WHERE status IN ('new','in_progress','waiting_user','waiting_internal','needs_followup','escalated') AND source_type='report' AND severity='critical') critical_reports,
- (SELECT COUNT(*) FROM support_tasks WHERE created_at >= (SELECT today_start FROM params)) support_tasks_today,
- (SELECT COUNT(*) FROM support_tasks WHERE created_at >= (SELECT week_start FROM params)) support_tasks_7d,
- (SELECT COUNT(*) FROM support_tasks WHERE created_at >= (SELECT month_start FROM params)) support_tasks_30d,
+ (SELECT COUNT(*) FROM support_tasks WHERE source_type <> 'contact_followup' AND status IN ('new','in_progress','waiting_user','waiting_internal','needs_followup','escalated')) open_support_tasks,
+ (SELECT COUNT(*) FROM support_tasks WHERE source_type <> 'contact_followup' AND status IN ('new','in_progress','waiting_user','waiting_internal','needs_followup','escalated') AND sla_due_at IS NOT NULL AND sla_due_at <= CURRENT_TIMESTAMP) overdue_support_tasks,
+ (SELECT COUNT(*) FROM support_tasks WHERE source_type <> 'contact_followup' AND status='escalated') escalated_support_tasks,
+ (SELECT COUNT(*) FROM support_tasks WHERE source_type <> 'contact_followup' AND status IN ('new','in_progress','waiting_user','waiting_internal','needs_followup','escalated') AND source_type='report' AND severity='critical') critical_reports,
+ (SELECT COUNT(*) FROM support_tasks
+  WHERE source_type <> 'contact_followup'
+    AND status IN ('new','in_progress','waiting_user','waiting_internal','needs_followup','escalated')
+    AND (sla_due_at <= CURRENT_TIMESTAMP OR status='escalated' OR (source_type='report' AND severity='critical'))
+ ) support_intervention_count,
+ (SELECT COUNT(*) FROM support_tasks WHERE source_type <> 'contact_followup' AND created_at >= (SELECT today_start FROM params)) support_tasks_today,
+ (SELECT COUNT(*) FROM support_tasks WHERE source_type <> 'contact_followup' AND created_at >= (SELECT week_start FROM params)) support_tasks_7d,
+ (SELECT COUNT(*) FROM support_tasks WHERE source_type <> 'contact_followup' AND created_at >= (SELECT month_start FROM params)) support_tasks_30d,
  (SELECT COUNT(*) FROM properties) properties_total,
  (SELECT COUNT(*) FROM properties WHERE status='published') published_properties,
  (SELECT COUNT(*) FROM properties WHERE status='published' AND purpose='sale') published_sale,
@@ -89,6 +94,7 @@ SQL);
         return $this->shape([
             'users_total'=>(int)$row->users_total,'users_new_today'=>(int)$row->users_new_today,'users_new_7d'=>(int)$row->users_new_7d,'users_new_30d'=>(int)$row->users_new_30d,
             'open_support_tasks'=>(int)$row->open_support_tasks,'overdue_support_tasks'=>(int)$row->overdue_support_tasks,'escalated_support_tasks'=>(int)$row->escalated_support_tasks,'critical_reports'=>(int)$row->critical_reports,
+            'support_intervention_count'=>(int)$row->support_intervention_count,
             'support_tasks_today'=>(int)$row->support_tasks_today,'support_tasks_7d'=>(int)$row->support_tasks_7d,'support_tasks_30d'=>(int)$row->support_tasks_30d,
             'properties_total'=>(int)$row->properties_total,'published_properties'=>(int)$row->published_properties,'published_sale'=>(int)$row->published_sale,'published_rent'=>(int)$row->published_rent,
             'published_today'=>(int)$row->published_today,'published_7d'=>(int)$row->published_7d,'published_30d'=>(int)$row->published_30d,'unmapped_published'=>(int)$row->unmapped_published,
@@ -106,12 +112,18 @@ SQL);
         $week = now()->subDays(7);
         $month = now()->subDays(30);
         $published = DB::table('properties')->where('status', 'published');
-        $active = DB::table('support_tasks')->whereIn('status', ['new','in_progress','waiting_user','waiting_internal','needs_followup','escalated']);
+        $tasks = DB::table('support_tasks')->where('source_type', '!=', 'contact_followup');
+        $active = (clone $tasks)->whereIn('status', ['new','in_progress','waiting_user','waiting_internal','needs_followup','escalated']);
 
         return $this->shape([
             'users_total'=>DB::table('users')->count(),'users_new_today'=>DB::table('users')->where('created_at','>=',$today)->count(),'users_new_7d'=>DB::table('users')->where('created_at','>=',$week)->count(),'users_new_30d'=>DB::table('users')->where('created_at','>=',$month)->count(),
             'open_support_tasks'=>(clone $active)->count(),'overdue_support_tasks'=>(clone $active)->whereNotNull('sla_due_at')->where('sla_due_at','<=',now())->count(),'escalated_support_tasks'=>(clone $active)->where('status','escalated')->count(),'critical_reports'=>(clone $active)->where('source_type','report')->where('severity','critical')->count(),
-            'support_tasks_today'=>DB::table('support_tasks')->where('created_at','>=',$today)->count(),'support_tasks_7d'=>DB::table('support_tasks')->where('created_at','>=',$week)->count(),'support_tasks_30d'=>DB::table('support_tasks')->where('created_at','>=',$month)->count(),
+            'support_intervention_count' => (clone $active)->where(fn ($query) => $query
+                ->where('sla_due_at', '<=', now())
+                ->orWhere('status', 'escalated')
+                ->orWhere(fn ($report) => $report->where('source_type', 'report')->where('severity', 'critical'))
+            )->count(),
+            'support_tasks_today'=>(clone $tasks)->where('created_at','>=',$today)->count(),'support_tasks_7d'=>(clone $tasks)->where('created_at','>=',$week)->count(),'support_tasks_30d'=>(clone $tasks)->where('created_at','>=',$month)->count(),
             'properties_total'=>DB::table('properties')->count(),'published_properties'=>(clone $published)->count(),'published_sale'=>(clone $published)->where('purpose','sale')->count(),'published_rent'=>(clone $published)->where('purpose','rent')->count(),'published_today'=>(clone $published)->where('published_at','>=',$today)->count(),'published_7d'=>(clone $published)->where('published_at','>=',$week)->count(),'published_30d'=>(clone $published)->where('published_at','>=',$month)->count(),'unmapped_published'=>Schema::hasColumn('properties','geo_cell_id')?(clone $published)->whereNull('geo_cell_id')->count():0,
             'pending_listing_reviews'=>DB::table('properties')->whereIn('review_status',['submitted','under_review'])->count(),'pending_verifications'=>Schema::hasTable('account_verification_profiles')?DB::table('account_verification_profiles')->whereIn('status',['pending','needs_more_info'])->count():0,'approved_brokers'=>Schema::hasTable('account_verification_profiles')?DB::table('account_verification_profiles')->where('type','broker')->where('status','approved')->count():0,'approved_offices'=>Schema::hasTable('account_verification_profiles')?DB::table('account_verification_profiles')->where('type','office')->where('status','approved')->count():0,'pending_professional_verifications'=>Schema::hasTable('account_verification_profiles')?DB::table('account_verification_profiles')->whereIn('type',['broker','office'])->whereIn('status',['pending','needs_more_info'])->count():0,
             'support_agents'=>0,'support_managers'=>0,'conversations'=>$count('message_threads'),'viewings'=>$count('viewing_bookings'),'agreements'=>$count('property_agreements'),'rental_contracts'=>$count('rental_contracts'),'governorates_total'=>$count('governorates') ?? 0,'by_type'=>[],'by_governorate'=>[],'map_properties'=>[],
@@ -122,7 +134,7 @@ SQL);
     {
         return [
             'mode'=>'general_manager',
-            'overview'=>['users_total'=>$m['users_total'],'users_new_today'=>$m['users_new_today'],'open_support_tasks'=>$m['open_support_tasks'],'overdue_support_tasks'=>$m['overdue_support_tasks'],'escalated_support_tasks'=>$m['escalated_support_tasks'],'critical_reports'=>$m['critical_reports'],'pending_listing_reviews'=>$m['pending_listing_reviews'],'pending_verifications'=>$m['pending_verifications']],
+            'overview'=>['users_total'=>$m['users_total'],'users_new_today'=>$m['users_new_today'],'open_support_tasks'=>$m['open_support_tasks'],'overdue_support_tasks'=>$m['overdue_support_tasks'],'escalated_support_tasks'=>$m['escalated_support_tasks'],'critical_reports'=>$m['critical_reports'],'support_intervention_count'=>$m['support_intervention_count'],'pending_listing_reviews'=>$m['pending_listing_reviews'],'pending_verifications'=>$m['pending_verifications']],
             'market'=>['properties_total'=>$m['properties_total'],'published_properties'=>$m['published_properties'],'published_sale'=>$m['published_sale'],'published_rent'=>$m['published_rent'],'published_today'=>$m['published_today'],'unmapped_published'=>$m['unmapped_published'],'governorates_total'=>$m['governorates_total'],'by_type'=>$m['by_type'],'by_governorate'=>$m['by_governorate'],'map_properties'=>$m['map_properties'],'approved_brokers'=>$m['approved_brokers'],'approved_offices'=>$m['approved_offices'],'pending_professional_verifications'=>$m['pending_professional_verifications']],
             'journey'=>['conversations'=>$m['conversations'],'viewings'=>$m['viewings'],'agreements'=>$m['agreements'],'rental_contracts'=>$m['rental_contracts']],
             'team'=>['support_agents'=>$m['support_agents'],'support_managers'=>$m['support_managers']],

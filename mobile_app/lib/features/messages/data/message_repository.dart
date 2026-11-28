@@ -151,17 +151,29 @@ class MessageRepository {
     _requestScope?.verify();
   }
 
-  Future<void> report(int threadId,
-      {required String reason, required String details}) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-        '/messages/threads/$threadId/report',
-        data: {'reason': reason, 'details': details.trim()},
-        options: await _sessionOptions());
-    _requestScope?.verify();
-    final data = response.data?['data'];
-    if (data is! Map<String, dynamic>) {
-      throw StateError('Invalid conversation report response.');
+  Future<ConversationReportSummary> report(int threadId,
+      {required String reason, required String details, String? attachment}) async {
+    final fields = {'reason': reason, 'details': details.trim()};
+    final payload = attachment == null ? fields : FormData.fromMap({
+      ...fields, 'attachment': await MultipartFile.fromFile(attachment),
+    });
+    Map<String, dynamic>? data;
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+          '/messages/threads/$threadId/report', data: payload, options: await _sessionOptions());
+      data = response.data;
+    } on DioException catch (error) {
+      final body = error.response?.data;
+      if (error.response?.statusCode != 409 || body is! Map<String, dynamic> ||
+          body['code'] != 'report_already_received') {
+        rethrow;
+      }
+      data = body;
     }
+    _requestScope?.verify();
+    final item = data?['data'];
+    if (item is! Map<String, dynamic>) throw StateError('Invalid conversation report response.');
+    return ConversationReportSummary.fromJson(item);
   }
 
   Future<List<AppNotificationItem>> notifications() async {

@@ -13,7 +13,6 @@ use App\Models\User;
 use App\Models\UserNotification;
 use App\Services\AuditLogService;
 use App\Services\SupportCaseService;
-use App\Services\SupportTaskService;
 use App\Services\UserMessagingBlockService;
 use App\Services\UserNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -35,7 +34,6 @@ class MessagingController extends Controller
         private readonly AuditLogService $audit,
         private readonly SupportCaseService $support,
         private readonly UserNotificationService $notifications,
-        private readonly SupportTaskService $tasks,
     ) {}
 
     public function threads(Request $request): JsonResponse
@@ -322,8 +320,6 @@ class MessagingController extends Controller
             'advertiser_user_id'=>$property->user_id,
             'contact_source'=>$source,
         ],$request,$property->user_id);
-        $this->tasks->projectContactFollowup($thread,$user,(int)$message->id);
-
         return response()->json(['data'=>[
             'phone'=>$phone,
             'message'=>$this->messageData($message,$user),
@@ -344,25 +340,43 @@ class MessagingController extends Controller
 
     public function report(Request $request, MessageThread $thread): JsonResponse
     {
-        /** @var User $user */ $user=$request->user();
-        $this->participant($thread,$user);
-        $validated=$request->validate([
-            'reason'=>['required',Rule::in(['abuse','fraud','privacy','harassment','spam','other'])],
-            'details'=>['required','string','min:5','max:5000'],
+        $user = $request->user();
+        $this->participant($thread, $user);
+        $v = $request->validate([
+            'reason' => ['required', Rule::in(['abuse','fraud','privacy','harassment','spam','other'])],
+            'details' => ['required','string','min:5','max:5000'],
+            'attachment' => \App\Services\SupportCaseFiles::RULES,
         ]);
-        [$case,$report]=DB::transaction(function()use($thread,$user,$validated,$request): array {
+        $files = app(\App\Services\SupportCaseFiles::class);
+        $case = $files->withUpload($request->file('attachment'), function () use ($files, $thread, $user, $v, $request): array {
             $this->advisoryLock('conversation-report:'.$thread->id.':'.$user->id);
-            $duplicate=ConversationReport::query()->where('thread_id',$thread->id)->where('reporter_user_id',$user->id)->whereIn('status',['open','under_review'])->exists();
-            if($duplicate)throw new ConflictHttpException('An active complaint for this conversation already exists.');
-            $case=$this->support->create($user,'report','Conversation complaint',trim($validated['details']),'conversation_thread',$thread->id,$validated['reason'],in_array($validated['reason'],['abuse','fraud','privacy'],true)?'high':'normal',$request);
-            $report=ConversationReport::query()->create([
-                'thread_id'=>$thread->id,'support_case_id'=>$case->id,'reporter_user_id'=>$user->id,'reporter_name_snapshot'=>$user->name,
-                'reason_code'=>$validated['reason'],'details'=>trim($validated['details']),'status'=>'open',
+            $duplicate = ConversationReport::query()->where('thread_id', $thread->id)->where('reporter_user_id', $user->id)
+                ->whereIn('status', ['open', 'under_review'])->first();
+            if ($duplicate) {
+                throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+                    'code' => 'report_already_received',
+                    'message' => 'وصل بلاغك سابقًا ويمكنك متابعته من الدعم.',
+                    'data' => $this->reportSummary($duplicate) + [
+                        'reference' => SupportCase::query()->whereKey($duplicate->support_case_id)->value('reference'),
+                    ],
+                ], 409));
+            }
+            $priority = in_array($v['reason'], ['abuse','fraud','privacy'], true) ? 'high' : 'normal';
+            $case = $this->support->create($user, 'report', 'بلاغ عن محادثة', trim($v['details']),
+                'conversation_thread', $thread->id, $v['reason'], $priority, $request);
+            $report = ConversationReport::query()->create([
+                'thread_id'=>$thread->id,'support_case_id'=>$case->id,'reporter_user_id'=>$user->id,
+                'reporter_name_snapshot'=>$user->name,'reason_code'=>$v['reason'],'details'=>trim($v['details']),'status'=>'open',
             ]);
-            return [$case,$report];
+            $this->audit->record($user,'messages.conversation_reported',$report,[
+                'thread_id'=>$thread->id,'support_case_id'=>$case->id,'reason'=>$v['reason'],
+            ],$request);
+
+            return [$case, $files->lastMessage($case)];
         });
-        $this->audit->record($user,'messages.conversation_reported',$report,['thread_id'=>$thread->id,'support_case_id'=>$case->id,'reason'=>$validated['reason']],$request);
-        return response()->json(['message'=>'Conversation complaint submitted.','data'=>$this->reportSummary($report)],201);
+        $report = ConversationReport::query()->where('support_case_id', $case->id)->firstOrFail();
+
+        return response()->json(['message'=>'تم إرسال البلاغ للدعم.', 'data'=>$this->reportSummary($report) + ['reference'=>$case->reference]], 201);
     }
 
     public function adminReports(Request $request): JsonResponse
@@ -372,7 +386,12 @@ class MessagingController extends Controller
             'page'=>['sometimes','integer','min:1'],
             'per_page'=>['sometimes','integer','between:1,200'],
         ]);
+        $tasks = app(\App\Services\SupportTaskService::class);
+        $caseIds = $tasks->scopedCaseTasks($request->user())->where('source_type', 'report')->select('source_id');
+        $fallback = $tasks->canAccessFallbackScope($request->user());
         $page=ConversationReport::query()->with('thread.property:id,user_id,title,status,availability_status,availability_notified_at')
+            ->where(fn ($query) => $query->whereIn('support_case_id', $caseIds)
+                ->when($fallback, fn ($scoped) => $scoped->orWhereNull('support_case_id')))
             ->when($validated['status']??null,fn($q,$v)=>$q->where('status',$v))->latest('id')
             ->paginate((int)($validated['per_page']??200),['*'],'page',(int)($validated['page']??1));
         return response()->json(['data'=>$page->getCollection()->map(fn(ConversationReport $r)=>$this->reportSummary($r))->values(),'meta'=>[
@@ -385,6 +404,7 @@ class MessagingController extends Controller
     {
         /** @var User $actor */ $actor=$request->user();
         abort_unless(in_array($report->status,['open','under_review'],true),409,'Only active complaints can authorize private conversation access.');
+        $this->assertReportScope($actor, $report);
         $thread=MessageThread::query()->with(['property:id,user_id,title,status,availability_status,availability_notified_at','participants'])->findOrFail($report->thread_id);
         if($report->status==='open')$report->forceFill(['status'=>'under_review'])->save();
         PrivateMessageAccessEvent::query()->create(['conversation_report_id'=>$report->id,'thread_id'=>$thread->id,'actor_user_id'=>$actor->id,'actor_name_snapshot'=>$actor->name,'action'=>'opened_reported_private_content','created_at'=>now()]);
@@ -402,18 +422,32 @@ class MessagingController extends Controller
         /** @var User $actor */ $actor=$request->user();
         $validated=$request->validate(['status'=>['required',Rule::in(['resolved','dismissed'])],'resolution_note'=>['required','string','min:3','max:1000']]);
         $closed=DB::transaction(function()use($report,$actor,$validated,$request): ConversationReport {
+            $case = $report->support_case_id ? SupportCase::query()->lockForUpdate()->find($report->support_case_id) : null;
             $locked=ConversationReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+            $this->assertReportScope($actor, $locked);
             if(!in_array($locked->status,['open','under_review'],true))throw new ConflictHttpException('Conversation complaint is already closed.');
             $locked->forceFill(['status'=>$validated['status'],'resolved_by_user_id'=>$actor->id,'resolved_by_name_snapshot'=>$actor->name,'resolution_note'=>trim($validated['resolution_note']),'resolved_at'=>now()])->save();
-            if($locked->support_case_id){
-                $case=SupportCase::query()->find($locked->support_case_id);
-                if($case&&!in_array($case->status,SupportCaseService::CLOSED_STATUSES,true))$this->support->setStatus($actor,$case,$validated['status'],$request);
+            if($case&&!in_array($case->status,SupportCaseService::CLOSED_STATUSES,true)) {
+                $this->support->setStatus(
+                    $actor,$case,$validated['status'],$request,trim($validated['resolution_note']),
+                );
             }
             return $locked;
         });
         $this->notifications->create((int)$closed->reporter_user_id,'conversation_report_closed','تم تحديث بلاغ المحادثة','تم إغلاق بلاغ المحادثة داخل مركز الدعم.',$closed->support_case_id?'support_case':'message_thread',(int)($closed->support_case_id?:$closed->thread_id),['status'=>$validated['status'],'report_id'=>$closed->id]);
         $this->audit->record($actor,'messages.conversation_report_closed',$closed,['status'=>$validated['status'],'thread_id'=>$closed->thread_id],$request,$closed->reporter_user_id);
         return response()->json(['message'=>'Conversation complaint closed.','data'=>$this->reportSummary($closed)]);
+    }
+
+    private function assertReportScope(User $actor, ConversationReport $report): void
+    {
+        $tasks = app(\App\Services\SupportTaskService::class);
+        if ($report->support_case_id === null) {
+            abort_unless($tasks->canAccessFallbackScope($actor), 404);
+            return;
+        }
+        $task = $tasks->caseTaskInTeam($actor, SupportCase::query()->findOrFail($report->support_case_id));
+        $tasks->assertTaskOwnership($actor, $task);
     }
 
     private function participant(MessageThread $thread, User $user): MessageThreadParticipant

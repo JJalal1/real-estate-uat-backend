@@ -85,6 +85,8 @@ class AuthUser {
     this.marketplaceIsOffice,
     this.publicBio,
     this.listingEligible,
+    this.listingManagementEligible,
+    this.publicationHoldCaseId,
   });
 
   final int id;
@@ -106,6 +108,8 @@ class AuthUser {
   final bool brokerEnrolled;
   final bool? marketplaceIsOffice;
   final bool? listingEligible;
+  final bool? listingManagementEligible;
+  final int? publicationHoldCaseId;
   final bool isPlatformOwner;
   final List<String> roles;
   final List<String> permissions;
@@ -115,7 +119,7 @@ class AuthUser {
   bool get needsPhoneVerification =>
       accountStatus == 'pending_verification' || !isPhoneVerified;
   bool get needsProfileCompletion => profileCompletedAt == null &&
-      listingEligible != true && !hasVerifiedPublishingProfile;
+      listingEligible != true && listingManagementEligible != true && !hasVerifiedPublishingProfile;
   bool get isOffice => !brokerEnrolled && verificationProfile.type == 'office';
   bool get isBroker => brokerEnrolled || verificationProfile.type == 'broker' ||
       (verificationProfile.type == null && accountType == 'broker');
@@ -134,6 +138,7 @@ class AuthUser {
   bool get hasMarketplaceProfessionalProfile => brokerEnrolled || hasVerifiedProfessionalProfile || isBrokerVerified;
   bool get canEditPublicProfile => hasMarketplaceProfessionalProfile || hasVerifiedPublishingProfile;
   bool get canCreateListing => isActive && (listingEligible ?? !needsProfileCompletion);
+  bool get canManageExistingListings => isActive && (listingManagementEligible ?? canCreateListing);
   String get accountTypeLabel => brokerEnrolled ? 'دلال' : verificationProfile.typeLabel;
 
   String? get marketplaceRoleLabel {
@@ -192,6 +197,8 @@ class AuthUser {
         listingEligible: json['can_create_listing'] is bool
             ? json['can_create_listing'] as bool
             : null,
+        listingManagementEligible: json['can_manage_existing_listings'] as bool?,
+        publicationHoldCaseId: int.tryParse(json['publication_hold_case_id']?.toString() ?? ''),
         isPlatformOwner: json['is_platform_owner'] == true,
         roles: _strings(json['roles']),
         permissions: _strings(json['permissions']),

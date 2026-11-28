@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/network/api_error_message.dart';
 import '../../../core/local/stage6_secure_session_store.dart';
@@ -11,7 +12,6 @@ import '../../account/data/account_request_scope.dart';
 import '../../account/presentation/actor_scoped_page.dart';
 import '../../broker/data/broker_repository.dart';
 import '../../reviews/domain/listing_duplicate_candidate.dart';
-import '../../reviews/presentation/listing_duplicate_notice.dart';
 import '../../reviews/presentation/listing_review_workspace_screen.dart';
 import '../data/support_repository.dart';
 import '../data/support_workspace_repository.dart';
@@ -19,6 +19,8 @@ import '../domain/support_models.dart';
 import '../domain/support_workspace_models.dart';
 import 'account_verification_support_screen.dart';
 import 'support_payment_review_screen.dart';
+import 'support_report_task_screen.dart';
+import 'support_evidence.dart';
 
 class SupportTasksScreen extends ConsumerStatefulWidget {
   const SupportTasksScreen({
@@ -31,6 +33,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
     this.actingAsAgent = false,
     this.messagesOnly = false,
     this.initialTaskId,
+    this.initialAssigneeId,
     this.title,
   });
 
@@ -42,6 +45,7 @@ class SupportTasksScreen extends ConsumerStatefulWidget {
   final bool actingAsAgent;
   final bool messagesOnly;
   final int? initialTaskId;
+  final int? initialAssigneeId;
   final String? title;
 
   @override
@@ -60,12 +64,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   String? _type;
   String? _category;
   String? _status;
-  String? _priority;
   String? _severity;
-  DateTime? _createdFrom;
-  DateTime? _createdTo;
-  int? _assigneeId;
-  String? _assigneeName;
   late bool _overdue;
   int _request = 0;
   int? _actor;
@@ -140,8 +139,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
       });
       if (!_initialTaskOpened) {
         _initialTaskOpened = true;
-        if (item.isMine && !item.canClaim && (!item.isClosed || item.sourceType == 'support_ticket')) {
-          await _open(item, false);
+        final manager = !widget.actingAsAgent;
+        if ((!item.isClosed && (manager && item.status == 'escalated' || item.isMine && !item.canClaim))
+            || item.isClosed && item.isMine && const {'report', 'support_ticket'}.contains(item.sourceType)) {
+          await _open(item, manager);
         }
       }
     } catch (error) {
@@ -164,7 +165,7 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     if (actor == null) return;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
-    final query = '$_scope:$_type:$_category:$_status:$_priority:$_severity:$_assigneeId:$_createdFrom:$_createdTo:$_overdue:${widget.actingAsAgent}:${widget.messagesOnly}';
+    final query = '$_scope:$_type:$_category:$_status:$_severity:${widget.initialAssigneeId}:$_overdue:${widget.actingAsAgent}:${widget.messagesOnly}';
     if (append && (_query != query || _actor != actor || _sessionEpoch != epoch)) {
       await _fetchPage(1);
       return;
@@ -204,11 +205,8 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             type: _type,
             category: _category,
             status: _status,
-            priority: _priority,
             severity: _severity,
-            assigneeId: _assigneeId,
-            createdFrom: _createdFrom,
-            createdTo: _createdTo,
+            assigneeId: widget.initialAssigneeId,
             overdue: _overdue,
             actingAsAgent: widget.actingAsAgent,
           );
@@ -308,249 +306,43 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   Widget _filters(bool manager, bool showPayments) {
-    final showScopes = manager && const ['inbox', 'mine', 'completed', 'all'].contains(_scope);
+    final showState = manager && const ['all', 'active', 'completed'].contains(_scope);
     return Material(
       color: Theme.of(context).colorScheme.surface,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-        child: Column(
-          children: [
-            if (showScopes)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: EbrokerSegmentedButton<String>(
-                  showSelectedIcon: false,
-                  segments: const [
-                          ButtonSegment(
-                              value: 'inbox', label: Text('غير مسند')),
-                          ButtonSegment(value: 'mine', label: Text('مسند لي')),
-                          ButtonSegment(
-                              value: 'completed', label: Text('المنجزة')),
-                          ButtonSegment(
-                              value: 'all', label: Text('كل الأعمال')),
-                        ],
-                  selected: {_scope},
-                  onSelectionChanged: (value) {
-                    setState(() => _scope = value.first);
-                    _load();
-                  },
-                ),
-              ),
-            if (showScopes) const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _choice('الكل', _type == null && _category == null, () => _setCategory(null)),
-                  for (final category in _taskCategories)
-                    if (category != 'payment_review' || showPayments)
-                      _choice(
-                        _typeLabel(category),
-                        (_category ?? _type) == category,
-                        () => _setCategory(category),
-                      ),
-                ],
-              ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Column(children: [
+          if (showState)
+            EbrokerSegmentedButton<String>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 'active', label: Text('المفتوحة')),
+                ButtonSegment(value: 'completed', label: Text('المنجزة')),
+              ],
+              selected: {_scope == 'completed' ? 'completed' : 'active'},
+              onSelectionChanged: (selection) {
+                setState(() => _scope = selection.first);
+                _load();
+              },
             ),
-            const SizedBox(height: 6),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _filterMenu(),
-                  const SizedBox(width: 6),
-                  if (_scope != 'unreceived_overdue') EbrokerFilterChip(
-                    label: const Text('متأخر فقط'),
-                    avatar: const EbrokerIcon(Icons.timer_off_outlined, size: 18),
-                    selected: _overdue,
-                    onSelected: (value) {
-                      setState(() => _overdue = value);
-                      _load();
-                    },
-                  ),
-                  if (manager) ...[
-                    const SizedBox(width: 6),
-                    EbrokerActionChip(
-                      avatar:
-                          const EbrokerIcon(Icons.support_agent_outlined, size: 18),
-                      label: Text(_assigneeName ?? 'الموظف'),
-                      onPressed: _pickAssignee,
-                    ),
-                    const SizedBox(width: 6),
-                    EbrokerActionChip(
-                      avatar: const EbrokerIcon(Icons.date_range_outlined, size: 18),
-                      label: Text(_dateFilterLabel()),
-                      onPressed: _pickDateRange,
-                    ),
-                  ],
-                  if (_type != null || _category != null ||
-                      _status != null ||
-                      _priority != null ||
-                      _severity != null ||
-                      _createdFrom != null ||
-                      _createdTo != null ||
-                      _assigneeId != null ||
-                      _overdue)
-                    TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _type = null;
-                          _category = null;
-                          _status = null;
-                          _priority = null;
-                          _severity = null;
-                          _createdFrom = null;
-                          _createdTo = null;
-                          _assigneeId = null;
-                          _assigneeName = null;
-                          _overdue = false;
-                        });
-                        _load();
-                      },
-                      icon: const EbrokerIcon(Icons.filter_alt_off_outlined),
-                      label: const Text('مسح'),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _choice('الكل', _type == null && _category == null, () => _setCategory(null)),
+              for (final category in _taskCategories)
+                if (category != 'payment_review' || showPayments)
+                  _choice(_typeLabel(category), (_category ?? _type) == category, () => _setCategory(category)),
+            ]),
+          ),
+        ]),
       ),
     );
   }
 
   Widget _choice(String label, bool selected, VoidCallback onTap) => Padding(
-        padding: const EdgeInsetsDirectional.only(end: 6),
-        child: EbrokerChoiceChip(
-          label: Text(label),
-          selected: selected,
-          onSelected: (_) => onTap(),
-        ),
-      );
-
-  Widget _filterMenu() => PopupMenuButton<String>(
-        tooltip: 'الحالة والأولوية',
-        onSelected: (value) {
-          setState(() {
-            if (value.startsWith('status:')) {
-              final selected = value.substring(7);
-              _status = selected == 'all' ? null : selected;
-            } else if (value.startsWith('priority:')) {
-              final selected = value.substring(9);
-              _priority = selected == 'all' ? null : selected;
-            } else if (value.startsWith('severity:')) {
-              final selected = value.substring(9);
-              _severity = selected == 'all' ? null : selected;
-            }
-          });
-          _load();
-        },
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'status:all', child: Text('كل الحالات')),
-          PopupMenuItem(value: 'status:new', child: Text('جديد')),
-          PopupMenuItem(value: 'status:in_progress', child: Text('قيد العمل')),
-          PopupMenuItem(
-              value: 'status:waiting_user', child: Text('انتظار المستخدم')),
-          PopupMenuItem(
-              value: 'status:waiting_internal', child: Text('انتظار داخلي')),
-          PopupMenuItem(
-              value: 'status:needs_followup', child: Text('يحتاج متابعة')),
-          PopupMenuItem(value: 'status:escalated', child: Text('مصعّد')),
-          PopupMenuItem(value: 'status:completed', child: Text('مكتمل')),
-          PopupMenuItem(value: 'status:rejected', child: Text('مرفوض')),
-          PopupMenuDivider(),
-          PopupMenuItem(value: 'priority:all', child: Text('كل الأولويات')),
-          PopupMenuItem(value: 'priority:urgent', child: Text('عاجل')),
-          PopupMenuItem(value: 'priority:normal', child: Text('عادي')),
-          PopupMenuItem(value: 'priority:low', child: Text('منخفض')),
-          PopupMenuDivider(),
-          PopupMenuItem(value: 'severity:all', child: Text('كل درجات الخطورة')),
-          PopupMenuItem(value: 'severity:critical', child: Text('حرج')),
-          PopupMenuItem(value: 'severity:high', child: Text('عالي')),
-          PopupMenuItem(value: 'severity:medium', child: Text('متوسط')),
-          PopupMenuItem(value: 'severity:low', child: Text('منخفض الخطورة')),
-        ],
-        child: Chip(
-          avatar: const EbrokerIcon(Icons.tune, size: 18),
-          label: Text(_status == null && _priority == null && _severity == null
-              ? 'الحالة والأولوية'
-              : '${_statusLabel(_status)} • ${_priorityLabel(_priority)}${_severity == null ? '' : ' • ${_severityLabel(_severity!)}'}'),
-        ),
-      );
-
-  Future<void> _pickAssignee() async {
-    List<SupportTeamMember> team;
-    try {
-      team = await ref.read(supportWorkspaceRepositoryProvider).team();
-    } catch (error) {
-      _message(friendlyApiError(error));
-      return;
-    }
-    if (!mounted) return;
-    final selected = await showDialog<SupportTeamMember>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('فلترة حسب الموظف'),
-        content: SizedBox(
-          width: 420,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                leading: const EbrokerIcon(Icons.groups_outlined),
-                title: const Text('كل الموظفين'),
-                onTap: () => Navigator.pop(dialogContext),
-              ),
-              ...team.map(
-                (member) => ListTile(
-                  leading: const CircleAvatar(child: EbrokerIcon(Icons.support_agent)),
-                  title: Text(member.name),
-                  subtitle: Text(member.role == 'support_manager'
-                      ? 'مدير دعم'
-                      : 'موظف دعم'),
-                  onTap: () => Navigator.pop(dialogContext, member),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (!mounted) return;
-    setState(() {
-      _assigneeId = selected?.id;
-      _assigneeName = selected?.name;
-    });
-    await _load();
-  }
-
-  String _dateFilterLabel() {
-    if (_createdFrom == null || _createdTo == null) return 'التاريخ';
-    String d(DateTime value) => '${value.year}/${value.month}/${value.day}';
-    return '${d(_createdFrom!)} - ${d(_createdTo!)}';
-  }
-
-  Future<void> _pickDateRange() async {
-    final now = DateTime.now();
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 1),
-      initialDateRange: _createdFrom != null && _createdTo != null
-          ? DateTimeRange(start: _createdFrom!, end: _createdTo!)
-          : null,
-      helpText: 'فلترة الأعمال حسب التاريخ',
-      cancelText: 'إلغاء',
-      confirmText: 'تطبيق',
-      saveText: 'تطبيق',
-    );
-    if (range == null || !mounted) return;
-    setState(() {
-      _createdFrom = range.start;
-      _createdTo = range.end;
-    });
-    await _load();
-  }
+    padding: const EdgeInsetsDirectional.only(end: 6),
+    child: EbrokerChoiceChip(label: Text(label), selected: selected, onSelected: (_) => onTap()),
+  );
 
   void _setCategory(String? value) {
     setState(() {
@@ -599,6 +391,8 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
             : _TaskCard(
           key: ValueKey('support-task-${_items[index].id}'),
           task: _items[index],
+          manager: manager,
+          onAssign: () => _assign(_items[index]),
           onClaim: () => _claim(_items[index]),
           onOpen: () => _open(_items[index], manager),
           onManage: manager || _items[index].isMine
@@ -628,9 +422,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   Future<void> _open(SupportTaskItem task, bool manager) async {
-    if (manager && !widget.actingAsAgent && task.status != 'escalated') {
-      _message(
-          'هذه شاشة إدارة العمل. لمعالجة الطلب بنفسك استخدم «العمل كموظف دعم» واستلمه أولاً.');
+    if (manager && !widget.actingAsAgent &&
+        (task.status != 'escalated' || !const {'support_ticket', 'report'}.contains(task.sourceType)) &&
+        (!task.isMine || task.canClaim)) {
+      await _manage(task, true);
       return;
     }
     if ((!manager || widget.actingAsAgent) && (!task.isMine || task.canClaim)) {
@@ -663,16 +458,17 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           ),
         );
         break;
-      case 'support_ticket':
       case 'report':
+        await Navigator.of(context).push<void>(MaterialPageRoute(
+          builder: (_) => SupportReportTaskScreen(task: task, manager: manager),
+        ));
+        break;
+      case 'support_ticket':
       case 'support_question':
         await _supportCaseDialog(task);
         break;
       case 'payment_review':
         await _paymentReviewDialog(task);
-        break;
-      case 'contact_followup':
-        await _contactFollowupDialog(task);
         break;
     }
     if (mounted) {
@@ -681,150 +477,6 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     }
   }
 
-  Future<void> _contactFollowupDialog(SupportTaskItem task) async {
-    final meta = task.metadata;
-    String outcome = meta['last_outcome']?.toString() ?? 'contacted';
-    final note = TextEditingController(
-      text: meta['last_followup_note']?.toString() ?? '',
-    );
-    DateTime? nextFollowUpAt;
-    final savedNext = meta['next_follow_up_at']?.toString();
-    if (savedNext != null) {
-      nextFollowUpAt = DateTime.tryParse(savedNext)?.toLocal();
-    }
-
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: const Text('متابعة التواصل العقاري'),
-          content: SizedBox(
-            width: 560,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(meta['property_title']?.toString() ?? 'العقار',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 6),
-                  Text("العميل: ${meta['buyer_name']?.toString() ?? task.requesterName ?? '—'}"),
-                  Text("المعلن: ${meta['advertiser_name']?.toString() ?? '—'}"),
-                  Text("مرات بدء الاتصال: ${meta['external_call_count']?.toString() ?? '1'}"),
-                  if (meta['last_external_call_at'] != null)
-                    Text("آخر اتصال مسجل: ${meta['last_external_call_at']}"),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
-                    value: outcome,
-                    decoration: const InputDecoration(labelText: 'نتيجة المتابعة'),
-                    items: const [
-                      DropdownMenuItem(value: 'no_answer', child: Text('لم يرد أحد الأطراف')),
-                      DropdownMenuItem(value: 'contacted', child: Text('تم التواصل')),
-                      DropdownMenuItem(value: 'viewing_scheduled', child: Text('تم تحديد معاينة')),
-                      DropdownMenuItem(value: 'viewed', child: Text('تمت المعاينة')),
-                      DropdownMenuItem(value: 'negotiating', child: Text('يوجد تفاوض')),
-                      DropdownMenuItem(value: 'not_interested', child: Text('العقار لم يناسبه')),
-                      DropdownMenuItem(value: 'deal_not_completed', child: Text('لم تتم الصفقة')),
-                      DropdownMenuItem(value: 'deal_reported', child: Text('أفاد أحد الأطراف بتمام الصفقة')),
-                      DropdownMenuItem(value: 'needs_followup', child: Text('يحتاج متابعة لاحقة')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) setLocal(() => outcome = value);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: note,
-                    minLines: 2,
-                    maxLines: 5,
-                    maxLength: 2000,
-                    decoration: const InputDecoration(
-                      labelText: 'ملاحظة المتابعة',
-                      hintText: 'ما الذي قاله الدلال أو المستخدم؟',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          nextFollowUpAt == null
-                              ? 'موعد المتابعة القادمة: تلقائي حسب النتيجة'
-                              : 'تم تحديد موعد متابعة قادم',
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () async {
-                          final now = DateTime.now();
-                          final date = await showDatePicker(
-                            context: dialogContext,
-                            firstDate: now,
-                            lastDate: now.add(const Duration(days: 90)),
-                            initialDate: nextFollowUpAt ?? now.add(const Duration(days: 1)),
-                          );
-                          if (date == null || !dialogContext.mounted) return;
-                          final time = await showTimePicker(
-                            context: dialogContext,
-                            initialTime: TimeOfDay.fromDateTime(
-                              nextFollowUpAt ?? now.add(const Duration(days: 1)),
-                            ),
-                          );
-                          if (time == null) return;
-                          setLocal(() {
-                            nextFollowUpAt = DateTime(
-                              date.year,
-                              date.month,
-                              date.day,
-                              time.hour,
-                              time.minute,
-                            );
-                          });
-                        },
-                        icon: const EbrokerIcon(Icons.schedule_outlined),
-                        label: const Text('تحديد'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'لا يتم فتح نص المحادثة من هذه الشاشة. تعتمد المتابعة على مؤشرات الرحلة والاتصال، وأي وصول لمحتوى خاص يبقى ضمن مسار صلاحيات منفصل ومسجل.',
-                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('إلغاء'),
-            ),
-            EbrokerFilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('حفظ النتيجة'),
-            ),
-          ],
-        ),
-      ),
-    );
-    final noteText = note.text.trim();
-    note.dispose();
-    if (accepted != true) return;
-
-    try {
-      await ref.read(supportWorkspaceRepositoryProvider).recordContactOutcome(
-            task.id,
-            outcome: outcome,
-            note: noteText.isEmpty ? null : noteText,
-            nextFollowUpAt: nextFollowUpAt,
-            actingAsAgent: widget.actingAsAgent,
-          );
-      _message(outcome == 'deal_reported'
-          ? 'تم تسجيل صفقة محتملة ورفع أولوية التحقق.'
-          : 'تم تسجيل نتيجة المتابعة.');
-    } catch (error) {
-      _message(friendlyApiError(error));
-    }
-  }
   Future<void> _paymentReviewDialog(SupportTaskItem task) async {
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     if (actor == null) return;
@@ -879,6 +531,10 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
           verify();
           return _classify(task, categoryOnly: true);
         },
+        onSuggest: () {
+          verify();
+          return support.suggestReply(task.sourceId);
+        },
         onReply: (text) {
           verify();
           return support.adminReply(task.sourceId, text);
@@ -916,13 +572,19 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
                 title: const Text('سجل المهمة'),
                 onTap: () => Navigator.pop(sheetContext, 'history'),
               ),
-              if (manager)
+              if (manager && !task.isClosed)
                 ListTile(
                   leading: const EbrokerIcon(Icons.person_add_alt_1_outlined),
                   title: Text(task.assignedToUserId == null
                       ? 'إسناد لموظف'
                       : 'إعادة الإسناد'),
                   onTap: () => Navigator.pop(sheetContext, 'assign'),
+                ),
+              if (manager && ref.read(authControllerProvider).asData?.value?.roles.contains('support_manager') == true)
+                ListTile(
+                  leading: const EbrokerIcon(Icons.chat_bubble_outline),
+                  title: const Text('إرسال المهمة للمدير العام'),
+                  onTap: () => Navigator.pop(sheetContext, 'executive'),
                 ),
               if (manager)
                 ListTile(
@@ -1005,6 +667,13 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
     if (!mounted || action == null) return;
     try {
       switch (action) {
+        case 'executive':
+          final scope = ref.read(accountRequestScopeProvider);
+          final thread = await ref.read(supportWorkspaceRepositoryProvider).openStaffThread(teamId: task.supportTeamId);
+          if (mounted && scope.isCurrent) {
+            await context.push<void>('/support/internal/${thread.id}?task=${task.id}');
+          }
+          break;
         case 'history':
           await _showTaskHistory(task);
           break;
@@ -1137,37 +806,43 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
   }
 
   Future<void> _assign(SupportTaskItem task) async {
-    final team = await ref.read(supportWorkspaceRepositoryProvider).team();
-    if (!mounted) return;
-    final userId = await showDialog<int>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-            task.assignedToUserId == null ? 'إسناد المهمة' : 'إعادة الإسناد'),
-        content: SizedBox(
-          width: 420,
-          child: ListView(
-            shrinkWrap: true,
-            children: team
-                .map(
-                  (member) => ListTile(
-                    leading:
-                        const CircleAvatar(child: EbrokerIcon(Icons.support_agent)),
-                    title: Text(member.name),
-                    subtitle: Text(
-                      '${member.openTasks} مفتوحة • ${member.overdueTasks} متأخرة',
-                    ),
-                    onTap: () => Navigator.pop(dialogContext, member.id),
-                  ),
-                )
-                .toList(),
-          ),
-        ),
-      ),
-    );
-    if (userId == null) return;
-    await ref.read(supportWorkspaceRepositoryProvider).assign(task.id, userId);
-    _message('تم تحديث إسناد المهمة.');
+    final repo = ref.read(supportWorkspaceRepositoryProvider);
+    final scope = ref.read(accountRequestScopeProvider);
+    try {
+      final team = (await repo.team()).where((member) => member.role == 'support_agent'
+          && member.teamId == task.supportTeamId && member.isAvailable
+          && (member.openTasks < member.capacity || member.id == task.assignedToUserId)).toList();
+      if (!mounted || !scope.isCurrent) return;
+      if (team.isEmpty) { _message('ما فيه موظف متاح لاستلام هذه المهمة الآن.'); return; }
+      int? selection;
+      final userId = await Navigator.of(context).push<int>(MaterialPageRoute(builder: (context) =>
+        StatefulBuilder(builder: (context, update) => Scaffold(
+          appBar: const AppAppBar(title: 'إسناد المهمة'),
+          body: ListView(padding: const EdgeInsets.all(16), children: [
+            Card(child: ListTile(title: Text(task.subject), subtitle: Text(_statusLabel(task.status)))),
+            const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('اختر موظفًا')),
+            for (final member in team)
+              Card(child: RadioListTile<int>(
+                value: member.id, groupValue: selection,
+                title: Text(member.name),
+                subtitle: Text('متاح · ${member.openTasks} من ${member.capacity} مهام'),
+                onChanged: (value) => update(() => selection = value),
+              )),
+          ]),
+          bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.all(16),
+            child: AppButton(label: 'تأكيد الإسناد', expand: true,
+              onPressed: selection == null ? null : () => Navigator.pop(context, selection)))),
+        )),
+      ));
+      if (userId == null || !mounted || !scope.isCurrent) return;
+      await repo.assign(task.id, userId);
+      if (!mounted || !scope.isCurrent) return;
+      _message('تم إسناد المهمة.');
+      ref.read(supportWorkspaceRevisionProvider.notifier).state++;
+      await _load();
+    } catch (error) {
+      if (mounted && scope.isCurrent) _message(friendlyApiError(error));
+    }
   }
 
   Future<void> _classify(SupportTaskItem task, {bool categoryOnly = false}) async {
@@ -1289,225 +964,71 @@ class _SupportTasksScreenState extends ConsumerState<SupportTasksScreen> {
 }
 
 class _TaskCard extends StatelessWidget {
-  const _TaskCard({
-    super.key,
-    required this.task,
-    required this.onClaim,
-    required this.onOpen,
-    this.onManage,
-  });
+  const _TaskCard({super.key, required this.task, required this.manager,
+    required this.onClaim, required this.onAssign, required this.onOpen, this.onManage});
 
   final SupportTaskItem task;
-  final VoidCallback onClaim;
-  final VoidCallback onOpen;
+  final bool manager;
+  final VoidCallback onClaim, onAssign, onOpen;
   final VoidCallback? onManage;
 
   @override
   Widget build(BuildContext context) {
-    final duplicateDetection = task.sourceType == 'listing_review' && !task.isClosed
-        ? ListingDuplicateDetection.fromJson(task.metadata)
-        : null;
-    final awaitingPickup = task.claimedAt == null && task.pickupDueAt != null;
-    final overdue = awaitingPickup ? task.isUnreceivedOverdue : task.isOverdue;
-    final remaining = awaitingPickup
-        ? task.pickupDueAt!.difference(DateTime.now()).inMinutes
-        : task.remainingMinutes;
-    return Card(
-      elevation: task.severity == 'critical' ? 2 : 0,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: _typeColor(context, task.sourceType).withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: EbrokerIcon(_typeIcon(task.sourceType),
-                      color: _typeColor(context, task.sourceType)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        task.subject,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        '${_taskTypeLabel(task)} • ${task.requesterName ?? 'مستخدم #${task.requesterUserId ?? task.sourceId}'}${task.supportTeamName == null ? '' : ' • ${task.supportTeamName}'}${task.governorateName == null ? '' : ' • ${task.governorateName}'}',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12.5),
-                      ),
-                    ],
-                  ),
-                ),
-                if (onManage != null)
-                  IconButton(
-                    tooltip: 'إدارة المهمة',
-                    onPressed: onManage,
-                    icon: const EbrokerIcon(Icons.more_vert),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _StatusPill(
-                    label: _statusLabel(task.status),
-                    kind: _statusKind(task.status)),
-                if (task.isClosed)
-                  _StatusPill(
-                      label: _taskResultLabel(task),
-                      kind: task.status == 'rejected' ? 2 : 1),
-                _StatusPill(
-                    label: _priorityLabel(task.priority),
-                    kind: task.priority == 'urgent' ? 2 : 0),
-                if (task.severity != null)
-                  _StatusPill(
-                      label: 'خطورة ${_severityLabel(task.severity!)}',
-                      kind: task.severity == 'critical' ? 2 : 0),
-                if (overdue) const _StatusPill(label: 'متأخر', kind: 2),
-              ],
-            ),
-            if (duplicateDetection != null) ...[
-              const SizedBox(height: 8),
-              ListingDuplicateNotice(detection: duplicateDetection),
-            ],
-            if (task.sourceType == 'payment_review' &&
-                task.metadata['amount'] is num &&
-                task.metadata['currency'] is String) ...[
-              const SizedBox(height: 8),
-              Text(moneyLabel(task.metadata['amount'], task.metadata['currency'] as String),
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-            ],
-            const SizedBox(height: 9),
-            Wrap(
-              spacing: 10,
-              runSpacing: 4,
-              children: [
-                if (task.createdAt != null)
-                  Text('وصلت ${_timeAgo(task.createdAt!)}',
-                      style: TextStyle(
-                          fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                if (task.claimedAt != null)
-                  Text('استلمت ${_timeAgo(task.claimedAt!)}',
-                      style: TextStyle(
-                          fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                if (task.completedAt != null)
-                  Text('أُنجزت ${_timeAgo(task.completedAt!)}',
-                      style: TextStyle(
-                          fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                if (task.lastActivityAt != null && !task.isClosed)
-                  Text('آخر تحديث ${_timeAgo(task.lastActivityAt!)}',
-                      style: TextStyle(
-                          fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              ],
-            ),
-            const SizedBox(height: 7),
-            Row(
-              children: [
-                EbrokerIcon(Icons.person_outline,
-                    size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    task.assignedToName == null
-                        ? 'غير مسند'
-                        : task.isMine
-                            ? task.assignmentSource == 'assigned'
-                                ? 'مسند إليك'
-                                : 'مستلم منك'
-                            : 'المسؤول: ${task.assignedToName}',
-                    style: TextStyle(
-                        fontSize: 12.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ),
-                if (remaining != null) Text(
-                  _slaText(remaining),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: overdue
-                        ? Theme.of(context).colorScheme.error
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (task.canClaim) ...[
-                  Expanded(
-                    child: EbrokerFilledButton.icon(
-                      onPressed: onClaim,
-                      icon: const EbrokerIcon(Icons.pan_tool_alt_outlined),
-                      label: const Text('استلم'),
-                    ),
-                  ),
-                ],
-                if (!task.canClaim) Expanded(
-                  child: EbrokerOutlinedButton.icon(
-                    onPressed: task.isClosed ? onManage : onOpen,
-                    icon: EbrokerIcon(task.isClosed
-                        ? Icons.receipt_long_outlined
-                        : Icons.open_in_new),
-                    label: Text(task.isClosed
-                        ? 'تفاصيل القرار'
-                        : 'فتح'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label, required this.kind});
-  final String label;
-  final int kind;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>()!;
     final scheme = Theme.of(context).colorScheme;
-    final background = switch (kind) {
-      1 => colors.successContainer,
-      2 => scheme.errorContainer,
-      3 => colors.warningContainer,
-      _ => colors.infoContainer,
-    };
-    final foreground = switch (kind) {
-      1 => colors.onSuccessContainer,
-      2 => scheme.onErrorContainer,
-      3 => colors.onWarningContainer,
-      _ => colors.onInfoContainer,
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11.5, fontWeight: FontWeight.w700, color: foreground)),
-    );
+    final category = task.category ?? task.sourceType;
+    final type = _taskTypeLabel(task);
+    final source = task.sourceType;
+    final duplicate = source == 'listing_review' && !task.isClosed
+      ? ListingDuplicateDetection.fromJson(task.metadata) : null;
+    final overdue = !task.isClosed && (task.claimedAt == null ? task.isUnreceivedOverdue : task.isOverdue);
+    final canAssign = manager && task.assignedToUserId == null && !task.isClosed && task.status != 'escalated';
+    final subtitle = [if (!task.subject.startsWith(type)) type,
+        if ((manager ? task.assignedToName : task.requesterName) case final name?) name,
+        if (task.governorateName case final governorate?) governorate].join(' · ');
+    final label = task.isClosed ? 'التفاصيل' : canAssign ? 'إسناد' :
+      manager && task.status == 'escalated' ? 'مراجعة' : task.canClaim && !manager ? 'استلم' : 'فتح';
+    final action = canAssign ? onAssign : task.canClaim && !manager ? onClaim
+      : task.isClosed && !task.isMine ? onManage ?? onOpen : onOpen;
+    final title = task.subject == 'Conversation complaint' ? 'بلاغ عن محادثة' : task.subject;
+    final price = task.metadata['amount'];
+    final currency = task.metadata['currency'];
+    final status = task.isClosed ? _taskResultLabel(task)
+      : overdue ? (task.claimedAt == null ? 'تأخر الاستلام' : 'تأخر المعالجة')
+      : task.status == 'escalated' ? 'مصعّد إليك' : _statusLabel(task.status);
+
+    return Card(child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          CircleAvatar(radius: 17, backgroundColor: scheme.primaryContainer,
+            child: EbrokerIcon(_typeIcon(category), size: 18, color: scheme.onPrimaryContainer)),
+          const SizedBox(width: 9),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            if (subtitle.isNotEmpty)
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+          ])),
+          if (onManage != null && !task.canClaim)
+            IconButton(icon: const Icon(Icons.more_vert, size: 18), tooltip: 'خيارات المهمة', onPressed: onManage),
+        ]),
+        const SizedBox(height: 4),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (duplicate != null) Text(duplicate.source == ListingDuplicateSource.ai ? 'تشابه رصده المساعد' : 'اشتباه تكرار',
+                style: TextStyle(fontSize: 12, color: scheme.primary)),
+              if (source == 'payment_review' && price is num && currency is String)
+                Text(moneyLabel(price.toDouble(), currency), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              if (manager || task.isClosed || overdue || task.status != 'new')
+                Text(status, style: TextStyle(fontSize: 12, color: overdue ? scheme.error : scheme.onSurfaceVariant)),
+            ],
+          )),
+          EbrokerFilledButton(onPressed: action, child: Text(label)),
+        ]),
+      ]),
+    ));
   }
 }
 
@@ -1518,6 +1039,7 @@ class _SupportCaseDialog extends StatefulWidget {
     required this.onInternalNote,
     required this.onStatus,
     this.onDealResolution,
+    required this.onSuggest,
     this.onClassify,
   });
 
@@ -1526,6 +1048,7 @@ class _SupportCaseDialog extends StatefulWidget {
   final Future<SupportCaseDetails> Function(String) onInternalNote;
   final Future<void> Function(String) onStatus;
   final Future<void> Function(String, String)? onDealResolution;
+  final Future<Map<String, dynamic>> Function() onSuggest;
   final Future<void> Function()? onClassify;
 
   @override
@@ -1605,6 +1128,8 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                                       fontWeight: FontWeight.w700)),
                               const SizedBox(height: 4),
                               Text(m.body, style: m.isInternal ? TextStyle(color: Theme.of(context).extension<AppSemanticColors>()!.onWarningContainer) : null),
+                              for (final attachment in m.attachments)
+                                SupportAttachmentButton(caseId: d.summary.id, file: attachment, staff: true),
                               if (m.isInternal)
                                 Text('ملاحظة داخلية',
                                     style: TextStyle(
@@ -1652,6 +1177,12 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
                         onPressed: _busy ? null : () => _resolveBroker('cancel'),
                         child: const Text('إلغاء نتيجة الصفقة'),
                       ),
+                    if (!d.summary.isClosed)
+                      EbrokerOutlinedButton.icon(
+                        onPressed: _busy ? null : _suggest,
+                        icon: const EbrokerIcon(Icons.auto_awesome_outlined),
+                        label: const Text('اقتراح رد'),
+                      ),
                     EbrokerOutlinedButton.icon(
                       onPressed: _busy ? null : () => _compose(true),
                       icon: const EbrokerIcon(Icons.note_alt_outlined),
@@ -1691,13 +1222,39 @@ class _SupportCaseDialogState extends State<_SupportCaseDialog> {
     );
   }
 
-  Future<void> _compose(bool internal) async {
-    String draft = '';
+  Future<void> _suggest() async {
+    setState(() => _busy = true);
+    try {
+      final data = await widget.onSuggest();
+      if (!mounted) return;
+      final summary = data['summary']?.toString().trim() ?? '';
+      final reply = data['reply']?.toString().trim() ?? '';
+      await showDialog<void>(context: context, builder: (dialog) => AlertDialog(
+        scrollable: true, title: const Text('ملخص الطلب'),
+        content: Text(summary),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('إغلاق')),
+          if (reply.isNotEmpty)
+            FilledButton(onPressed: () {
+              Navigator.pop(dialog);
+              _compose(false, initial: reply);
+            }, child: const Text('مراجعة الرد المقترح')),
+        ],
+      ));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _compose(bool internal, {String initial = ''}) async {
+    String draft = initial;
     final text = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(internal ? 'ملاحظة داخلية' : _linkedCustomerCase ? 'مراسلة العميل' : 'رد على المستخدم'),
-        content: TextField(onChanged: (value) => draft = value, minLines: 3, maxLines: 6),
+        content: TextFormField(initialValue: initial, onChanged: (value) => draft = value, minLines: 3, maxLines: 6),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -1820,7 +1377,6 @@ const _taskCategories = [
   'support_ticket',
   'support_question',
   'report',
-  'contact_followup',
   'payment_review',
 ];
 
@@ -1830,7 +1386,6 @@ String _typeLabel(String value) => switch (value) {
       'support_ticket' => 'تذكرة',
       'support_question' => 'سؤال للدعم',
       'report' => 'بلاغ',
-      'contact_followup' => 'متابعة تواصل',
       'payment_review' => 'متابعة مالية',
       _ => value,
     };
@@ -1840,18 +1395,8 @@ IconData _typeIcon(String value) => switch (value) {
       'listing_review' => Icons.fact_check_outlined,
       'support_ticket' => Icons.support_agent_outlined,
       'report' => Icons.report_gmailerrorred_outlined,
-      'contact_followup' => Icons.phone_callback_outlined,
       'payment_review' => Icons.payments_outlined,
       _ => Icons.task_alt,
-    };
-
-Color _typeColor(BuildContext context, String value) => switch (value) {
-      'account_verification' => Theme.of(context).colorScheme.primary,
-      'listing_review' => Theme.of(context).extension<AppSemanticColors>()!.info,
-      'support_ticket' => Theme.of(context).colorScheme.tertiary,
-      'report' => Theme.of(context).extension<AppSemanticColors>()!.warning,
-      'contact_followup' => Theme.of(context).extension<AppSemanticColors>()!.success,
-      _ => Theme.of(context).colorScheme.onSurfaceVariant,
     };
 
 String _statusLabel(String? value) => switch (value) {
@@ -1867,29 +1412,6 @@ String _statusLabel(String? value) => switch (value) {
       _ => value,
     };
 
-int _statusKind(String value) => switch (value) {
-      'completed' => 1,
-      'rejected' || 'escalated' => 2,
-      'waiting_user' || 'waiting_internal' || 'needs_followup' => 3,
-      _ => 0,
-    };
-
-String _priorityLabel(String? value) => switch (value) {
-      null => 'كل الأولويات',
-      'urgent' => 'عاجل',
-      'normal' => 'عادي',
-      'low' => 'منخفض',
-      _ => value,
-    };
-
-String _severityLabel(String value) => switch (value) {
-      'critical' => 'حرج',
-      'high' => 'عالي',
-      'medium' => 'متوسط',
-      'low' => 'منخفض',
-      _ => value,
-    };
-
 String _eventLabel(String value) => switch (value) {
       'created_from_source' => 'إنشاء المهمة',
       'claimed' => 'استلام المهمة',
@@ -1900,12 +1422,6 @@ String _eventLabel(String value) => switch (value) {
       'verification_rejected' => 'رفض طلب التحقق',
       'escalated' => 'تصعيد المهمة',
       'reopened' => 'إعادة فتح المهمة',
-      'created_from_external_call' => 'إنشاء متابعة من اتصال خارجي',
-      'external_call_recorded' => 'تسجيل اتصال خارجي جديد',
-      'reopened_by_external_call' => 'إعادة فتح المتابعة باتصال جديد',
-      'contact_followup_outcome' => 'تسجيل نتيجة المتابعة',
-      'contact_followup_overdue' => 'تجاوز موعد المتابعة',
-      'contact_followup_auto_escalated' => 'تصعيد تلقائي لتأخر المتابعة',
       'source_status_synced' => 'تحديث من المصدر',
       _ => value,
     };
@@ -1917,12 +1433,4 @@ String _timeAgo(DateTime value) {
   if (diff.inMinutes < 60) return 'منذ ${diff.inMinutes} د';
   if (diff.inHours < 24) return 'منذ ${diff.inHours} س';
   return 'منذ ${diff.inDays} ي';
-}
-
-String _slaText(int minutes) {
-  final absolute = minutes.abs();
-  final hours = absolute ~/ 60;
-  final mins = absolute % 60;
-  final text = hours > 0 ? '$hours س $mins د' : '$mins د';
-  return minutes < 0 ? 'متأخر $text' : 'متبقي $text';
 }

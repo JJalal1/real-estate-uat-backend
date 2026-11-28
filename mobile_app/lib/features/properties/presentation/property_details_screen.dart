@@ -25,6 +25,7 @@ import 'property_fullscreen_gallery.dart';
 import '../../../core/local/listing_viewer_key_store.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_components.dart';
+import '../../account/data/account_request_scope.dart';
 import '../../account/data/auth_controller.dart';
 import '../../account/data/auth_return_intent.dart';
 import '../../community/presentation/listing_community_screen.dart';
@@ -35,6 +36,7 @@ import '../data/property_repository.dart';
 import '../domain/property_details.dart';
 import '../domain/property_field_options.dart';
 import '../domain/property_schema.dart';
+import '../domain/category_property_facts.dart';
 import 'add_property_wizard_screen.dart';
 import 'my_listings_screen.dart';
 import 'property_sai_public_line.dart';
@@ -195,6 +197,7 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
     final schemaContext={'type':property.type,'purpose':property.purpose,'unit_occupies_entire_floor':property.unitOccupiesEntireFloor};
     bool applies(String key)=>DynamicPropertySchema.applies(key,schemaContext);
     final residential=applies('bedrooms'),unit=applies('floor_number');
+    final category = property.categoryFacts;
     final facts = <AppPropertyFact>[
       if (applies('area_value') && property.areaValue != null)
         AppPropertyFact(
@@ -208,7 +211,28 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
         AppPropertyFact(icon: Icons.bed_outlined, label: '${property.bedrooms} غرف'),
       if (residential && property.bathrooms != null)
         AppPropertyFact(icon: Icons.bathtub_outlined, label: '${property.bathrooms} حمام'),
-      if (property.hasParking != null && applies('has_parking')) AppPropertyFact(icon: Icons.local_parking_outlined, label: property.hasParking! ? 'موقف سيارة' : 'بدون موقف'),
+      if ((category.parkingSpaces ?? 0) > 1)
+        AppPropertyFact(icon: Icons.local_parking_outlined, label: '${category.parkingSpaces} مواقف سيارات')
+      else if (property.hasParking != null && applies('has_parking'))
+        AppPropertyFact(icon: Icons.local_parking_outlined, label: property.hasParking! ? 'موقف سيارة' : 'بدون موقف'),
+      if (category.hasSeparateMajlis == true)
+        const AppPropertyFact(icon: Icons.event_seat_outlined, label: 'مجلس مستقل'),
+      if (category.hasMajlisBathroom == true)
+        const AppPropertyFact(icon: Icons.bathtub_outlined, label: 'حمام خاص بالمجلس'),
+      if (category.hasYard == true)
+        const AppPropertyFact(icon: Icons.yard_outlined, label: 'حوش'),
+      if (category.sectionElevator == true)
+        const AppPropertyFact(icon: Icons.elevator_outlined, label: 'مصعد'),
+      if (landUseOptions[category.landUse] case final landUse?)
+        AppPropertyFact(icon: Icons.terrain_outlined, label: 'أرض $landUse'),
+      if (category.streetWidth case final width?)
+        AppPropertyFact(icon: Icons.straighten_outlined, label: 'شارع بعرض ${formatPropertyAreaValue(width)} م'),
+      if (category.officeRooms case final rooms?)
+        AppPropertyFact(icon: Icons.meeting_room_outlined, label: '$rooms غرف'),
+      if (farmWaterSourceOptions[category.farmWaterSource] case final source?)
+        AppPropertyFact(icon: Icons.water_drop_outlined, label: source),
+      if (farmCropTypeOptions[category.farmCropType] case final crops?)
+        AppPropertyFact(icon: Icons.agriculture_outlined, label: crops),
       if (unit && property.floorNumber?.isNotEmpty == true) AppPropertyFact(icon: Icons.layers_outlined, label: DynamicPropertySchema.floorLabel(property.floorNumber)),
       if (property.unitOccupiesEntireFloor) const AppPropertyFact(icon: Icons.apartment, label: 'الوحدة تشغل الدور كاملًا'),
       if (applies('floors_count') && property.floorsCount != null) AppPropertyFact(icon: Icons.layers_outlined, label: '${property.floorsCount} أدوار'),
@@ -436,19 +460,25 @@ class _PropertyDetailsScreenState extends ConsumerState<PropertyDetailsScreen> {
 
   Future<void> _reportListing(PropertyDetails property) async {
     if (_reporting || !await _requireContactAccount() || !mounted) return;
-    final actor = ref.read(authControllerProvider).asData?.value?.id;
+    final scope = ref.read(accountRequestScopeProvider);
     final repository = ref.read(communityRepositoryProvider);
-    final result = await showCommunityReportDialog(context, label: 'الإعلان');
-    if (result == null || !mounted || ref.read(authControllerProvider).asData?.value?.id != actor) return;
-    setState(() => _reporting = true);
+    final result = await showCommunityReportDialog(context, ref: ref, label: 'الإعلان', target: property.title);
+    if (result == null) return;
     try {
-      final receipt = await repository.report(targetType: 'listing', targetId: property.id, reason: result.reason, details: result.details);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(receipt.message),
-          action: SnackBarAction(label: 'متابعة', onPressed: () => context.push('/support?case=${receipt.id}'))));
+      if (!mounted || !scope.isCurrent) return;
+      setState(() => _reporting = true);
+      final receipt = await repository.report(targetType: 'listing', targetId: property.id,
+        reason: result.reason, details: result.details, attachment: result.attachment);
+      if (mounted && scope.isCurrent) {
+        await showReportReceipt(context, ref: ref, caseId: receipt.id, reference: receipt.reference,
+        alreadyReceived: receipt.alreadyReceived);
       }
-    } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error)))); }
-    finally { if (mounted) setState(() => _reporting = false); }
+    } catch (error) {
+      if (mounted && scope.isCurrent) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error))));
+    } finally {
+      await clearReportEvidence(result.attachment);
+      if (mounted) setState(() => _reporting = false);
+    }
   }
 
   Future<void> _toggleFavorite(

@@ -11,7 +11,7 @@ class SupportCase extends Model
         'reference','kind','requester_user_id','requester_name_snapshot','requester_email_snapshot',
         'subject','description','target_type','target_id','reason_code','status','priority',
         'assigned_to_user_id','assigned_to_name_snapshot','sla_due_at','first_response_at',
-        'resolved_at','escalated_at','escalation_level','last_activity_at',
+        'resolved_at','escalated_at','escalation_level','last_activity_at','channel','intake_key','context_property_id',
     ];
 
     protected function casts(): array

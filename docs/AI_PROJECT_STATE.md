@@ -1,3 +1,21 @@
+# UAT 1852 — Unified Sections and Support
+
+UAT 1852 combines the category release at `9b2e102` and the support wave at `101449b`, both based on Alazzi UAT 1850. The existing Android package and signing identity allow both installers in use to upgrade to the same build. The combined API needs the additive category facts and support interactions migrations before rollout.
+
+Local verification on the combined source passed 50 focused cases on each of SQLite and PostgreSQL/PostGIS, 111 Flutter tests and strict Dart analysis. Signed APK verification and Frankfurt smoke checks are separate release gates.
+
+# UAT 1851 — Support, reporting and governorate management
+
+This wave starts from the unified Alazzi UAT 1850 source. The inbox keeps task-type filters and a compact pickup action. Phone-call messages remain part of ordinary conversations. Retired contact follow-up rows remain in historical storage and are excluded from work and management counts.
+
+Listing review opens the stored coordinate with a labeled pin and shows candidate comparison when there is evidence to review. A similarity correction or duplicate rejection records a specific public listing and a reason. The advertiser can open the referenced listing and send an explanation or evidence to the linked support review.
+
+Customers and advertisers use one support entry for FAQs, assistant conversations, direct staff chat, tickets and reports. Handoff keeps the same case and creates one staff task. Report evidence stays in authenticated private storage. A permitted publication hold hides listings without disabling the account and can be appealed and lifted.
+
+Governorate managers manage and message their own team. Operational statistics use Aden calendar dates. Internal escalation to the general manager can link the originating task. Source verification, the signed Android installer and deployment are tracked separately.
+
+Local verification covers the SQLite and PostgreSQL/PostGIS API suites, the scoped reporting and internal messaging paths, Flutter widget tests, static Dart analysis, and rollback of the additive SQLite migration. The signed installer and Frankfurt rollout are pending the branch publication approval.
+
 # UAT 1850 — Alazzi support workspace
 
 The owner authorized implementation on the UAT 1849 Alazzi source and rollout to Frankfurt UAT. The support center uses six state-based queues, with department assignment distinct from employee pickup. A new assignment remains subject to the one-hour pickup deadline until the assignee takes it. Previously accepted tasks retain their recorded pickup time.

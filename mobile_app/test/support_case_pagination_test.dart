@@ -274,7 +274,7 @@ void main() {
       });
     }
 
-    phase23WidgetTest('$surface hides an already open dialog on same-ID session replacement', (tester) async {
+    phase23WidgetTest('$surface hides an open case on same-ID session replacement', (tester) async {
       final wire = _Wire((request) async => request.path.endsWith('/cases/1')
         ? {'data': {..._case(1), 'description': 'Private open-session details'}}
         : _page(1, [_case(1)]));
@@ -290,7 +290,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Private open-session details'), findsNothing);
       expect(find.text('تغيّر الحساب'), findsOneWidget);
-      await tester.tap(find.text('إغلاق'));
+      await tester.tap(find.text(admin ? 'إغلاق' : 'العودة'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });

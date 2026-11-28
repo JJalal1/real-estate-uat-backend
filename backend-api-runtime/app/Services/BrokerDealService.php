@@ -32,7 +32,7 @@ class BrokerDealService
 
     public function report(User $actor, MessageThread $thread, ?float $amount, Request $request): BrokerDealOutcome
     {
-        abort_unless($actor->canCreateListings(), 403);
+        abort_unless($actor->canManageExistingListings(), 403);
         return DB::transaction(function () use ($actor, $thread, $amount, $request): BrokerDealOutcome {
             $property = Property::query()->withoutGlobalScopes()->lockForUpdate()->findOrFail($thread->property_id);
             $thread = MessageThread::query()->lockForUpdate()->findOrFail($thread->id);

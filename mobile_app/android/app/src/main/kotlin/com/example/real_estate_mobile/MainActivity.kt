@@ -36,6 +36,7 @@ class MainActivity : FlutterActivity() {
         private const val LISTING_PREVIEW_NAVIGATION_CHANNEL = "real_estate/listing_preview_navigation"
         private const val PICK_IMAGES_REQUEST = 7419
         private const val TAKE_PHOTO_REQUEST = 7420
+        private const val PICK_SUPPORT_EVIDENCE_REQUEST = 7421
         private const val MAX_IMAGES = 12
         private const val KEY_ALIAS = "real_estate_stage6_auth_key"
         private const val PREFS_NAME = "real_estate_stage6_secure"
@@ -121,6 +122,8 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "pickImages" -> openImagePicker(result)
+                    "pickSupportEvidence" -> openSupportEvidencePicker(result)
+                    "renderSupportPdf" -> renderSupportPdf(call.argument<String>("path"), call.argument<Int>("page") ?: 0, result)
                     "takePhoto" -> openCamera(result)
                     "labelListingPhoto" -> {
                         val labeler = listingPhotoLabeler ?: ListingPhotoLabeler(this).also {
@@ -353,6 +356,7 @@ class MainActivity : FlutterActivity() {
         when (requestCode) {
             PICK_IMAGES_REQUEST -> handleImagePickerResult(resultCode, data)
             TAKE_PHOTO_REQUEST -> handleCameraResult(resultCode)
+            PICK_SUPPORT_EVIDENCE_REQUEST -> handleSupportEvidence(resultCode, data?.data)
         }
     }
 
@@ -430,7 +434,83 @@ class MainActivity : FlutterActivity() {
         result.success(output.absolutePath)
     }
 
-    private fun copyUriToCache(uri: Uri, index: Int): String {
+    private fun openSupportEvidencePicker(result: MethodChannel.Result) {
+        if (pendingResult != null) {
+            result.error("PICKER_BUSY", "The media picker is already open.", null)
+            return
+        }
+        pendingResult = result
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/pdf", "image/jpeg", "image/png", "image/webp"))
+        }
+        try {
+            startActivityForResult(intent, PICK_SUPPORT_EVIDENCE_REQUEST)
+        } catch (_: Exception) {
+            pendingResult = null
+            result.error("PICKER_UNAVAILABLE", "Cannot open the file picker.", null)
+        }
+    }
+
+    private fun handleSupportEvidence(resultCode: Int, uri: Uri?) {
+        val result = pendingResult ?: return
+        pendingResult = null
+        if (resultCode != Activity.RESULT_OK || uri == null) {
+            result.success(null)
+            return
+        }
+        Thread {
+            try {
+                val path = copyUriToCache(uri, 0, 8L * 1024 * 1024)
+                runOnUiThread { result.success(path) }
+            } catch (_: Exception) {
+                runOnUiThread { result.error("PICKER_COPY_FAILED", "Cannot copy the selected evidence.", null) }
+            }
+        }.start()
+    }
+
+    private fun renderSupportPdf(path: String?, page: Int, result: MethodChannel.Result) {
+        Thread {
+            try {
+                val directory = File(cacheDir, "stage5_uploads").canonicalFile
+                val pdf = File(path.orEmpty()).canonicalFile
+                require(pdf.parentFile == directory && pdf.name.startsWith("support-preview-") && pdf.extension == "pdf")
+                val descriptor = android.os.ParcelFileDescriptor.open(pdf, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+                val pdfRenderer = try {
+                    android.graphics.pdf.PdfRenderer(descriptor)
+                } catch (error: Exception) {
+                    descriptor.close()
+                    throw error
+                }
+                pdfRenderer.use { renderer ->
+                    require(page in 0 until renderer.pageCount)
+                    renderer.openPage(page).use { source ->
+                        val scale = minOf(1000.0 / source.width, 1600.0 / source.height)
+                        val bitmap = android.graphics.Bitmap.createBitmap(
+                            (source.width * scale).toInt().coerceAtLeast(1),
+                            (source.height * scale).toInt().coerceAtLeast(1),
+                            android.graphics.Bitmap.Config.ARGB_8888
+                        )
+                        try {
+                            bitmap.eraseColor(android.graphics.Color.WHITE)
+                            source.render(bitmap, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            val stream = java.io.ByteArrayOutputStream()
+                            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+                            val data = mapOf("pages" to renderer.pageCount, "bytes" to stream.toByteArray())
+                            runOnUiThread { result.success(data) }
+                        } finally {
+                            bitmap.recycle()
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                runOnUiThread { result.error("PDF_PREVIEW_FAILED", "Cannot preview the document.", null) }
+            }
+        }.start()
+    }
+
+    private fun copyUriToCache(uri: Uri, index: Int, limit: Long? = null): String {
         val extension = when (contentResolver.getType(uri).orEmpty().lowercase()) {
             "image/png" -> ".png"
             "image/webp" -> ".webp"
@@ -439,6 +519,7 @@ class MainActivity : FlutterActivity() {
             "image/heif" -> ".heif"
             "image/avif" -> ".avif"
             "image/gif" -> ".gif"
+            "application/pdf" -> ".pdf"
             else -> ".bin"
         }
         val directory = File(cacheDir, "stage5_uploads")
@@ -446,7 +527,27 @@ class MainActivity : FlutterActivity() {
         val output = File(directory, "stage5_${System.currentTimeMillis()}_${index}$extension")
         val input = contentResolver.openInputStream(uri)
             ?: throw IllegalStateException("Unable to read selected image.")
-        input.use { source -> FileOutputStream(output).use { destination -> source.copyTo(destination) } }
+        try {
+            input.use { source -> FileOutputStream(output).use { destination ->
+                if (limit == null) {
+                    source.copyTo(destination)
+                } else {
+                    val buffer = ByteArray(8192)
+                    var total = 0L
+                    while (true) {
+                        val count = source.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        require(total <= limit)
+                        destination.write(buffer, 0, count)
+                    }
+                    require(total > 0)
+                }
+            } }
+        } catch (error: Exception) {
+            output.delete()
+            throw error
+        }
         return output.absolutePath
     }
 

@@ -22,8 +22,8 @@ class UserNotificationService
         if (in_array($type, UserNotification::RETIRED_TYPES, true) || $entityType === 'viewing_booking') return null;
         $category = $this->preferenceCategory($type);
         $canPush = $category === null || $this->enabled($userId, $category);
-        // Keep this moderation decision in the inbox when optional listing alerts are muted.
-        if (! $canPush && $type !== 'listing_duplicate_rejected') {
+        // Review decisions remain accessible through the inbox even with listing push muted.
+        if (!$canPush && !in_array($type, ['listing_duplicate_rejected', 'listing_returned_for_correction', 'listing_rejected'], true)) {
             return null;
         }
 

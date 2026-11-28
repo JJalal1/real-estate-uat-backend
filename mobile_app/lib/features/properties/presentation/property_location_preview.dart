@@ -1,8 +1,12 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../map/presentation/aqer_map.dart';
 
 typedef PropertyMapPreviewBuilder = Widget Function(BuildContext context, double latitude, double longitude);
@@ -26,18 +30,21 @@ class PropertyLocationScreen extends StatelessWidget {
   const PropertyLocationScreen({
     required this.latitude,
     required this.longitude,
+    this.listingTitle,
     super.key,
   });
 
   final double latitude, longitude;
+  final String? listingTitle;
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('موقع العقار')),
+    appBar: AppBar(title: Text(listingTitle ?? 'موقع العقار', maxLines: 1, overflow: TextOverflow.ellipsis)),
     body: _PublicPropertyMap(
       latitude: latitude,
       longitude: longitude,
       interactive: true,
+      listingTitle: listingTitle,
     ),
   );
 }
@@ -47,11 +54,13 @@ class _PublicPropertyMap extends StatefulWidget {
     required this.latitude,
     required this.longitude,
     this.interactive = false,
+    this.listingTitle,
     super.key,
   });
 
   final double latitude, longitude;
   final bool interactive;
+  final String? listingTitle;
   @override
   State<_PublicPropertyMap> createState() => _PublicPropertyMapState();
 }
@@ -84,11 +93,23 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
     final controller = _controller;
     if (controller == null || !mounted || attempt != _attempt) return;
     try {
-      // This is a geographic annotation, not a screen-centered placeholder pin.
-      await controller.addCircle(CircleOptions(
-        geometry: LatLng(widget.latitude, widget.longitude), circleRadius: 8,
-        circleColor: '#127C7E', circleStrokeColor: '#FFFFFF', circleStrokeWidth: 3,
-      )).timeout(const Duration(seconds: 5));
+      final location = LatLng(widget.latitude, widget.longitude);
+      final title = widget.listingTitle;
+      if (title == null) {
+        await controller.addCircle(CircleOptions(
+          geometry: location, circleRadius: 8,
+          circleColor: '#127C7E', circleStrokeColor: '#FFFFFF', circleStrokeWidth: 3,
+        )).timeout(const Duration(seconds: 5));
+      } else {
+        const markerName = 'reviewed-listing-location';
+        final image = await _listingMarker(title);
+        if (!mounted || attempt != _attempt || _controller != controller) return;
+        await controller.addImage(markerName, image);
+        if (!mounted || attempt != _attempt || _controller != controller) return;
+        await controller.addSymbols([
+          SymbolOptions(geometry: location, iconImage: markerName, iconAnchor: 'bottom', iconSize: .85),
+        ], [<String, dynamic>{}]).timeout(const Duration(seconds: 5));
+      }
       if (mounted && attempt == _attempt && _controller == controller) {
         setState(() { _ready = true; _failed = false; });
       }
@@ -131,4 +152,48 @@ class _PublicPropertyMapState extends State<_PublicPropertyMap> {
       child: CircularProgressIndicator(strokeWidth: 2)))),
   ]);
   }
+}
+
+Future<Uint8List> _listingMarker(String title) async {
+  const scale = 2.0;
+  const color = Color(0xFF0B7778);
+  final label = TextPainter(
+    text: TextSpan(text: title, style: const TextStyle(
+      fontFamily: AppTypography.fontFamily,
+      fontFamilyFallback: AppTypography.fontFamilyFallback,
+      color: Color(0xFF152C41), fontSize: 13, fontWeight: FontWeight.w600,
+    )),
+    textDirection: TextDirection.rtl,
+    maxLines: 1,
+    ellipsis: '…',
+  )..layout(maxWidth: 146);
+  final width = (label.width + 20).clamp(48.0, 166.0).toDouble();
+  final center = width / 2;
+  final height = label.height + 36;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder)..scale(scale);
+  final caption = RRect.fromRectAndRadius(
+    Rect.fromLTWH(2, 2, width - 4, label.height + 10),
+    const Radius.circular(8),
+  );
+  canvas.drawRRect(caption, Paint()..color = Colors.white);
+  canvas.drawRRect(caption, Paint()..color = color..style = PaintingStyle.stroke);
+  label.paint(canvas, Offset((width - label.width) / 2, 7));
+  label.dispose();
+
+  final top = height - 24;
+  final pin = Path()
+    ..moveTo(center, height)
+    ..cubicTo(center - 26, top, center - 5, top - 6, center, top)
+    ..cubicTo(center + 5, top - 6, center + 26, top, center, height)
+    ..close();
+  canvas.drawPath(pin, Paint()..color = color);
+  canvas.drawCircle(Offset(center, top + 7), 3.5, Paint()..color = Colors.white);
+  final picture = recorder.endRecording();
+  final image = await picture.toImage((width * scale).ceil(), (height * scale).ceil());
+  picture.dispose();
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  if (data == null) throw StateError('Could not encode listing marker.');
+  return data.buffer.asUint8List();
 }

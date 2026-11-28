@@ -1,12 +1,6 @@
-import 'dart:math';
+import '../../../core/platform/client_request_key.dart';
 
-String newListingDraftKey() {
-  final random = Random.secure(), bytes = List<int>.generate(16, (_) => 0);
-  for (var i = 0; i < 16; i++) { bytes[i] = random.nextInt(256); }
-  bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
-  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  return '${hex.substring(0,8)}-${hex.substring(8,12)}-${hex.substring(12,16)}-${hex.substring(16,20)}-${hex.substring(20)}';
-}
+String newListingDraftKey() => newClientRequestKey();
 
 class ListingAccountDraft {
   const ListingAccountDraft({required this.key, required this.revision, required this.payload,

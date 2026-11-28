@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Property;
 use App\Models\Role;
 use App\Models\SupportCase;
+use App\Models\SupportTask;
 use App\Models\User;
 use App\Services\AccessControlService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -117,6 +118,9 @@ class UatAdminSupportWorkspaceApiTest extends TestCase
             ->assertOk()->assertJsonPath('data.assigned_to_user_id',$agent->id);
         // The manager owns distribution, not the normal end-user decision path.
         $this->withHeaders($managerHeaders)->patchJson('/api/admin/support/cases/'.$caseId.'/status',['status'=>'resolved'])->assertStatus(409);
+        $taskId = SupportTask::query()->where('source_type', 'support_ticket')->where('source_id', $caseId)->value('id');
+        $this->withHeaders($agentHeaders)->patchJson('/api/admin/support/cases/'.$caseId.'/status',['status'=>'resolved'])->assertConflict();
+        $this->withHeaders($agentHeaders)->postJson("/api/admin/workspace/tasks/$taskId/claim")->assertOk();
         $this->withHeaders($agentHeaders)->patchJson('/api/admin/support/cases/'.$caseId.'/status',['status'=>'resolved'])->assertOk();
         $this->withHeaders($managerHeaders)->postJson('/api/admin/support/cases/'.$caseId.'/reopen',['reason'=>'الحالة تحتاج متابعة إضافية.'])
             ->assertOk()->assertJsonPath('data.status','in_progress');

@@ -277,14 +277,14 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     }
   }
 
-  Future<void> _open(AppNotificationItem item) async {
+  Future<void> _open(AppNotificationItem item, {String? destination}) async {
     if (_actionPending) return;
     final actor = ref.read(authControllerProvider).asData?.value?.id;
     final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
     final generation = ++_actionGeneration;
     setState(() => _actionPending = true);
     try {
-      await _openDestination(item, actor, epoch);
+      await _openDestination(item, actor, epoch, destination);
     } catch (error) {
       if (_sameSession(actor, epoch)) _showActionError(error);
     } finally {
@@ -299,7 +299,7 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
     );
   }
 
-  Future<void> _openDestination(AppNotificationItem item, int? actor, int epoch) async {
+  Future<void> _openDestination(AppNotificationItem item, int? actor, int epoch, String? route) async {
     if (!item.isRead) {
       await ref.read(messageRepositoryProvider).readNotification(item.id);
     }
@@ -309,7 +309,7 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
       ref.read(unreadInboxRevisionProvider.notifier).state++;
     }
 
-    final destination = notificationDestination(item);
+    final destination = route ?? notificationDestination(item);
     if (destination != null) {
       await context.push<void>(destination);
     } else if (_sameSession(actor, epoch)) {
@@ -423,6 +423,12 @@ class _NotificationsScreenState extends ConsumerState<_NotificationsBody> {
                         item: item,
                         pending: _actionPending,
                         onTap: () => _open(item),
+                        onOpenPrevious: item.previousPropertyId == null ? null : () => _open(
+                          item, destination: '/properties/${item.previousPropertyId}',
+                        ),
+                        onReviewSupport: item.isListingReviewDecision ? () => _open(
+                          item, destination: '/support/listing-decision/${item.entityId}',
+                        ) : null,
                       );
                     },
                   ),
@@ -518,12 +524,16 @@ class _NotificationCard extends StatelessWidget {
     required this.item,
     required this.pending,
     required this.onTap,
+    this.onOpenPrevious,
+    this.onReviewSupport,
     super.key,
   });
 
   final AppNotificationItem item;
   final bool pending;
   final VoidCallback onTap;
+  final VoidCallback? onOpenPrevious;
+  final VoidCallback? onReviewSupport;
 
   @override
   Widget build(BuildContext context) {
@@ -536,7 +546,7 @@ class _NotificationCard extends StatelessWidget {
     final iconFill = unread ? scheme.primary.withValues(alpha: .09) : scheme.surfaceContainerHigh;
     const radius = BorderRadius.all(Radius.circular(12));
     final largeText = MediaQuery.textScalerOf(context).scale(12) > 18;
-    final isDuplicateRejection = item.type == 'listing_duplicate_rejected';
+    final reviewDecision = item.isListingReviewDecision;
     final isAvailabilityReminder = item.type == 'broker_availability_due';
     final title = isAvailabilityReminder ? 'حدّث إعلاناتك' : item.title;
     final body = isAvailabilityReminder
@@ -574,12 +584,19 @@ class _NotificationCard extends StatelessWidget {
                 ]),
                 if (body != null && body.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(body, maxLines: isDuplicateRejection ? null : 2,
-                    overflow: isDuplicateRejection ? null : TextOverflow.ellipsis,
+                  Text(body, maxLines: reviewDecision ? null : 2,
+                    overflow: reviewDecision ? null : TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                 ],
-                if (item.previousPropertyId != null)
-                  TextButton(onPressed: pending ? null : onTap, child: const Text('عرض الإعلان السابق')),
+                if (onOpenPrevious != null || onReviewSupport != null)
+                  Wrap(children: [
+                    if (onOpenPrevious != null)
+                      TextButton(onPressed: pending ? null : onOpenPrevious,
+                        child: const Text('عرض الإعلان المشابه')),
+                    if (onReviewSupport != null)
+                      TextButton(onPressed: pending ? null : onReviewSupport,
+                        child: const Text('مراجعة الدعم')),
+                  ]),
                 if (largeText && time != null) Align(alignment: AlignmentDirectional.centerEnd, child: time),
               ])),
               if (!largeText && time != null) ...[const SizedBox(width: 8), time],

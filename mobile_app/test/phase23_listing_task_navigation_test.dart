@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show SemanticsAction, SemanticsFlag;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,10 +91,12 @@ class _Cases implements SupportRepository {
     'messages': <Map<String, dynamic>>[], 'events': <Map<String, dynamic>>[],
   });
   @override
-  Future<SupportCaseDetails> adminDetails(int id) async => _snapshot('in_progress');
+  Future<SupportCaseDetails> adminDetails(int id) async => _snapshot(tasks.completed ? 'dismissed' : 'in_progress');
   @override
-  Future<SupportCaseDetails> setStatus(int id, String status) async {
-    decisions.add((id, status));tasks.completed = true;return _snapshot(status);
+  Future<SupportCaseDetails> reportDecision(int id, String decision, String reason) async {
+    decisions.add((id, decision));
+    tasks.completed = true;
+    return _snapshot('dismissed');
   }
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError('$invocation');
@@ -158,38 +159,29 @@ Future<ProviderContainer> _openTasks(
 }
 
 void main() {
-  testWidgets('report status menu accepts a physical tap and targets the owned case',
+  testWidgets('report decision requires an explanation and targets the owned case',
       (tester) async {
-    tester.view.physicalSize = const Size(1080, 1920);
-    tester.view.devicePixelRatio = 2.625;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final semantics = tester.ensureSemantics();
-    try {
     final tasks = _Tasks(report: true);
     final cases = _Cases(tasks);
     final container = await _openTasks(tester, _Reviews(), tasks: tasks, cases: cases);
     addTearDown(container.dispose);
     await tester.ensureVisible(find.text('فتح'));
-    await tester.tap(find.text('فتح'));await tester.pumpAndSettle();
+    await tester.tap(find.text('فتح'));
+    await tester.pumpAndSettle();
     expect(find.text('Synthetic conversation report'), findsOneWidget);
-    final statusButton = find.ancestor(
-      of: find.text('تغيير الحالة'),
-      matching: find.byWidgetPredicate((widget) => widget is MaterialButton),
-    );
-    expect(statusButton, findsOneWidget);
-    final statusSemantics = tester.getSemantics(statusButton).getSemanticsData();
-    expect(statusSemantics.hasAction(SemanticsAction.tap), isTrue);
-    expect(statusSemantics.hasFlag(SemanticsFlag.isButton), isTrue);
-    await tester.tap(statusButton);await tester.pumpAndSettle();
-    expect(find.text('رفض / إغلاق'), findsOneWidget);
-    await tester.tap(find.text('رفض / إغلاق'));await tester.pumpAndSettle();
-    expect(cases.decisions, [(9, 'dismissed')]);
+    await tester.ensureVisible(find.text('رفض البلاغ'));
+    await tester.tap(find.text('رفض البلاغ'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('حفظ'));
+    await tester.pumpAndSettle();
+    expect(cases.decisions, isEmpty);
+    await tester.enterText(find.byType(TextField), 'البلاغ لا يتضمن مخالفة.');
+    await tester.tap(find.text('حفظ'));
+    await tester.pumpAndSettle();
+    expect(cases.decisions, [(9, 'dismiss')]);
     expect(tester.takeException(), isNull);
-    } finally {
-      semantics.dispose();
-    }
   });
+
   testWidgets('owned task opens its exact case and refreshes after returning',
       (tester) async {
     final reviews = _Reviews();
@@ -210,19 +202,10 @@ void main() {
     expect(find.text('شقة'), findsOneWidget);
     expect(find.text('apartment'), findsNothing);
     expect(find.text('طلبات التحقيق'), findsNothing);
-    final history = find.textContaining('سجل المراجعة');
-    await tester.scrollUntilVisible(history, 220, scrollable: list);
-    await tester.pumpAndSettle();
-    await tester.tap(history);
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('أُرسل للمراجعة'), 220,
-        scrollable: list);
-    await tester.pumpAndSettle();
-    expect(find.text('أُرسل للمراجعة'), findsOneWidget);
-    expect(find.text('submitted'), findsNothing);
-    expect(find.text('review_started'), findsNothing);
+    expect(find.textContaining('سجل المراجعة'), findsNothing);
+    expect(find.text('أُرسل للمراجعة'), findsNothing);
     tasks.completed = true;
-    Navigator.of(tester.element(find.text('أُرسل للمراجعة'))).pop(true);
+    Navigator.of(tester.element(details)).pop(true);
     await tester.pumpAndSettle();
     expect(tasks.loads, 2);
     expect(find.text('Owned listing verification task'), findsNothing);

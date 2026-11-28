@@ -120,7 +120,7 @@ class _BrokerPublicProfileActionsState
       return const SizedBox.shrink();
     }
     final enabled = widget.enabled && !_uploading;
-    final canManageProfile = widget.profile != null && user.canCreateListing && user.canEditPublicProfile;
+    final canManageProfile = widget.profile != null && user.canManageExistingListings && user.canEditPublicProfile;
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: Wrap(

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/platform/stage5_media_picker.dart';
 import '../../../core/widgets/ebroker_widgets.dart';
+import '../../account/presentation/actor_scoped_page.dart';
 
 class CommunityRatingDialogResult {
   const CommunityRatingDialogResult({
@@ -15,10 +19,12 @@ class CommunityReportDialogResult {
   const CommunityReportDialogResult({
     required this.reason,
     required this.details,
+    this.attachment,
   });
 
   final String reason;
   final String details;
+  final String? attachment;
 }
 
 Future<String?> showCommunityTextDialog(
@@ -53,12 +59,46 @@ Future<CommunityRatingDialogResult?> showAdvertiserRatingDialog(
 
 Future<CommunityReportDialogResult?> showCommunityReportDialog(
   BuildContext context, {
+  required WidgetRef ref,
   required String label,
-}) {
-  return showDialog<CommunityReportDialogResult>(
+  String? target,
+  String? property,
+  bool conversation = false,
+}) async {
+  String? submittedAttachment;
+  final result = await showActorDialog<CommunityReportDialogResult>(
     context: context,
-    builder: (_) => _CommunityReportDialog(label: label),
+    ref: ref,
+    builder: (_) => _CommunityReportDialog(
+      label: label,
+      target: target,
+      property: property,
+      conversation: conversation,
+      onSubmitAttachment: (path) => submittedAttachment = path,
+    ),
   );
+  if (result == null) await clearReportEvidence(submittedAttachment);
+  return result;
+}
+
+Future<void> showReportReceipt(BuildContext context, {required WidgetRef ref,
+    required int caseId, String? reference,
+    bool alreadyReceived = false}) async {
+  final follow = await showActorDialog<bool>(context: context, ref: ref, builder: (dialog) => AlertDialog(
+    title: Text(alreadyReceived ? 'وصل بلاغك سابقًا' : 'وصل بلاغك للدعم'),
+    content: reference == null || reference.isEmpty ? null : Text('رقم البلاغ $reference'),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('إغلاق')),
+      if (caseId > 0)
+        FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('متابعة البلاغ')),
+    ],
+  ));
+  if (context.mounted && follow == true) await context.push<void>('/support?case=$caseId');
+}
+
+Future<void> clearReportEvidence(String? path) async {
+  if (path == null) return;
+  try { await const Stage5MediaPicker().clearTemporaryFiles([path]); } catch (_) { /* Temporary file. */ }
 }
 
 class _CommunityTextDialog extends StatefulWidget {
@@ -228,9 +268,14 @@ class _AdvertiserRatingDialogState extends State<_AdvertiserRatingDialog> {
 }
 
 class _CommunityReportDialog extends StatefulWidget {
-  const _CommunityReportDialog({required this.label});
+  const _CommunityReportDialog({required this.label, required this.conversation,
+    required this.onSubmitAttachment, this.target, this.property});
 
   final String label;
+  final bool conversation;
+  final String? target;
+  final String? property;
+  final ValueChanged<String?> onSubmitAttachment;
 
   @override
   State<_CommunityReportDialog> createState() => _CommunityReportDialogState();
@@ -247,7 +292,9 @@ class _CommunityReportDialogState extends State<_CommunityReportDialog> {
     'other': 'سبب آخر',
   };
 
-  String _reason = 'misleading';
+  late String _reason;
+  String? _attachment;
+  bool _submitted = false;
   late final TextEditingController _detailsController;
   String? _detailsError;
 
@@ -255,11 +302,13 @@ class _CommunityReportDialogState extends State<_CommunityReportDialog> {
   void initState() {
     super.initState();
     _detailsController = TextEditingController();
+    _reason = widget.conversation ? 'abuse' : 'misleading';
   }
 
   @override
   void dispose() {
     _detailsController.dispose();
+    if (!_submitted) clearReportEvidence(_attachment).ignore();
     super.dispose();
   }
 
@@ -271,26 +320,50 @@ class _CommunityReportDialogState extends State<_CommunityReportDialog> {
       );
       return;
     }
+    _submitted = true;
+    widget.onSubmitAttachment(_attachment);
     Navigator.of(context).pop(
-      CommunityReportDialogResult(reason: _reason, details: details),
+      CommunityReportDialogResult(reason: _reason, details: details, attachment: _attachment),
     );
+  }
+
+  Future<void> _pick() async {
+    try {
+      final selected = await const Stage5MediaPicker().pickSupportEvidence();
+      if (selected == null) return;
+      if (!mounted) { await clearReportEvidence(selected); return; }
+      clearReportEvidence(_attachment).ignore();
+      setState(() => _attachment = selected);
+    } catch (_) {
+      if (mounted) setState(() => _detailsError = 'تعذّر إرفاق الملف.');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final reasons = {..._reasons};
+    if (widget.conversation) {
+      reasons.remove('duplicate');
+      reasons.remove('misleading');
+      reasons['harassment'] = 'مضايقة';
+    }
     return AlertDialog(
+      scrollable: true,
       title: Text('بلاغ عن ${widget.label}'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (widget.target case final name?) ListTile(contentPadding: EdgeInsets.zero,
+            title: Text(name), subtitle: widget.property == null ? null : Text(widget.property!)),
           DropdownButtonFormField<String>(
             value: _reason,
+            isExpanded: true,
             decoration: const InputDecoration(labelText: 'السبب'),
-            items: _reasons.entries
+            items: reasons.entries
                 .map(
                   (entry) => DropdownMenuItem(
                     value: entry.key,
-                    child: Text(entry.value),
+                    child: Text(entry.value, maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                 )
                 .toList(growable: false),
@@ -306,8 +379,7 @@ class _CommunityReportDialogState extends State<_CommunityReportDialog> {
             maxLines: 4,
             maxLength: 5000,
             decoration: InputDecoration(
-              labelText: 'التفاصيل',
-              hintText: 'اشرح سبب البلاغ بوضوح',
+              labelText: 'وش حصل؟',
               errorText: _detailsError,
             ),
             onChanged: (_) {
@@ -316,6 +388,8 @@ class _CommunityReportDialogState extends State<_CommunityReportDialog> {
               }
             },
           ),
+          TextButton.icon(icon: const Icon(Icons.attach_file),
+            label: Text(_attachment == null ? 'إرفاق دليل' : 'استبدال المرفق'), onPressed: _pick),
         ],
       ),
       actions: [

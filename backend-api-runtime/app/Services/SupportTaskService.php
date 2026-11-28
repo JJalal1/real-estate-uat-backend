@@ -31,8 +31,9 @@ class SupportTaskService
     public const INBOX_STATUSES = ['new','needs_followup'];
     public const CLOSED_STATUSES = ['completed','rejected'];
     public const WORKSPACE_BUCKETS = ['assigned', 'received', 'open_tickets', 'waiting_user', 'completed', 'unreceived_overdue'];
+    public const MANAGER_SCOPES = ['active', 'processing', 'intervention'];
     public const CASE_CATEGORIES = ['support_ticket', 'report', 'support_question'];
-    public const WORK_CATEGORIES = ['listing_review', 'support_ticket', 'report', 'support_question', 'payment_review', 'contact_followup'];
+    public const WORK_CATEGORIES = ['listing_review', 'support_ticket', 'report', 'support_question', 'payment_review'];
 
     public function __construct(
         private readonly AuditLogService $audit,
@@ -98,6 +99,13 @@ class SupportTaskService
             }
             return;
         }
+        if (in_array($scope, self::MANAGER_SCOPES, true)) {
+            abort_if($worker, 403);
+            $query->whereIn('status', self::ACTIVE_STATUSES);
+            if ($scope === 'processing') $this->filterProcessing($query);
+            if ($scope === 'intervention') $this->filterIntervention($query);
+            return;
+        }
         if ($scope === 'all') return;
 
         if ($worker || in_array($scope, ['mine', 'assigned', 'received'], true)) {
@@ -117,6 +125,18 @@ class SupportTaskService
                 ->whereNotNull('claimed_at')->where('status', '!=', 'waiting_user');
         }
         if ($scope === 'waiting_user') $query->where('status', 'waiting_user');
+    }
+
+    private function filterProcessing(Builder $query): void
+    {
+        $query->whereNotNull('claimed_at')->whereNotNull('assigned_to_user_id')
+            ->whereIn('status', ['in_progress', 'needs_followup']);
+    }
+
+    private function filterIntervention(Builder $query): void
+    {
+        $query->where(fn (Builder $cases) => $cases->where('status', 'escalated')
+            ->orWhere(fn (Builder $reports) => $reports->where('source_type', 'report')->where('severity', 'critical')));
     }
 
     private function filterUnreceivedOverdue(Builder $query): void
@@ -161,9 +181,16 @@ class SupportTaskService
     public function messagesFor(User $actor, bool $actingAsAgent): Builder
     {
         return $this->visibleTaskQuery($actor, $actingAsAgent)
-            ->where('assigned_to_user_id', $actor->id)
-            ->whereNotNull('claimed_at')
             ->whereIn('source_type', ['support_ticket', 'report'])
+            ->whereIn('status', self::ACTIVE_STATUSES)
+            ->where(function (Builder $cases) use ($actor, $actingAsAgent): void {
+                $cases->where(fn (Builder $mine) => $mine->where('assigned_to_user_id', $actor->id)
+                    ->whereNotNull('claimed_at'));
+                if ($this->isManager($actor) && !$actingAsAgent) $cases->orWhere('status', 'escalated');
+            })
+            ->addSelect(['last_message_preview' => DB::table('support_case_messages')->select('body')
+                ->whereColumn('support_case_id', 'support_tasks.source_id')
+                ->where('is_internal', false)->latest('id')->limit(1)])
             ->orderByDesc('last_activity_at')->orderByDesc('id');
     }
 
@@ -189,7 +216,8 @@ class SupportTaskService
         $this->ensureSupportStaffMembership($actor);
         app(SupportTeamRoutingService::class)->refreshQueuedRouting();
         $query = SupportTask::query()->with(['team:id,name_ar', 'governorate:id,name_ar'])
-            ->select('support_tasks.*')->addSelect(['legacy_assignment_event' => $this->assignmentHistory()]);
+            ->select('support_tasks.*')->where('source_type', '!=', 'contact_followup')
+            ->addSelect(['legacy_assignment_event' => $this->assignmentHistory()]);
         $this->applyActorTeamScope($query, $actor, $actingAsAgent);
         if ($this->isSupportAgent($actor) || ($actingAsAgent && $actor->hasRole('support_agent'))) {
             $this->applyAgentTypePermissions($query, $actor);
@@ -443,6 +471,45 @@ class SupportTaskService
         if ((int)($task->assigned_to_user_id??0)!==(int)$actor->id || $task->isAwaitingAssignedReception()) throw new ConflictHttpException('يجب استلام المهمة أولاً قبل تنفيذ هذا الإجراء.');
     }
 
+    public function assertCaseAccess(User $actor, SupportCase $case, bool $allowIntervention = true): SupportTask
+    {
+        $task = $this->caseTaskInTeam($actor, $case);
+        if ($actor->is_platform_owner || $actor->hasRole('super_admin')) return $task;
+        $this->assertTaskOwnership($actor, $task);
+        $owns = (int) $task->assigned_to_user_id === (int) $actor->id && !$task->isAwaitingAssignedReception();
+        if (!$owns && !($allowIntervention && $this->isManager($actor) && $task->status === 'escalated')) {
+            throw new ConflictHttpException('يجب استلام المهمة أولاً.');
+        }
+
+        return $task;
+    }
+
+    public function scopedCaseTasks(User $actor): Builder
+    {
+        return $this->visibleTaskQuery($actor)->whereIn('source_type', ['report', 'support_ticket']);
+    }
+
+    public function caseTaskInTeam(User $actor, SupportCase $case): SupportTask
+    {
+        abort_if($case->channel === 'assistant', 404);
+        $type = $case->kind === 'report' ? 'report' : 'support_ticket';
+        $task = SupportTask::query()->where('source_type', $type)->where('source_id', $case->id)->first()
+            ?? $this->projectSupportCase($case);
+        abort_if(!$task, 404);
+        $actingAsAgent = (int) $task->assigned_to_user_id === (int) $actor->id
+            && !empty($task->metadata['manager_agent_mode']);
+        $this->assertTaskInActorScope($actor, $task, $actingAsAgent);
+
+        return $task;
+    }
+
+    public function canAccessFallbackScope(User $actor): bool
+    {
+        if ($actor->is_platform_owner || $actor->hasRole('super_admin')) return true;
+        $fallbackId = app(SupportTeamRoutingService::class)->fallbackTeamId();
+        return $fallbackId !== null && in_array($fallbackId, $this->actorTeamIds($actor), true);
+    }
+
     public function assertTaskExecution(User $actor, SupportTask $task, bool $actingAsAgent=false): void
     {
         $this->assertTaskInActorScope($actor,$task,$actingAsAgent);
@@ -470,10 +537,12 @@ class SupportTaskService
             ->select('m.user_id','u.name','m.member_role','m.is_available','m.capacity','m.support_team_id','t.name_ar as team_name')
             ->orderBy('u.name')->get();
         $ids=$members->pluck('user_id')->map(fn($id)=>(int)$id)->unique()->values();
-        $tasks=SupportTask::query()->whereIn('support_team_id',$teamIds)->whereIn('assigned_to_user_id',$ids)
+        $tasks=SupportTask::query()->whereIn('support_team_id',$teamIds)->where('source_type', '!=', 'contact_followup')->whereIn('assigned_to_user_id',$ids)
             ->get(['assigned_to_user_id','source_type','status','priority','sla_due_at','claimed_at','completed_at','created_at','last_activity_at'])
             ->groupBy('assigned_to_user_id');
-        $responses=SupportCase::query()->whereIn('assigned_to_user_id',$ids)->whereNotNull('first_response_at')
+        $responses=SupportCase::query()->whereIn('assigned_to_user_id',$ids)
+            ->whereIn('id', SupportTask::query()->select('source_id')->whereIn('support_team_id', $teamIds)
+                ->whereIn('source_type', ['support_ticket', 'report']))->whereNotNull('first_response_at')
             ->latest('id')->limit(1000)->get(['assigned_to_user_id','created_at','first_response_at'])->groupBy('assigned_to_user_id');
         return $members->map(function($member)use($tasks,$responses):array{
             $rows=$tasks->get($member->user_id,collect());
@@ -534,7 +603,7 @@ class SupportTaskService
     public function taskData(SupportTask $task, User $actor): array
     {
         $task->loadMissing(['team:id,name_ar','governorate:id,name_ar']);
-        $remaining=$task->sla_due_at?now()->diffInMinutes($task->sla_due_at,false):null;
+        $remaining=$task->isActive() && $task->sla_due_at ? now()->diffInMinutes($task->sla_due_at,false) : null;
         $mine = (int)($task->assigned_to_user_id ?? 0) === (int)$actor->id;
         $pickupDue = !$task->claimed_at && in_array($task->status, [...self::INBOX_STATUSES, 'in_progress'], true)
             ? $task->created_at?->copy()->addHour() : null;
@@ -557,6 +626,7 @@ class SupportTaskService
             'assigned_to_user_id'=>$task->assigned_to_user_id,'assigned_to_name'=>$task->assigned_to_name_snapshot,
             'created_at'=>$task->created_at?->toIso8601String(),'claimed_at'=>$task->claimed_at?->toIso8601String(),'completed_at'=>$task->completed_at?->toIso8601String(),
             'last_activity_at'=>$task->last_activity_at?->toIso8601String(),'sla_due_at'=>$task->sla_due_at?->toIso8601String(),
+            'last_message_preview' => $task->last_message_preview === null ? null : mb_substr($task->last_message_preview, 0, 150),
             'remaining_minutes'=>$remaining,'is_overdue'=>$remaining!==null&&$remaining<0,'is_mine'=>$mine,
             'pickup_due_at'=>$pickupDue?->toIso8601String(), 'is_unreceived_overdue'=>$pickupDue?->lte(now()) ?? false,
             'can_claim'=>$pickupDue !== null && (!$task->assigned_to_user_id || $mine),
@@ -576,7 +646,6 @@ class SupportTaskService
             'listing_reviews'=>(clone $base)->where('source_type','listing_review')->whereIn('status',self::ACTIVE_STATUSES)->count(),
             'tickets'=>(clone $base)->where('source_type','support_ticket')->whereIn('status',self::ACTIVE_STATUSES)->count(),
             'reports'=>(clone $base)->where('source_type','report')->whereIn('status',self::ACTIVE_STATUSES)->count(),
-            'contact_followups'=>(clone $base)->where('source_type','contact_followup')->whereIn('status',self::ACTIVE_STATUSES)->count(),
             'waiting_user'=>(clone $base)->where('assigned_to_user_id',$actor->id)->where('status','waiting_user')->count(),
             'overdue'=>(clone $base)->where('assigned_to_user_id',$actor->id)->whereIn('status',self::ACTIVE_STATUSES)->whereNotNull('sla_due_at')->where('sla_due_at','<=',now())->count(),
             'attention'=>$this->attentionQuery($base,$actor->id)->limit(8)->get()->map(fn(SupportTask $t)=>$this->taskData($t,$actor))->values(),
@@ -585,17 +654,26 @@ class SupportTaskService
 
     private function managerDashboard(User $actor): array
     {
-        $active=SupportTask::query()->whereIn('status',self::ACTIVE_STATUSES);$this->applyActorTeamScope($active,$actor);
-        $claimed=SupportTask::query()->whereNotNull('claimed_at');$this->applyActorTeamScope($claimed,$actor);
+        $scoped = SupportTask::query()->whereNotIn('source_type', ['contact_followup', 'account_verification']);
+        $this->applyActorTeamScope($scoped, $actor);
+        $active = (clone $scoped)->whereIn('status', self::ACTIVE_STATUSES);
+        $processing = clone $active;
+        $intervention = clone $active;
+        $unreceivedOverdue = clone $active;
+        $this->filterProcessing($processing);
+        $this->filterIntervention($intervention);
+        $this->filterUnreceivedOverdue($unreceivedOverdue);
+        $claimed = (clone $scoped)->whereNotNull('claimed_at');
         $claimed=$claimed->latest('id')->limit(300)->get(['claimed_at','created_at']);
         $avg=$claimed->isEmpty()?null:(int)round($claimed->avg(fn(SupportTask $t)=>$t->created_at->diffInMinutes($t->claimed_at)));
         $team=collect($this->teamMetrics($actor));
         return [
             'mode'=>'manager','unassigned'=>(clone $active)->whereNull('assigned_to_user_id')->whereIn('status',self::INBOX_STATUSES)->count(),
-            'in_progress'=>(clone $active)->whereNotNull('assigned_to_user_id')->whereIn('status',['in_progress','needs_followup'])->count(),
+            'in_progress'=>$processing->count(),
+            'intervention'=>$intervention->count(),
+            'unreceived_overdue'=>$unreceivedOverdue->count(),
             'overdue'=>(clone $active)->whereNotNull('sla_due_at')->where('sla_due_at','<=',now())->count(),
             'waiting_user'=>(clone $active)->where('status','waiting_user')->count(),'escalated'=>(clone $active)->where('status','escalated')->count(),
-            'contact_followups'=>(clone $active)->where('source_type','contact_followup')->count(),
             'critical_reports'=>(clone $active)->where('source_type','report')->where('severity','critical')->count(),
             'active_agents'=>$team->where('role','support_agent')->count(),'available_agents'=>$team->where('role','support_agent')->where('is_available',true)->count(),
             'team_open'=>$team->sum('open_tasks'),'completed_today'=>$team->sum('completed_today'),
@@ -605,7 +683,7 @@ class SupportTaskService
 
     private function platformDashboard(): array
     {
-        $active=SupportTask::query()->whereIn('status',self::ACTIVE_STATUSES);
+        $active=SupportTask::query()->where('source_type', '!=', 'contact_followup')->whereIn('status',self::ACTIVE_STATUSES);
         $claimed=SupportTask::query()->whereNotNull('claimed_at')->latest('id')->limit(300)->get(['claimed_at','created_at']);
         $avg=$claimed->isEmpty()?null:(int)round($claimed->avg(fn(SupportTask $t)=>$t->created_at->diffInMinutes($t->claimed_at)));
         $today=now()->startOfDay();
@@ -615,7 +693,6 @@ class SupportTaskService
             'pending_verifications'=>Schema::hasTable('account_verification_profiles')
                 ?DB::table('account_verification_profiles')->whereIn('status',['pending','needs_more_info'])->count():0,
             'open_support_tasks'=>(clone $active)->count(),
-            'contact_followups'=>(clone $active)->where('source_type','contact_followup')->count(),
             'critical_reports'=>(clone $active)->where('source_type','report')->where('severity','critical')->count(),
             'overdue'=>(clone $active)->whereNotNull('sla_due_at')->where('sla_due_at','<=',now())->count(),
             'escalated'=>(clone $active)->where('status','escalated')->count(),
@@ -905,7 +982,7 @@ class SupportTaskService
     private function applyAgentTypePermissions(Builder $query, User $actor): void
     {
         $types=[];
-        if($actor->hasPermission('support.handle_reports'))$types=array_merge($types,['support_ticket','report','account_verification','contact_followup']);
+        if($actor->hasPermission('support.handle_reports'))$types=array_merge($types,['support_ticket','report','account_verification']);
         if($actor->hasPermission('listings.moderate'))$types[]='listing_review';
         if($actor->hasPermission('payments.review'))$types[]='payment_review';
         $query->whereIn('source_type',array_values(array_unique($types?:['__none__'])));
@@ -920,7 +997,7 @@ class SupportTaskService
         $this->assertAgent($actor);
         if($type==='listing_review'&&!$actor->hasPermission('listings.moderate'))abort(403);
         if($type==='payment_review'&&!$actor->hasPermission('payments.review'))abort(403);
-        if(in_array($type,['support_ticket','report','account_verification','contact_followup'],true)&&!$actor->hasPermission('support.handle_reports'))abort(403);
+        if(in_array($type,['support_ticket','report','account_verification'],true)&&!$actor->hasPermission('support.handle_reports'))abort(403);
     }
 
     private function assertAgent(User $actor): void
@@ -956,7 +1033,6 @@ class SupportTaskService
             'listing_review' => $this->projectListing($sourceId),
             'support_ticket', 'report' => $this->projectSupportCase($sourceId),
             'payment_review' => $this->projectPayment($sourceId),
-            'contact_followup' => $this->projectContactFollowup($sourceId),
             default => null,
         };
     }
@@ -1017,259 +1093,18 @@ class SupportTaskService
 
     public function projectSupportCase(SupportCase|int $supportCase): ?SupportTask
     {
-        $case=$supportCase instanceof SupportCase?$supportCase->fresh():SupportCase::query()->find($supportCase);if(!$case)return null;
+        $case=$supportCase instanceof SupportCase?$supportCase->fresh():SupportCase::query()->find($supportCase);if(!$case || $case->channel === 'assistant')return null;
         $type=$case->kind==='report'?'report':'support_ticket';$existing=SupportTask::query()->where('source_type',$type)->where('source_id',$case->id)->first();
         $status=match($case->status){'resolved'=>'completed','dismissed'=>'rejected','waiting_requester'=>'waiting_user','in_progress'=>$existing?->status==='waiting_user'?'needs_followup':($existing?->status==='waiting_internal'?'waiting_internal':'in_progress'),default=>$case->assigned_to_user_id?'in_progress':'new'};
         if($case->escalated_at&&!in_array($status,['completed','rejected','waiting_user'],true))$status='escalated';
         $priority=match($case->priority){'urgent','high'=>'urgent','low'=>'low',default=>'normal'};$severity=$case->kind==='report'?match($case->reason_code){'fraud','scam','impersonation','suspicious_documents','dangerous_content'=>'critical','abuse','privacy'=>'high','spam','duplicate'=>'low',default=>'medium'}:null;if($severity==='critical')$priority='urgent';
         $requester=$case->requester_user_id?User::query()->find($case->requester_user_id):null;$govId=$this->supportCaseGovernorateId($case,$requester);
         $resolution=match($case->status){'resolved'=>'resolved','dismissed'=>'dismissed','waiting_requester'=>'waiting_user',default=>null};
-        $task=$this->upsertTask($type,$case->id,$case->reference,$case->subject,$requester,$status,$priority,$severity,$case->assigned_to_user_id,$case->assigned_to_name_snapshot,$case->sla_due_at,$case->updated_at,['kind'=>$case->kind,'case_status'=>$case->status,'resolution'=>$resolution,'reason_code'=>$case->reason_code,'target_type'=>$case->target_type,'target_id'=>$case->target_id,'governorate_id'=>$govId],false);
+        $task=$this->upsertTask($type,$case->id,$case->reference,$case->subject === 'Conversation complaint' ? 'بلاغ عن محادثة' : $case->subject,$requester,$status,$priority,$severity,$case->assigned_to_user_id,$case->assigned_to_name_snapshot,$case->sla_due_at,$case->updated_at,['kind'=>$case->kind,'case_status'=>$case->status,'resolution'=>$resolution,'reason_code'=>$case->reason_code,'target_type'=>$case->target_type,'target_id'=>$case->target_id,'governorate_id'=>$govId],false);
         if($type==='report'&&$severity==='critical')$this->notifyCriticalReportManagers($task);
         return $this->routeTask($task,$govId);
     }
 
-
-    public function projectContactFollowup(MessageThread|int $thread, ?User $buyer=null, ?int $messageId=null): ?SupportTask
-    {
-        if (!Schema::hasTable('support_tasks')) return null;
-        $threadModel=$thread instanceof MessageThread
-            ? $thread->fresh(['property.user','participants'])
-            : MessageThread::query()->with(['property.user','participants'])->find($thread);
-        if(!$threadModel||!$threadModel->property)return null;
-
-        $property=$threadModel->property;
-        if(!$buyer){
-            $buyer=User::query()->find((int)$threadModel->started_by_user_id);
-            if(!$buyer||(int)$buyer->id===(int)$property->user_id){
-                $participantId=$threadModel->participants
-                    ->pluck('user_id')->map(fn($id)=>(int)$id)
-                    ->first(fn(int $id)=>$id!==(int)$property->user_id);
-                $buyer=$participantId?User::query()->find($participantId):null;
-            }
-        }
-        if(!$buyer||(int)$buyer->id===(int)$property->user_id)return null;
-
-        $govId=$this->listingGovernorateId($property);
-        $task=DB::transaction(function()use($threadModel,$property,$buyer,$messageId,$govId):SupportTask{
-            $task=SupportTask::query()
-                ->where('source_type','contact_followup')
-                ->where('source_id',$threadModel->id)
-                ->lockForUpdate()
-                ->first();
-            $isNew=$task===null;
-            $task=$task??new SupportTask();
-            $wasClosed=$task->exists&&$task->isClosed();
-            $from=$task->status;
-            $metadata=$task->metadata??[];
-            $now=now();
-
-            $metadata['thread_id']=(int)$threadModel->id;
-            $metadata['property_id']=(int)$property->id;
-            $metadata['property_title']=$property->title;
-            $metadata['advertiser_user_id']=(int)$property->user_id;
-            $metadata['advertiser_name']=$property->user?->name;
-            $metadata['buyer_user_id']=(int)$buyer->id;
-            $metadata['buyer_name']=$buyer->name;
-            $metadata['external_call_count']=(int)($metadata['external_call_count']??0)+1;
-            $metadata['first_external_call_at']=$metadata['first_external_call_at']??$now->toIso8601String();
-            $metadata['last_external_call_at']=$now->toIso8601String();
-            if($messageId!==null)$metadata['last_call_message_id']=$messageId;
-            $metadata['governorate_id']=$govId;
-
-            if($isNew){
-                $task->status='new';
-                $task->sla_due_at=$now->copy()->addHours(48);
-            }elseif($wasClosed){
-                $task->status=$task->assigned_to_user_id?'needs_followup':'new';
-                $task->completed_at=null;
-                $task->sla_due_at=$now->copy()->addHours(48);
-                $task->escalated_at=null;
-                $task->escalation_reason=null;
-                unset($metadata['resolution'],$metadata['overdue_notified_at'],$metadata['auto_escalated_at']);
-            }elseif(!$task->sla_due_at){
-                $task->sla_due_at=$now->copy()->addHours(48);
-            }
-
-            $task->source_type='contact_followup';
-            $task->source_id=(int)$threadModel->id;
-            $task->source_reference='CONTACT-'.$threadModel->id;
-            $task->subject='متابعة تواصل عقاري: '.$property->title;
-            $task->requester_user_id=$buyer->id;
-            $task->requester_name_snapshot=$buyer->name;
-            $task->priority=$task->priority?:'normal';
-            $task->source_updated_at=$now;
-            $task->last_activity_at=$now;
-            $task->metadata=$metadata;
-            $task->save();
-
-            $event=$isNew?'created_from_external_call':($wasClosed?'reopened_by_external_call':'external_call_recorded');
-            $this->event($task,$buyer,$event,$from,$task->status,[
-                'property_id'=>$property->id,
-                'message_id'=>$messageId,
-                'external_call_count'=>$metadata['external_call_count'],
-            ]);
-            return $task;
-        });
-
-        return $this->routeTask($task,$govId)->fresh(['team','governorate']);
-    }
-
-    public function recordContactFollowupOutcome(
-        User $actor,
-        SupportTask $task,
-        string $outcome,
-        ?string $note,
-        ?Carbon $nextFollowUpAt,
-        Request $request,
-        bool $actingAsAgent=false,
-    ): SupportTask {
-        $this->assertTaskExecution($actor,$task,$actingAsAgent);
-        if($task->source_type!=='contact_followup'){
-            throw ValidationException::withMessages(['task'=>['هذه العملية خاصة بمتابعات التواصل العقاري.']]);
-        }
-        $allowed=['no_answer','contacted','viewing_scheduled','viewed','negotiating','not_interested','deal_not_completed','deal_reported','needs_followup'];
-        if(!in_array($outcome,$allowed,true)){
-            throw ValidationException::withMessages(['outcome'=>['نتيجة المتابعة غير مدعومة.']]);
-        }
-        if($nextFollowUpAt&&$nextFollowUpAt->lte(now())){
-            throw ValidationException::withMessages(['next_follow_up_at'=>['موعد المتابعة القادمة يجب أن يكون في المستقبل.']]);
-        }
-
-        return DB::transaction(function()use($actor,$task,$outcome,$note,$nextFollowUpAt,$request,$actingAsAgent):SupportTask{
-            $locked=SupportTask::query()->lockForUpdate()->findOrFail($task->id);
-            $this->assertTaskExecution($actor,$locked,$actingAsAgent);
-            if($locked->source_type!=='contact_followup')throw new ConflictHttpException('المهمة ليست متابعة تواصل عقاري.');
-            if(!$locked->isActive())throw new ConflictHttpException('المهمة مغلقة.');
-            if($locked->status==='escalated')throw new ConflictHttpException('المهمة مصعّدة وتحتاج معالجة مدير الدعم أولاً.');
-
-            $from=$locked->status;
-            $metadata=$locked->metadata??[];
-            $metadata['last_outcome']=$outcome;
-            $metadata['last_followup_at']=now()->toIso8601String();
-            $metadata['last_followup_by_user_id']=$actor->id;
-            $metadata['followup_actions_count']=(int)($metadata['followup_actions_count']??0)+1;
-            if($note!==null&&trim($note)!=='')$metadata['last_followup_note']=trim($note);
-            unset($metadata['overdue_notified_at'],$metadata['auto_escalated_at']);
-
-            $terminal=in_array($outcome,['not_interested','deal_not_completed'],true);
-            $reportedDeal=$outcome==='deal_reported';
-            $next=$terminal?null:($nextFollowUpAt?:now()->addHours($reportedDeal?12:($outcome==='no_answer'?24:48)));
-
-            if($reportedDeal){
-                $metadata['requires_counterparty_verification']=true;
-                $metadata['deal_reported_at']=now()->toIso8601String();
-            }else{
-                unset($metadata['requires_counterparty_verification']);
-            }
-            $metadata['next_follow_up_at']=$next?->toIso8601String();
-            if($terminal)$metadata['resolution']=$outcome;
-
-            $locked->forceFill([
-                'status'=>$terminal?'completed':'needs_followup',
-                'priority'=>$reportedDeal?'urgent':$locked->priority,
-                'sla_due_at'=>$next,
-                'completed_at'=>$terminal?now():null,
-                'last_activity_at'=>now(),
-                'metadata'=>$metadata,
-            ])->save();
-
-            $this->event($locked,$actor,'contact_followup_outcome',$from,$locked->status,[
-                'outcome'=>$outcome,
-                'note'=>$note,
-                'next_follow_up_at'=>$next?->toIso8601String(),
-                'acting_as_agent'=>$actingAsAgent,
-            ]);
-            $this->audit->record($actor,'support_task.contact_followup_outcome',$locked,[
-                'outcome'=>$outcome,
-                'next_follow_up_at'=>$next?->toIso8601String(),
-                'acting_as_agent'=>$actingAsAgent,
-            ],$request,$locked->requester_user_id);
-
-            if($reportedDeal)$this->notifyTaskManagers($locked,'صفقة محتملة تحتاج تحقق','أفاد أحد الأطراف بتمام صفقة مرتبطة بهذه المتابعة. تحقق من الطرف الآخر قبل إغلاقها.');
-            return $locked->fresh(['team','governorate']);
-        });
-    }
-
-    public function processContactFollowupDeadlines(): array
-    {
-        if(!Schema::hasTable('support_tasks'))return ['overdue_notified'=>0,'escalated'=>0];
-        $tasks=SupportTask::query()
-            ->where('source_type','contact_followup')
-            ->whereIn('status',['new','in_progress','needs_followup','waiting_internal'])
-            ->whereNotNull('sla_due_at')
-            ->where('sla_due_at','<=',now())
-            ->orderBy('sla_due_at')
-            ->limit(500)
-            ->get();
-
-        $notified=0;$escalated=0;
-        foreach($tasks as $task){
-            DB::transaction(function()use($task,&$notified,&$escalated):void{
-                $locked=SupportTask::query()->lockForUpdate()->findOrFail($task->id);
-                if(!in_array($locked->status,['new','in_progress','needs_followup','waiting_internal'],true)||!$locked->sla_due_at||$locked->sla_due_at->isFuture())return;
-                $metadata=$locked->metadata??[];
-
-                if(empty($metadata['overdue_notified_at'])){
-                    $from=$locked->status;
-                    $metadata['overdue_notified_at']=now()->toIso8601String();
-                    $locked->forceFill([
-                        'status'=>'needs_followup',
-                        'metadata'=>$metadata,
-                        'last_activity_at'=>now(),
-                    ])->save();
-                    $this->event($locked,null,'contact_followup_overdue',$from,'needs_followup',[
-                        'sla_due_at'=>$locked->sla_due_at->toIso8601String(),
-                    ]);
-                    if($locked->assigned_to_user_id){
-                        $this->notifications->create(
-                            (int)$locked->assigned_to_user_id,
-                            'support_followup_overdue',
-                            'متابعة تواصل متأخرة',
-                            'تجاوزت «'.$locked->subject.'» موعد المتابعة المحدد.',
-                            'support_task',
-                            $locked->id,
-                            ['task_id'=>$locked->id,'source_type'=>'contact_followup','destination'=>'my_tasks'],
-                        );
-                    }else{
-                        $this->notifyTaskManagers($locked,'متابعة تواصل غير مستلمة ومتأخرة','تجاوزت المهمة موعد المتابعة ولم يستلمها موظف دعم بعد.');
-                    }
-                    $notified++;
-                }
-
-                if(now()->greaterThanOrEqualTo($locked->sla_due_at->copy()->addHours(24))&&empty($metadata['auto_escalated_at'])){
-                    $from=$locked->status;
-                    $metadata=$locked->metadata??[];
-                    $metadata['auto_escalated_at']=now()->toIso8601String();
-                    $locked->forceFill([
-                        'status'=>'escalated',
-                        'priority'=>'urgent',
-                        'escalated_at'=>now(),
-                        'escalation_reason'=>'تأخرت متابعة التواصل أكثر من 24 ساعة بعد موعدها.',
-                        'metadata'=>$metadata,
-                        'last_activity_at'=>now(),
-                    ])->save();
-                    $this->event($locked,null,'contact_followup_auto_escalated',$from,'escalated',[
-                        'reason'=>$locked->escalation_reason,
-                    ]);
-                    if($locked->assigned_to_user_id){
-                        $this->notifications->create(
-                            (int)$locked->assigned_to_user_id,
-                            'support_followup_escalated',
-                            'تم تصعيد متابعة متأخرة',
-                            'تجاوزت «'.$locked->subject.'» مهلة التأخير وتم تصعيدها لمدير الدعم.',
-                            'support_task',
-                            $locked->id,
-                            ['task_id'=>$locked->id,'source_type'=>'contact_followup'],
-                        );
-                    }
-                    $this->notifyTaskManagers($locked,'متابعة تواصل مصعّدة تلقائياً',$locked->escalation_reason);
-                    $escalated++;
-                }
-            });
-        }
-        return ['overdue_notified'=>$notified,'escalated'=>$escalated];
-    }
 
     public function resolveEscalation(User $actor, SupportTask $task, string $note, Request $request): SupportTask
     {
@@ -1314,7 +1149,7 @@ class SupportTaskService
             ? DB::table('support_teams')->where('is_active', true)->pluck('id')->all()
             : $this->managedTeamIds($actor);
         $memberCounts=DB::table('support_team_members')->whereIn('support_team_id',$ids)->where('member_role','agent')->selectRaw('support_team_id, count(*) as agents, sum(case when is_available then 1 else 0 end) as available_agents')->groupBy('support_team_id')->get()->keyBy('support_team_id');
-        $taskCounts=SupportTask::query()->whereIn('support_team_id',$ids)->whereIn('status',self::ACTIVE_STATUSES)->selectRaw("support_team_id, count(*) as open_tasks, sum(case when assigned_to_user_id is null and status in ('new','needs_followup') then 1 else 0 end) as unassigned")->groupBy('support_team_id')->get()->keyBy('support_team_id');
+        $taskCounts=SupportTask::query()->whereIn('support_team_id',$ids)->where('source_type', '!=', 'contact_followup')->whereIn('status',self::ACTIVE_STATUSES)->selectRaw("support_team_id, count(*) as open_tasks, sum(case when assigned_to_user_id is null and status in ('new','needs_followup') then 1 else 0 end) as unassigned")->groupBy('support_team_id')->get()->keyBy('support_team_id');
         return DB::table('support_teams as t')->leftJoin('governorates as g', 'g.id', '=', 't.governorate_id')
             ->leftJoin('users as manager', 'manager.id', '=', 't.manager_user_id')
             ->whereIn('t.id', $ids)->where('t.is_active', true)->orderByDesc('t.is_fallback')->orderBy('g.name_ar')
@@ -1412,6 +1247,7 @@ class SupportTaskService
 
     protected function assertTaskInActorScope(User $actor, SupportTask $task, bool $actingAsAgent = false): void
     {
+        abort_if($task->source_type === 'contact_followup', 404);
         if (!Schema::hasColumn('support_tasks', 'support_team_id') || $actor->is_platform_owner || $actor->hasRole('super_admin')) return;
 
         abort_unless(in_array((int) $task->support_team_id, $this->actorTeamIds($actor, $actingAsAgent), true), 403);
@@ -1442,7 +1278,7 @@ class SupportTaskService
             }
             $capacity = max(1, (int) $member->capacity);
         }
-        $open = SupportTask::query()->where('assigned_to_user_id', $actor->id)->whereIn('status', self::ACTIVE_STATUSES)->count();
+        $open = SupportTask::query()->where('assigned_to_user_id', $actor->id)->where('source_type', '!=', 'contact_followup')->whereIn('status', self::ACTIVE_STATUSES)->count();
         if ($open >= $capacity) {
             throw new ConflictHttpException('وصلت للحد الحالي من المهام المفتوحة. أكمل بعض مهامك أو اطلب من المدير إعادة التوزيع.');
         }
@@ -1483,7 +1319,7 @@ class SupportTaskService
 
     private function supportCaseGovernorateId(SupportCase $case, ?User $requester): ?int
     {
-        $propertyId = $case->target_id ? match ($case->target_type) {
+        $targetPropertyId = $case->target_id ? match ($case->target_type) {
             'property', 'listing', 'property_listing' => $case->target_id,
             'comment' => ListingComment::query()->whereKey($case->target_id)->value('property_id'),
             'rating' => AdvertiserRating::query()->whereKey($case->target_id)->value('source_property_id'),
@@ -1491,8 +1327,14 @@ class SupportTaskService
             'broker_deal_outcome' => BrokerDealOutcome::query()->whereKey($case->target_id)->value('property_id'),
             default => null,
         } : null;
+        $propertyId = $case->context_property_id ?? $targetPropertyId;
         $governorate = $propertyId ? app(SupportTeamRoutingService::class)
             ->listingGovernorateId(Property::query()->find($propertyId)) : null;
+        if ($governorate === null && $case->kind === 'report' && $case->target_type === 'advertiser') {
+            $governorate = $this->resolveGovernorateIdFromName(
+                User::query()->whereKey($case->target_id)->value('marketplace_governorate')
+            );
+        }
         if ($governorate !== null || !$requester) return $governorate;
 
         $governorate = $this->resolveGovernorateIdFromName($requester->marketplace_governorate);

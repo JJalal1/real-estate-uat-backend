@@ -76,7 +76,7 @@ class PropertyDiscoveryFilterService
             'min_bathrooms' => ['nullable', 'integer', 'min:0', 'max:50'],
             'min_area_m2' => ['nullable', 'numeric', 'min:0'],
             'max_area_m2' => ['nullable', 'numeric', 'min:0'],
-        ];
+        ] + CategoryListingFeatures::filterRules();
     }
 
     public function apply(Builder $query, array $validated): void
@@ -161,6 +161,7 @@ class PropertyDiscoveryFilterService
                 $query->where($column, $operator, $validated[$input]);
             }
         }
+        app(CategoryListingFeatures::class)->apply($query, $validated);
     }
 
     public function applySearchOrdering(Builder $query, array $validated, string $sort): void

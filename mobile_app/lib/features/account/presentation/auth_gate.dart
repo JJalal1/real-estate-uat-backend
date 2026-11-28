@@ -12,6 +12,7 @@ class Stage6AuthGate extends ConsumerStatefulWidget {
     required this.child,
     this.requireActive = true,
     this.requireListingEligible = false,
+    this.requireListingManagement = false,
     this.requireProfessional = false,
     this.guestIcon = Icons.lock_outline,
   });
@@ -20,6 +21,7 @@ class Stage6AuthGate extends ConsumerStatefulWidget {
   final IconData guestIcon;
   final bool requireActive;
   final bool requireListingEligible;
+  final bool requireListingManagement;
   final bool requireProfessional;
 
   @override
@@ -75,7 +77,18 @@ class _Stage6AuthGateState extends ConsumerState<Stage6AuthGate> {
                 onPressed: () => context.push('/verify-phone'),
               );
             }
-            if (widget.requireListingEligible && !user.canCreateListing) {
+            final holdId = user.publicationHoldCaseId;
+            if (widget.requireListingEligible && holdId != null) {
+              return _GateMessage(
+                icon: Icons.pause_circle_outline,
+                title: 'أُوقف النشر مؤقتًا',
+                message: 'افتح قرار الإيقاف للاطلاع على السبب ومراجعة الدعم.',
+                button: 'عرض القرار',
+                onPressed: () => context.push('/support/publication-hold/$holdId'),
+              );
+            }
+            if ((widget.requireListingEligible && !user.canCreateListing) ||
+                (widget.requireListingManagement && !user.canManageExistingListings)) {
               return _GateMessage(
                 icon: Icons.edit_outlined,
                 title: 'أكمل الاسم الرباعي أولاً',

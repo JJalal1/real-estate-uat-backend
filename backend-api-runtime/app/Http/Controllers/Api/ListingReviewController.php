@@ -149,11 +149,15 @@ class ListingReviewController extends Controller
 
     public function returnForCorrection(Request $request, Property $property): JsonResponse
     {
-        $v = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:2000']]);
+        $v = $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:2000'],
+            'candidate_property_id' => ['nullable', 'integer', 'min:1'],
+        ]);
         return response()->json([
             'message' => 'Listing returned for correction.',
             'data' => $this->data(
-                $this->workflow->returnForCorrection($request->user(), $property, $v['reason'], $request),
+                $this->workflow->returnForCorrection($request->user(), $property, trim($v['reason']), $request,
+                    isset($v['candidate_property_id']) ? (int) $v['candidate_property_id'] : null),
                 false,
             ),
         ]);

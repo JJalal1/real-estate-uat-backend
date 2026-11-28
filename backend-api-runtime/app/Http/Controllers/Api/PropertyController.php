@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\ApiTokenService;
 use App\Services\BrokerRankingService;
 use App\Services\AuditLogService;
+use App\Services\CategoryListingFeatures;
 use App\Services\CloudAssetStorageService;
 use App\Services\RegionService;
 use App\Services\ListingWorkflowService;
@@ -70,7 +71,8 @@ class PropertyController extends Controller
                 max(1, (int) $request->input('page', 1)), $perPage, (string) $request->input('sort', 'latest'), $version);
             return response()->json(['data' => array_map(fn ($row) => array_merge(
                 $this->summaryData($row['property'], $request), ['discovery_match' => $row['match']]), $page['rows']),
-                'meta' => $page['meta']])->header('X-Aqer-Filter-Contract', '2')->header('X-Aqer-Ranked-Contract', (string) $version);
+                'meta' => $page['meta']])->header('X-Aqer-Filter-Contract', '2')->header('X-Aqer-Ranked-Contract', (string) $version)
+                    ->header('X-Aqer-Category-Filters', '1');
         }
 
         $query = $this->publicQuery();
@@ -98,7 +100,7 @@ class PropertyController extends Controller
                 'per_page' => $page->perPage(),
                 'total' => $page->total(),
             ],
-        ])->header('X-Aqer-Filter-Contract', '2');
+        ])->header('X-Aqer-Filter-Contract', '2')->header('X-Aqer-Category-Filters', '1');
     }
 
     public function visible(Request $request): JsonResponse
@@ -438,6 +440,7 @@ class PropertyController extends Controller
         }
         $validated=$request->validate($this->listingRules(false));
         $validated=$this->normalizeListingFields($validated,null,false);
+        $validated = app(CategoryListingFeatures::class)->normalizeWrite($validated);
         $this->assertV2ListingCompleteness($validated);
         $cell=$this->regions->assertListingAllowed($user,(float)$validated['latitude'],(float)$validated['longitude']);
         $asset=$this->identity->resolveOrCreateAsset($user,$validated);
@@ -468,13 +471,15 @@ class PropertyController extends Controller
     {
         /** @var User $user */$user=$request->user();$this->assertOwner($property,$user);$this->assertAdvertiserCanCreateDraft($user);
         if(in_array($property->review_status,['submitted','under_review','rejected_blocked','rejected_duplicate'],true)) abort(409,'This listing cannot be edited in its current review state.');
-        $validated=$request->validate($this->listingRules(true));$validated=$this->normalizeListingFields($validated,$property,true);$this->assertV2ListingCompleteness(array_merge($this->listingState($property),$validated));$replaceImages=$request->boolean('replace_images');$incomingCount=count($request->file('images',[]));$existingCount=$property->images()->count();
+        $validated=$request->validate($this->listingRules(true));$validated=$this->normalizeListingFields($validated,$property,true);$replaceImages=$request->boolean('replace_images');$incomingCount=count($request->file('images',[]));$existingCount=$property->images()->count();
         if(!$replaceImages&&$existingCount+$incomingCount>12)throw ValidationException::withMessages(['images'=>['A listing may contain at most 12 images.']]);
         if($property->documents()->count()+count($request->file('proof_documents',[]))>5)throw ValidationException::withMessages(['proof_documents'=>['A listing may contain at most 5 proof documents.']]);
         $storedPublic=[];$storedPrivate=[];$oldImages=$replaceImages?$property->images()->get():collect();
         try{$property=DB::transaction(function()use($request,$property,$validated,$replaceImages,$user,&$storedPublic,&$storedPrivate){
             User::query()->lockForUpdate()->findOrFail($user->id);$property=Property::query()->lockForUpdate()->findOrFail($property->id);
             abort_if($property->status === 'archived' || in_array($property->review_status,['submitted','under_review','rejected_blocked','rejected_duplicate'],true),409);
+            $validated = app(CategoryListingFeatures::class)->normalizeWrite($validated, $property);
+            $this->assertV2ListingCompleteness(array_merge($this->listingState($property), $validated));
             $wasPublished=$property->status==='published';$property->fill($this->listingPayload($validated,true));
             $cell=$this->regions->assertListingAllowed($user,(float)$property->latitude,(float)$property->longitude);$property->geo_cell_id=$cell?->id;
             $identity=array_merge(['purpose'=>$property->purpose,'type'=>$property->type,'latitude'=>$property->latitude,'longitude'=>$property->longitude,'area_m2'=>$property->area_m2,'bedrooms'=>$property->bedrooms,'bathrooms'=>$property->bathrooms,'address'=>$property->address],$validated);
@@ -594,7 +599,7 @@ class PropertyController extends Controller
             'owner_id_back' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'owner_selfie' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'ownership_proof' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
-        ];
+        ] + CategoryListingFeatures::listingRules();
     }
 
     private function listingPayload(array $validated, bool $partial): array
@@ -605,6 +610,7 @@ class PropertyController extends Controller
             'building_reference', 'unit_number', 'floor_number', 'unit_occupies_entire_floor', 'land_boundary_geojson',
             'contact_phone', 'contact_whatsapp',
             'ownership_document_type', 'document_owner_name', 'owner_relationship_type', 'owner_relationship_note',
+            ...array_keys(CategoryListingFeatures::listingRules()),
         ];
 
         $payload = [];

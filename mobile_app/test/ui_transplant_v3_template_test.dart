@@ -336,7 +336,7 @@ void main() {
       await _pump(tester, user: _user(verified: true, type: type));
       final labels = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar)).destinations.map((item) => item.label).toList();
       expect(labels, type == 'broker' ? ['الرئيسية','إعلاناتي','الرسائل','حسابي']
-        : type == 'office' ? ['العقارات','الخريطة','الرسائل','حسابي'] : ['العقارات','الأقسام','الرسائل','حسابي']);
+        : type == 'office' ? ['الرئيسية','الخريطة','الرسائل','حسابي'] : ['الرئيسية','الأقسام','الرسائل','حسابي']);
       expect(labels.contains('حسابي'), isTrue);
       expect(tester.takeException(), isNull);
     });
@@ -409,7 +409,7 @@ void main() {
     final router = await _pump(tester, user: _user());
     expect(find.byType(MarketplaceHomeScreen), findsOneWidget);
     final nav = tester.widget<AppNavigationBar>(find.byType(AppNavigationBar));
-    expect(nav.destinations.map((d) => d.label), ['العقارات', 'الأقسام', 'الرسائل', 'حسابي']);
+    expect(nav.destinations.map((d) => d.label), ['الرئيسية', 'الأقسام', 'الرسائل', 'حسابي']);
     router.push<void>('/my-listings');
     await tester.pumpAndSettle();
     expect(find.byType(MyListingsScreen), findsOneWidget);

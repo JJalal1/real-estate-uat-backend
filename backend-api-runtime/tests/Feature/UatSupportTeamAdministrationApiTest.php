@@ -3,16 +3,90 @@
 namespace Tests\Feature;
 
 use App\Models\Governorate;
+use App\Models\Property;
 use App\Models\Role;
 use App\Models\SupportTask;
 use App\Models\SupportTeam;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class UatSupportTeamAdministrationApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_manager_period_and_internal_chats_stay_inside_the_team(): void
+    {
+        [, $executive] = $this->account('director', '+967740520021', true);
+        [$manager, $managerHeaders] = $this->account('local-manager', '+967740520022');
+        [$agent, $agentHeaders] = $this->account('local-worker', '+967740520023');
+        [$other, $otherHeaders] = $this->account('other-worker', '+967740520024');
+        $reportTasks = [];
+        foreach ([$manager, $agent, $other] as $staff) {
+            $province = Governorate::query()->firstOrCreate(['code' => $staff->is($other) ? 'SCOPE_B' : 'SCOPE_A'],
+                ['name_ar' => $staff->is($other) ? 'المحافظة الثانية' : 'المحافظة الأولى']);
+            $teamId = SupportTeam::query()->where('governorate_id', $province->id)->value('id')
+                ?? $this->withHeaders($executive)->postJson('/api/admin/workspace/teams', [
+                    'governorate_id' => $province->id, 'name' => $province->name_ar,
+                ])->assertCreated()->json('data.id');
+            $this->withHeaders($executive)->putJson("/api/admin/workspace/teams/$teamId/membership/{$staff->id}", [
+                'manager' => $staff->is($manager), 'agent' => !$staff->is($manager),
+            ])->assertOk();
+            if (!$staff->is($agent)) {
+                $reportTask = SupportTask::query()->create([
+                    'source_type' => 'report', 'source_id' => $staff->id, 'subject' => 'تقرير للمحافظة',
+                    'status' => 'completed', 'priority' => 'normal', 'support_team_id' => $teamId,
+                    'governorate_id' => $province->id, 'last_activity_at' => now(), 'completed_at' => now(),
+                ]);
+                $reportTask->forceFill(['created_at' => '2026-11-27 21:15:00', 'completed_at' => '2026-11-27 22:00:00'])->save();
+                $reportTasks[$staff->id] = $reportTask->id;
+                $listing = Property::query()->create([
+                    'user_id' => $staff->id, 'title' => 'إعلان منشور للمحافظة', 'type' => 'house',
+                    'description' => 'إعلان للاختبار', 'address' => 'عنوان الاختبار', 'purpose' => 'sale',
+                    'price' => 900000, 'currency' => 'YER', 'latitude' => 15.37, 'longitude' => 44.19,
+                    'status' => 'published', 'review_status' => 'approved', 'published_at' => '2026-11-27 22:15:00',
+                ]);
+                SupportTask::query()->create([
+                    'source_type' => 'listing_review', 'source_id' => $listing->id, 'subject' => $listing->title,
+                    'status' => 'completed', 'priority' => 'normal', 'support_team_id' => $teamId,
+                    'governorate_id' => $province->id, 'last_activity_at' => now(),
+                ])->forceFill(['created_at' => '2026-11-27 20:00:00', 'completed_at' => '2026-11-27 22:15:00'])->save();
+            }
+        }
+        $stats = '/api/admin/workspace/team-statistics?from=2026-11-28&to=2026-11-28';
+        $this->withHeaders($managerHeaders)->getJson($stats)->assertOk()
+            ->assertJsonPath('data.received', 1)->assertJsonPath('data.completed', 2)
+            ->assertJsonPath('data.reports', 1)->assertJsonPath('data.published', 1);
+        $this->withHeaders($managerHeaders)->getJson(str_replace('11-28', '11-27', $stats))->assertOk()
+            ->assertJsonPath('data.received', 1)->assertJsonPath('data.completed', 0)
+            ->assertJsonPath('data.published', 0);
+        $this->withHeaders($otherHeaders)->getJson($stats)->assertForbidden();
+
+        $messages = '/api/admin/workspace/staff-messages';
+        $this->withHeaders($managerHeaders)->postJson($messages, ['channel' => 'team', 'member_id' => $other->id])
+            ->assertNotFound();
+        $chat = $this->withHeaders($managerHeaders)->postJson($messages, ['channel' => 'team', 'member_id' => $agent->id])
+            ->assertOk()->json('data.id');
+        $data = ['body' => 'تابع طلبات الفريق من القائمة.', 'client_key' => (string) Str::uuid()];
+        $this->withHeaders($managerHeaders)->postJson("$messages/$chat", $data)->assertOk();
+        $this->withHeaders($managerHeaders)->postJson("$messages/$chat", $data)->assertOk();
+        $this->withHeaders($agentHeaders)->getJson("$messages/$chat")->assertOk()
+            ->assertJsonCount(1, 'data.messages')->assertJsonPath('data.messages.0.body', $data['body']);
+        $this->withHeaders($otherHeaders)->getJson("$messages/$chat")->assertNotFound();
+        $this->withHeaders($executive)->getJson("$messages/$chat")->assertNotFound();
+        $director = $this->withHeaders($managerHeaders)->postJson($messages, ['channel' => 'executive'])
+            ->assertOk()->json('data.id');
+        $this->withHeaders($managerHeaders)->postJson("$messages/$director", $data + [
+            'task_id' => $reportTasks[$other->id],
+        ])->assertNotFound();
+        $this->withHeaders($managerHeaders)->postJson("$messages/$director", $data + [
+            'task_id' => $reportTasks[$manager->id],
+        ])->assertOk();
+        $this->withHeaders($executive)->getJson("$messages/$director")->assertOk()
+            ->assertJsonPath('data.messages.0.body', $data['body'])
+            ->assertJsonPath('data.messages.0.task_id', $reportTasks[$manager->id]);
+    }
 
     public function test_admin_can_assign_both_support_roles_and_bound_review_permissions(): void
     {

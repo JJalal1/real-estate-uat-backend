@@ -7,16 +7,91 @@ use App\Models\Property;
 use App\Models\PropertyAsset;
 use App\Models\Role;
 use App\Models\SupportCase;
+use App\Models\SupportTask;
 use App\Models\User;
 use App\Services\SupportCaseService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class Stage10CommunitySupportApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_assistant_handoff_retains_the_thread_and_direct_chat_skips_the_assistant(): void
+    {
+        [, $requester] = $this->user('help-requester@example.test', '+967720000031');
+        [, $agent] = $this->user('help-agent@example.test', '+967720000032', ['support_agent']);
+        [, $outsider] = $this->user('help-outsider@example.test', '+967720000033');
+        $intake = ['channel' => 'assistant', 'body' => 'كيف أتابع بلاغي؟', 'client_key' => (string) Str::uuid()];
+        $caseId = $this->withHeaders($requester)->postJson('/api/support/interactions', $intake)->assertCreated()
+            ->assertJsonPath('data.channel', 'assistant')
+            ->assertJsonPath('data.messages.1.action_path', '/support?view=cases')->json('data.id');
+        $this->assertDatabaseMissing('support_tasks', ['source_type' => 'support_ticket', 'source_id' => $caseId]);
+        $this->withHeaders($outsider)->postJson("/api/support/cases/$caseId/handoff")->assertNotFound();
+        $this->withHeaders($requester)->postJson("/api/support/cases/$caseId/messages", ['body' => 'ما انحلت المشكلة'])
+            ->assertOk()->assertJsonPath('data.id', $caseId)->assertJsonPath('data.channel', 'human');
+        $this->withHeaders($requester)->postJson('/api/support/interactions', $intake)
+            ->assertCreated()->assertJsonPath('data.id', $caseId)->assertJsonCount(4, 'data.messages');
+        $this->assertSame(1, SupportTask::query()->where('source_type', 'support_ticket')->where('source_id', $caseId)->count());
+        $this->claimSupportTask($agent, 'support_ticket', $caseId);
+        $this->withHeaders($agent)->postJson("/api/admin/support/cases/$caseId/reply", ['body' => 'هذا رد الموظف.'])
+            ->assertOk()->assertJsonPath('data.messages.4.body', 'هذا رد الموظف.');
+        $this->assertDatabaseHas('user_notifications', ['entity_type' => 'support_case', 'entity_id' => $caseId]);
+
+        $this->withHeaders($requester)->postJson('/api/support/interactions', [
+            'channel' => 'human', 'body' => $intake['body'], 'client_key' => (string) Str::uuid(),
+        ])->assertCreated()->assertJsonPath('data.channel', 'human')->assertJsonCount(1, 'data.messages');
+    }
+
+    public function test_report_evidence_and_publication_decision_are_scoped_to_the_right_accounts(): void
+    {
+        Storage::fake('local');
+        [$owner, $ownerHeaders] = $this->user('hold-owner@example.test', '+967720000041');
+        [, $reporter] = $this->user('hold-reporter@example.test', '+967720000042');
+        [, $agent] = $this->user('hold-agent@example.test', '+967720000043', ['support_agent']);
+        [, $manager] = $this->user('hold-director@example.test', '+967720000044', ['super_admin']);
+        $listing = $this->publishedListing($owner, 'Publication hold listing');
+        $receipt = $this->withHeaders($reporter)->post('/api/reports', [
+            'target_type' => 'advertiser', 'target_id' => $owner->id, 'property_id' => $listing->id,
+            'reason' => 'fraud', 'details' => 'Evidence of an attempted scam.',
+            'attachment' => UploadedFile::fake()->image('evidence.png', 8, 8),
+        ])->assertCreated();
+        $id = $receipt->json('data.id');
+        $file = $receipt->json('data.messages.0.attachments.0.id');
+        $this->withHeaders($ownerHeaders)->getJson("/api/support/cases/$id/files/$file")->assertNotFound();
+        $this->withHeaders($reporter)->get("/api/support/cases/$id/files/$file")->assertOk();
+        $this->claimSupportTask($agent, 'report', $id);
+        $this->withHeaders($agent)->getJson("/api/admin/support/cases/$id")->assertOk()
+            ->assertJsonPath('data.report.property_title', $listing->title);
+        $this->withHeaders($agent)->postJson("/api/admin/support/cases/$id/report-decision", [
+            'decision' => 'request_information', 'reason' => 'Please clarify the date.',
+        ])->assertOk()->assertJsonPath('data.status', 'waiting_requester');
+        $this->withHeaders($reporter)->postJson("/api/support/cases/$id/messages", ['body' => 'It occurred yesterday.'])
+            ->assertOk()->assertJsonPath('data.id', $id)->assertJsonPath('data.status', 'in_progress');
+        $pause = ['decision' => 'pause_publication', 'reason' => 'The supporting evidence confirms the violation.'];
+        $this->withHeaders($manager)->postJson("/api/admin/support/cases/$id/report-decision", $pause)
+            ->assertOk()->assertJsonPath('data.status', 'resolved');
+        $this->withHeaders($reporter)->getJson("/api/support/publication-holds/$id")->assertNotFound();
+        $this->withHeaders($ownerHeaders)->getJson("/api/support/publication-holds/$id")->assertOk()
+            ->assertJsonPath('data.reason', $pause['reason'])->assertJsonPath('data.can_request_review', true);
+        $this->assertFalse(Property::query()->publiclyAvailable()->whereKey($listing->id)->exists());
+        $this->assertTrue($owner->fresh()->isActive());
+        $this->assertFalse($owner->fresh()->canCreateListings());
+        $this->assertTrue($owner->fresh()->canManageExistingListings());
+        $appeal = $this->withHeaders($ownerHeaders)->postJson("/api/support/publication-holds/$id/review")
+            ->assertOk()->json('data.id');
+        $this->withHeaders($ownerHeaders)->postJson("/api/support/publication-holds/$id/review")
+            ->assertOk()->assertJsonPath('data.id', $appeal);
+        $this->withHeaders($manager)->postJson("/api/admin/support/cases/$id/report-decision", [
+            'decision' => 'restore_publication', 'reason' => 'The appeal was accepted.',
+        ])->assertOk()->assertJsonPath('data.report.publication_paused_for_report', false);
+        $this->assertTrue(Property::query()->publiclyAvailable()->whereKey($listing->id)->exists());
+    }
 
     public function test_comments_require_published_listing_and_owner_controls_edits(): void
     {

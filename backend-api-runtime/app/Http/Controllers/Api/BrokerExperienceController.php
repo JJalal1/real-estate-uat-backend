@@ -82,7 +82,7 @@ class BrokerExperienceController extends Controller
     public function updateProfile(Request $request): JsonResponse
     {
         $actor = $request->user(); // The route requires an authenticated, active account.
-        $canManageProfile = $actor->canCreateListings() &&
+        $canManageProfile = $actor->canManageExistingListings() &&
             ($actor->hasMarketplaceProfessionalProfile() || $actor->hasApprovedVerificationProfile());
         if (! $canManageProfile) {
             // Saving an optional biography never enrolls the account as an advertiser.
@@ -519,7 +519,7 @@ class BrokerExperienceController extends Controller
     private function advertiser(Request $request): User
     {
         $actor=$request->user();
-        abort_unless($actor && $actor->canCreateListings(),403);
+        abort_unless($actor && $actor->canManageExistingListings(),403);
         return $actor;
     }
 

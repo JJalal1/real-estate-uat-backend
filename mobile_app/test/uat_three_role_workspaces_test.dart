@@ -11,7 +11,7 @@ void main() {
     expect(shell, contains("label: 'لوحة الفريق'"));
     expect(shell, contains("label: 'الوارد'"));
     expect(shell, contains('SupportMapScreen('));
-    expect(shell, contains('messagesOnly: true'));
+    expect(shell, contains('SupportMessagesScreen('));
     expect(shell, contains('الدخول كمستخدم'));
     expect(shell, isNot(contains("label: 'مهامي'")));
     expect(shell, contains("label: 'الأعمال'"));
@@ -64,7 +64,7 @@ void main() {
 
   test('template consumer navigation preserves gated listings and messaging access', () {
     final shell = read('lib/features/app_shell/presentation/app_shell_screen.dart');
-    expect(shell, contains("label: 'العقارات'"));
+    expect(shell, contains("label: 'الرئيسية'"));
     expect(shell, contains("label: 'الرسائل'"));
     expect(shell, contains("label: 'إعلاناتي'"));
     final router = read('lib/router/app_router.dart');
@@ -85,8 +85,8 @@ void main() {
     expect(repo, contains('/admin/workspace/tasks/\$taskId/claim'));
     expect(repo, contains('/admin/workspace/dashboard'));
     expect(repo, contains('/admin/workspace/team'));
-    expect(screen, contains('استلام'));
-    expect(screen, contains('غير مسند'));
+    expect(screen, contains('استلم'));
+    expect(screen, isNot(contains('متابعة التواصل')));
     expect(screen, contains('انتظار المستخدم'));
     expect(screen, contains('يحتاج متابعة'));
   });

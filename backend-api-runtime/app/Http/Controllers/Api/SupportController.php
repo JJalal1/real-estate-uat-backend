@@ -16,6 +16,11 @@ use App\Services\AuditLogService;
 use App\Services\BrokerDealService;
 use App\Services\PlatformSettingsService;
 use App\Services\SupportCaseService;
+use App\Services\SupportCaseFiles;
+use App\Services\SupportHelpService;
+use App\Services\SupportReportDecisions;
+use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\Response;
 use App\Services\SupportTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,6 +36,9 @@ class SupportController extends Controller
         private readonly AuditLogService $audit,
         private readonly PlatformSettingsService $settings,
         private readonly SupportTaskService $tasks,
+        private readonly SupportCaseFiles $files,
+        private readonly SupportHelpService $help,
+        private readonly SupportReportDecisions $reports,
     ) {}
 
     public function mine(Request $request): JsonResponse
@@ -41,6 +49,83 @@ class SupportController extends Controller
             'data'=>collect($page->items())->map(fn(SupportCase $case)=>$this->summary($case))->values(),
             'meta'=>['current_page'=>$page->currentPage(),'last_page'=>$page->lastPage(),'total'=>$page->total()],
         ]);
+    }
+
+    public function help(): JsonResponse
+    {
+        return response()->json(['data' => $this->help->questions()]);
+    }
+
+    public function openInteraction(Request $request): JsonResponse
+    {
+        $v = $request->validate([
+            'channel' => ['required', Rule::in(['ticket', 'human', 'assistant'])],
+            'body' => ['required', 'string', 'min:2', 'max:5000'],
+            'client_key' => ['required', 'uuid'],
+            'attachment' => SupportCaseFiles::RULES,
+        ]);
+        $user = $request->user();
+        $case = $this->files->withUpload($request->file('attachment'), function () use ($user, $v, $request): array {
+            User::query()->lockForUpdate()->findOrFail($user->id);
+            $existing = SupportCase::query()->where('requester_user_id', $user->id)
+                ->where('intake_key', $v['client_key'])->first();
+            if ($existing) return [$existing, null];
+
+            $title = match ($v['channel']) {
+                'assistant', 'human' => 'محادثة مع الدعم',
+                default => 'طلب دعم',
+            };
+            $case = $this->support->create($user, 'support_ticket', $title, trim($v['body']), null,
+                null, 'other', 'normal', $request, channel: $v['channel'], intakeKey: $v['client_key']);
+
+            return [$case, $this->files->lastMessage($case)];
+        });
+
+        return response()->json(['data' => $this->detail($this->help->respond($case, $user), false)], 201);
+    }
+
+    public function handoff(Request $request, SupportCase $case): JsonResponse
+    {
+        return response()->json(['data' => $this->detail($this->help->handoff($case, $request->user()), false)]);
+    }
+
+    public function fileMine(Request $request, SupportCase $case, int $file): Response
+    {
+        abort_unless((int) $case->requester_user_id === (int) $request->user()->id, 404);
+
+        return $this->files->response($case, $file, false);
+    }
+
+    public function fileAdmin(Request $request, SupportCase $case, int $file): Response
+    {
+        $this->tasks->assertCaseAccess($request->user(), $case);
+
+        return $this->files->response($case, $file, true);
+    }
+
+    public function reportDecision(Request $request, SupportCase $case): JsonResponse
+    {
+        $v = $request->validate([
+            'decision' => ['required', Rule::in(['request_information', 'resolve', 'dismiss', 'pause_publication', 'restore_publication'])],
+            'reason' => ['required', 'string', 'min:3', 'max:2000'],
+        ]);
+        $case = $this->reports->decide($request->user(), $case, $v['decision'], trim($v['reason']), $request);
+
+        return response()->json(['data' => $this->detail($case, true)]);
+    }
+
+    public function suggestReply(Request $request, SupportCase $case): JsonResponse
+    {
+        $this->tasks->assertCaseAccess($request->user(), $case);
+        $messages = $case->messages()->reorder()->where('actor_role', 'requester')->latest('id')->limit(3)->pluck('body');
+        $requester = User::query()->find($case->requester_user_id);
+        $suggestion = $requester && $messages->isNotEmpty() && $case->kind !== 'report'
+            ? $this->help->tryAnswer($requester, $messages->first()) : null;
+
+        return response()->json(['data' => [
+            'summary' => $messages->reverse()->map(fn ($message) => mb_substr($message, 0, 260))->implode("\n"),
+            'reply' => $suggestion['body'] ?? '',
+        ]]);
     }
 
     public function storeTicket(Request $request): JsonResponse
@@ -61,12 +146,18 @@ class SupportController extends Controller
         $validated=$request->validate([
             'target_type'=>['required',Rule::in(['listing','comment','rating','advertiser'])],
             'target_id'=>['required','integer','min:1'],
+            'property_id'=>['nullable','integer','min:1','prohibited_unless:target_type,advertiser'],
             'reason'=>['required',Rule::in(['spam','fraud','abuse','misleading','duplicate','privacy','other'])],
             'details'=>['required','string','min:5','max:5000'],
+            'attachment' => SupportCaseFiles::RULES,
         ]);
-        [$targetLabel,$targetOwner]=$this->validateReportTarget($validated['target_type'],(int)$validated['target_id']);
+        [, $targetOwner]=$this->validateReportTarget($validated['target_type'],(int)$validated['target_id']);
         if($targetOwner!==null && (int)$targetOwner===(int)$user->id) throw ValidationException::withMessages(['target_id'=>['You cannot report your own content/account.']]);
-        $case=\Illuminate\Support\Facades\DB::transaction(function()use($user,$validated,$request,$targetLabel){
+        $propertyId = isset($validated['property_id']) ? (int) $validated['property_id'] : null;
+        if ($propertyId !== null) {
+            abort_unless(Property::query()->publiclyAvailable()->where('user_id', $targetOwner)->whereKey($propertyId)->exists(), 404);
+        }
+        $case=$this->files->withUpload($request->file('attachment'), function()use($user,$validated,$request,$propertyId): array {
             User::query()->lockForUpdate()->findOrFail($user->id);
             $duplicate=SupportCase::query()->where('kind','report')->where('requester_user_id',$user->id)
                 ->where('target_type',$validated['target_type'])->where('target_id',(int)$validated['target_id'])
@@ -76,9 +167,80 @@ class SupportController extends Controller
                 'data'=>['id'=>$duplicate->id,'reference'=>$duplicate->reference,'status'=>$duplicate->status],
             ],409));
             $priority=in_array($validated['reason'],['fraud','abuse','privacy'],true)?'high':'normal';
-            return $this->support->create($user,'report','Report: '.$targetLabel,trim($validated['details']),$validated['target_type'],(int)$validated['target_id'],$validated['reason'],$priority,$request);
+            $subject = match ($validated['target_type']) {
+                'advertiser' => 'بلاغ عن معلن',
+                'comment' => 'بلاغ عن تعليق',
+                'rating' => 'بلاغ عن تقييم',
+                default => 'بلاغ عن إعلان',
+            };
+            $case = $this->support->create($user, 'report', $subject, trim($validated['details']),
+                $validated['target_type'], (int) $validated['target_id'], $validated['reason'], $priority, $request,
+                contextPropertyId: $propertyId);
+
+            return [$case, $this->files->lastMessage($case)];
         });
         return response()->json(['message'=>'Report submitted to support.','data'=>$this->detail($case,false)],201);
+    }
+
+    public function listingDecision(Request $request, Property $property): JsonResponse
+    {
+        abort_unless((int) $property->user_id === (int) $request->user()->id, 404);
+        $review = in_array($property->review_status, ['returned_for_correction', 'rejected_duplicate'], true)
+            ? $property->reviews()->where('action', $property->review_status)->latest('id')->first() : null;
+        $previous = $review ? (int) ($review->metadata['previous_property_id'] ?? 0) : 0;
+
+        return response()->json(['data' => [
+            'title' => $property->title,
+            'status' => $property->review_status,
+            'reason' => $property->last_review_reason,
+            'previous_property_id' => $previous && Property::query()->publiclyAvailable()->whereKey($previous)->exists() ? $previous : null,
+            'can_request_review' => in_array($property->review_status, ['returned_for_correction', 'rejected_duplicate'], true),
+        ]]);
+    }
+
+    public function reviewListingDecision(Request $request, Property $property): JsonResponse
+    {
+        abort_unless((int) $property->user_id === (int) $request->user()->id, 404);
+        abort_unless(in_array($property->review_status, ['returned_for_correction', 'rejected_duplicate'], true), 409);
+
+        return $this->openAppeal($request, 'listing', $property->id, 'مراجعة قرار إعلان', 'أطلب مراجعة قرار الإعلان «'.$property->title.'».');
+    }
+
+    public function reviewPublicationHold(Request $request, SupportCase $case): JsonResponse
+    {
+        abort_unless((int) $request->user()->support_publication_hold_case_id === (int) $case->id, 404);
+
+        return $this->openAppeal($request, 'publication_hold', $case->id, 'مراجعة إيقاف النشر', 'أطلب مراجعة قرار إيقاف النشر.');
+    }
+
+    public function publicationHold(Request $request, SupportCase $case): JsonResponse
+    {
+        $decision = \App\Models\UserNotification::query()->where('user_id', $request->user()->id)
+            ->where('entity_type', 'support_report_decision')->where('entity_id', $case->id)
+            ->whereIn('type', ['support_publication_hold', 'support_publication_restored'])
+            ->latest('id')->firstOrFail();
+
+        return response()->json(['data' => [
+            'title' => $decision->title,
+            'reason' => $decision->body,
+            'can_request_review' => (int) $request->user()->support_publication_hold_case_id === (int) $case->id,
+        ]]);
+    }
+
+    private function openAppeal(Request $request, string $targetType, int $targetId, string $title, string $description): JsonResponse
+    {
+        $user = $request->user();
+        $case = DB::transaction(function () use ($request, $user, $targetType, $targetId, $title, $description): SupportCase {
+            User::query()->lockForUpdate()->findOrFail($user->id);
+            $existing = SupportCase::query()->where('requester_user_id', $user->id)
+                ->where('target_type', $targetType)->where('target_id', $targetId)->where('reason_code', 'decision_review')
+                ->whereIn('status', SupportCaseService::ACTIVE_STATUSES)->first();
+
+            return $existing ?? $this->support->create($user, 'support_ticket', $title, $description, $targetType,
+                $targetId, 'decision_review', 'normal', $request, channel: 'human');
+        });
+
+        return response()->json(['data' => $this->detail($case, false)]);
     }
 
     public function showMine(Request $request, SupportCase $case): JsonResponse
@@ -91,9 +253,15 @@ class SupportController extends Controller
     public function replyMine(Request $request, SupportCase $case): JsonResponse
     {
         /** @var User $user */ $user=$request->user();
-        $validated=$request->validate(['body'=>['required','string','min:2','max:5000']]);
-        $case=$this->support->requesterReply($user,$case,trim($validated['body']),$request);
-        return response()->json(['message'=>'Reply added.','data'=>$this->detail($case,false)]);
+        abort_unless((int) $case->requester_user_id === (int) $user->id, 404);
+        $v = $request->validate(['body' => ['required', 'string', 'min:2', 'max:5000'], 'attachment' => SupportCaseFiles::RULES]);
+        $case = $this->files->withUpload($request->file('attachment'), function () use ($user, $case, $v, $request): array {
+            $updated = $this->support->requesterReply($user, $case, trim($v['body']), $request);
+
+            return [$updated, $this->files->lastMessage($updated)];
+        });
+
+        return response()->json(['data' => $this->detail($this->help->respond($case, $user), false)]);
     }
 
     public function queue(Request $request): JsonResponse
@@ -108,7 +276,7 @@ class SupportController extends Controller
             'assigned_to_me'=>['nullable','boolean'],
             'assigned_to_user_id'=>['nullable','integer','exists:users,id'],
         ]);
-        $query=SupportCase::query()->latest('id');
+        $query=$this->scopedCases($actor)->latest('id');
         foreach(['kind','status','priority'] as $field) if(!empty($validated[$field])) $query->where($field,$validated[$field]);
         if(array_key_exists('escalated',$validated)) $validated['escalated']?$query->whereNotNull('escalated_at'):$query->whereNull('escalated_at');
         if(!empty($validated['assigned_to_me'])) $query->where('assigned_to_user_id',$actor->id);
@@ -126,6 +294,7 @@ class SupportController extends Controller
     public function showAdmin(Request $request, SupportCase $case): JsonResponse
     {
         /** @var User $actor */ $actor=$request->user();
+        $this->tasks->assertCaseAccess($actor, $case);
         $this->assertLinkedCaseAccess($actor, $case);
         $this->audit->record($actor,'support.private_case_opened',$case,['reference'=>$case->reference,'kind'=>$case->kind],$request,$case->requester_user_id);
         return response()->json(['data'=>$this->detail($case,true)]);
@@ -171,7 +340,9 @@ class SupportController extends Controller
         /** @var User $actor */ $actor=$request->user();
         $validated=$request->validate(['user_id'=>['required','integer','exists:users,id']]);
         $assignee=User::query()->findOrFail((int)$validated['user_id']);
-        $case=$this->support->assign($actor,$case,$assignee,$request);
+        $task = $this->tasks->caseTaskInTeam($actor, $case);
+        $this->tasks->assign($actor, $task, $assignee, $request);
+        $case = $case->fresh();
         return response()->json(['message'=>'Support case assigned.','data'=>$this->detail($case,true)]);
     }
 
@@ -179,6 +350,7 @@ class SupportController extends Controller
     {
         /** @var User $actor */ $actor=$request->user();
         $validated=$request->validate(['reason'=>['required','string','min:3','max:1000']]);
+        $this->tasks->caseTaskInTeam($actor, $case);
         $case=$this->support->reopen($actor,$case,trim($validated['reason']),$request);
         return response()->json(['message'=>'Support case reopened.','data'=>$this->detail($case,true)]);
     }
@@ -186,23 +358,30 @@ class SupportController extends Controller
     public function escalate(Request $request, SupportCase $case): JsonResponse
     {
         $validated=$request->validate(['reason'=>['required','string','min:3','max:1000']]);
+        $this->tasks->caseTaskInTeam($request->user(), $case);
         $updated=$this->support->escalate($request->user(),$case,(string)$validated['reason'],$request);
         return response()->json(['message'=>'Support case escalated.','data'=>$this->detail($updated,true)]);
     }
 
     public function agents(Request $request): JsonResponse
     {
-        $users=User::query()->with('roles')->where('email','<>','stage5-owner@local.invalid')->orderBy('name')->get()
+        $actor = $request->user();
+        $people = User::query()->with('roles')->where('email','<>','stage5-owner@local.invalid')->orderBy('name');
+        if (!$actor->is_platform_owner && !$actor->hasRole('super_admin')) {
+            $people->whereIn('id', array_column($this->tasks->teamMetrics($actor), 'id'));
+        }
+        $cases = $this->scopedCases($actor);
+        $users=$people->get()
             ->filter(fn(User $user)=>$user->is_platform_owner || $user->hasPermission('support.handle_reports') || $user->hasPermission('support.manage'));
         return response()->json(['data'=>$users->map(fn(User $user)=>[
             'id'=>$user->id,'name'=>$user->name,'phone'=>$user->phone,'account_status'=>$user->account_status,'roles'=>$user->roleKeys(),
-            'active_cases'=>SupportCase::query()->where('assigned_to_user_id',$user->id)->whereIn('status',SupportCaseService::ACTIVE_STATUSES)->count(),
+            'active_cases'=>(clone $cases)->where('assigned_to_user_id',$user->id)->whereIn('status',SupportCaseService::ACTIVE_STATUSES)->count(),
         ])->values()]);
     }
 
     public function userContext(Request $request, User $user): JsonResponse
     {
-        $cases=SupportCase::query()->where('requester_user_id',$user->id)->latest('id')->limit(30)->get();
+        $cases=$this->scopedCases($request->user())->where('requester_user_id',$user->id)->latest('id')->limit(30)->get();
         return response()->json(['data'=>[
             'user'=>[
                 'id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'phone'=>$user->phone,
@@ -249,27 +428,34 @@ class SupportController extends Controller
         $this->support->escalateOverdue($request);
         $warningHours=(int)$this->settings->get('support.sla_warning_hours',6);
         $active=SupportCaseService::ACTIVE_STATUSES;
+        $cases = $this->scopedCases($actor);
         $data=[
-            'new_tickets'=>SupportCase::query()->where('kind','support_ticket')->where('status','open')->count(),
-            'assigned_to_me'=>SupportCase::query()->where('assigned_to_user_id',$actor->id)->whereIn('status',$active)->count(),
-            'open'=>SupportCase::query()->where('status','open')->count(),
-            'in_progress'=>SupportCase::query()->where('status','in_progress')->count(),
-            'waiting_requester'=>SupportCase::query()->where('status','waiting_requester')->count(),
-            'escalated'=>SupportCase::query()->whereNotNull('escalated_at')->whereIn('status',$active)->count(),
-            'overdue_unescalated'=>SupportCase::query()->whereIn('status',['open','in_progress'])->whereNull('escalated_at')->where('sla_due_at','<=',now())->count(),
-            'new_reports'=>SupportCase::query()->where('kind','report')->where('status','open')->count(),
-            'sla_warning'=>SupportCase::query()->whereIn('status',['open','in_progress'])->whereNull('escalated_at')->whereBetween('sla_due_at',[now(),now()->addHours($warningHours)])->count(),
+            'new_tickets'=>(clone $cases)->where('kind','support_ticket')->where('status','open')->count(),
+            'assigned_to_me'=>(clone $cases)->where('assigned_to_user_id',$actor->id)->whereIn('status',$active)->count(),
+            'open'=>(clone $cases)->where('status','open')->count(),
+            'in_progress'=>(clone $cases)->where('status','in_progress')->count(),
+            'waiting_requester'=>(clone $cases)->where('status','waiting_requester')->count(),
+            'escalated'=>(clone $cases)->whereNotNull('escalated_at')->whereIn('status',$active)->count(),
+            'overdue_unescalated'=>(clone $cases)->whereIn('status',['open','in_progress'])->whereNull('escalated_at')->where('sla_due_at','<=',now())->count(),
+            'new_reports'=>(clone $cases)->where('kind','report')->where('status','open')->count(),
+            'sla_warning'=>(clone $cases)->whereIn('status',['open','in_progress'])->whereNull('escalated_at')->whereBetween('sla_due_at',[now(),now()->addHours($warningHours)])->count(),
         ];
         if($actor->hasPermission('support.view_team_metrics')){
-            $agents=User::query()->with('roles')->where('email','<>','stage5-owner@local.invalid')->orderBy('name')->get()
+            $agents=User::query()->with('roles')->whereIn('id', array_column($this->tasks->teamMetrics($actor), 'id'))
+                ->orderBy('name')->get()
                 ->filter(fn(User $u)=>$u->hasRole('support_agent')||$u->hasRole('support_manager'));
             $data['team']=$agents->map(fn(User $u)=>[
                 'id'=>$u->id,'name'=>$u->name,'roles'=>$u->roleKeys(),
-                'assigned_active'=>SupportCase::query()->where('assigned_to_user_id',$u->id)->whereIn('status',$active)->count(),
+                'assigned_active'=>(clone $cases)->where('assigned_to_user_id',$u->id)->whereIn('status',$active)->count(),
                 'actions_7d'=>AuditLog::query()->where('actor_user_id',$u->id)->where('created_at','>=',now()->subDays(7))->where('action','like','support.%')->count(),
             ])->values();
         }
         return response()->json(['data'=>$data]);
+    }
+
+    private function scopedCases(User $actor): \Illuminate\Database\Eloquent\Builder
+    {
+        return SupportCase::query()->whereIn('id', $this->tasks->scopedCaseTasks($actor)->select('source_id'));
     }
 
     private function validateReportTarget(string $type, int $id): array
@@ -296,7 +482,10 @@ class SupportController extends Controller
     }
     private function advertiserTarget(int $id): array
     {
-        $item=User::query()->findOrFail($id);abort_unless(Property::query()->where('user_id',$id)->where('status','published')->exists(),404);return ['advertiser #'.$id,(int)$item->id];
+        $item = User::query()->findOrFail($id);
+        abort_unless(Property::query()->where('user_id', $id)->where('status', 'published')->exists()
+            || app(\App\Services\BrokerRankingService::class)->query(null, false, true)->where('users.id', $id)->exists(), 404);
+        return ['advertiser #'.$id, (int) $item->id];
     }
 
     private function queueSummary(SupportCase $case): array
@@ -309,7 +498,7 @@ class SupportController extends Controller
     private function summary(SupportCase $case): array
     {
         return [
-            'id'=>$case->id,'reference'=>$case->reference,'kind'=>$case->kind,'subject'=>$case->subject,
+            'id'=>$case->id,'reference'=>$case->reference,'kind'=>$case->kind,'channel'=>$case->channel,'subject'=>$case->subject === 'Conversation complaint' ? 'بلاغ عن محادثة' : $case->subject,
             'target_type'=>$case->target_type,'target_id'=>$case->target_id,'reason_code'=>$case->reason_code,
             'status'=>$case->status,'priority'=>$case->priority,'assigned_to_user_id'=>$case->assigned_to_user_id,
             'assigned_to_name'=>$case->assigned_to_name_snapshot,'sla_due_at'=>$case->sla_due_at?->toIso8601String(),
@@ -322,12 +511,14 @@ class SupportController extends Controller
     private function detail(SupportCase $case, bool $admin): array
     {
         $messages=SupportCaseMessage::query()->where('support_case_id',$case->id)->when(!$admin,fn($q)=>$q->where('is_internal',false))->orderBy('id')->get();
+        $attachments = $this->files->forMessages($messages->modelKeys());
         $data=array_merge($this->summary($case),[
             'description'=>$case->description,
             'requester'=>['id'=>$case->requester_user_id,'name'=>$case->requester_name_snapshot,'email'=>$case->requester_email_snapshot],
             'messages'=>$messages->map(fn(SupportCaseMessage $message)=>[
                 'id'=>$message->id,'actor_user_id'=>$message->actor_user_id,'actor_name'=>$message->actor_name_snapshot,
                 'actor_role'=>$message->actor_role,'is_internal'=>(bool)$message->is_internal,'body'=>$message->body,
+                'attachments'=>$attachments[$message->id] ?? [],'action_path'=>$message->action_path,
                 'created_at'=>$message->created_at?->toIso8601String(),
             ])->values(),
         ]);
@@ -337,6 +528,20 @@ class SupportController extends Controller
                 'id'=>$event->id,'event'=>$event->event,'actor_name'=>$event->actor_name_snapshot,'from_status'=>$event->from_status,'to_status'=>$event->to_status,'metadata'=>$event->metadata,'created_at'=>$event->created_at?->toIso8601String(),
             ])->values();
             $data['target_preview']=$this->targetPreview($case);
+            if ($case->kind === 'report') {
+                $target = User::query()->find($this->reports->reportedUserId($case));
+                $thread = $case->target_type === 'conversation_thread'
+                    ? \App\Models\MessageThread::query()->find($case->target_id) : null;
+                $propertyId = $case->context_property_id
+                    ?? ($case->target_type === 'listing' ? $case->target_id : $thread?->property_id);
+                $data['report'] = [
+                    'reported_name' => $target?->name,
+                    'property_title' => $propertyId === null ? null : Property::query()->whereKey($propertyId)->value('title'),
+                    'conversation_report_id' => \App\Models\ConversationReport::query()->where('support_case_id', $case->id)->value('id'),
+                    'may_manage_publication' => $target !== null && $this->reports->canManagePublication(request()->user()),
+                    'publication_paused_for_report' => $target !== null && (int) $target->support_publication_hold_case_id === (int) $case->id,
+                ];
+            }
         }
         return $data;
     }

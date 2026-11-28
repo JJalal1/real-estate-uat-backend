@@ -28,11 +28,17 @@ class SupportCaseService
         string $priority,
         Request $request,
         ?User $initiator = null,
+        ?string $channel = null,
+        ?string $intakeKey = null,
+        ?int $contextPropertyId = null,
     ): SupportCase {
-        return DB::transaction(function () use ($requester,$kind,$subject,$description,$targetType,$targetId,$reasonCode,$priority,$request,$initiator): SupportCase {
+        return DB::transaction(function () use ($requester,$kind,$subject,$description,$targetType,$targetId,$reasonCode,$priority,$request,$initiator,$channel,$intakeKey,$contextPropertyId): SupportCase {
             $case=SupportCase::query()->create([
                 'reference'=>$this->reference(),
                 'kind'=>$kind,
+                'channel'=>$channel,
+                'intake_key'=>$intakeKey,
+                'context_property_id'=>$contextPropertyId,
                 'requester_user_id'=>$requester->id,
                 'requester_name_snapshot'=>$requester->name,
                 'requester_email_snapshot'=>$requester->email,
@@ -65,6 +71,7 @@ class SupportCaseService
 
         return DB::transaction(function () use ($requester,$case,$body,$request): SupportCase {
             $locked=SupportCase::query()->lockForUpdate()->findOrFail($case->id);
+            $this->assertOpen($locked);
             $from=$locked->status;
             $this->message($locked,$requester,'requester',false,$body);
             $changes=['last_activity_at'=>now()];
@@ -135,16 +142,20 @@ class SupportCaseService
         });
     }
 
-    public function setStatus(User $actor, SupportCase $case, string $status, Request $request): SupportCase
+    public function setStatus(User $actor, SupportCase $case, string $status, Request $request, ?string $decisionNote = null): SupportCase
     {
         if (!in_array($status,['open','in_progress','waiting_requester','resolved','dismissed'],true)) abort(422,'Unsupported support status.');
         if (in_array($case->status,self::CLOSED_STATUSES,true)) throw new ConflictHttpException('Closed support cases cannot be reopened in Stage 10.');
 
-        return DB::transaction(function () use ($actor,$case,$status,$request): SupportCase {
+        return DB::transaction(function () use ($actor,$case,$status,$request,$decisionNote): SupportCase {
             $locked=SupportCase::query()->lockForUpdate()->findOrFail($case->id);
             if (in_array($locked->status,self::CLOSED_STATUSES,true)) throw new ConflictHttpException('Closed support cases cannot be reopened in Stage 10.');
             $from=$locked->status;
             $changes=['status'=>$status,'last_activity_at'=>now()];
+            if ($decisionNote !== null) {
+                $this->message($locked, $actor, 'staff', false, $decisionNote);
+                $changes['first_response_at'] = $locked->first_response_at ?: now();
+            }
             if (in_array($status,self::CLOSED_STATUSES,true)) $changes['resolved_at']=now();
             if ($status === 'waiting_requester') $changes['resolved_at']=null;
             if ($status === 'in_progress' && $from === 'waiting_requester') {
@@ -155,7 +166,7 @@ class SupportCaseService
             $locked->forceFill($changes)->save();
             $this->event($locked,$actor,'status_changed',$from,$status);
             $this->audit->record($actor,'support.status_changed',$locked,['from'=>$from,'to'=>$status,'reference'=>$locked->reference],$request,$locked->requester_user_id);
-            if($locked->requester_user_id){$this->notifications->create((int)$locked->requester_user_id,'support_status','تم تحديث حالة الدعم','تم تحديث حالة طلب الدعم الخاص بك.','support_case',$locked->id,['status'=>$status,'reference'=>$locked->reference]);}
+            if($locked->requester_user_id){$this->notifications->create((int)$locked->requester_user_id,'support_status','تم تحديث حالة الدعم',$decisionNote ?? 'تم تحديث حالة طلب الدعم الخاص بك.','support_case',$locked->id,['status'=>$status,'reference'=>$locked->reference]);}
             return $this->projected($locked->fresh());
         });
     }
@@ -220,6 +231,7 @@ class SupportCaseService
     {
         $ids=SupportCase::query()
             ->whereIn('status',['open','in_progress'])
+            ->where(fn ($cases) => $cases->whereNull('channel')->orWhere('channel', '!=', 'assistant'))
             ->whereNull('escalated_at')
             ->where('sla_due_at','<=',now())
             ->orderBy('id')->pluck('id');
@@ -227,7 +239,7 @@ class SupportCaseService
         foreach($ids as $id){
             DB::transaction(function () use ($id,$request,&$count): void {
                 $case=SupportCase::query()->lockForUpdate()->find($id);
-                if(!$case || !in_array($case->status,['open','in_progress'],true) || $case->escalated_at || $case->sla_due_at?->isFuture()) return;
+                if(!$case || $case->channel === 'assistant' || !in_array($case->status,['open','in_progress'],true) || $case->escalated_at || $case->sla_due_at?->isFuture()) return;
                 $case->forceFill([
                     'escalated_at'=>now(),
                     'escalation_level'=>max(1,(int)$case->escalation_level+1),

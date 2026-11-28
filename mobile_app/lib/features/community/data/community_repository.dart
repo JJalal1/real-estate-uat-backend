@@ -107,13 +107,18 @@ class CommunityRepository {
 
   Future<ReportReceipt> report({
     required String targetType, required int targetId, required String reason, required String details,
+    String? attachment, int? propertyId,
   }) async {
     Map<String, dynamic>? body;
     var alreadyReceived = false;
     try {
-      final response = await _dio.post<Map<String, dynamic>>('/reports', data: {
+      final fields = {
         'target_type': targetType, 'target_id': targetId, 'reason': reason, 'details': details.trim(),
-      }, options: await _sessionOptions());
+        if (propertyId != null) 'property_id': propertyId,
+      };
+      final data = attachment == null ? fields
+          : FormData.fromMap({...fields, 'attachment': await MultipartFile.fromFile(attachment)});
+      final response = await _dio.post<Map<String, dynamic>>('/reports', data: data, options: await _sessionOptions());
       body = response.data;
     } on DioException catch (error) {
       final data = error.response?.data;

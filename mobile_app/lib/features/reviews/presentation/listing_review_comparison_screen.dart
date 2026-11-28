@@ -8,7 +8,7 @@ import '../domain/listing_review_models.dart';
 import 'listing_duplicate_notice.dart';
 import 'review_protected_photo.dart';
 
-enum ListingComparisonAction { link, reject, openPrevious }
+enum ListingComparisonAction { link, reject, returnForCorrection, openPrevious }
 
 class ListingReviewComparisonScreen extends StatelessWidget {
   const ListingReviewComparisonScreen({
@@ -121,6 +121,12 @@ class ListingReviewComparisonScreen extends StatelessWidget {
                     style: AppButtonStyle.outlined,
                     onPressed: () => Navigator.pop(context, ListingComparisonAction.openPrevious),
                   ),
+                  if (canDecide)
+                    AppButton(
+                      label: 'إرجاع بسبب التشابه',
+                      style: AppButtonStyle.outlined,
+                      onPressed: () => Navigator.pop(context, ListingComparisonAction.returnForCorrection),
+                    ),
                   if (canDecide)
                     AppButton(
                       label: 'رفض الإعلان الجديد كمكرر',

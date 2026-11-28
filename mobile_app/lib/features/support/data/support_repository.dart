@@ -67,13 +67,59 @@ class SupportRepository {
     return _details(response.data);
   }
 
-  Future<SupportCaseDetails> reply(int caseId, String body) async {
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/support/cases/$caseId/messages',
-      data: {'body': body.trim()},
-      options: await _sessionOptions(),
-    );
-    return _details(response.data);
+  Future<SupportCaseDetails> reply(int caseId, String body, {String? attachment}) =>
+      _casePost('/support/cases/$caseId/messages',
+          data: {'body': body.trim()}, attachment: attachment);
+
+  Future<SupportCaseDetails> openInteraction(String channel, String body, String clientKey,
+      {String? attachment}) => _casePost('/support/interactions',
+        data: {'channel': channel, 'body': body.trim(), 'client_key': clientKey}, attachment: attachment);
+
+  Future<SupportCaseDetails> handoff(int caseId) =>
+      _casePost('/support/cases/$caseId/handoff');
+
+  Future<SupportCaseDetails> reportDecision(int caseId, String decision, String reason) =>
+      _casePost('/admin/support/cases/$caseId/report-decision',
+          data: {'decision': decision, 'reason': reason.trim()});
+
+  Future<SupportCaseDetails> reviewListingDecision(int listingId) =>
+      _casePost('/support/listing-decisions/$listingId/review');
+
+  Future<SupportCaseDetails> reviewPublicationHold(int caseId) =>
+      _casePost('/support/publication-holds/$caseId/review');
+
+  Future<Map<String, dynamic>> listingDecision(int listingId) =>
+      _interactionData('/support/listing-decisions/$listingId');
+
+  Future<Map<String, dynamic>> publicationHold(int caseId) =>
+      _interactionData('/support/publication-holds/$caseId');
+
+  Future<Map<String, dynamic>> suggestReply(int caseId) =>
+      _interactionData('/admin/support/cases/$caseId/suggestion');
+
+  Future<Map<String, dynamic>> _interactionData(String path) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final response = await _dio.get<Map<String, dynamic>>(path, options: await _sessionOptions());
+    _verifySession(epoch);
+    final data = response.data?['data'];
+    if (data is! Map<String, dynamic>) throw StateError('Invalid support response.');
+    return data;
+  }
+
+  Future<List<Map<String, dynamic>>> help() async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final response = await _dio.get<Map<String, dynamic>>('/support/help', options: await _sessionOptions());
+    _verifySession(epoch);
+    return (response.data?['data'] as List? ?? const []).whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<List<int>> file(int caseId, int fileId, {required bool staff}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final path = staff ? '/admin/support/cases' : '/support/cases';
+    final response = await _dio.get<List<int>>('$path/$caseId/files/$fileId',
+        options: (await _sessionOptions()).copyWith(responseType: ResponseType.bytes));
+    _verifySession(epoch);
+    return response.data ?? const [];
   }
 
   Future<SupportAdminSummary> adminSummary() async {
@@ -259,12 +305,15 @@ class SupportRepository {
   }
 
   Future<SupportCaseDetails> _casePost(String path,
-      {Map<String, dynamic>? data}) async {
+      {Map<String, dynamic>? data, String? attachment}) async {
+    final epoch = Stage6SecureSessionStore.instance.sessionEpoch;
+    final payload = attachment == null
+        ? data
+        : FormData.fromMap({...?data, 'attachment': await MultipartFile.fromFile(attachment)});
     final response = await _dio.post<Map<String, dynamic>>(
-      path,
-      data: data,
-      options: await _sessionOptions(),
+      path, data: payload, options: await _sessionOptions(),
     );
+    _verifySession(epoch);
     return _details(response.data);
   }
 

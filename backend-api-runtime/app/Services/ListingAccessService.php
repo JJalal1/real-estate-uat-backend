@@ -34,6 +34,7 @@ class ListingAccessService
     /** Called with the account locked in the same transaction as submission. */
     public function authorizePublication(User $user, Property $listing, Request $request): void
     {
+        abort_if($user->support_publication_hold_case_id !== null, 403, 'النشر موقوف مؤقتًا. راجع الدعم.');
         abort_unless($user->canCreateListings(), 403);
         if ($this->isProfessional($user)) return;
 

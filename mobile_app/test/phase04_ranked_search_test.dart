@@ -130,6 +130,44 @@ void main() {
     dio.close(force:true);
   });
 
+  test('category filters require exact rows and are acknowledged by the server', () async {
+    final requests = <RequestOptions>[];
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid/api'));
+    addTearDown(() => dio.close(force: true));
+    var supported = false;
+    dio.httpClientAdapter = _Adapter((request) async {
+      requests.add(request);
+      return ResponseBody.fromString(jsonEncode({
+        'data': [_row(1)..remove('discovery_match')],
+        'meta': {'current_page': 1, 'last_page': 1, 'total': 1},
+      }), 200, headers: {
+        'content-type': ['application/json'],
+        'x-aqer-filter-contract': ['2'],
+        if (supported) 'x-aqer-category-filters': ['1'],
+      });
+    });
+    final repo = PropertyRepository(dio, AuthRepository(dio), rankedDiscovery: true);
+    const query = {
+      'ranked_search': 0,
+      'purpose': 'rent',
+      'type': 'house',
+      'min_bedrooms': 3,
+      'min_parking_spaces': 2,
+    };
+
+    await expectLater(repo.searchListings(query), throwsStateError);
+    final ordinary = await repo.searchListings({'ranked_search': 0, 'purpose': 'rent'});
+    expect(ordinary.$1.single.id, 1);
+    supported = true;
+    final result = await repo.searchListings(query, refresh: true);
+    expect(result.$1.single.id, 1);
+    expect(result.$1.single.discoveryMatch, isNull);
+    expect(requests.last.queryParameters, containsPair('ranked_search', 0));
+    expect(requests.last.queryParameters, containsPair('min_bedrooms', 3));
+    expect(requests.last.queryParameters, containsPair('min_parking_spaces', 2));
+    expect(requests.last.queryParameters.containsKey('ranking_version'), isFalse);
+  });
+
   test('a drawn polygon requests exact results before pagination on every page', () async {
     final requests = <RequestOptions>[];
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid/api'));

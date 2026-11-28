@@ -19,12 +19,14 @@ class AccountScreen extends ConsumerWidget {
     this.personalWorkspace = false,
     this.workspaceActionLabel,
     this.onWorkspaceAction,
+    this.onWorkAsSupportAgent,
     super.key,
   });
 
   final bool personalWorkspace;
   final String? workspaceActionLabel;
   final VoidCallback? onWorkspaceAction;
+  final VoidCallback? onWorkAsSupportAgent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -60,6 +62,10 @@ class AccountScreen extends ConsumerWidget {
               SliverPersistentHeader(pinned: true, delegate: _AccountHeaderDelegate(user: user, scale: MediaQuery.textScalerOf(context).scale(14) / 14)),
               SliverPadding(padding: const EdgeInsetsDirectional.fromSTEB(AppLayout.compactPageGutter, 12, AppLayout.compactPageGutter, AppSpacing.s32),
                 sliver: SliverList.list(children: [
+                if (onWorkAsSupportAgent != null)
+                  Card(child: ListTile(leading: const Icon(Icons.support_agent_outlined),
+                    title: const Text('العمل كموظف دعم'),
+                    trailing: const Icon(Icons.chevron_left), onTap: onWorkAsSupportAgent)),
                 if (user != null && workspaceActionLabel != null &&
                     onWorkspaceAction != null) ...[
                   AppButton(

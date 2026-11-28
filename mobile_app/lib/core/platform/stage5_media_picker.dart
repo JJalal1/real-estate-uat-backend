@@ -13,6 +13,14 @@ class Stage5MediaPicker {
         .toList(growable: false);
   }
 
+  Future<String?> pickSupportEvidence() =>
+      _channel.invokeMethod<String>('pickSupportEvidence');
+
+  Future<Map<Object?, Object?>> renderSupportPdf(String path, int page) async =>
+      await _channel.invokeMapMethod<Object?, Object?>(
+        'renderSupportPdf', {'path': path, 'page': page},
+      ) ?? const {};
+
   Future<String?> takePhoto() async {
     final path = await _channel.invokeMethod<String>('takePhoto');
     if (path == null || path.trim().isEmpty) return null;

@@ -43,6 +43,8 @@ import '../features/reviews/presentation/listing_review_screen.dart';
 import '../features/services/presentation/services_screen.dart';
 import '../features/support/presentation/support_admin_screen.dart';
 import '../features/support/presentation/support_center_screen.dart';
+import '../features/support/presentation/support_help_screen.dart';
+import '../features/support/presentation/support_staff_messages.dart';
 import '../features/support/presentation/support_tasks_screen.dart';
 import '../features/support/presentation/support_users_screen.dart';
 import '../features/support/presentation/support_work_log_screen.dart';
@@ -76,7 +78,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/marketplace-search', builder: (context, state) => MarketplaceSearchScreen(
         openFilters: state.uri.queryParameters['filters'] == '1')),
       GoRoute(path: '/marketplace-categories/:purpose', builder: (context, state) =>
-        MarketplaceCategoryTypesScreen(purpose: state.pathParameters['purpose'] ?? '')),
+        MarketplaceCategoriesScreen(
+          key: ValueKey(state.uri.toString()),
+          initialPurpose: state.pathParameters['purpose'] ?? 'rent',
+          initialType: state.uri.queryParameters['type'],
+        )),
       GoRoute(path: '/marketplace-section', builder: (context, state) => MarketplaceSectionScreen(
         section: state.uri.queryParameters['section'] ?? 'latest',
         governorate: state.uri.queryParameters['governorate'], type: state.uri.queryParameters['type'],
@@ -88,11 +94,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
         return id > 0 ? BrokerPublicProfileScreen(id: id) : const _RouteErrorScreen();
       }),
-      GoRoute(path: '/broker/workspace', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, requireProfessional: true, child: BrokerDashboardScreen())),
-      GoRoute(path: '/broker/customers', builder: (context, state) => Stage6AuthGate(requireListingEligible: true, requireProfessional: true,
+      GoRoute(path: '/broker/workspace', builder: (context, state) => const Stage6AuthGate(requireListingManagement: true, requireProfessional: true, child: BrokerDashboardScreen())),
+      GoRoute(path: '/broker/customers', builder: (context, state) => Stage6AuthGate(requireListingManagement: true, requireProfessional: true,
         child: BrokerCustomersScreen(propertyId: int.tryParse(state.uri.queryParameters['property'] ?? ''), initialFilter: state.uri.queryParameters['filter'] ?? 'all'))),
-      GoRoute(path: '/broker/availability', builder: (context, state) => Stage6AuthGate(requireListingEligible: true, child: BrokerAvailabilityScreen(initiallyDue: state.uri.queryParameters['due'] == '1'))),
-      GoRoute(path: '/broker/finance', builder: (context, state) => const Stage6AuthGate(requireListingEligible: true, child: BrokerFinanceScreen())),
+      GoRoute(path: '/broker/availability', builder: (context, state) => Stage6AuthGate(requireListingManagement: true, child: BrokerAvailabilityScreen(initiallyDue: state.uri.queryParameters['due'] == '1'))),
+      GoRoute(path: '/broker/finance', builder: (context, state) => const Stage6AuthGate(requireListingManagement: true, child: BrokerFinanceScreen())),
       GoRoute(path: '/broker/activity', builder: (_, __) => const Stage6AuthGate(child: BrokerActivityScreen())),
       GoRoute(path: '/broker/deals/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
@@ -245,14 +251,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/support',
-        builder: (context, state) => Stage6AuthGate(
-          child: SupportCenterScreen(
-            initialCaseId: int.tryParse(
-              state.uri.queryParameters['case'] ?? '',
-            ),
-          ),
-        ),
+        builder: (context, state) {
+          final caseId = int.tryParse(state.uri.queryParameters['case'] ?? '');
+          return Stage6AuthGate(child: caseId != null
+              ? SupportHelpConversationScreen(key: ValueKey(caseId), caseId: caseId)
+              : state.uri.queryParameters['view'] == 'cases' ? const SupportCenterScreen()
+              : const SupportHelpScreen());
+        },
       ),
+      GoRoute(path: '/support/listing-decision/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return id > 0 ? Stage6AuthGate(child: SupportDecisionScreen(id: id)) : const _RouteErrorScreen();
+      }),
+      GoRoute(path: '/support/publication-hold/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return id > 0 ? Stage6AuthGate(child: SupportDecisionScreen(id: id, publicationHold: true))
+            : const _RouteErrorScreen();
+      }),
+      GoRoute(path: '/support/internal', builder: (context, state) =>
+        const Stage6AuthGate(child: SupportMessagesScreen(executive: true))),
+      GoRoute(path: '/support/internal/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return id > 0 ? Stage6AuthGate(child: SupportStaffChatScreen(
+          threadId: id, linkedTaskId: int.tryParse(state.uri.queryParameters['task'] ?? '')))
+          : const _RouteErrorScreen();
+      }),
       GoRoute(
         path: '/admin/support',
         builder: (context, state) => Stage6AuthGate(
@@ -277,7 +300,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             child: SupportTasksScreen(
               key: ValueKey(taskId),
               initialTaskId: taskId,
-              actingAsAgent: true,
+              actingAsAgent: state.uri.queryParameters['manager'] != '1',
               title: 'طلب الدعم',
             ),
           );

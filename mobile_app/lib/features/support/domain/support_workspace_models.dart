@@ -26,6 +26,7 @@ class SupportTaskItem {
     required this.canClaim,
     required this.isOverdue,
     this.sourceReference,
+    this.lastMessagePreview,
     this.category,
     this.assignmentSource,
     this.isUnreceivedOverdue = false,
@@ -54,6 +55,7 @@ class SupportTaskItem {
   final String sourceType;
   final int sourceId;
   final String? sourceReference;
+  final String? lastMessagePreview;
   final String? category;
   final String? assignmentSource;
   final bool isUnreceivedOverdue;
@@ -91,6 +93,7 @@ class SupportTaskItem {
       sourceType: json['source_type']?.toString() ?? '',
       sourceId: _int(json['source_id']),
       sourceReference: _text(json['source_reference']),
+      lastMessagePreview: _text(json['last_message_preview']),
       category: _text(json['category']),
       assignmentSource: _text(json['assignment_source']),
       isUnreceivedOverdue: json['is_unreceived_overdue'] == true,
@@ -399,4 +402,39 @@ String? _text(dynamic value) {
 DateTime? _date(dynamic value) {
   final text = value?.toString().trim();
   return text == null || text.isEmpty ? null : DateTime.tryParse(text);
+}
+
+class SupportStaffThread {
+  const SupportStaffThread({required this.id, required this.name, required this.channel,
+    this.team, this.preview, this.messages = const []});
+
+  final int id;
+  final String name;
+  final String channel;
+  final String? team;
+  final String? preview;
+  final List<SupportStaffMessage> messages;
+
+  factory SupportStaffThread.fromJson(Map<String, dynamic> json) => SupportStaffThread(
+    id: _int(json['id']),
+    name: json['name']?.toString() ?? '',
+    channel: json['channel']?.toString() ?? '',
+    team: _text(json['team']),
+    preview: _text(json['preview']),
+    messages: (json['messages'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>().map(SupportStaffMessage.fromJson).toList(growable: false),
+  );
+}
+
+class SupportStaffMessage {
+  const SupportStaffMessage(this.id, this.body, this.mine, this.taskId);
+
+  final int id;
+  final String body;
+  final bool mine;
+  final int? taskId;
+
+  factory SupportStaffMessage.fromJson(Map<String, dynamic> json) => SupportStaffMessage(
+    _int(json['id']), json['body']?.toString() ?? '', json['mine'] == true, _nullableInt(json['task_id']),
+  );
 }

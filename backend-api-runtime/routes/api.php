@@ -157,6 +157,14 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::delete('/advertisers/{advertiser}/rating', [CommunityController::class, 'deleteRating']);
 
     Route::post('/reports', [SupportController::class, 'report'])->middleware('throttle:10,1,content-report');
+    Route::get('/support/help', [SupportController::class, 'help']);
+    Route::post('/support/interactions', [SupportController::class, 'openInteraction'])->middleware('throttle:20,1,support-interactions');
+    Route::post('/support/cases/{case}/handoff', [SupportController::class, 'handoff']);
+    Route::get('/support/cases/{case}/files/{file}', [SupportController::class, 'fileMine'])->whereNumber('file');
+    Route::get('/support/listing-decisions/{property}', [SupportController::class, 'listingDecision']);
+    Route::post('/support/listing-decisions/{property}/review', [SupportController::class, 'reviewListingDecision']);
+    Route::get('/support/publication-holds/{case}', [SupportController::class, 'publicationHold']);
+    Route::post('/support/publication-holds/{case}/review', [SupportController::class, 'reviewPublicationHold']);
     Route::get('/support/cases/mine', [SupportController::class, 'mine']);
     Route::post('/support/cases', [SupportController::class, 'storeTicket']);
     Route::get('/support/cases/{case}', [SupportController::class, 'showMine']);
@@ -257,6 +265,9 @@ Route::middleware(['auth.api', 'account.active'])->group(function () {
     Route::prefix('admin/support')->group(function () {
         Route::get('/summary', [SupportController::class, 'summaryAdmin'])->middleware('permission:support.handle_reports');
         Route::get('/cases', [SupportController::class, 'queue'])->middleware('permission:support.handle_reports');
+        Route::get('/cases/{case}/files/{file}', [SupportController::class, 'fileAdmin'])->whereNumber('file')->middleware('permission:support.handle_reports');
+        Route::get('/cases/{case}/suggestion', [SupportController::class, 'suggestReply'])->middleware(['permission:support.handle_reports', 'throttle:20,1,support-suggestions']);
+        Route::post('/cases/{case}/report-decision', [SupportController::class, 'reportDecision'])->middleware('permission:support.handle_reports');
         Route::get('/cases/{case}', [SupportController::class, 'showAdmin'])->middleware('permission:support.handle_reports');
         Route::post('/cases/{case}/start', [SupportController::class, 'start'])->middleware('permission:support.handle_reports');
         Route::post('/cases/{case}/reply', [SupportController::class, 'replyAdmin'])->middleware('permission:support.handle_reports');

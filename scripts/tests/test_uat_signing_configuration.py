@@ -123,6 +123,9 @@ class SigningConfigurationTests(unittest.TestCase):
         for release, work, build in (
             (signing.ALAZZI_PARITY_RELEASE_BRANCH, 'work/alazzi-ui-parity-1849', '1849'),
             (signing.ALAZZI_SUPPORT_RELEASE_BRANCH, 'work/alazzi-support-1850', '1850'),
+            (signing.ALAZZI_CATEGORY_RELEASE_BRANCH, 'work/alazzi-category-filters-1851', '1851'),
+            (signing.ALAZZI_SUPPORT_WAVE_RELEASE_BRANCH, 'work/alazzi-support-1851', '1851'),
+            (signing.ALAZZI_UNIFIED_1852_RELEASE_BRANCH, 'work/alazzi-unified-1852', '1852'),
         ):
             env = dict(self.env, GITHUB_REF=release, AQER_BUILD=build,
                        GITHUB_ACTOR='JJalal1', GITHUB_REPOSITORY_OWNER='JJalal1')
@@ -131,7 +134,8 @@ class SigningConfigurationTests(unittest.TestCase):
                 ('GITHUB_REF', signing.ALAZZI_ACCOUNT_RELEASE_BRANCH),
                 ('GITHUB_REF', signing.ALAZZI_MARKETPLACE_BRANCH),
                 ('GITHUB_REF', f'refs/heads/{work}'),
-                ('AQER_BUILD', '1848'), ('AQER_BUILD', ''), ('GITHUB_ACTOR', 'other'),
+                ('AQER_BUILD', '1848'), ('AQER_BUILD', '1851' if build == '1852' else '1852'),
+                ('AQER_BUILD', ''), ('GITHUB_ACTOR', 'other'),
                 ('GITHUB_REPOSITORY_OWNER', 'other'), ('GITHUB_EVENT_NAME', 'pull_request'),
                 ('GITHUB_REPOSITORY', 'other/real-estate-uat-backend'),
                 ('AQER_SIGNING_ENVIRONMENT', 'production'),

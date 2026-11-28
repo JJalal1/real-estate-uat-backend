@@ -21,6 +21,7 @@ class SupportCaseSummary {
     this.targetType,
     this.targetId,
     this.reasonCode,
+    this.channel,
     this.assignedToUserId,
     this.assignedToName,
     this.slaDueAt,
@@ -40,6 +41,7 @@ class SupportCaseSummary {
   final String? targetType;
   final int? targetId;
   final String? reasonCode;
+  final String? channel;
   final int? assignedToUserId;
   final String? assignedToName;
   final DateTime? slaDueAt;
@@ -64,6 +66,7 @@ class SupportCaseSummary {
       targetType: _nullable(json['target_type']),
       targetId: _nullableInt(json['target_id']),
       reasonCode: _nullable(json['reason_code']),
+      channel: _nullable(json['channel']),
       assignedToUserId: _nullableInt(json['assigned_to_user_id']),
       assignedToName: _nullable(json['assigned_to_name']),
       slaDueAt: _date(json['sla_due_at']),
@@ -77,6 +80,18 @@ class SupportCaseSummary {
   }
 }
 
+class SupportAttachment {
+  const SupportAttachment(this.id, this.name, this.mime);
+
+  final int id;
+  final String name;
+  final String mime;
+
+  factory SupportAttachment.fromJson(Map<String, dynamic> json) =>
+      SupportAttachment(_int(json['id']), json['name']?.toString() ?? 'مرفق',
+          json['mime']?.toString() ?? '');
+}
+
 class SupportMessageItem {
   const SupportMessageItem({
     required this.id,
@@ -86,6 +101,8 @@ class SupportMessageItem {
     this.actorUserId,
     this.actorName,
     this.createdAt,
+    this.actionPath,
+    this.attachments = const [],
   });
 
   final int id;
@@ -94,6 +111,8 @@ class SupportMessageItem {
   final String actorRole;
   final bool isInternal;
   final String body;
+  final String? actionPath;
+  final List<SupportAttachment> attachments;
   final DateTime? createdAt;
 
   factory SupportMessageItem.fromJson(Map<String, dynamic> json) {
@@ -104,6 +123,9 @@ class SupportMessageItem {
       actorRole: json['actor_role']?.toString() ?? 'requester',
       isInternal: json['is_internal'] == true || json['is_internal'] == 1,
       body: json['body']?.toString() ?? '',
+      actionPath: _nullable(json['action_path']),
+      attachments: (json['attachments'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>().map(SupportAttachment.fromJson).toList(growable: false),
       createdAt: _date(json['created_at']),
     );
   }
@@ -116,6 +138,7 @@ class SupportCaseDetails {
     required this.messages,
     required this.events,
     this.targetPreview,
+    this.report,
     this.requesterId,
     this.requesterName,
     this.requesterEmail,
@@ -129,6 +152,7 @@ class SupportCaseDetails {
   final List<SupportMessageItem> messages;
   final List<SupportEventItem> events;
   final Map<String, dynamic>? targetPreview;
+  final Map<String, dynamic>? report;
 
   factory SupportCaseDetails.fromJson(Map<String, dynamic> json) {
     final requester = json['requester'];
@@ -138,6 +162,7 @@ class SupportCaseDetails {
     final rows = json['messages'] as List<dynamic>? ?? const <dynamic>[];
     final eventRows = json['events'] as List<dynamic>? ?? const <dynamic>[];
     return SupportCaseDetails(
+      report: json['report'] is Map<String, dynamic> ? json['report'] as Map<String, dynamic> : null,
       summary: SupportCaseSummary.fromJson(json),
       description: json['description']?.toString() ?? '',
       requesterId: _nullableInt(requesterMap['id']),
