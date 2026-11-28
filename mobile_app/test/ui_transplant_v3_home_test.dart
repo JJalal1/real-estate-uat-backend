@@ -205,6 +205,8 @@ void main() {
     PropertySummary listing(int id, String title) => PropertySummary.fromJson({
       'id': id, 'title': title, 'purpose': 'sale', 'type': 'house', 'status': 'published',
       'price': 1000000, 'currency': 'YER', 'latitude': 15.3, 'longitude': 44.2,
+      'address': 'صنعاء، حدة، الشارع الفرعي', 'area_m2': 135, 'bedrooms': 3, 'bathrooms': 2,
+      'published_at': '2024-06-01T13:00:00Z',
     });
     final router = await _pumpHome(tester, sections: {
       'latest': [listing(51, 'آخر إعلان أول'), listing(52, 'آخر إعلان ثانٍ')],
@@ -242,8 +244,17 @@ void main() {
     expect(tester.getRect(second).right, greaterThan(railBounds.left));
     expect(tester.getRect(second).left, lessThan(railBounds.left));
     final gallery = find.descendant(of: first, matching: find.byType(PropertyCardGallery));
-    expect(tester.widget<PropertyCardGallery>(gallery).height, lessThan(168));
-    expect(tester.widget<Text>(find.text('آخر إعلان أول')).style!.fontSize, lessThan(17));
+    expect(tester.widget<PropertyCardGallery>(gallery).height, inInclusiveRange(96, 128));
+    expect(tester.getSize(first).height, lessThan(250));
+    final title = tester.widget<Text>(find.text('آخر إعلان أول'));
+    expect(title.style!.fontSize, lessThan(17));
+    expect(title.maxLines, 1);
+    Finder inFirst(String text) => find.descendant(of: first, matching: find.text(text));
+    expect(inFirst('صنعاء، حدة'), findsOneWidget);
+    expect(inFirst('قبل ٦ أشهر'), findsOneWidget);
+    expect(inFirst('صنعاء، حدة، الشارع الفرعي'), findsNothing);
+    expect(tester.getCenter(inFirst('٣ غرف')).dy,
+      closeTo(tester.getCenter(inFirst('١٣٥ م²')).dy, 1));
     expect(find.descendant(of: first, matching: find.byType(AppPropertyPrice)), findsOneWidget);
     expect(find.byKey(const ValueKey('favorite-property-51')), findsOneWidget);
     expect(find.byKey(const ValueKey('compare-property-51')), findsOneWidget);
@@ -255,7 +266,10 @@ void main() {
 
     final recent = find.byKey(const PageStorageKey('home-properties-recent'));
     await tester.scrollUntilVisible(recent, 140, scrollable: homeScroll);
-    expect(find.descendant(of: recent, matching: find.byKey(const ValueKey('home-property-55'))), findsOneWidget);
+    final viewed = find.descendant(of: recent, matching: find.byKey(const ValueKey('home-property-55')));
+    expect(viewed, findsOneWidget);
+    expect(find.descendant(of: viewed, matching: find.text('صنعاء، حدة')), findsOneWidget);
+    expect(find.descendant(of: viewed, matching: find.text('قبل ٦ أشهر')), findsNothing);
     expect(find.byKey(const ValueKey('home-property-54')), findsNothing);
     final recentHeader = find.ancestor(of: find.text('شوهد مؤخرًا'), matching: find.byType(EbrokerTitleHeader));
     final seeAll = find.descendant(of: recentHeader, matching: find.text('رؤية الكل'));

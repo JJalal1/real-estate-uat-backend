@@ -80,7 +80,18 @@ void main() {
         ))),
         marketplaceRegionalPreviewProvider.overrideWith((_, query) async {
           regionalQueries.add(query);
-          return [wave3Property(40), wave3Property(41)];
+          return [
+            PropertySummary.fromJson({
+              'id': 40, 'title': 'شقة قريبة', 'type': 'apartment',
+              'purpose': 'rent', 'price': 300000, 'currency': 'YER',
+              'address': 'صنعاء، حدة، شارع فرعي', 'published_at': '2024-06-01T13:00:00Z',
+              'latitude': 15.385, 'longitude': 44.1910,
+            }),
+            PropertySummary.fromJson({
+              'id': 41, 'title': 'شقة بدون إحداثيات', 'type': 'apartment',
+              'purpose': 'rent', 'price': 300000, 'currency': 'YER', 'latitude': 15.385,
+            }),
+          ];
         }),
         propertyRepositoryProvider.overrideWithValue(listings),
       ]);
@@ -120,7 +131,13 @@ void main() {
       await Scrollable.ensureVisible(tester.element(rail), alignment: 0.5);
       await tester.pumpAndSettle();
       expect(tester.widget<SingleChildScrollView>(rail).scrollDirection, Axis.horizontal);
+      final first = find.descendant(of: rail, matching: find.byKey(const ValueKey('home-property-40')));
       final second = find.descendant(of: rail, matching: find.byKey(const ValueKey('home-property-41')));
+      expect(find.descendant(of: first, matching: find.text('صنعاء، حدة')), findsOneWidget);
+      expect(find.descendant(of: first, matching: find.text('قبل ٦ أشهر')), findsNothing);
+      expect(find.descendant(of: first, matching: find.text('١٫٧ كم')),
+        scenario.location.device ? findsOneWidget : findsNothing);
+      expect(find.descendant(of: second, matching: find.textContaining(' كم')), findsNothing);
       final initialX = tester.getCenter(second).dx;
       await tester.drag(rail, const Offset(235, 0));
       await tester.pumpAndSettle();

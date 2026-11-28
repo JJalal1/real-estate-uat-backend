@@ -242,7 +242,19 @@ void main() {
       expect(find.descendant(of: first, matching: find.byKey(const ValueKey('property-price-purpose'))), findsNothing);
       expect(find.descendant(of: first, matching: find.byKey(const ValueKey('property-photo-price'))), findsNothing);
       expect(find.descendant(of: compare, matching: find.text('أضف للمقارنة')), findsOneWidget);
-      expect(tester.getRect(compare).top, greaterThan(tester.getRect(price).bottom));
+      final priceRect = tester.getRect(price);
+      final compareRect = tester.getRect(compare);
+      if (scale == 1.0) {
+        expect(compareRect.right, lessThan(priceRect.left));
+        expect(compareRect.center.dy, closeTo(priceRect.center.dy, 1));
+        expect(compareRect.height, greaterThanOrEqualTo(48));
+        final outline = find.descendant(of: compare, matching: find.byKey(const ValueKey('home-compare-outline')));
+        expect(tester.getSize(outline).height, lessThan(22));
+        expect(tester.widget<Text>(find.descendant(of: outline, matching: find.text('أضف للمقارنة'))).style?.fontSize, 9);
+        expect(tester.widget<Icon>(find.descendant(of: outline, matching: find.byIcon(Icons.add))).size, 10);
+      } else {
+        expect(compareRect.top, greaterThan(priceRect.bottom));
+      }
       await uxPreview(tester, boundary, 'w3-two-cards-$scale');
       if (scale == 1.0) {
         await tester.ensureVisible(compare);

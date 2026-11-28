@@ -2,7 +2,7 @@ name: Alazzi broker preview
 
 on:
   push:
-    branches: ['العزي', 'work/alazzi-marketplace-1847', 'work/alazzi-account-smart-search-1848', 'work/alazzi-ui-parity-1849', 'work/alazzi-category-filters-1851']
+    branches: ['العزي', 'work/alazzi-marketplace-1847', 'work/alazzi-account-smart-search-1848', 'work/alazzi-ui-parity-1849', 'work/alazzi-category-filters-1851', 'work/alazzi-polish-1853']
     paths:
       - 'mobile_app/**'
       - 'backend-api-runtime/**'
@@ -99,7 +99,7 @@ jobs:
           --display-warnings --fail-on-warning --fail-on-risky
 
       - name: Exercise category filters and their migration on SQLite and PostgreSQL
-        if: github.ref_name == 'work/alazzi-category-filters-1851' || github.ref_name == 'العزي'
+        if: github.ref_name == 'work/alazzi-category-filters-1851' || github.ref_name == 'work/alazzi-polish-1853' || github.ref_name == 'العزي'
         run: |
           test_file=tests/Feature/CategoryPropertyFiltersTest.php
           php artisan test "$test_file" --display-warnings --fail-on-warning --fail-on-risky
@@ -196,7 +196,7 @@ jobs:
       - name: Test the Sections tab, category filters and navigation
         if: >-
           ${{ !cancelled() && steps.analyze.outcome == 'success' &&
-              (github.ref_name == 'work/alazzi-category-filters-1851' || github.ref_name == 'العزي') }}
+              (github.ref_name == 'work/alazzi-category-filters-1851' || github.ref_name == 'work/alazzi-polish-1853' || github.ref_name == 'العزي') }}
         run: |
           flutter test --no-pub --reporter expanded \
             test/marketplace_categories_screen_test.dart \
